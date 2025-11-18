@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { LoadStatus } from '@prisma/client';
 import { Package, MapPin, Calendar, User, Truck, DollarSign, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -69,7 +69,7 @@ function formatStatus(status: LoadStatus): string {
 }
 
 async function fetchLoad(id: string) {
-  const response = await fetch(`/api/loads/${id}`);
+  const response = await fetch(apiUrl(`/api/loads/${id}`));
   if (!response.ok) throw new Error('Failed to fetch load');
   return response.json();
 }

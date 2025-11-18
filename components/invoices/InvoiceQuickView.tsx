@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { InvoiceStatus } from '@prisma/client';
 import { FileText, Building2, Calendar, DollarSign, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -47,7 +47,7 @@ function formatStatus(status: InvoiceStatus): string {
 }
 
 async function fetchInvoice(id: string) {
-  const response = await fetch(`/api/invoices/${id}`);
+  const response = await fetch(apiUrl(`/api/invoices/${id}`));
   if (!response.ok) throw new Error('Failed to fetch invoice');
   return response.json();
 }

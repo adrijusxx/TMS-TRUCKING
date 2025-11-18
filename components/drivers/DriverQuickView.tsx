@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { formatDate } from '@/lib/utils';
+import { formatDate, apiUrl } from '@/lib/utils';
 import { DriverStatus } from '@prisma/client';
 import { User, Phone, Mail, MapPin, Truck, Star, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -55,7 +55,7 @@ function formatStatus(status: DriverStatus): string {
 }
 
 async function fetchDriver(id: string) {
-  const response = await fetch(`/api/drivers/${id}`);
+  const response = await fetch(apiUrl(`/api/drivers/${id}`));
   if (!response.ok) throw new Error('Failed to fetch driver');
   return response.json();
 }

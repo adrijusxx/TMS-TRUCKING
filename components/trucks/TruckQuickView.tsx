@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { TruckStatus } from '@prisma/client';
+import { apiUrl } from '@/lib/utils';
 import { Truck, User, MapPin, Gauge, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
@@ -55,7 +56,7 @@ function formatEquipmentType(type: string): string {
 }
 
 async function fetchTruck(id: string) {
-  const response = await fetch(`/api/trucks/${id}`);
+  const response = await fetch(apiUrl(`/api/trucks/${id}`));
   if (!response.ok) throw new Error('Failed to fetch truck');
   return response.json();
 }
