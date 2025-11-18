@@ -15,8 +15,14 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   
-  // Note: We don't need basePath because Nginx rewrite rules handle /tms prefix
-  // The rewrite rule strips /tms before passing to Next.js
+  // Configure basePath for /tms subdirectory when running behind nginx
+  // IMPORTANT: When using this, REMOVE the rewrite rule from nginx config
+  // Set NEXT_PUBLIC_BASE_PATH=/tms in your .env file when deploying behind nginx
+  // Leave empty for local development (or set to empty string)
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+  
+  // Ensure assetPrefix matches basePath for proper static asset serving
+  assetPrefix: process.env.NEXT_PUBLIC_BASE_PATH || '',
 }
 
 module.exports = nextConfig
