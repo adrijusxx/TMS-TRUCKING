@@ -1,5 +1,35 @@
 // PM2 Ecosystem Configuration for TMS
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+// Load .env file manually
+function loadEnvFile() {
+  const envPath = path.join(__dirname, '.env');
+  const env = {};
+  
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    content.split('\n').forEach(line => {
+      line = line.trim();
+      if (line && !line.startsWith('#')) {
+        const [key, ...valueParts] = line.split('=');
+        if (key) {
+          let value = valueParts.join('=');
+          // Remove quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) || 
+              (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          env[key.trim()] = value.trim();
+        }
+      }
+    });
+  }
+  
+  return env;
+}
+
+const envVars = loadEnvFile();
 
 module.exports = {
   apps: [
@@ -10,14 +40,15 @@ module.exports = {
       cwd: process.cwd(), // Use current directory
       instances: 1,
       exec_mode: 'fork',
-      env_file: '.env', // Load environment variables from .env file
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
-        // These will be loaded from .env file, but we can also set defaults here
-        NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',
-        NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://34.121.40.233/tms',
+        // Load from .env file
+        NEXT_PUBLIC_BASE_PATH: envVars.NEXT_PUBLIC_BASE_PATH || '/tms',
+        NEXTAUTH_URL: envVars.NEXTAUTH_URL || 'http://34.121.40.233/tms',
         // Spread all other env vars from .env
+        ...envVars,
+        // Also include process.env for any system variables
         ...process.env,
       },
       error_file: './logs/tms-error.log',
