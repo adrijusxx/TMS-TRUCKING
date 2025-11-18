@@ -60,9 +60,16 @@ async function main() {
 
   console.log('✅ Dispatcher created');
 
-  // Create sample customer
-  const customer = await prisma.customer.create({
-    data: {
+  // Create sample customer (use upsert to handle existing records)
+  const customer = await prisma.customer.upsert({
+    where: {
+      companyId_customerNumber: {
+        companyId: company.id,
+        customerNumber: 'C-001'
+      }
+    },
+    update: {},
+    create: {
       customerNumber: 'C-001',
       name: 'ABC Corporation',
       type: 'DIRECT',
@@ -79,10 +86,17 @@ async function main() {
 
   console.log('✅ Sample customer created');
 
-  // Create sample trucks
+  // Create sample trucks (use upsert to handle existing records)
   for (let i = 1; i <= 5; i++) {
-    await prisma.truck.create({
-      data: {
+    await prisma.truck.upsert({
+      where: {
+        companyId_truckNumber: {
+          companyId: company.id,
+          truckNumber: `T-10${i}`
+        }
+      },
+      update: {},
+      create: {
         truckNumber: `T-10${i}`,
         vin: `1HGBH41JXMN10918${i}`,
         make: 'Freightliner',
@@ -103,10 +117,12 @@ async function main() {
 
   console.log('✅ 5 sample trucks created');
 
-  // Create sample drivers
+  // Create sample drivers (use upsert to handle existing records)
   for (let i = 1; i <= 10; i++) {
-    const driverUser = await prisma.user.create({
-      data: {
+    const driverUser = await prisma.user.upsert({
+      where: { email: `driver${i}@demo.com` },
+      update: {},
+      create: {
         email: `driver${i}@demo.com`,
         password: hashedPassword,
         firstName: `Driver`,
@@ -117,8 +133,15 @@ async function main() {
       }
     });
 
-    await prisma.driver.create({
-      data: {
+    await prisma.driver.upsert({
+      where: {
+        companyId_driverNumber: {
+          companyId: company.id,
+          driverNumber: `D-00${i}`
+        }
+      },
+      update: {},
+      create: {
         userId: driverUser.id,
         companyId: company.id,
         driverNumber: `D-00${i}`,
