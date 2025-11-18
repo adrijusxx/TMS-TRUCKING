@@ -198,7 +198,7 @@ export default function LoadQuickView({ loadId, open, onOpenChange }: LoadQuickV
             </div>
 
             {/* Additional Details */}
-            {(load.commodity || load.weight || load.distance) && (
+            {(load.commodity || load.weight || (load.route?.totalDistance || load.totalMiles || 0)) && (
               <>
                 <Separator />
                 <div className="grid grid-cols-3 gap-4">
@@ -214,10 +214,10 @@ export default function LoadQuickView({ loadId, open, onOpenChange }: LoadQuickV
                       <p className="font-medium">{load.weight.toLocaleString()} lbs</p>
                     </div>
                   )}
-                  {load.distance && (
+                  {(load.route?.totalDistance || load.totalMiles || 0) && (
                     <div>
                       <p className="text-sm text-muted-foreground">Distance</p>
-                      <p className="font-medium">{load.distance.toLocaleString()} miles</p>
+                      <p className="font-medium">{(load.route?.totalDistance || load.totalMiles || 0).toLocaleString()} miles</p>
                     </div>
                   )}
                 </div>

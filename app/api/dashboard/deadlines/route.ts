@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
     });
 
     for (const load of upcomingPickups) {
+      if (!load.pickupDate) continue;
       const daysUntil = Math.ceil(
         (new Date(load.pickupDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -108,6 +109,7 @@ export async function GET(request: NextRequest) {
     });
 
     for (const load of upcomingDeliveries) {
+      if (!load.deliveryDate) continue;
       const daysUntil = Math.ceil(
         (new Date(load.deliveryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
       );

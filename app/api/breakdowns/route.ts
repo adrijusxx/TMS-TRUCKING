@@ -175,14 +175,40 @@ export async function POST(request: NextRequest) {
     });
     const breakdownNumber = `BD${year}${String(count + 1).padStart(6, '0')}`;
 
+    const breakdownData: any = {
+      truckId: validatedData.truckId,
+      location: validatedData.location,
+      odometerReading: validatedData.odometerReading ?? 0, // Required field, default to 0 if somehow missing
+      breakdownType: validatedData.breakdownType,
+      description: validatedData.description,
+      priority: validatedData.priority ?? 'MEDIUM',
+      loadId: validatedData.loadId ?? undefined,
+      driverId: validatedData.driverId ?? undefined,
+      address: validatedData.address ?? undefined,
+      city: validatedData.city ?? undefined,
+      state: validatedData.state ?? undefined,
+      zip: validatedData.zip ?? undefined,
+      latitude: validatedData.latitude ?? undefined,
+      longitude: validatedData.longitude ?? undefined,
+      serviceProvider: validatedData.serviceProvider ?? undefined,
+      serviceContact: validatedData.serviceContact ?? undefined,
+      serviceAddress: validatedData.serviceAddress ?? undefined,
+      breakdownNumber,
+      companyId: session.user.companyId,
+      reportedBy: session.user.id,
+      status: 'REPORTED',
+    };
+
+    // Add optional fields if they exist in the validated data
+    if ('problem' in body && body.problem) {
+      breakdownData.problem = body.problem;
+    }
+    if ('problemCategory' in body && body.problemCategory) {
+      breakdownData.problemCategory = body.problemCategory;
+    }
+
     const breakdown = await prisma.breakdown.create({
-      data: {
-        ...validatedData,
-        breakdownNumber,
-        companyId: session.user.companyId,
-        reportedBy: session.user.id,
-        status: 'REPORTED',
-      },
+      data: breakdownData,
       include: {
         truck: {
           select: {
@@ -227,7 +253,7 @@ export async function POST(request: NextRequest) {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Invalid input',
-            details: error.errors,
+            details: error.issues,
           },
         },
         { status: 400 }

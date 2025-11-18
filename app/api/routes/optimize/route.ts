@@ -185,7 +185,12 @@ export async function POST(request: NextRequest) {
         pickupDate: true,
         deliveryDate: true,
         revenue: true,
-        distance: true,
+        totalMiles: true,
+        route: {
+          select: {
+            totalDistance: true,
+          },
+        },
       },
     });
 
@@ -234,7 +239,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Add distance (simplified)
-      totalDistance += load.distance || 500;
+      totalDistance += load.route?.totalDistance || load.totalMiles || 500;
     }
 
     // Calculate estimated time (assuming 55 mph average)
@@ -273,7 +278,7 @@ export async function POST(request: NextRequest) {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Invalid input data',
-            details: error.errors,
+            details: error.issues,
           },
         },
         { status: 400 }

@@ -321,7 +321,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                           {formatCurrency(load.driverPay || 0)}
                         </TableCell>
                         <TableCell className="text-right">
-                          {load.distance ? `${load.distance} mi` : 'N/A'}
+                          {(load.route?.totalDistance || load.totalMiles || 0) ? `${(load.route?.totalDistance || load.totalMiles || 0)} mi` : 'N/A'}
                         </TableCell>
                         <TableCell>
                           {load.deliveredAt ? formatDate(load.deliveredAt) : 'N/A'}

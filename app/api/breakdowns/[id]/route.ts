@@ -306,7 +306,7 @@ export async function PATCH(
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Invalid input',
-            details: error.errors,
+            details: error.issues,
           },
         },
         { status: 400 }

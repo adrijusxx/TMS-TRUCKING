@@ -220,7 +220,7 @@ export default function LoadBoardSearch() {
                       <TableCell>
                         {load.equipmentType.replace(/_/g, ' ')}
                       </TableCell>
-                      <TableCell>{load.distance} mi</TableCell>
+                      <TableCell>{(load.route?.totalDistance || load.totalMiles || 0)} mi</TableCell>
                       <TableCell className="font-medium text-green-600">
                         {formatCurrency(load.rate)}
                       </TableCell>

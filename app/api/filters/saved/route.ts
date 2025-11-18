@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 const saveFilterSchema = z.object({
   name: z.string().min(1, 'Filter name is required'),
-  filters: z.record(z.any()),
+  filters: z.record(z.string(), z.any()),
   entityType: z.string().min(1, 'Entity type is required'),
 });
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Invalid input data',
-            details: error.errors,
+            details: error.issues,
           },
         },
         { status: 400 }

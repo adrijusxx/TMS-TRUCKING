@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get stats
-    const [totalCustomers, customerLoads, totalRevenue] = await Promise.all([
+    const [totalCustomers, customerLoads] = await Promise.all([
       prisma.customer.count({ where }),
       prisma.customer.findMany({
         where,

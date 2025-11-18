@@ -98,7 +98,7 @@ export async function GET(
           'Pickup Date': load.pickupDate?.toISOString() || '',
           'Delivery Date': load.deliveryDate?.toISOString() || '',
           Revenue: load.revenue?.toString() || '',
-          Distance: load.distance?.toString() || '',
+          Distance: (load.route?.totalDistance || load.totalMiles || 0).toString(),
         }));
         break;
 
@@ -1396,8 +1396,8 @@ export async function POST(
           existingLoadNumbers.add(validated.loadNumber);
         } catch (error: any) {
           // Handle Zod validation errors
-          if (error.name === 'ZodError' && error.errors) {
-            const validationErrors = error.errors.map((err: any) => 
+          if (error.name === 'ZodError' && error.issues) {
+            const validationErrors = error.issues.map((err: any) => 
               `${err.path.join('.')}: ${err.message}`
             ).join('; ');
             console.error(`[Loads Import] Validation error at row ${i + 1}:`, validationErrors);

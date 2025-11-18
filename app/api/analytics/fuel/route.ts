@@ -79,12 +79,17 @@ export async function GET(request: NextRequest) {
         ...(truckId ? { truckId } : {}),
       },
       select: {
-        distance: true,
         revenue: true,
+        route: {
+          select: {
+            totalDistance: true,
+          },
+        },
+        totalMiles: true,
       },
     });
 
-    const totalMiles = loads.reduce((sum, load) => sum + (load.distance || 0), 0);
+    const totalMiles = loads.reduce((sum, load) => sum + (load.route?.totalDistance || load.totalMiles || 0), 0);
     const milesPerGallon = totalGallons > 0 ? totalMiles / totalGallons : 0;
     const fuelCostPerMile = totalMiles > 0 ? totalCost / totalMiles : 0;
 

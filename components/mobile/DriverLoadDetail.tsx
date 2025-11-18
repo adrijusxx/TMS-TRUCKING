@@ -192,7 +192,7 @@ export default function DriverLoadDetail({ loadId }: DriverLoadDetailProps) {
           </Card>
 
           {/* Load Details */}
-          {(load.commodity || load.weight || load.distance) && (
+          {(load.commodity || load.weight || (load.route?.totalDistance || load.totalMiles || 0)) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -213,10 +213,10 @@ export default function DriverLoadDetail({ loadId }: DriverLoadDetailProps) {
                     <p className="font-medium">{load.weight.toLocaleString()} lbs</p>
                   </div>
                 )}
-                {load.distance && (
+                {(load.route?.totalDistance || load.totalMiles || 0) && (
                   <div>
                     <p className="text-sm text-muted-foreground">Distance</p>
-                    <p className="font-medium">{load.distance.toLocaleString()} miles</p>
+                    <p className="font-medium">{(load.route?.totalDistance || load.totalMiles || 0).toLocaleString()} miles</p>
                   </div>
                 )}
               </CardContent>

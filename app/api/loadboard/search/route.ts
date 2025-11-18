@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Invalid search parameters',
-            details: error.errors,
+            details: error.issues,
           },
         },
         { status: 400 }

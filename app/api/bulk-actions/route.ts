@@ -19,7 +19,7 @@ const bulkActionSchema = z.object({
   ]),
   action: z.enum(['update', 'delete', 'status', 'assign', 'archive', 'export']),
   ids: z.array(z.string().min(1)).min(1, 'At least one ID is required'),
-  updates: z.record(z.any()).optional(),
+  updates: z.record(z.string(), z.any()).optional(),
   status: z.string().optional(),
 });
 
@@ -86,7 +86,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Soft delete
-      result = await prisma[config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice' | 'user' | 'document' | 'breakdown'].updateMany({
+      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice' | 'user' | 'document' | 'breakdown';
+      result = await (prisma[model] as any).updateMany({
         where: {
           id: { in: validated.ids },
           companyId: session.user.companyId,
@@ -110,7 +111,8 @@ export async function POST(request: NextRequest) {
     if (validated.action === 'status' && validated.status) {
       const updateData: any = { status: validated.status };
       
-      result = await prisma[config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice'].updateMany({
+      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice';
+      result = await (prisma[model] as any).updateMany({
         where: {
           id: { in: validated.ids },
           companyId: session.user.companyId,
@@ -139,7 +141,8 @@ export async function POST(request: NextRequest) {
       delete updateData.createdAt;
       delete updateData.updatedAt;
 
-      result = await prisma[config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice'].updateMany({
+      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice';
+      result = await (prisma[model] as any).updateMany({
         where: {
           id: { in: validated.ids },
           companyId: session.user.companyId,
@@ -172,7 +175,7 @@ export async function POST(request: NextRequest) {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Invalid input',
-            details: error.errors,
+            details: error.issues,
           },
         },
         { status: 400 }

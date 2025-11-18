@@ -73,7 +73,12 @@ export async function GET(
         deliveryState: true,
         revenue: true,
         driverPay: true,
-        distance: true,
+        totalMiles: true,
+        route: {
+          select: {
+            totalDistance: true,
+          },
+        },
         deliveredAt: true,
       },
     });
@@ -160,7 +165,7 @@ export async function PATCH(
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Invalid input data',
-            details: error.errors,
+            details: error.issues,
           },
         },
         { status: 400 }
