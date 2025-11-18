@@ -9,7 +9,7 @@ import { LoadStatus } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -21,8 +21,7 @@ export async function GET(
       );
     }
 
-    // Handle Next.js 15+ params which can be a Promise
-    const resolvedParams = await Promise.resolve(params);
+    const resolvedParams = await params;
     const loadId = resolvedParams.id;
 
     const load = await prisma.load.findFirst({
@@ -86,7 +85,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -99,7 +98,7 @@ export async function PATCH(
     }
 
     // Handle Next.js 15+ params which can be a Promise
-    const resolvedParams = await Promise.resolve(params);
+    const resolvedParams = await params;
     const loadId = resolvedParams.id;
 
     // Verify load exists and belongs to company
@@ -243,7 +242,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -256,7 +255,7 @@ export async function DELETE(
     }
 
     // Handle Next.js 15+ params which can be a Promise
-    const resolvedParams = await Promise.resolve(params);
+    const resolvedParams = await params;
     const loadId = resolvedParams.id;
 
     // Verify load exists and belongs to company

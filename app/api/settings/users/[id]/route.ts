@@ -15,7 +15,7 @@ const updateUserSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -27,8 +27,7 @@ export async function PATCH(
       );
     }
 
-    // Handle Next.js 15+ params which can be a Promise
-    const resolvedParams = await Promise.resolve(params);
+    const resolvedParams = await params;
     const userId = resolvedParams.id;
 
     // Check if user is admin or updating their own profile
@@ -131,7 +130,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -158,7 +157,7 @@ export async function DELETE(
     }
 
     // Handle Next.js 15+ params which can be a Promise
-    const resolvedParams = await Promise.resolve(params);
+    const resolvedParams = await params;
     const userId = resolvedParams.id;
 
     // Can't delete yourself
