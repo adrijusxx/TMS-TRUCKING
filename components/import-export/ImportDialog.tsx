@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 import { csvFileToJSON, parseCSV, CSVImportResult } from '@/lib/import-export/csv-import';
 import { excelFileToJSON, ExcelImportResult } from '@/lib/import-export/excel-import';
+import { apiUrl } from '@/lib/utils';
 
 interface ImportDialogProps {
   entityType: string;
@@ -115,7 +116,7 @@ export default function ImportDialog({
         progress: 40,
       });
 
-      const response = await fetch(`/api/import-export/${entityType}`, {
+      const response = await fetch(apiUrl(`/api/import-export/${entityType}`), {
         method: 'POST',
         body: formData,
       });

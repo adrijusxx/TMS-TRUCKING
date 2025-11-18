@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { apiUrl } from '@/lib/utils';
 import { loadGoogleMapsApi } from '@/lib/maps/google-loader';
 import type {
   LoadMapEntry,
@@ -63,7 +64,7 @@ interface SelectedTruckDetail {
 }
 
 async function fetchLiveMapData(): Promise<LiveMapResponse['data']> {
-  const response = await fetch('/api/maps/live');
+  const response = await fetch(apiUrl('/api/maps/live'));
   if (!response.ok) throw new Error('Failed to fetch live map data');
   const payload: LiveMapResponse = await response.json();
   return payload.data;

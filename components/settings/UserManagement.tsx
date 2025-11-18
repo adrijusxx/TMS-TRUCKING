@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Users, Plus, Edit, Trash2 } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, apiUrl } from '@/lib/utils';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -66,7 +66,7 @@ async function fetchUsers(roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | n
   const url = roleFilter 
     ? `/api/settings/users?role=${roleFilter === 'EMPLOYEES' ? 'EMPLOYEES' : roleFilter}`
     : '/api/settings/users';
-  const response = await fetch(url);
+  const response = await fetch(apiUrl(url));
   if (!response.ok) throw new Error('Failed to fetch users');
   return response.json();
 }
@@ -76,7 +76,7 @@ async function createUser(data: UserFormData) {
   const { isActive, password, ...createData } = data;
   const payload = password && password.length > 0 ? { ...createData, password } : createData;
   
-  const response = await fetch('/api/settings/users', {
+  const response = await fetch(apiUrl('/api/settings/users'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -95,7 +95,7 @@ async function updateUser(userId: string, data: Partial<UserFormData>) {
     delete payload.password;
   }
   
-  const response = await fetch(`/api/settings/users/${userId}`, {
+  const response = await fetch(apiUrl(`/api/settings/users/${userId}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -108,7 +108,7 @@ async function updateUser(userId: string, data: Partial<UserFormData>) {
 }
 
 async function deleteUser(userId: string) {
-  const response = await fetch(`/api/settings/users/${userId}`, {
+  const response = await fetch(apiUrl(`/api/settings/users/${userId}`), {
     method: 'DELETE',
   });
   if (!response.ok) {

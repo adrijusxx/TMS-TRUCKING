@@ -60,7 +60,7 @@ declare global {
 }
 
 async function fetchDriverLocation(loadId: string): Promise<DriverLocation | null> {
-  const response = await fetch(`/api/loads/${loadId}/driver-location`);
+  const response = await fetch(apiUrl(`/api/loads/${loadId}/driver-location`));
   if (!response.ok) return null;
   const data = await response.json();
   return data.data;

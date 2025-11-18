@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Trash2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiUrl } from '@/lib/utils';
 
 interface BulkActionBarProps {
   selectedIds: string[];
@@ -39,7 +40,7 @@ export default function BulkActionBar({
 
   const bulkActionMutation = useMutation({
     mutationFn: async (action: string) => {
-      const response = await fetch('/api/bulk-actions', {
+      const response = await fetch(apiUrl('/api/bulk-actions'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
