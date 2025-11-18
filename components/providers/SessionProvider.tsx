@@ -3,13 +3,27 @@
 import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react';
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  // NextAuth v5 (Auth.js) automatically detects basePath from Next.js config (next.config.js)
-  // and from NEXTAUTH_URL environment variable
-  // DO NOT set basePath prop - it causes NextAuth to call wrong URLs like /tms/session
-  // instead of /tms/api/auth/session
-  // NextAuth will auto-detect /tms from next.config.js basePath setting
+  // Get basePath from environment or detect from window.location
+  const getBasePath = () => {
+    // Client-side: detect from current URL
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+      if (pathname.startsWith('/tms')) return '/tms';
+      if (pathname.startsWith('/crm')) return '/crm';
+    }
+    // Fallback to env var (for SSR)
+    return process.env.NEXT_PUBLIC_BASE_PATH || '/tms';
+  };
+
+  const basePath = getBasePath();
+  
+  // NextAuth v5 client-side needs basePath to construct correct API URLs
+  // The basePath should be the app's basePath (e.g., '/tms'), not '/tms/api/auth'
+  // NextAuth will append '/api/auth' automatically
+  // This fixes the "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" error
+  // which happens when NextAuth calls /api/auth/session instead of /tms/api/auth/session
   return (
-    <NextAuthSessionProvider>
+    <NextAuthSessionProvider basePath={`${basePath}/api/auth`}>
       {children}
     </NextAuthSessionProvider>
   );
