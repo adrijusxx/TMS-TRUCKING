@@ -14,7 +14,9 @@ export default async function Layout({
   const session = await auth();
 
   if (!session) {
-    redirect('/login');
+    // Get basePath from environment (set at build time)
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/tms';
+    redirect(`${basePath}/login`);
   }
 
   return <DashboardLayout>{children}</DashboardLayout>;
