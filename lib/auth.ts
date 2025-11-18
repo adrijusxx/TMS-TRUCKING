@@ -95,6 +95,9 @@ export const authOptions: NextAuthConfig = {
   pages: {
     // signIn path will be relative to basePath automatically
     signIn: '/login',
+    // Error page - NextAuth will use this when there's an auth error
+    // The basePath will be automatically prepended by Next.js
+    error: '/api/auth/error',
   },
   session: {
     strategy: 'jwt'
