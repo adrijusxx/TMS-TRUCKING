@@ -20,6 +20,22 @@ When logging into TMS at `http://34.121.40.233/tms`, users were being redirected
 
 ## Solutions Implemented
 
+### Fix 0: Hardcode basePath Fallback in `next.config.js` (CRITICAL)
+
+**This is the most important fix - it ensures basePath is set even if env vars aren't read during build.**
+
+**Before:**
+```javascript
+basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+```
+
+**After:**
+```javascript
+basePath: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',
+```
+
+**Why this matters:** If the environment variable isn't read during the build process, the basePath would be empty, causing all routes to be generated without the `/tms` prefix. By hardcoding the fallback to `/tms`, we ensure the basePath is always set, matching what worked for CRM.
+
 ### Fix 1: Updated NextAuth Redirect Callback (`lib/auth.ts`)
 
 **Before:**
@@ -189,20 +205,39 @@ NEXTAUTH_SECRET=your-secret-key-here
    git pull
    ```
 
-2. **Rebuild (CRITICAL):**
+2. **Verify next.config.js has hardcoded fallback:**
    ```bash
+   grep "basePath.*'/tms'" next.config.js
+   ```
+   Should show: `basePath: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',`
+
+3. **Clean and rebuild (CRITICAL):**
+   ```bash
+   rm -rf .next
    npm run build
    ```
    The basePath is baked into the Next.js build, so you MUST rebuild after any changes.
 
-3. **Restart PM2:**
+4. **Verify basePath in build:**
+   ```bash
+   grep -o '"basePath":"[^"]*"' .next/required-server-files.json
+   ```
+   Should show: `"basePath":"/tms"` (NOT empty)
+
+5. **Restart PM2:**
    ```bash
    pm2 restart tms
    ```
 
-4. **Verify environment variables:**
+6. **Verify environment variables:**
    ```bash
    pm2 env 2 | grep -E "NEXT_PUBLIC_BASE_PATH|NEXTAUTH_URL"
+   ```
+
+7. **Run verification script:**
+   ```bash
+   chmod +x verify-tms-basepath.sh
+   ./verify-tms-basepath.sh
    ```
 
 ## How It Works Now
