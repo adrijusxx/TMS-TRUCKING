@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { SettlementStatus } from '@prisma/client';
 import {
   ArrowLeft,
@@ -42,13 +42,13 @@ interface SettlementDetailProps {
 }
 
 async function fetchSettlement(id: string) {
-  const response = await fetch(`/api/settlements/${id}`);
+  const response = await fetch(apiUrl(`/api/settlements/${id}`));
   if (!response.ok) throw new Error('Failed to fetch settlement');
   return response.json();
 }
 
 async function updateSettlement(id: string, data: any) {
-  const response = await fetch(`/api/settlements/${id}`, {
+  const response = await fetch(apiUrl(`/api/settlements/${id}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

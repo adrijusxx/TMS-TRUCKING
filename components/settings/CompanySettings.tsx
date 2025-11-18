@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2, Save } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 
 const companySchema = z.object({
   name: z.string().min(1, 'Company name is required'),
@@ -26,13 +27,13 @@ const companySchema = z.object({
 type CompanyFormData = z.infer<typeof companySchema>;
 
 async function fetchCompany() {
-  const response = await fetch('/api/settings/company');
+  const response = await fetch(apiUrl('/api/settings/company'));
   if (!response.ok) throw new Error('Failed to fetch company');
   return response.json();
 }
 
 async function updateCompany(data: CompanyFormData) {
-  const response = await fetch('/api/settings/company', {
+  const response = await fetch(apiUrl('/api/settings/company'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

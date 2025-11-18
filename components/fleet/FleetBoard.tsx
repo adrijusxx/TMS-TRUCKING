@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Truck, Package, User, Wrench, AlertTriangle } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 
 interface FleetBoardData {
@@ -53,7 +53,7 @@ interface FleetBoardData {
 }
 
 async function fetchFleetBoard() {
-  const response = await fetch('/api/fleet-board');
+  const response = await fetch(apiUrl('/api/fleet-board'));
   if (!response.ok) throw new Error('Failed to fetch fleet board');
   return response.json();
 }

@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { CustomerType } from '@prisma/client';
 import { Building2, Phone, Mail, MapPin, DollarSign, Package, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -36,7 +36,7 @@ function formatCustomerType(type: CustomerType): string {
 }
 
 async function fetchCustomer(id: string) {
-  const response = await fetch(`/api/customers/${id}`);
+  const response = await fetch(apiUrl(`/api/customers/${id}`));
   if (!response.ok) throw new Error('Failed to fetch customer');
   return response.json();
 }

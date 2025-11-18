@@ -11,6 +11,7 @@ import {
 import { MoreVertical, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoadStatus } from '@prisma/client';
+import { apiUrl } from '@/lib/utils';
 
 interface LoadStatusQuickActionsProps {
   loadId: string;
@@ -18,7 +19,7 @@ interface LoadStatusQuickActionsProps {
 }
 
 async function updateLoadStatus(loadId: string, status: LoadStatus) {
-  const response = await fetch(`/api/loads/${loadId}`, {
+  const response = await fetch(apiUrl(`/api/loads/${loadId}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),

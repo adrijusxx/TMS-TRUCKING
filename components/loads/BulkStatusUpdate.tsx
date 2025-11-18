@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { LoadStatus } from '@prisma/client';
 import { toast } from 'sonner';
 import { RefreshCw } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 
 interface BulkStatusUpdateProps {
   selectedLoadIds: string[];
@@ -47,7 +48,7 @@ function formatStatus(status: LoadStatus): string {
 }
 
 async function bulkUpdateStatus(loadIds: string[], status: LoadStatus) {
-  const response = await fetch('/api/loads/bulk', {
+  const response = await fetch(apiUrl('/api/loads/bulk'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

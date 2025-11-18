@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FileText, Download, Trash2, Search, Filter } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 
 interface Document {
@@ -87,7 +87,7 @@ async function fetchDocuments(params: {
   if (params.driverId) queryParams.set('driverId', params.driverId);
   if (params.truckId) queryParams.set('truckId', params.truckId);
 
-  const response = await fetch(`/api/documents?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/documents?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch documents');
   return response.json();
 }
@@ -125,7 +125,7 @@ export default function DocumentList({
   const handleDelete = async (documentId: string) => {
     if (!confirm('Are you sure you want to delete this document?')) return;
 
-    const response = await fetch(`/api/documents/${documentId}`, {
+    const response = await fetch(apiUrl(`/api/documents/${documentId}`), {
       method: 'DELETE',
     });
 

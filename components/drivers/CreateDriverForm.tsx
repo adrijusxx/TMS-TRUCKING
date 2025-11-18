@@ -20,9 +20,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PayType } from '@prisma/client';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/utils';
 
 async function createDriver(data: CreateDriverInput) {
-  const response = await fetch('/api/drivers', {
+  const response = await fetch(apiUrl('/api/drivers'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

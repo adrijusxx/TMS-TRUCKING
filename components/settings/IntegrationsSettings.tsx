@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiUrl } from '@/lib/utils';
 
 interface IntegrationStatus {
   provider: string;
@@ -26,14 +27,14 @@ interface IntegrationStatus {
 }
 
 async function fetchIntegrationStatus(): Promise<IntegrationStatus[]> {
-  const response = await fetch('/api/integrations/status');
+  const response = await fetch(apiUrl('/api/integrations/status'));
   if (!response.ok) throw new Error('Failed to fetch integration status');
   const data = await response.json();
   return data.data || [];
 }
 
 async function syncSamsara(): Promise<any> {
-  const response = await fetch('/api/integrations/samsara/sync', {
+  const response = await fetch(apiUrl('/api/integrations/samsara/sync'), {
     method: 'POST',
   });
   if (!response.ok) {
@@ -44,7 +45,7 @@ async function syncSamsara(): Promise<any> {
 }
 
 async function syncQuickBooksExpenses(startDate?: string, endDate?: string): Promise<any> {
-  const response = await fetch('/api/integrations/quickbooks/sync-expenses', {
+  const response = await fetch(apiUrl('/api/integrations/quickbooks/sync-expenses'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ startDate, endDate }),

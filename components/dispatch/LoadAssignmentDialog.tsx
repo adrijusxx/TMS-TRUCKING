@@ -21,6 +21,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Package, Truck, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 
 interface LoadAssignmentDialogProps {
   load: {
@@ -47,7 +48,7 @@ async function assignLoad(loadId: string, driverId: string | undefined, truckId:
     body.truckId = truckId;
   }
 
-  const response = await fetch(`/api/loads/${loadId}/assign`, {
+  const response = await fetch(apiUrl(`/api/loads/${loadId}/assign`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
