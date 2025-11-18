@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AlertTriangle, Plus, Filter, Download, Upload } from 'lucide-react';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
@@ -68,7 +68,7 @@ async function fetchBreakdowns(params: {
   if (params.status) queryParams.set('status', params.status);
   if (params.truckId) queryParams.set('truckId', params.truckId);
 
-  const response = await fetch(`/api/breakdowns?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/breakdowns?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch breakdowns');
   return response.json();
 }

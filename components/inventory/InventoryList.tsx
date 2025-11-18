@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Warehouse, Plus, Search, Download, Upload, AlertTriangle } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
@@ -52,7 +52,7 @@ async function fetchInventory(params: {
   if (params.search) queryParams.set('search', params.search);
   if (params.category) queryParams.set('category', params.category);
 
-  const response = await fetch(`/api/inventory?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/inventory?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch inventory');
   return response.json();
 }

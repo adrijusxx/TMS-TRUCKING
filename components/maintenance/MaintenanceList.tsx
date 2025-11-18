@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Wrench, Plus, Search, Filter, Download, Upload } from 'lucide-react';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
@@ -60,7 +60,7 @@ async function fetchMaintenance(params: {
   if (params.truckId) queryParams.set('truckId', params.truckId);
   if (params.type) queryParams.set('type', params.type);
 
-  const response = await fetch(`/api/maintenance?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/maintenance?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch maintenance records');
   return response.json();
 }

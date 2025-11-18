@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime, apiUrl } from '@/lib/utils';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -42,13 +42,13 @@ interface BreakdownDetailProps {
 }
 
 async function fetchBreakdown(id: string) {
-  const response = await fetch(`/api/breakdowns/${id}`);
+  const response = await fetch(apiUrl(`/api/breakdowns/${id}`));
   if (!response.ok) throw new Error('Failed to fetch breakdown');
   return response.json();
 }
 
 async function updateBreakdown(id: string, data: any) {
-  const response = await fetch(`/api/breakdowns/${id}`, {
+  const response = await fetch(apiUrl(`/api/breakdowns/${id}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -61,7 +61,7 @@ async function updateBreakdown(id: string, data: any) {
 }
 
 async function deleteBreakdown(id: string) {
-  const response = await fetch(`/api/breakdowns/${id}`, {
+  const response = await fetch(apiUrl(`/api/breakdowns/${id}`), {
     method: 'DELETE',
   });
   if (!response.ok) {

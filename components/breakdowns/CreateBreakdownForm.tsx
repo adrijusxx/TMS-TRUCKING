@@ -21,27 +21,28 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { createBreakdownSchema, CreateBreakdownInput } from '@/lib/validations/breakdown';
 import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 
 async function fetchTrucks() {
-  const response = await fetch('/api/trucks?limit=1000');
+  const response = await fetch(apiUrl('/api/trucks?limit=1000'));
   if (!response.ok) throw new Error('Failed to fetch trucks');
   return response.json();
 }
 
 async function fetchDrivers() {
-  const response = await fetch('/api/drivers?limit=1000');
+  const response = await fetch(apiUrl('/api/drivers?limit=1000'));
   if (!response.ok) throw new Error('Failed to fetch drivers');
   return response.json();
 }
 
 async function fetchLoads() {
-  const response = await fetch('/api/loads?limit=1000&status=IN_TRANSIT&status=EN_ROUTE_PICKUP&status=LOADED&status=EN_ROUTE_DELIVERY');
+  const response = await fetch(apiUrl('/api/loads?limit=1000&status=IN_TRANSIT&status=EN_ROUTE_PICKUP&status=LOADED&status=EN_ROUTE_DELIVERY'));
   if (!response.ok) throw new Error('Failed to fetch loads');
   return response.json();
 }
 
 async function createBreakdown(data: CreateBreakdownInput) {
-  const response = await fetch('/api/breakdowns', {
+  const response = await fetch(apiUrl('/api/breakdowns'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

@@ -19,6 +19,7 @@ import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/utils';
 
 interface Location {
   id: string;
@@ -47,7 +48,7 @@ async function fetchLocations(params: {
   if (params.search) queryParams.set('search', params.search);
   if (params.type) queryParams.set('type', params.type);
 
-  const response = await fetch(`/api/locations?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/locations?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch locations');
   return response.json();
 }

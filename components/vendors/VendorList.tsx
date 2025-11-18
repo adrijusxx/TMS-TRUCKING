@@ -19,6 +19,7 @@ import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/utils';
 
 interface Vendor {
   id: string;
@@ -51,7 +52,7 @@ async function fetchVendors(params: {
   if (params.search) queryParams.set('search', params.search);
   if (params.type) queryParams.set('type', params.type);
 
-  const response = await fetch(`/api/vendors?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/vendors?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch vendors');
   return response.json();
 }

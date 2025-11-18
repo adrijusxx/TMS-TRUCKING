@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ClipboardCheck, Plus, Filter, Download, Upload } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, apiUrl } from '@/lib/utils';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
@@ -66,7 +66,7 @@ async function fetchInspections(params: {
   if (params.inspectionType) queryParams.set('inspectionType', params.inspectionType);
   if (params.status) queryParams.set('status', params.status);
 
-  const response = await fetch(`/api/inspections?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/inspections?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch inspections');
   return response.json();
 }
