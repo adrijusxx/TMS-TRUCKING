@@ -67,14 +67,32 @@ export const authOptions: NextAuthConfig = {
       return session;
     },
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      // Allow relative callback URLs
-      if (url.startsWith('/')) return `${baseUrl}${url}`;
-      // Allow callback URLs on the same origin
-      if (new URL(url).origin === baseUrl) return url;
+      // baseUrl already includes basePath from NEXTAUTH_URL (e.g., http://34.121.40.233/tms)
+      // So we just need to append the relative URL to it
+      
+      // If url is relative, append it to baseUrl
+      if (url.startsWith('/')) {
+        // baseUrl already has the basePath, so just append the url
+        return `${baseUrl}${url}`;
+      }
+      
+      // If url is absolute, check if it's on the same origin
+      try {
+        const urlObj = new URL(url);
+        const baseUrlObj = new URL(baseUrl);
+        if (urlObj.origin === baseUrlObj.origin) {
+          return url;
+        }
+      } catch (e) {
+        // Invalid URL, fall through to return baseUrl
+      }
+      
+      // Default: return baseUrl (which includes basePath from NEXTAUTH_URL)
       return baseUrl;
     }
   },
   pages: {
+    // signIn path will be relative to basePath automatically
     signIn: '/login',
   },
   session: {

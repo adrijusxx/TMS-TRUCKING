@@ -31,44 +31,45 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      // Get callbackUrl from query params or default to dashboard
+      const params = new URLSearchParams(window.location.search);
+      const callbackUrl = params.get('callbackUrl') || '/dashboard';
+      
+      // Extract basePath from current URL (e.g., /tms or /crm)
+      const currentPath = window.location.pathname;
+      const basePath = currentPath.startsWith('/tms') ? '/tms' 
+        : currentPath.startsWith('/crm') ? '/crm' 
+        : process.env.NEXT_PUBLIC_BASE_PATH || '';
+      
+      // Ensure callbackUrl includes basePath
+      const fullCallbackUrl = basePath && !callbackUrl.startsWith(basePath)
+        ? `${basePath}${callbackUrl}`
+        : callbackUrl;
+      
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
         redirect: false,
+        callbackUrl: fullCallbackUrl,
       });
 
       if (result?.error) {
-        setError('Invalid email or password');
+        setError(result.error === 'CredentialsSignin' 
+          ? 'Invalid email or password' 
+          : 'An error occurred during sign in');
         setIsLoading(false);
         return;
       }
 
       if (result?.ok) {
-        // Get callbackUrl from query params or default to dashboard
-        const params = new URLSearchParams(window.location.search);
-        const callbackUrl = params.get('callbackUrl') || '/dashboard';
-        
-        // Extract basePath from current URL (e.g., /tms or /crm)
-        // If we're at /tms/login, extract /tms; if at /crm/login, extract /crm
-        const currentPath = window.location.pathname;
-        const basePath = currentPath.startsWith('/tms') ? '/tms' 
-          : currentPath.startsWith('/crm') ? '/crm' 
-          : process.env.NEXT_PUBLIC_BASE_PATH || '';
-        
-        // Ensure callbackUrl includes basePath
-        // If callbackUrl already has basePath, use it; otherwise prepend basePath
-        let fullPath = callbackUrl;
-        if (basePath && !callbackUrl.startsWith(basePath)) {
-          fullPath = `${basePath}${callbackUrl}`;
-        }
-        
+        // Use the callbackUrl we already calculated above
         // Debug logging (remove in production)
         if (process.env.NODE_ENV === 'development') {
-          console.log('Login redirect:', { callbackUrl, basePath, fullPath, currentPath });
+          console.log('Login redirect:', { callbackUrl: fullCallbackUrl, basePath, currentPath });
         }
         
         // Use window.location for a hard redirect to ensure session is set
-        window.location.href = fullPath;
+        window.location.href = fullCallbackUrl;
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
