@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { DollarSign, AlertTriangle, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ import {
 } from 'recharts';
 
 async function fetchAgingReport() {
-  const response = await fetch('/api/invoices/aging');
+  const response = await fetch(apiUrl('/api/invoices/aging'));
   if (!response.ok) throw new Error('Failed to fetch aging report');
   return response.json();
 }

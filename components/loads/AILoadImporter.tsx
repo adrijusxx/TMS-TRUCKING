@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Upload, FileText, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateLoadInput } from '@/lib/validations/load';
+import { apiUrl } from '@/lib/utils';
 
 interface AILoadImporterProps {
   onDataExtracted: (data: Partial<CreateLoadInput>, pdfFile?: File) => void;
@@ -26,7 +27,7 @@ async function importPDF(file: File) {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch('/api/loads/import-pdf', {
+  const response = await fetch(apiUrl('/api/loads/import-pdf'), {
     method: 'POST',
     body: formData,
   });

@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Shield, AlertTriangle, GraduationCap, Plus, Filter, Download, Upload } from 'lucide-react';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
@@ -90,7 +90,7 @@ async function fetchSafetyIncidents(params: {
   if (params.severity) queryParams.set('severity', params.severity);
   if (params.status) queryParams.set('status', params.status);
 
-  const response = await fetch(`/api/safety/incidents?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/safety/incidents?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch safety incidents');
   return response.json();
 }
@@ -109,7 +109,7 @@ async function fetchSafetyTrainings(params: {
   if (params.trainingType) queryParams.set('trainingType', params.trainingType);
   if (params.status) queryParams.set('status', params.status);
 
-  const response = await fetch(`/api/safety/trainings?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/safety/trainings?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch safety trainings');
   return response.json();
 }

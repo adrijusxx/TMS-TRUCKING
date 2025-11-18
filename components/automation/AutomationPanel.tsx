@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { RefreshCw, FileText, DollarSign, CheckCircle, AlertTriangle, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoadStatus } from '@prisma/client';
+import { apiUrl } from '@/lib/utils';
 
 async function triggerLoadStatusUpdate() {
-  const response = await fetch('/api/automation/load-status', {
+  const response = await fetch(apiUrl('/api/automation/load-status'), {
     method: 'POST',
   });
   if (!response.ok) throw new Error('Failed to update load statuses');
@@ -18,7 +19,7 @@ async function triggerLoadStatusUpdate() {
 }
 
 async function fetchInvoiceReady() {
-  const response = await fetch('/api/automation/invoice-ready');
+  const response = await fetch(apiUrl('/api/automation/invoice-ready'));
   if (!response.ok) throw new Error('Failed to fetch invoice-ready loads');
   return response.json();
 }
@@ -26,13 +27,13 @@ async function fetchInvoiceReady() {
 async function fetchSettlementReady(driverId?: string) {
   const params = new URLSearchParams();
   if (driverId) params.set('driverId', driverId);
-  const response = await fetch(`/api/automation/settlement-ready?${params.toString()}`);
+  const response = await fetch(apiUrl(`/api/automation/settlement-ready?${params.toString()}`));
   if (!response.ok) throw new Error('Failed to fetch settlement-ready loads');
   return response.json();
 }
 
 async function checkDocumentExpiry() {
-  const response = await fetch('/api/automation/document-expiry', {
+  const response = await fetch(apiUrl('/api/automation/document-expiry'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ daysAhead: 30 }),
@@ -76,7 +77,7 @@ export default function AutomationPanel() {
   });
 
   async function generateInvoices() {
-    const response = await fetch('/api/automation/generate-invoices', {
+    const response = await fetch(apiUrl('/api/automation/generate-invoices'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });

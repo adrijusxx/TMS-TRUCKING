@@ -23,10 +23,10 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Search, MapPin, DollarSign, Calendar, Truck } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 
 async function searchLoadBoard(params: any) {
-  const response = await fetch('/api/loadboard/search', {
+  const response = await fetch(apiUrl('/api/loadboard/search'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),

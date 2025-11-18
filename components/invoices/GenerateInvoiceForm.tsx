@@ -16,13 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { ArrowLeft, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 async function fetchDeliveredLoads() {
   const response = await fetch(
-    '/api/loads?status=DELIVERED&limit=100'
+    apiUrl('/api/loads?status=DELIVERED&limit=100')
   );
   if (!response.ok) throw new Error('Failed to fetch loads');
   return response.json();
@@ -34,7 +34,7 @@ async function generateInvoice(data: {
   dueDate?: string;
   notes?: string;
 }) {
-  const response = await fetch('/api/invoices/generate', {
+  const response = await fetch(apiUrl('/api/invoices/generate'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

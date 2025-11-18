@@ -14,7 +14,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { Route, MapPin, Zap, DollarSign, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,7 +28,7 @@ async function optimizeRoute(data: {
   optimizationType: 'DISTANCE' | 'TIME' | 'COST';
   startLocation?: { city: string; state: string };
 }) {
-  const response = await fetch('/api/routes/optimize', {
+  const response = await fetch(apiUrl('/api/routes/optimize'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

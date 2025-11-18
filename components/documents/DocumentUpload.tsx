@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, X, FileText } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 
 interface DocumentUploadProps {
   loadId?: string;
@@ -38,7 +39,7 @@ const documentTypes = [
 ];
 
 async function uploadDocument(formData: FormData) {
-  const response = await fetch('/api/documents/upload', {
+  const response = await fetch(apiUrl('/api/documents/upload'), {
     method: 'POST',
     body: formData,
   });

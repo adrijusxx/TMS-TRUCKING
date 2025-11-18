@@ -13,11 +13,12 @@ import {
 } from '@/components/ui/command';
 import { Package, Users, Truck, Building2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { apiUrl } from '@/lib/utils';
 
 async function search(query: string) {
   if (query.length < 2) return { loads: [], drivers: [], trucks: [], customers: [] };
   
-  const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+  const response = await fetch(apiUrl(`/api/search?q=${encodeURIComponent(query)}`));
   if (!response.ok) throw new Error('Search failed');
   return response.json();
 }

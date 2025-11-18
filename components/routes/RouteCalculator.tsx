@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MapPin, Navigation, Fuel, Clock } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 
 async function calculateRoute(data: {
   pickupLat: number;
@@ -16,7 +16,7 @@ async function calculateRoute(data: {
   deliveryLng: number;
   loadId?: string;
 }) {
-  const response = await fetch('/api/routes/calculate', {
+  const response = await fetch(apiUrl('/api/routes/calculate'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
