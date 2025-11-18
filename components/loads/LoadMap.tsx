@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, MapPin, Navigation, RefreshCw, Truck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { loadGoogleMapsApi } from '@/lib/maps/google-loader';
+import { apiUrl } from '@/lib/utils';
 
 interface LoadMapProps {
   load: {
