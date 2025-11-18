@@ -48,8 +48,16 @@ export default function LoginPage() {
         const params = new URLSearchParams(window.location.search);
         const callbackUrl = params.get('callbackUrl') || '/dashboard';
         
+        // Get basePath from environment (e.g., /tms or /crm)
+        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+        
+        // Ensure callbackUrl includes basePath
+        const fullPath = callbackUrl.startsWith(basePath) 
+          ? callbackUrl 
+          : `${basePath}${callbackUrl}`;
+        
         // Use window.location for a hard redirect to ensure session is set
-        window.location.href = callbackUrl;
+        window.location.href = fullPath;
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
