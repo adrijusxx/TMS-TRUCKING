@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 
 export const authOptions: NextAuthConfig = {
   secret: process.env.NEXTAUTH_SECRET,
+  trustHost: true, // Required for basePath/subdirectory deployments
   providers: [
     CredentialsProvider({
       name: 'Credentials',
