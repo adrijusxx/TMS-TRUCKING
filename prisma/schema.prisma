@@ -1,0 +1,1688 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      UserRole
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
+  isActive  Boolean   @default(true)
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations for driver-specific data
+  driver                  Driver?
+  activityLogs            ActivityLog[]
+  notificationPreferences NotificationPreferences?
+  inventoryTransactions   InventoryTransaction[]
+
+  @@index([companyId])
+  @@index([email])
+}
+
+enum UserRole {
+  ADMIN
+  DISPATCHER
+  DRIVER
+  CUSTOMER
+  ACCOUNTANT
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  dotNumber String   @unique
+  mcNumber  String?
+  address   String
+  city      String
+  state     String
+  zip       String
+  phone     String
+  email     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users                 User[]
+  loads                 Load[]
+  drivers               Driver[]
+  trucks                Truck[]
+  trailers              Trailer[]
+  customers             Customer[]
+  documents             Document[]
+  activityLogs          ActivityLog[]
+  integrations          Integration[]
+  breakdowns            Breakdown[]
+  inspections           Inspection[]
+  inventoryItems        InventoryItem[]
+  inventoryTransactions InventoryTransaction[]
+  vendors               Vendor[]
+  locations             Location[]
+  safetyIncidents       SafetyIncident[]
+  safetyTrainings       SafetyTraining[]
+}
+
+// ============================================
+// LOADS
+// ============================================
+
+model Load {
+  id            String   @id @default(cuid())
+  loadNumber    String   @unique
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id])
+  driverId      String?
+  driver        Driver?  @relation(fields: [driverId], references: [id])
+  truckId       String?
+  truck         Truck?   @relation(fields: [truckId], references: [id])
+  trailerNumber String?
+
+  // Load Details
+  status        LoadStatus    @default(PENDING)
+  loadType      LoadType      @default(FTL)
+  equipmentType EquipmentType
+
+  // Pickup Information (optional for multi-stop loads)
+  pickupLocation  String?
+  pickupAddress   String?
+  pickupCity      String?
+  pickupState     String?
+  pickupZip       String?
+  pickupDate      DateTime?
+  pickupTimeStart DateTime?
+  pickupTimeEnd   DateTime?
+  pickupContact   String?
+  pickupPhone     String?
+  pickupNotes     String?
+
+  // Delivery Information (optional for multi-stop loads)
+  deliveryLocation  String?
+  deliveryAddress   String?
+  deliveryCity      String?
+  deliveryState     String?
+  deliveryZip       String?
+  deliveryDate      DateTime?
+  deliveryTimeStart DateTime?
+  deliveryTimeEnd   DateTime?
+  deliveryContact   String?
+  deliveryPhone     String?
+  deliveryNotes     String?
+
+  // Load Specifications
+  weight      Float
+  pieces      Int?
+  commodity   String?
+  pallets     Int?
+  temperature String?
+  hazmat      Boolean @default(false)
+  hazmatClass String?
+
+  // Financial
+  revenue     Float
+  driverPay   Float?
+  fuelAdvance Float  @default(0)
+  expenses    Float  @default(0)
+  profit      Float?
+  serviceFee  Float? // Service fee from Excel
+
+  // Distances
+  loadedMiles Float?
+  emptyMiles  Float?
+  totalMiles  Float?
+
+  // Status Tracking
+  assignedAt  DateTime?
+  pickedUpAt  DateTime?
+  deliveredAt DateTime?
+  invoicedAt  DateTime?
+  paidAt      DateTime?
+
+  // Notes
+  dispatchNotes  String?
+  driverNotes    String?
+  lastNote       String? // Last note from Excel
+  onTimeDelivery Boolean? // On Time Delivery flag from Excel
+
+  // Additional Fields from Excel
+  shipmentId String? // Shipment ID from Excel
+  stopsCount Int? // Stops count from Excel
+  totalPay   Float? // Total pay from Excel
+  lastUpdate DateTime? // Last update from Excel
+
+  // EDI Tracking
+  ediSent          Boolean @default(false)
+  ediReceived      Boolean @default(false)
+  ediTransactionId String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  documents       Document[]
+  statusHistory   LoadStatusHistory[]
+  route           Route?
+  stops           LoadStop[]
+  breakdowns      Breakdown[]
+  safetyIncidents SafetyIncident[]
+  trailerId       String?
+  trailer         Trailer?            @relation(fields: [trailerId], references: [id])
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([driverId])
+  @@index([status])
+  @@index([pickupDate])
+  @@index([deliveryDate])
+  @@index([loadNumber])
+}
+
+model LoadStop {
+  id     String @id @default(cuid())
+  loadId String
+  load   Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
+
+  // Stop Details
+  stopType StopType // PICKUP or DELIVERY
+  sequence Int // Order of stop (1, 2, 3, etc.)
+
+  // Location
+  company String? // Company/Location name
+  address String
+  city    String
+  state   String
+  zip     String
+  phone   String?
+
+  // Timing
+  earliestArrival DateTime?
+  latestArrival   DateTime?
+  actualArrival   DateTime?
+  actualDeparture DateTime?
+
+  // Contact
+  contactName  String?
+  contactPhone String?
+
+  // Items at this stop
+  items       Json? // Array of items: [{ orderId, item, product, pieces, weight, description }]
+  totalPieces Int?
+  totalWeight Float?
+
+  // Status
+  status StopStatus @default(PENDING)
+
+  // Notes
+  notes               String?
+  specialInstructions String?
+
+  // Signature/Proof
+  signature       String?
+  signatureDate   DateTime?
+  proofOfDelivery String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([loadId])
+  @@index([loadId, sequence])
+  @@index([status])
+}
+
+enum StopType {
+  PICKUP
+  DELIVERY
+}
+
+enum StopStatus {
+  PENDING
+  EN_ROUTE
+  ARRIVED
+  LOADING
+  UNLOADING
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum LoadStatus {
+  PENDING
+  ASSIGNED
+  EN_ROUTE_PICKUP
+  AT_PICKUP
+  LOADED
+  EN_ROUTE_DELIVERY
+  AT_DELIVERY
+  DELIVERED
+  INVOICED
+  PAID
+  CANCELLED
+}
+
+enum LoadType {
+  FTL // Full Truckload
+  LTL // Less Than Truckload
+  PARTIAL
+  INTERMODAL
+}
+
+enum EquipmentType {
+  DRY_VAN
+  REEFER
+  FLATBED
+  STEP_DECK
+  LOWBOY
+  TANKER
+  CONESTOGA
+  POWER_ONLY
+  HOTSHOT
+}
+
+model LoadStatusHistory {
+  id        String     @id @default(cuid())
+  loadId    String
+  load      Load       @relation(fields: [loadId], references: [id])
+  status    LoadStatus
+  notes     String?
+  location  String?
+  latitude  Float?
+  longitude Float?
+  createdBy String
+  createdAt DateTime   @default(now())
+
+  @@index([loadId])
+  @@index([createdAt])
+}
+
+model Route {
+  id     String @id @default(cuid())
+  loadId String @unique
+  load   Load   @relation(fields: [loadId], references: [id])
+
+  // Route Details
+  totalDistance Float
+  estimatedTime Float // in minutes
+  fuelCost      Float?
+  tollCost      Float?
+
+  // Waypoints (JSON array of coordinates)
+  waypoints Json
+
+  // Optimization
+  optimized   Boolean   @default(false)
+  optimizedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// DRIVERS
+// ============================================
+
+model Driver {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id])
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Driver Details
+  driverNumber  String   @unique
+  licenseNumber String
+  licenseState  String
+  licenseExpiry DateTime
+
+  // Medical & Compliance
+  medicalCardExpiry DateTime
+  drugTestDate      DateTime?
+  backgroundCheck   DateTime?
+
+  // Status
+  status         DriverStatus @default(AVAILABLE)
+  currentTruckId String?
+  currentTruck   Truck?       @relation("TruckDriver", fields: [currentTruckId], references: [id])
+  homeTerminal   String?
+
+  // Contact
+  emergencyContact String?
+  emergencyPhone   String?
+
+  // Performance
+  rating           Float?
+  totalLoads       Int    @default(0)
+  totalMiles       Float  @default(0)
+  onTimePercentage Float  @default(100)
+
+  // Pay
+  payType PayType @default(PER_MILE)
+  payRate Float
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loads           Load[]
+  hosRecords      HOSRecord[]
+  documents       Document[]
+  settlements     Settlement[]
+  fuelEntries     FuelEntry[]
+  breakdowns      Breakdown[]
+  inspections     Inspection[]
+  safetyIncidents SafetyIncident[]
+  safetyTrainings SafetyTraining[]
+  trailers        Trailer[]        @relation("TrailerDriver")
+
+  @@index([companyId])
+  @@index([status])
+  @@index([driverNumber])
+}
+
+enum DriverStatus {
+  AVAILABLE
+  ON_DUTY
+  DRIVING
+  OFF_DUTY
+  SLEEPER_BERTH
+  ON_LEAVE
+  INACTIVE
+}
+
+enum PayType {
+  PER_MILE
+  PER_LOAD
+  PERCENTAGE
+  HOURLY
+}
+
+model HOSRecord {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id])
+
+  date   DateTime
+  status DriverStatus
+
+  // Daily Hours
+  driveTime   Float @default(0) // hours
+  onDutyTime  Float @default(0)
+  offDutyTime Float @default(0)
+  sleeperTime Float @default(0)
+
+  // 8-Day Totals
+  weeklyDriveTime Float @default(0)
+  weeklyOnDuty    Float @default(0)
+
+  // Violations
+  violations Json?
+
+  // Location
+  location  String?
+  latitude  Float?
+  longitude Float?
+
+  // ELD Integration
+  eldRecordId String?
+  eldProvider String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([date])
+}
+
+// ============================================
+// TRUCKS
+// ============================================
+
+model Truck {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Truck Details
+  truckNumber  String  @unique
+  vin          String  @unique
+  make         String
+  model        String
+  year         Int
+  licensePlate String
+  state        String
+  mcNumber     String? // MC number from Excel
+
+  // Specifications
+  equipmentType EquipmentType
+  capacity      Float // weight in lbs
+
+  // Status
+  status          TruckStatus @default(AVAILABLE)
+  fleetStatus     String? // Fleet Status from Excel (separate from status)
+  currentDriverId String?
+  currentDrivers  Driver[]    @relation("TruckDriver")
+  currentLocation String?
+
+  // Ownership & Assignment
+  ownership String? // Ownership type from Excel
+  ownerName String? // Owner name from Excel
+
+  // Maintenance
+  lastMaintenance DateTime?
+  nextMaintenance DateTime?
+  odometerReading Float     @default(0)
+
+  // Registration & Insurance
+  registrationExpiry DateTime
+  insuranceExpiry    DateTime
+  inspectionExpiry   DateTime
+
+  // Tracking
+  eldInstalled  Boolean @default(false)
+  eldProvider   String?
+  gpsInstalled  Boolean @default(false)
+  tollTagNumber String? // Toll tag number from Excel
+  fuelCard      String? // Fuel card from Excel
+
+  // Additional Fields from Excel
+  tags     Json? // Tags as JSON array
+  notes    String? // Notes field
+  warnings String? // Warnings field
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loads              Load[]
+  maintenanceRecords MaintenanceRecord[]
+  breakdowns         Breakdown[]
+  documents          Document[]
+  inspections        Inspection[]
+  safetyIncidents    SafetyIncident[]
+  assignedTrailers   Trailer[]           @relation("TruckTrailer")
+
+  fuelEntries FuelEntry[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([truckNumber])
+}
+
+// ============================================
+// TRAILERS
+// ============================================
+
+model Trailer {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Trailer Details
+  trailerNumber String  @unique // Unit number from Excel
+  vin           String? @unique
+  make          String
+  model         String
+  year          Int?
+  licensePlate  String? // Plate number from Excel
+  state         String?
+  mcNumber      String? // MC Number from Excel
+  type          String? // Type from Excel (could be EquipmentType)
+
+  // Ownership
+  ownership String? // Ownership type from Excel
+  ownerName String? // Owner name from Excel
+
+  // Assignment
+  assignedTruckId  String? // Assigned truck
+  assignedTruck    Truck?  @relation("TruckTrailer", fields: [assignedTruckId], references: [id])
+  operatorDriverId String? // Operator (driver) from Excel
+  operatorDriver   Driver? @relation("TrailerDriver", fields: [operatorDriverId], references: [id])
+
+  // Status
+  status      String? // Status from Excel
+  fleetStatus String? // Fleet Status from Excel
+
+  // Registration & Insurance
+  registrationExpiry DateTime?
+  insuranceExpiry    DateTime?
+  inspectionExpiry   DateTime?
+
+  // Additional Fields from Excel
+  tags Json? // Tags as JSON array
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loads Load[]
+
+  @@index([companyId])
+  @@index([trailerNumber])
+  @@index([assignedTruckId])
+}
+
+model FuelEntry {
+  id       String  @id @default(cuid())
+  truckId  String
+  truck    Truck   @relation(fields: [truckId], references: [id])
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  date          DateTime
+  gallons       Float
+  costPerGallon Float
+  totalCost     Float
+  odometer      Int
+
+  location  String?
+  latitude  Float?
+  longitude Float?
+
+  fuelType      FuelType @default(DIESEL)
+  receiptNumber String?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([truckId])
+  @@index([driverId])
+  @@index([date])
+}
+
+enum FuelType {
+  DIESEL
+  GAS
+  DEF
+}
+
+enum TruckStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  OUT_OF_SERVICE
+  INACTIVE
+}
+
+model MaintenanceRecord {
+  id      String @id @default(cuid())
+  truckId String
+  truck   Truck  @relation(fields: [truckId], references: [id])
+
+  type        MaintenanceType
+  description String
+  cost        Float
+  mileage     Float
+
+  scheduledDate DateTime?
+  completedDate DateTime?
+
+  vendor        String?
+  invoiceNumber String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([truckId])
+  @@index([scheduledDate])
+}
+
+enum MaintenanceType {
+  OIL_CHANGE
+  TIRE_ROTATION
+  BRAKE_SERVICE
+  INSPECTION
+  REPAIR
+  PMI // Preventive Maintenance Inspection
+  ENGINE
+  TRANSMISSION
+  OTHER
+}
+
+model Breakdown {
+  id        String  @id @default(cuid())
+  truckId   String
+  truck     Truck   @relation(fields: [truckId], references: [id])
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Breakdown Details
+  breakdownNumber String   @unique // Auto-generated breakdown case number
+  reportedAt      DateTime @default(now())
+  reportedBy      String? // User ID who reported
+
+  // Location & Situation
+  location        String // Where the breakdown occurred
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
+  latitude        Float?
+  longitude       Float?
+  odometerReading Float
+
+  // Breakdown Information
+  breakdownType   BreakdownType
+  priority        BreakdownPriority @default(MEDIUM)
+  problem         String? // Specific problem (e.g., "air valve", "engine shutdown")
+  problemCategory String? // Problem category (e.g., "TRUCK AIR LEAK", "Engine and Power Issues")
+  description     String // Detailed description of the issue
+
+  // Current Load Impact
+  loadId   String? // If breakdown affects a load
+  load     Load?   @relation(fields: [loadId], references: [id])
+  driverId String? // Driver affected
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  // Breakdown Status
+  status BreakdownStatus @default(REPORTED)
+
+  // Service Provider
+  serviceProvider String? // Repair shop/service provider name
+  serviceContact  String? // Contact phone
+  serviceAddress  String? // Service provider address
+
+  // Costs
+  repairCost Float?
+  towingCost Float?
+  laborCost  Float?
+  partsCost  Float?
+  otherCosts Float?
+  totalCost  Float  @default(0)
+
+  // Timeline
+  dispatchedAt      DateTime? // When breakdown team was dispatched
+  arrivedAt         DateTime? // When service arrived at location
+  repairStartedAt   DateTime? // When repair work started
+  repairCompletedAt DateTime? // When repair was completed
+  truckReadyAt      DateTime? // When truck was ready to resume
+
+  // Downtime
+  downtimeHours Float? // Calculated downtime
+
+  // Resolution
+  resolution      String? // How the breakdown was resolved
+  repairNotes     String? // Detailed repair notes
+  technicianNotes String? // Notes from technician
+
+  // Follow-up
+  followUpRequired Boolean @default(false)
+  followUpNotes    String?
+
+  // Documents/Photos
+  documents Document[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([truckId])
+  @@index([loadId])
+  @@index([driverId])
+  @@index([status])
+  @@index([breakdownType])
+  @@index([reportedAt])
+}
+
+enum BreakdownType {
+  ENGINE_FAILURE
+  TRANSMISSION_FAILURE
+  BRAKE_FAILURE
+  TIRE_FLAT
+  TIRE_BLOWOUT
+  ELECTRICAL_ISSUE
+  COOLING_SYSTEM
+  FUEL_SYSTEM
+  SUSPENSION
+  ACCIDENT_DAMAGE
+  WEATHER_RELATED
+  OTHER
+}
+
+enum BreakdownPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum BreakdownStatus {
+  REPORTED // Initial report
+  DISPATCHED // Breakdown team/service dispatched
+  IN_PROGRESS // Repair work in progress
+  WAITING_PARTS // Waiting for parts
+  COMPLETED // Repair completed, truck ready
+  RESOLVED // Fully resolved, all documentation complete
+  CANCELLED // False alarm or cancelled
+}
+
+// ============================================
+// CUSTOMERS
+// ============================================
+
+model Customer {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Customer Details
+  customerNumber  String       @unique
+  name            String
+  type            CustomerType @default(DIRECT)
+  mcNumber        String? // MC Number from Excel
+  location        String? // Location field from Excel
+  website         String? // Website field from Excel
+  referenceNumber String? // Reference number from Excel
+
+  // Contact
+  address       String
+  city          String
+  state         String
+  zip           String
+  phone         String
+  contactNumber String? // Separate contact number field
+  email         String
+
+  // Billing
+  billingAddress String? // Single line billing address
+  billingCity    String?
+  billingState   String?
+  billingZip     String?
+  billingEmail   String?
+  billingEmails  String? // Multiple billing emails (comma-separated)
+  billingType    String? // Billing type from Excel
+
+  // Terms
+  paymentTerms Int    @default(30) // days
+  creditLimit  Float?
+  creditRate   Float? // Credit rate from Excel
+
+  // Additional Fields from Excel
+  rateConfirmationRequired Boolean @default(false)
+  status                   String? // Status field from Excel
+  tags                     Json? // Tags as JSON array
+  warning                  String? // Warning field from Excel
+  riskLevel                String? // Risk level from Excel
+  comments                 String? // Comments field (note: Excel has typo "Commnets")
+
+  // EDI Integration
+  scac String? // Standard Carrier Alpha Code for EDI
+
+  // Portal Access
+  portalEnabled Boolean @default(false)
+  portalUserId  String?
+
+  // EDI
+  ediEnabled Boolean @default(false)
+  ediId      String?
+
+  // Performance
+  rating       Float?
+  totalLoads   Int    @default(0)
+  totalRevenue Float  @default(0)
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loads    Load[]
+  invoices Invoice[]
+  contacts CustomerContact[]
+
+  @@index([companyId])
+  @@index([customerNumber])
+}
+
+// ============================================
+// ACTIVITY LOG
+// ============================================
+
+model ActivityLog {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
+
+  action      String // CREATE, UPDATE, DELETE, ASSIGN, STATUS_CHANGE, etc.
+  entityType  String // Load, Driver, Truck, Invoice, etc.
+  entityId    String?
+  description String?
+  metadata    Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+enum CustomerType {
+  DIRECT
+  BROKER
+  FREIGHT_FORWARDER
+  THIRD_PARTY_LOGISTICS
+}
+
+model CustomerContact {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  name      String
+  title     String?
+  email     String
+  phone     String
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+// ============================================
+// DOCUMENTS
+// ============================================
+
+model Document {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Document Details
+  type        DocumentType
+  title       String
+  description String?
+
+  // File Storage
+  fileName String
+  fileUrl  String
+  fileSize Int // bytes
+  mimeType String
+
+  // Relations
+  loadId                      String?
+  load                        Load?           @relation(fields: [loadId], references: [id])
+  driverId                    String?
+  driver                      Driver?         @relation(fields: [driverId], references: [id])
+  truckId                     String?
+  truck                       Truck?          @relation(fields: [truckId], references: [id])
+  breakdownId                 String?
+  breakdown                   Breakdown?      @relation(fields: [breakdownId], references: [id])
+  inspectionId                String?
+  inspection                  Inspection?     @relation(fields: [inspectionId], references: [id])
+  safetyIncidentId            String?
+  safetyIncident              SafetyIncident? @relation(fields: [safetyIncidentId], references: [id])
+  safetyTrainingCertificateId String?         @unique
+  safetyTrainingCertificate   SafetyTraining? @relation("TrainingCertificate", fields: [safetyTrainingCertificateId], references: [id])
+
+  // Metadata
+  expiryDate DateTime?
+  uploadedBy String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([loadId])
+  @@index([driverId])
+  @@index([type])
+}
+
+enum DocumentType {
+  BOL // Bill of Lading
+  POD // Proof of Delivery
+  INVOICE
+  RATE_CONFIRMATION
+  DRIVER_LICENSE
+  MEDICAL_CARD
+  INSURANCE
+  REGISTRATION
+  INSPECTION
+  LEASE_AGREEMENT
+  W9
+  COI // Certificate of Insurance
+  OTHER
+}
+
+// ============================================
+// INVOICES & SETTLEMENTS
+// ============================================
+
+model Invoice {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  invoiceNumber String   @unique
+  loadIds       String[] // Array of load IDs
+
+  // Financial
+  subtotal   Float
+  tax        Float @default(0)
+  total      Float
+  amountPaid Float @default(0)
+  balance    Float
+
+  // Status
+  status InvoiceStatus @default(DRAFT)
+
+  // Dates
+  invoiceDate DateTime
+  dueDate     DateTime
+  paidDate    DateTime?
+
+  // QuickBooks
+  qbSynced    Boolean   @default(false)
+  qbInvoiceId String?
+  qbSyncedAt  DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([invoiceNumber])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Settlement {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id])
+
+  settlementNumber String   @unique
+  loadIds          String[] // Array of load IDs
+
+  // Financial
+  grossPay   Float
+  deductions Float @default(0)
+  advances   Float @default(0)
+  netPay     Float
+
+  // Status
+  status SettlementStatus @default(PENDING)
+
+  // Dates
+  periodStart DateTime
+  periodEnd   DateTime
+  paidDate    DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([status])
+}
+
+enum SettlementStatus {
+  PENDING
+  APPROVED
+  PAID
+  DISPUTED
+}
+
+// ============================================
+// SYSTEM & AUDIT
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String // load, driver, truck, etc.
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  read      Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+enum NotificationType {
+  LOAD_ASSIGNED
+  LOAD_UPDATED
+  MAINTENANCE_DUE
+  HOS_VIOLATION
+  DOCUMENT_EXPIRING
+  INVOICE_PAID
+  SYSTEM_ALERT
+}
+
+model NotificationPreferences {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  emailEnabled Boolean @default(true)
+  pushEnabled  Boolean @default(true)
+
+  // Notification Type Preferences
+  loadAssigned     Boolean @default(true)
+  loadUpdated      Boolean @default(true)
+  maintenanceDue   Boolean @default(true)
+  hosViolation     Boolean @default(true)
+  documentExpiring Boolean @default(true)
+  invoicePaid      Boolean @default(true)
+  systemAlert      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================
+// INTEGRATIONS
+// ============================================
+
+model Integration {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Integration Details
+  provider IntegrationProvider
+  isActive Boolean             @default(true)
+
+  // QuickBooks OAuth
+  realmId        String? // QuickBooks company ID
+  accessToken    String? // Encrypted in production
+  refreshToken   String? // Encrypted in production
+  tokenExpiresAt DateTime?
+
+  // Samsara Configuration
+  apiKey    String? // Encrypted in production
+  apiSecret String? // Encrypted in production
+
+  // Configuration (JSON)
+  config Json?
+
+  // Metadata
+  lastSyncAt     DateTime?
+  lastSyncStatus String? // success, error, pending
+  lastError      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, provider])
+  @@index([companyId])
+  @@index([provider])
+  @@index([isActive])
+}
+
+enum IntegrationProvider {
+  QUICKBOOKS
+  SAMSARA
+  GOOGLE_MAPS
+  DAT
+  TRUCKSTOP
+}
+
+// ============================================
+// INSPECTIONS
+// ============================================
+
+model Inspection {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  truckId   String
+  truck     Truck   @relation(fields: [truckId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id])
+
+  // Inspection Details
+  inspectionNumber String         @unique
+  inspectionType   InspectionType
+  inspectionDate   DateTime
+  performedBy      String? // User ID or inspector name
+  location         String? // Where inspection was performed
+
+  // Results
+  status        InspectionStatus @default(PASSED)
+  defects       Int              @default(0)
+  defectDetails String? // Description of any defects found
+
+  // OOS (Out of Service) Information
+  oosStatus   Boolean @default(false) // Out of Service
+  oosItems    String? // List of OOS items
+  oosSeverity String? // MINOR, MAJOR, CRITICAL
+
+  // Mileage
+  odometerReading Float?
+
+  // Notes
+  notes          String?
+  inspectorNotes String?
+
+  // Next Inspection
+  nextInspectionDue DateTime?
+
+  // Documents
+  documents Document[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([truckId])
+  @@index([driverId])
+  @@index([inspectionType])
+  @@index([inspectionDate])
+  @@index([status])
+}
+
+enum InspectionType {
+  DOT_ANNUAL
+  DOT_LEVEL_1
+  DOT_LEVEL_2
+  DOT_LEVEL_3
+  DOT_PRE_TRIP
+  DOT_POST_TRIP
+  STATE_INSPECTION
+  COMPANY_INSPECTION
+  PMI // Preventive Maintenance Inspection
+  SAFETY_INSPECTION
+}
+
+enum InspectionStatus {
+  PASSED
+  FAILED
+  CONDITIONAL
+  OUT_OF_SERVICE
+  PENDING
+}
+
+// ============================================
+// INVENTORY
+// ============================================
+
+model InventoryItem {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Item Details
+  itemNumber   String  @unique
+  name         String
+  description  String?
+  category     String? // Parts, Supplies, Equipment, etc.
+  partNumber   String? // Manufacturer part number
+  manufacturer String?
+  unit         String  @default("EA") // EA, FT, GAL, etc.
+
+  // Stock Information
+  quantityOnHand Float  @default(0)
+  reorderPoint   Float  @default(0)
+  maxStock       Float?
+  minStock       Float?
+
+  // Pricing
+  unitCost    Float
+  averageCost Float?
+  lastCost    Float?
+
+  // Location
+  warehouseLocation String? // Warehouse/shelf location
+  binLocation       String? // Specific bin location
+
+  // Vendor
+  preferredVendorId String?
+  preferredVendor   Vendor? @relation(fields: [preferredVendorId], references: [id])
+
+  // Status
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  transactions InventoryTransaction[]
+
+  @@index([companyId])
+  @@index([itemNumber])
+  @@index([category])
+}
+
+model InventoryTransaction {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+
+  // Transaction Details
+  transactionType InventoryTransactionType
+  transactionDate DateTime
+  quantity        Float
+  unitCost        Float
+  totalCost       Float
+
+  // Reference
+  referenceNumber String? // PO number, work order, etc.
+  referenceType   String? // PURCHASE_ORDER, WORK_ORDER, MAINTENANCE, etc.
+  referenceId     String? // ID of related entity
+
+  // Vendor/Customer
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+
+  // Location
+  fromLocation String? // For transfers
+  toLocation   String? // For transfers
+
+  // Notes
+  notes String?
+
+  // User
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([inventoryItemId])
+  @@index([transactionType])
+  @@index([transactionDate])
+}
+
+enum InventoryTransactionType {
+  RECEIVED
+  ISSUED
+  ADJUSTMENT
+  TRANSFER
+  RETURN
+  DAMAGE
+  THEFT
+}
+
+// ============================================
+// VENDORS
+// ============================================
+
+model Vendor {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Vendor Details
+  vendorNumber String     @unique
+  name         String
+  type         VendorType @default(SUPPLIER)
+
+  // Contact
+  address String?
+  city    String?
+  state   String?
+  zip     String?
+  phone   String?
+  email   String?
+  website String?
+
+  // Billing
+  billingAddress String?
+  billingCity    String?
+  billingState   String?
+  billingZip     String?
+  billingEmail   String?
+
+  // Terms
+  paymentTerms Int    @default(30) // days
+  creditLimit  Float?
+
+  // Tax Information
+  taxId    String?
+  w9OnFile Boolean @default(false)
+
+  // Performance
+  rating      Float?
+  totalOrders Int    @default(0)
+  totalSpent  Float  @default(0)
+
+  // Additional Fields from Excel
+  tag String? // Tag field from Excel
+
+  // Relations
+  contacts       VendorContact[]
+  inventoryItems InventoryItem[]
+  transactions   InventoryTransaction[]
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([vendorNumber])
+}
+
+enum VendorType {
+  SUPPLIER
+  PARTS_VENDOR
+  SERVICE_PROVIDER
+  FUEL_VENDOR
+  REPAIR_SHOP
+  TIRE_SHOP
+  OTHER
+}
+
+model VendorContact {
+  id       String @id @default(cuid())
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+
+  name      String
+  title     String?
+  email     String
+  phone     String
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// LOCATIONS
+// ============================================
+
+model Location {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Location Details
+  locationNumber  String?      @unique // Auto-generated if not provided
+  name            String // Place name from Excel
+  locationCompany String? // Company field from Excel (renamed to avoid conflict with relation)
+  type            LocationType @default(PICKUP)
+
+  // Address
+  address String
+  city    String
+  state   String
+  zip     String?
+  country String  @default("USA")
+
+  // Coordinates
+  latitude  Float?
+  longitude Float?
+
+  // Contact Information
+  contactName  String? // Contact name from Excel
+  contactPhone String?
+  contactEmail String?
+
+  // Operating Hours
+  operatingHours Json? // { monday: { open: "08:00", close: "17:00" }, ... }
+
+  // Notes
+  notes               String?
+  specialInstructions String?
+
+  // Usage Stats
+  pickupCount   Int @default(0)
+  deliveryCount Int @default(0)
+
+  // Status
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([locationNumber])
+  @@index([type])
+  @@index([city, state])
+}
+
+enum LocationType {
+  PICKUP
+  DELIVERY
+  TERMINAL
+  WAREHOUSE
+  CUSTOMER
+  VENDOR
+  REPAIR_SHOP
+  FUEL_STOP
+  REST_AREA
+  SCALE
+}
+
+// ============================================
+// SAFETY
+// ============================================
+
+model SafetyIncident {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id])
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id])
+  loadId    String?
+  load      Load?   @relation(fields: [loadId], references: [id])
+
+  // Incident Details
+  incidentNumber String             @unique
+  incidentType   SafetyIncidentType
+  severity       SafetySeverity     @default(MINOR)
+  date           DateTime
+  time           String? // Time of incident
+  location       String
+  city           String?
+  state          String?
+  zip            String?
+  latitude       Float?
+  longitude      Float?
+
+  // Description
+  description         String
+  contributingFactors String? // What contributed to the incident
+  weatherConditions   String?
+  roadConditions      String?
+
+  // Injuries/Damage
+  injuriesInvolved   Boolean @default(false)
+  fatalitiesInvolved Boolean @default(false)
+  vehicleDamage      String? // Description of vehicle damage
+  propertyDamage     String? // Description of property damage
+
+  // Status
+  status              SafetyIncidentStatus @default(REPORTED)
+  investigationStatus String? // PENDING, IN_PROGRESS, COMPLETED
+
+  // Investigation
+  investigatorId     String? // User ID
+  investigationNotes String?
+  rootCause          String?
+  correctiveActions  String?
+
+  // Regulatory
+  dotReportable      Boolean @default(false)
+  dotReportNumber    String?
+  policeReportNumber String?
+
+  // Costs
+  estimatedCost        Float?
+  insuranceClaimNumber String?
+
+  // Documents
+  documents Document[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([truckId])
+  @@index([loadId])
+  @@index([incidentType])
+  @@index([severity])
+  @@index([date])
+  @@index([status])
+}
+
+enum SafetyIncidentType {
+  ACCIDENT
+  COLLISION
+  ROLLOVER
+  FIRE
+  SPILL
+  INJURY
+  FATALITY
+  HAZMAT_INCIDENT
+  EQUIPMENT_FAILURE
+  DRIVER_ERROR
+  OTHER
+}
+
+enum SafetySeverity {
+  MINOR
+  MODERATE
+  MAJOR
+  CRITICAL
+  FATAL
+}
+
+enum SafetyIncidentStatus {
+  REPORTED
+  UNDER_INVESTIGATION
+  INVESTIGATION_COMPLETE
+  RESOLVED
+  CLOSED
+}
+
+model SafetyTraining {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id])
+
+  // Training Details
+  trainingType   SafetyTrainingType
+  trainingName   String
+  trainingDate   DateTime
+  completionDate DateTime?
+  expiryDate     DateTime?
+
+  // Provider
+  provider          String? // Training provider
+  instructor        String?
+  certificateNumber String?
+
+  // Status
+  status    SafetyTrainingStatus @default(SCHEDULED)
+  completed Boolean              @default(false)
+  passed    Boolean?
+
+  // Notes
+  notes String?
+  score Float? // If test/exam was taken
+
+  // Documents
+  certificate Document? @relation("TrainingCertificate")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([trainingType])
+  @@index([trainingDate])
+  @@index([expiryDate])
+}
+
+enum SafetyTrainingType {
+  DEFENSIVE_DRIVING
+  HAZMAT
+  HOURS_OF_SERVICE
+  ELD_TRAINING
+  FIRST_AID
+  CPR
+  FIRE_SAFETY
+  BACKING_SAFETY
+  LOAD_SECUREMENT
+  DOCK_SAFETY
+  OTHER
+}
+
+enum SafetyTrainingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
