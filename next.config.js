@@ -10,6 +10,13 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   // For Turbopack (Next.js 16), source map warnings are common in dev mode
   // These are warnings and don't affect functionality
+  
+  // Production optimizations
+  compress: true,
+  poweredByHeader: false,
+  
+  // Note: We don't need basePath because Nginx rewrite rules handle /tms prefix
+  // The rewrite rule strips /tms before passing to Next.js
 }
 
 module.exports = nextConfig
