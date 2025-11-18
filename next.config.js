@@ -17,12 +17,12 @@ const nextConfig = {
   
   // Configure basePath for /tms subdirectory when running behind nginx
   // IMPORTANT: When using this, REMOVE the rewrite rule from nginx config
-  // Set NEXT_PUBLIC_BASE_PATH=/tms in your .env file when deploying behind nginx
-  // Leave empty for local development (or set to empty string)
-  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+  // Hardcoded fallback to '/tms' ensures basePath is set even if env var isn't read during build
+  // This matches the CRM configuration that works correctly
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',
   
   // Ensure assetPrefix matches basePath for proper static asset serving
-  assetPrefix: process.env.NEXT_PUBLIC_BASE_PATH || '',
+  assetPrefix: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',
 }
 
 module.exports = nextConfig
