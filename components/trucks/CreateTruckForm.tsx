@@ -20,9 +20,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { EquipmentType } from '@prisma/client';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/utils';
 
 async function createTruck(data: CreateTruckInput) {
-  const response = await fetch('/api/trucks', {
+  const response = await fetch(apiUrl('/api/trucks'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

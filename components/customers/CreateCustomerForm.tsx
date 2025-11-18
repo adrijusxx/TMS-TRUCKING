@@ -20,9 +20,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CustomerType } from '@prisma/client';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/utils';
 
 async function createCustomer(data: CreateCustomerInput) {
-  const response = await fetch('/api/customers', {
+  const response = await fetch(apiUrl('/api/customers'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

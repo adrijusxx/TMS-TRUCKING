@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DollarSign, Search, Filter } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { SettlementStatus } from '@prisma/client';
 
 interface Settlement {
@@ -67,7 +67,7 @@ async function fetchSettlements(params: {
   if (params.driverId) queryParams.set('driverId', params.driverId);
   if (params.status) queryParams.set('status', params.status);
 
-  const response = await fetch(`/api/settlements?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/settlements?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch settlements');
   return response.json();
 }

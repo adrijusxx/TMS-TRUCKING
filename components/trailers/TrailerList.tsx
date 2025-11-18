@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Truck, Search, Download, Upload, Plus, Edit, Trash2 } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, apiUrl } from '@/lib/utils';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import Link from 'next/link';
@@ -76,13 +76,13 @@ async function fetchTrailers(params: {
   if (params.limit) queryParams.set('limit', params.limit.toString());
   if (params.search) queryParams.set('search', params.search);
 
-  const response = await fetch(`/api/trailers?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/trailers?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch trailers');
   return response.json();
 }
 
 async function deleteTrailer(id: string) {
-  const response = await fetch(`/api/trailers/${id}`, {
+  const response = await fetch(apiUrl(`/api/trailers/${id}`), {
     method: 'DELETE',
   });
   if (!response.ok) {
