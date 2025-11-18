@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoadStatus } from '@prisma/client';
+import { apiUrl } from '@/lib/utils';
 
 interface LoadStatusUpdateProps {
   loadId: string;
@@ -39,7 +40,7 @@ const statusOptions = [
 ];
 
 async function updateLoadStatus(loadId: string, status: string, notes?: string) {
-  const response = await fetch(`/api/mobile/loads/${loadId}`, {
+  const response = await fetch(apiUrl(`/api/mobile/loads/${loadId}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

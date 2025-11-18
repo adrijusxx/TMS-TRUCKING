@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Package, MapPin, Clock, DollarSign, ArrowLeft } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 
 interface Load {
@@ -35,7 +35,7 @@ interface Load {
 }
 
 async function fetchDriverLoads() {
-  const response = await fetch('/api/mobile/loads');
+  const response = await fetch(apiUrl('/api/mobile/loads'));
   if (!response.ok) throw new Error('Failed to fetch loads');
   return response.json();
 }

@@ -5,13 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle, Clock, Car, Bed, Coffee } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { apiUrl } from '@/lib/utils';
 
 interface HOSStatusCardProps {
   driverId: string;
 }
 
 async function fetchHOSStatus(driverId: string) {
-  const response = await fetch(`/api/hos/status/${driverId}`);
+  const response = await fetch(apiUrl(`/api/hos/status/${driverId}`));
   if (!response.ok) throw new Error('Failed to fetch HOS status');
   return response.json();
 }

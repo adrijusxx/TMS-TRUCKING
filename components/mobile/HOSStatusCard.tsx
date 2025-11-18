@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 
 interface HOSStatus {
   driverId: string;
@@ -30,7 +31,7 @@ interface HOSStatus {
 }
 
 async function fetchHOSStatus() {
-  const response = await fetch('/api/mobile/hos/status');
+  const response = await fetch(apiUrl('/api/mobile/hos/status'));
   if (!response.ok) throw new Error('Failed to fetch HOS status');
   return response.json();
 }

@@ -10,9 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { FileText, Upload, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 
 async function parseEDI(content: string) {
-  const response = await fetch('/api/edi/parse', {
+  const response = await fetch(apiUrl('/api/edi/parse'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),

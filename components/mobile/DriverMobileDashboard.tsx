@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Package, Truck, Clock, MapPin, DollarSign, Menu, X } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { DriverStatus } from '@prisma/client';
 import Link from 'next/link';
 import HOSStatusCard from '@/components/mobile/HOSStatusCard';
@@ -66,7 +66,7 @@ function formatStatus(status: DriverStatus): string {
 }
 
 async function fetchDriverLoads() {
-  const response = await fetch('/api/mobile/loads');
+  const response = await fetch(apiUrl('/api/mobile/loads'));
   if (!response.ok) throw new Error('Failed to fetch loads');
   return response.json();
 }

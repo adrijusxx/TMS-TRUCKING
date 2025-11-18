@@ -17,13 +17,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/utils';
 
 async function generateEDI(data: {
   type: '204' | '210' | '214';
   loadId?: string;
   invoiceId?: string;
 }) {
-  const response = await fetch('/api/edi/generate', {
+  const response = await fetch(apiUrl('/api/edi/generate'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Package, MapPin, Calendar, Building2, DollarSign, ArrowLeft } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import LoadStatusUpdate from '@/components/mobile/LoadStatusUpdate';
@@ -49,7 +49,7 @@ interface Load {
 }
 
 async function fetchLoad(id: string) {
-  const response = await fetch(`/api/mobile/loads/${id}`);
+  const response = await fetch(apiUrl(`/api/mobile/loads/${id}`));
   if (!response.ok) throw new Error('Failed to fetch load');
   return response.json();
 }
