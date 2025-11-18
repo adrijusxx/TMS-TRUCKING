@@ -33,15 +33,16 @@ import AILoadImporter from './AILoadImporter';
 import LoadStopsDisplay from './LoadStopsDisplay';
 import EditableLoadStops from './EditableLoadStops';
 import DocumentUpload from '@/components/documents/DocumentUpload';
+import { apiUrl } from '@/lib/utils';
 
 async function fetchCustomers() {
-  const response = await fetch('/api/customers');
+  const response = await fetch(apiUrl('/api/customers'));
   if (!response.ok) throw new Error('Failed to fetch customers');
   return response.json();
 }
 
 async function createLoad(data: CreateLoadInput) {
-  const response = await fetch('/api/loads', {
+  const response = await fetch(apiUrl('/api/loads'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -222,7 +223,7 @@ export default function CreateLoadForm() {
     destination: { city: string; state: string }
   ): Promise<number> => {
     try {
-      const response = await fetch('/api/routes/distance', {
+      const response = await fetch(apiUrl('/api/routes/distance'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -275,7 +276,7 @@ export default function CreateLoadForm() {
               formData.append('fileSize', file.size.toString());
               formData.append('mimeType', file.type);
               
-              const response = await fetch('/api/documents/upload', {
+              const response = await fetch(apiUrl('/api/documents/upload'), {
                 method: 'POST',
                 body: formData,
               });

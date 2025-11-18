@@ -7,7 +7,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime, apiUrl } from '@/lib/utils';
 import { LoadStatus, LoadType, EquipmentType } from '@prisma/client';
 import {
   ArrowLeft,
@@ -67,7 +67,7 @@ function formatStatus(status: LoadStatus): string {
 }
 
 async function deleteLoad(loadId: string) {
-  const response = await fetch(`/api/loads/${loadId}`, {
+  const response = await fetch(apiUrl(`/api/loads/${loadId}`), {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -78,7 +78,7 @@ async function deleteLoad(loadId: string) {
 }
 
 async function deleteDocument(documentId: string) {
-  const response = await fetch(`/api/documents/${documentId}`, {
+  const response = await fetch(apiUrl(`/api/documents/${documentId}`), {
     method: 'DELETE',
   });
   if (!response.ok) {

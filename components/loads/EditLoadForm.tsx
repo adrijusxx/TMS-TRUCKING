@@ -21,21 +21,22 @@ import { LoadType, EquipmentType } from '@prisma/client';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import LoadStopsDisplay from './LoadStopsDisplay';
+import { apiUrl } from '@/lib/utils';
 
 async function fetchCustomers() {
-  const response = await fetch('/api/customers');
+  const response = await fetch(apiUrl('/api/customers'));
   if (!response.ok) throw new Error('Failed to fetch customers');
   return response.json();
 }
 
 async function fetchLoad(loadId: string) {
-  const response = await fetch(`/api/loads/${loadId}`);
+  const response = await fetch(apiUrl(`/api/loads/${loadId}`));
   if (!response.ok) throw new Error('Failed to fetch load');
   return response.json();
 }
 
 async function updateLoad(loadId: string, data: UpdateLoadInput) {
-  const response = await fetch(`/api/loads/${loadId}`, {
+  const response = await fetch(apiUrl(`/api/loads/${loadId}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

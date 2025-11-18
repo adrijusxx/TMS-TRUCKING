@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Truck, CheckCircle, Wrench, AlertCircle } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 
 interface TruckListStatsProps {
   filters?: Record<string, any>;
@@ -15,7 +16,7 @@ async function fetchTruckStats(filters?: Record<string, any>) {
       if (value) params.set(key, value.toString());
     });
   }
-  const response = await fetch(`/api/trucks/stats?${params.toString()}`);
+  const response = await fetch(apiUrl(`/api/trucks/stats?${params.toString()}`));
   if (!response.ok) throw new Error('Failed to fetch truck stats');
   return response.json();
 }

@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { FileText, DollarSign, CheckCircle, Clock } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 
 interface InvoiceListStatsProps {
   filters?: Record<string, any>;
@@ -16,7 +16,7 @@ async function fetchInvoiceStats(filters?: Record<string, any>) {
       if (value) params.set(key, value.toString());
     });
   }
-  const response = await fetch(`/api/invoices/stats?${params.toString()}`);
+  const response = await fetch(apiUrl(`/api/invoices/stats?${params.toString()}`));
   if (!response.ok) throw new Error('Failed to fetch invoice stats');
   return response.json();
 }

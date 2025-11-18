@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { InvoiceStatus } from '@prisma/client';
 import {
   ArrowLeft,
@@ -47,7 +47,7 @@ function formatStatus(status: InvoiceStatus): string {
 }
 
 async function sendInvoiceEmail(invoiceId: string) {
-  const response = await fetch(`/api/invoices/${invoiceId}/send`, {
+  const response = await fetch(apiUrl(`/api/invoices/${invoiceId}/send`), {
     method: 'POST',
   });
   if (!response.ok) {
@@ -58,7 +58,7 @@ async function sendInvoiceEmail(invoiceId: string) {
 }
 
 async function syncInvoiceToQuickBooks(invoiceId: string, realmId?: string) {
-  const response = await fetch('/api/integrations/quickbooks/sync-invoice', {
+  const response = await fetch(apiUrl('/api/integrations/quickbooks/sync-invoice'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ invoiceId, realmId }),

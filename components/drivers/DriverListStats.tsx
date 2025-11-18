@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Users, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 
 interface DriverListStatsProps {
   filters?: Record<string, any>;
@@ -15,7 +16,7 @@ async function fetchDriverStats(filters?: Record<string, any>) {
       if (value) params.set(key, value.toString());
     });
   }
-  const response = await fetch(`/api/drivers/stats?${params.toString()}`);
+  const response = await fetch(apiUrl(`/api/drivers/stats?${params.toString()}`));
   if (!response.ok) throw new Error('Failed to fetch driver stats');
   return response.json();
 }
