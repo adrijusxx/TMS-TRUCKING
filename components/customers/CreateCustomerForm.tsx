@@ -46,9 +46,9 @@ export default function CreateCustomerForm() {
     setValue,
     watch,
   } = useForm<CreateCustomerInput>({
-    resolver: zodResolver(createCustomerSchema),
+    resolver: zodResolver(createCustomerSchema) as any,
     defaultValues: {
-      type: 'DIRECT',
+      type: 'DIRECT' as const,
       paymentTerms: 30,
     },
   });
@@ -78,7 +78,7 @@ export default function CreateCustomerForm() {
     if (!data.billingEmail) {
       delete data.billingEmail;
     }
-    createMutation.mutate(data);
+    createMutation.mutate(data as CreateCustomerInput);
   };
 
   return (

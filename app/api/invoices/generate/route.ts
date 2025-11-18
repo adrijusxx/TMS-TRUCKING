@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { LoadStatus } from '@prisma/client';
 import { z } from 'zod';
 
 const generateInvoiceSchema = z.object({
@@ -125,8 +126,8 @@ export async function POST(request: NextRequest) {
           id: { in: data.loads.map((l: any) => l.id) },
         },
         data: {
-          invoiceId: invoice.id,
-          status: 'INVOICED',
+          invoicedAt: new Date(),
+          status: LoadStatus.INVOICED,
         },
       });
 

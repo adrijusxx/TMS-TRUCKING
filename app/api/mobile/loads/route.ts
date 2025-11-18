@@ -63,8 +63,6 @@ export async function GET(request: NextRequest) {
             email: true,
           },
         },
-        pickupLocation: true,
-        deliveryLocation: true,
       },
       orderBy: {
         pickupDate: 'desc',
@@ -83,22 +81,26 @@ export async function GET(request: NextRequest) {
         state: load.pickupState,
         address: load.pickupAddress,
         date: load.pickupDate,
-        timeWindow: load.pickupTimeWindow,
+        timeWindow: load.pickupTimeStart && load.pickupTimeEnd 
+          ? `${load.pickupTimeStart.toISOString()} - ${load.pickupTimeEnd.toISOString()}`
+          : null,
         contact: load.pickupContact,
         phone: load.pickupPhone,
-        latitude: load.pickupLocation?.latitude,
-        longitude: load.pickupLocation?.longitude,
+        latitude: null,
+        longitude: null,
       },
       delivery: {
         city: load.deliveryCity,
         state: load.deliveryState,
         address: load.deliveryAddress,
         date: load.deliveryDate,
-        timeWindow: load.deliveryTimeWindow,
+        timeWindow: load.deliveryTimeStart && load.deliveryTimeEnd
+          ? `${load.deliveryTimeStart.toISOString()} - ${load.deliveryTimeEnd.toISOString()}`
+          : null,
         contact: load.deliveryContact,
         phone: load.deliveryPhone,
-        latitude: load.deliveryLocation?.latitude,
-        longitude: load.deliveryLocation?.longitude,
+        latitude: null,
+        longitude: null,
       },
       customer: {
         name: load.customer.name,
@@ -108,7 +110,7 @@ export async function GET(request: NextRequest) {
       commodity: load.commodity,
       weight: load.weight,
       revenue: load.revenue,
-      notes: load.notes,
+      notes: load.dispatchNotes || null,
       createdAt: load.createdAt,
       updatedAt: load.updatedAt,
     }));

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, FileText, DollarSign, CheckCircle, AlertTriangle, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
+import { LoadStatus } from '@prisma/client';
 
 async function triggerLoadStatusUpdate() {
   const response = await fetch('/api/automation/load-status', {

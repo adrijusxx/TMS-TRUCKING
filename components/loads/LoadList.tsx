@@ -543,7 +543,7 @@ export default function LoadList() {
           <SavedFilters
             entityType="loads"
             currentFilters={{ ...advancedFilters, status: statusFilter, search: searchQuery }}
-            onApply={(filters) => {
+            onApplyFilter={(filters) => {
               // Extract status and search from saved filters
               const { status, search, ...rest } = filters;
               if (status) setStatusFilter(status);
@@ -797,7 +797,7 @@ export default function LoadList() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={statusColors[load.status]}
+                        className={statusColors[load.status as LoadStatus]}
                       >
                         {formatStatus(load.status)}
                       </Badge>

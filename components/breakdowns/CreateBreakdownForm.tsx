@@ -84,9 +84,9 @@ export default function CreateBreakdownForm() {
     setValue,
     watch,
   } = useForm<CreateBreakdownInput>({
-    resolver: zodResolver(createBreakdownSchema),
+    resolver: zodResolver(createBreakdownSchema) as any,
     defaultValues: {
-      priority: 'MEDIUM',
+      priority: 'MEDIUM' as const,
     },
   });
 
@@ -105,7 +105,7 @@ export default function CreateBreakdownForm() {
 
   const onSubmit = async (data: CreateBreakdownInput) => {
     setError(null);
-    createMutation.mutate(data);
+    createMutation.mutate(data as CreateBreakdownInput);
   };
 
   return (

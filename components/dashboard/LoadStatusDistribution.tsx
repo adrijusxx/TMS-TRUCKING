@@ -93,7 +93,7 @@ export default function LoadStatusDistribution() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                  label={({ name, payload }: any) => `${name}: ${payload?.percentage?.toFixed(1) || 0}%`}
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"

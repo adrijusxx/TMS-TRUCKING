@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '../prisma';
+import { InvoiceStatus } from '@prisma/client';
 import { createActivityLog } from '../activity-log';
 
 /**
@@ -22,7 +23,7 @@ export async function autoGenerateInvoices(companyId: string) {
       where: {
         companyId,
         status: 'DELIVERED',
-        invoiceId: null,
+        invoicedAt: null,
         deletedAt: null,
       },
       include: {
@@ -69,19 +70,19 @@ export async function autoGenerateInvoices(companyId: string) {
             subtotal,
             tax,
             total,
-            status: 'PENDING',
+            balance: total, // Balance starts equal to total
+            status: InvoiceStatus.DRAFT,
             loadIds: customerLoads.map((l) => l.id),
           },
         });
 
-        // Update loads to link to invoice
+        // Update loads to mark as invoiced
         await prisma.load.updateMany({
           where: {
             id: { in: customerLoads.map((l) => l.id) },
           },
           data: {
-            invoiceId: invoice.id,
-            status: 'INVOICED',
+            invoicedAt: new Date(),
           },
         });
 
@@ -100,7 +101,6 @@ export async function autoGenerateInvoices(companyId: string) {
             loadCount: customerLoads.length,
             total,
           },
-          createdBy: 'system',
         });
       } catch (error) {
         const errorMsg = `Error generating invoice for customer ${customerId}: ${error instanceof Error ? error.message : 'Unknown error'}`;

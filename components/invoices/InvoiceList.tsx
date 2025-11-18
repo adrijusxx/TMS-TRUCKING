@@ -238,7 +238,7 @@ export default function InvoiceList() {
           <SavedFilters
             entityType="invoices"
             currentFilters={{ ...advancedFilters, status: statusFilter, search: searchQuery }}
-            onApply={(filters) => {
+            onApplyFilter={(filters) => {
               const { status, search, ...rest } = filters;
               if (status) setStatusFilter(status);
               if (search) setSearchQuery(search);
@@ -320,7 +320,7 @@ export default function InvoiceList() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={statusColors[invoice.status]}
+                        className={statusColors[invoice.status as InvoiceStatus]}
                       >
                         {formatStatus(invoice.status)}
                       </Badge>

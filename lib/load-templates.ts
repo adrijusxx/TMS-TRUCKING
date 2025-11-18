@@ -79,8 +79,8 @@ export async function createLoadFromTemplate(
       deliveryDate,
       commodity: template.commodity || overrides?.notes,
       revenue: overrides?.revenue || template.defaultRevenue || 0,
-      weight: overrides?.weight || template.defaultWeight || undefined,
-      notes: overrides?.notes || template.notes,
+      weight: overrides?.weight || template.defaultWeight || 0,
+      dispatchNotes: overrides?.notes || template.notes || null,
     },
   });
 

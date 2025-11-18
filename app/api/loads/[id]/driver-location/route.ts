@@ -71,6 +71,14 @@ export async function GET(
       // Try to match truck with Samsara vehicle
       // Match by license plate (case-insensitive, remove spaces/dashes)
       const normalizePlate = (plate: string) => plate.replace(/[\s-]/g, '').toUpperCase();
+      
+      if (!load.truck) {
+        return NextResponse.json(
+          { success: false, error: { code: 'NO_TRUCK', message: 'Load has no assigned truck' } },
+          { status: 400 }
+        );
+      }
+
       const truckPlateNormalized = normalizePlate(load.truck.licensePlate);
       
       const matchedVehicle = samsaraVehicles.find((vehicle) => {
@@ -83,7 +91,7 @@ export async function GET(
         }
         
         // Match by VIN (if available)
-        if (vehicle.vin && load.truck.vin) {
+        if (vehicle.vin && load.truck?.vin) {
           if (vehicle.vin.toUpperCase() === load.truck.vin.toUpperCase()) {
             return true;
           }

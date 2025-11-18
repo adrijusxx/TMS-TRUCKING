@@ -5,6 +5,7 @@ import { updateLoadSchema } from '@/lib/validations/load';
 import { z } from 'zod';
 import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications/triggers';
 import { hasPermission } from '@/lib/permissions';
+import { LoadStatus } from '@prisma/client';
 
 export async function GET(
   request: NextRequest,

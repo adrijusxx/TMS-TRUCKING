@@ -5,6 +5,7 @@ import { hasPermission } from '@/lib/permissions';
 import * as XLSX from 'xlsx';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { LoadStatus } from '@prisma/client';
 
 /**
  * POST /api/import-export/bulk
@@ -616,21 +617,21 @@ async function importEntityData(
   };
 }
 
-function mapLoadStatus(status: string): string {
-  const statusMap: Record<string, string> = {
-    PENDING: 'PENDING',
-    ASSIGNED: 'ASSIGNED',
-    'EN ROUTE PICKUP': 'EN_ROUTE_PICKUP',
-    'AT PICKUP': 'AT_PICKUP',
-    LOADED: 'LOADED',
-    'EN ROUTE DELIVERY': 'EN_ROUTE_DELIVERY',
-    'AT DELIVERY': 'AT_DELIVERY',
-    DELIVERED: 'DELIVERED',
-    INVOICED: 'INVOICED',
-    PAID: 'PAID',
-    CANCELLED: 'CANCELLED',
+function mapLoadStatus(status: string): LoadStatus {
+  const statusMap: Record<string, LoadStatus> = {
+    PENDING: LoadStatus.PENDING,
+    ASSIGNED: LoadStatus.ASSIGNED,
+    'EN ROUTE PICKUP': LoadStatus.EN_ROUTE_PICKUP,
+    'AT PICKUP': LoadStatus.AT_PICKUP,
+    LOADED: LoadStatus.LOADED,
+    'EN ROUTE DELIVERY': LoadStatus.EN_ROUTE_DELIVERY,
+    'AT DELIVERY': LoadStatus.AT_DELIVERY,
+    DELIVERED: LoadStatus.DELIVERED,
+    INVOICED: LoadStatus.INVOICED,
+    PAID: LoadStatus.PAID,
+    CANCELLED: LoadStatus.CANCELLED,
   };
 
-  return statusMap[status.toUpperCase()] || 'PENDING';
+  return statusMap[status.toUpperCase()] || LoadStatus.PENDING;
 }
 

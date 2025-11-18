@@ -112,12 +112,14 @@ export async function POST(request: NextRequest) {
       `SET-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
     // Calculate period dates from loads
-    const loadDates = loads.map((l) => l.deliveredAt || l.pickupDate).filter(Boolean);
+    const loadDates = loads
+      .map((l) => l.deliveryDate || l.pickupDate)
+      .filter((d): d is Date => d !== null && d instanceof Date);
     const periodStart = loadDates.length > 0
-      ? new Date(Math.min(...loadDates.map((d) => new Date(d).getTime())))
+      ? new Date(Math.min(...loadDates.map((d) => d.getTime())))
       : new Date();
     const periodEnd = loadDates.length > 0
-      ? new Date(Math.max(...loadDates.map((d) => new Date(d).getTime())))
+      ? new Date(Math.max(...loadDates.map((d) => d.getTime())))
       : new Date();
 
     const settlement = await prisma.settlement.create({
@@ -136,15 +138,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update loads to link to settlement
-    await prisma.load.updateMany({
-      where: {
-        id: { in: validated.loadIds },
-      },
-      data: {
-        settlementId: settlement.id,
-      },
-    });
+    // Note: Settlement references loads via loadIds array, not the other way around
+    // No need to update loads with settlementId
 
     // Send notification
     await notifySettlementGenerated(settlement.id);

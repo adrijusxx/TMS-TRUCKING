@@ -305,7 +305,7 @@ export default function EditableLoadStops({ stops, onChange, compact = false }: 
                               variant="ghost"
                               size="sm"
                               className="h-7 w-7 p-0 text-destructive"
-                              onClick={() => deleteStop(originalIndex)}
+                              onClick={() => deleteStop(stop.sequence)}
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>

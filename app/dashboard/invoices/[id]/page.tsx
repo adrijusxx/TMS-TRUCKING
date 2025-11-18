@@ -23,9 +23,6 @@ export default async function InvoiceDetailPage({
     },
     include: {
       customer: true,
-      payments: {
-        orderBy: { paymentDate: 'desc' },
-      },
     },
   });
 

@@ -225,7 +225,7 @@ export default function TruckList() {
           <SavedFilters
             entityType="trucks"
             currentFilters={{ ...advancedFilters, status: statusFilter, search: searchQuery }}
-            onApply={(filters) => {
+            onApplyFilter={(filters) => {
               const { status, search, ...rest } = filters;
               if (status) setStatusFilter(status);
               if (search) setSearchQuery(search);
@@ -307,7 +307,7 @@ export default function TruckList() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={statusColors[truck.status]}
+                        className={statusColors[truck.status as TruckStatus]}
                       >
                         {formatStatus(truck.status)}
                       </Badge>

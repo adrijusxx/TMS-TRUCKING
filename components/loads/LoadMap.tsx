@@ -363,7 +363,7 @@ export default function LoadMap({ load }: LoadMapProps) {
 
     waypoints.forEach((waypoint, index) => {
       const address = waypoint.address || `${waypoint.city}, ${waypoint.state}`;
-      geocoder.geocode({ address }, (results, status) => {
+      geocoder.geocode({ address }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
         if (status === 'OK' && results && results[0]) {
           const location = results[0].geometry.location;
           const position = { lat: location.lat(), lng: location.lng() };
@@ -389,7 +389,9 @@ export default function LoadMap({ load }: LoadMapProps) {
             },
           });
 
-          window.mapMarkers.push(marker);
+          if (window.mapMarkers) {
+            window.mapMarkers.push(marker);
+          }
           bounds.extend(position);
 
           // Draw polyline when all markers are placed

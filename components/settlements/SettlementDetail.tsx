@@ -122,7 +122,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={statusColors[settlement.status]}>
+          <Badge variant="outline" className={statusColors[settlement.status as SettlementStatus]}>
             {formatStatus(settlement.status)}
           </Badge>
           {!isEditing ? (

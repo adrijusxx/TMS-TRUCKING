@@ -523,16 +523,16 @@ export class LiveMapService {
       const normalizedVehicleName = this.normalize(vehicle.name);
       const normalizedVehicleVin = this.normalize(vehicle.vin);
 
-      const nameMatches =
-        normalizedVehicleName &&
+      const nameMatches: boolean =
+        !!(normalizedVehicleName &&
         normalizedTruckNumber &&
-        normalizedVehicleName === normalizedTruckNumber;
+        normalizedVehicleName === normalizedTruckNumber);
 
-      const plateMatches =
-        normalizedVehiclePlate && normalizedPlate && normalizedVehiclePlate === normalizedPlate;
+      const plateMatches: boolean =
+        !!(normalizedVehiclePlate && normalizedPlate && normalizedVehiclePlate === normalizedPlate);
 
-      const vinMatches =
-        normalizedVehicleVin && normalizedVin && normalizedVehicleVin === normalizedVin;
+      const vinMatches: boolean =
+        !!(normalizedVehicleVin && normalizedVin && normalizedVehicleVin === normalizedVin);
 
       if (nameMatches || plateMatches || vinMatches) {
         return {

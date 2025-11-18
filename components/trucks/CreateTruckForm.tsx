@@ -45,7 +45,7 @@ export default function CreateTruckForm() {
     formState: { errors, isSubmitting },
     setValue,
   } = useForm<CreateTruckInput>({
-    resolver: zodResolver(createTruckSchema),
+    resolver: zodResolver(createTruckSchema) as any,
     defaultValues: {
       odometerReading: 0,
       eldInstalled: false,
@@ -66,7 +66,7 @@ export default function CreateTruckForm() {
 
   const onSubmit = async (data: CreateTruckInput) => {
     setError(null);
-    createMutation.mutate(data);
+    createMutation.mutate(data as CreateTruckInput);
   };
 
   return (

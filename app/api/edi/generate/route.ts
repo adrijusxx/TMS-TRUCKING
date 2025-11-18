@@ -60,18 +60,41 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Validate required fields for EDI 204
+      if (!load.pickupCity || !load.pickupState || !load.pickupDate || 
+          !load.deliveryCity || !load.deliveryState || !load.deliveryDate) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { 
+              code: 'INVALID_DATA', 
+              message: 'Load is missing required fields for EDI 204 (pickup/delivery location and dates)' 
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      // Extract values after null check to help TypeScript narrow types
+      const pickupCity = load.pickupCity;
+      const pickupState = load.pickupState;
+      const pickupDate = load.pickupDate;
+      const deliveryCity = load.deliveryCity;
+      const deliveryState = load.deliveryState;
+      const deliveryDate = load.deliveryDate;
+
       ediContent = generateEDI204({
         loadNumber: load.loadNumber,
         customer: {
           name: load.customer.name,
           scac: load.customer.scac || undefined,
         },
-        pickupCity: load.pickupCity,
-        pickupState: load.pickupState,
-        pickupDate: load.pickupDate,
-        deliveryCity: load.deliveryCity,
-        deliveryState: load.deliveryState,
-        deliveryDate: load.deliveryDate,
+        pickupCity,
+        pickupState,
+        pickupDate,
+        deliveryCity,
+        deliveryState,
+        deliveryDate,
         commodity: load.commodity || undefined,
         weight: load.weight || undefined,
         revenue: load.revenue,

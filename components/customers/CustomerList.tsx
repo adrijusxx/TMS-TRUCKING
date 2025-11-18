@@ -178,7 +178,7 @@ export default function CustomerList() {
           <SavedFilters
             entityType="customers"
             currentFilters={{ ...advancedFilters, search: searchQuery }}
-            onApply={(filters) => {
+            onApplyFilter={(filters) => {
               const { search, ...rest } = filters;
               if (search) setSearchQuery(search);
               setAdvancedFilters(rest);

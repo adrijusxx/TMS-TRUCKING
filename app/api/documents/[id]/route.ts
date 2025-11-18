@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(
   request: NextRequest,
@@ -24,13 +25,6 @@ export async function GET(
         deletedAt: null,
       },
       include: {
-        uploadedBy: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
         load: {
           select: {
             loadNumber: true,

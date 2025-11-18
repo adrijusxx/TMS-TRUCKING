@@ -16,6 +16,7 @@ export async function POST(
       );
     }
 
+    const resolvedParams = await params;
     // Verify invoice belongs to company
     const invoice = await prisma.invoice.findFirst({
       where: {

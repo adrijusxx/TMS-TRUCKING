@@ -35,6 +35,7 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     const item = await prisma.inventoryItem.findFirst({
       where: {
         id: resolvedParams.id,
@@ -104,6 +105,7 @@ export async function PATCH(
       );
     }
 
+    const resolvedParams = await params;
     const body = await request.json();
     const validatedData = updateInventoryItemSchema.parse(body);
 
@@ -189,6 +191,7 @@ export async function DELETE(
       );
     }
 
+    const resolvedParams = await params;
     const item = await prisma.inventoryItem.findFirst({
       where: {
         id: resolvedParams.id,

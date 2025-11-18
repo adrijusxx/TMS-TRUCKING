@@ -95,6 +95,9 @@ export default function LoadCalendar() {
   const getLoadsForDate = (date: Date | null) => {
     if (!date) return [];
     return loads.filter((load) => {
+      // Skip loads without pickup date
+      if (!load.pickupDate) return false;
+      
       const pickupDate = new Date(load.pickupDate);
       const deliveryDate = load.deliveryDate ? new Date(load.deliveryDate) : null;
       

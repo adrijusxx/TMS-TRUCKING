@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { createLoadSchema } from '@/lib/validations/load';
 
 // DeepSeek API configuration
@@ -459,7 +460,7 @@ export async function POST(request: NextRequest) {
           companyId: session.user.companyId,
           OR: [
             ...(extractedData.customerName
-              ? [{ name: { contains: extractedData.customerName, mode: 'insensitive' } }]
+              ? [{ name: { contains: extractedData.customerName, mode: Prisma.QueryMode.insensitive } }]
               : []),
             ...(extractedData.customerNumber
               ? [{ customerNumber: extractedData.customerNumber }]
@@ -476,11 +477,12 @@ export async function POST(request: NextRequest) {
         // Generate customer number if not provided
         const customerNumber = extractedData.customerNumber || `CUST-${Date.now()}`;
         
-        customer = await prisma.customer.create({
+        const newCustomer = await prisma.customer.create({
           data: {
             companyId: session.user.companyId,
             name: extractedData.customerName,
             customerNumber,
+            type: 'DIRECT', // Default customer type
             address: '', // Required field - set empty if not available
             city: '',
             state: '',
@@ -493,6 +495,7 @@ export async function POST(request: NextRequest) {
           },
           select: { id: true },
         });
+        customer = { id: newCustomer.id };
       }
 
       if (customer) {

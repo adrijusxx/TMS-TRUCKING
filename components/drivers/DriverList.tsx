@@ -329,7 +329,7 @@ export default function DriverList() {
           <SavedFilters
             entityType="drivers"
             currentFilters={{ ...advancedFilters, status: statusFilter, search: searchQuery }}
-            onApply={(filters) => {
+            onApplyFilter={(filters) => {
               const { status, search, ...rest } = filters;
               if (status) setStatusFilter(status);
               if (search) setSearchQuery(search);
@@ -478,7 +478,7 @@ export default function DriverList() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={statusColors[driver.status]}
+                        className={statusColors[driver.status as DriverStatus]}
                       >
                         {formatStatus(driver.status)}
                       </Badge>

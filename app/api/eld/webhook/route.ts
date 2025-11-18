@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { SamsaraWebhookVerifier } from '@/lib/integrations/samsara-webhook';
+import { DriverStatus } from '@prisma/client';
 
 // ELD webhook schema - supports both generic and Samsara formats
 const eldWebhookSchema = z.object({
@@ -142,17 +143,18 @@ export async function POST(request: NextRequest) {
     });
 
     // Determine driver status from validated data
-    let driverStatus = validated.status;
+    let driverStatus: DriverStatus | undefined = validated.status;
     if (!driverStatus && validated.currentState) {
       // Map Samsara status to our DriverStatus
-      const statusMap: Record<string, string> = {
-        'offDuty': 'OFF_DUTY',
-        'driving': 'DRIVING',
-        'onDuty': 'ON_DUTY',
-        'onDutyNotDriving': 'ON_DUTY',
-        'sleeper': 'SLEEPER_BERTH',
+      const statusMap: Record<string, DriverStatus> = {
+        'offDuty': DriverStatus.OFF_DUTY,
+        'driving': DriverStatus.DRIVING,
+        'onDuty': DriverStatus.ON_DUTY,
+        'onDutyNotDriving': DriverStatus.ON_DUTY,
+        'sleeper': DriverStatus.SLEEPER_BERTH,
       };
-      driverStatus = statusMap[validated.currentState] || 'OFF_DUTY';
+      const currentState = validated.currentState;
+      driverStatus = statusMap[currentState] || DriverStatus.OFF_DUTY;
     }
 
     // Update driver status

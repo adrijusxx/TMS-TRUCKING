@@ -88,18 +88,24 @@ function optimizeRoute(
   if (!currentPoint) return loads.map((l) => l.id);
 
   // Nearest neighbor algorithm
-  while (visited.size < loads.length * 2) {
+  while (visited.size < loads.length * 2 && currentPoint) {
     if (currentPoint === 'start') {
       // Find nearest pickup
       const pickups = allPoints.filter((p) => p.type === 'pickup' && p.id !== 'start' && !visited.has(p.loadId));
       if (pickups.length === 0) break;
 
+      const startDistances = distances[currentPoint];
+      if (!startDistances) break;
+
       let nearest = pickups[0];
-      let minDist = distances[currentPoint][nearest.id];
+      if (!nearest?.id) break;
+      let minDist = startDistances[nearest.id] ?? Infinity;
 
       pickups.forEach((pickup) => {
-        if (distances[currentPoint][pickup.id] < minDist) {
-          minDist = distances[currentPoint][pickup.id];
+        if (!pickup.id) return;
+        const dist = startDistances[pickup.id] ?? Infinity;
+        if (dist < minDist) {
+          minDist = dist;
           nearest = pickup;
         }
       });
@@ -110,6 +116,9 @@ function optimizeRoute(
     } else {
       const point = allPoints.find((p) => p.id === currentPoint);
       if (!point) break;
+
+      const currentDistances = distances[currentPoint];
+      if (!currentDistances) break;
 
       if (point.type === 'pickup' && !visited.has(`delivery-${point.loadId}`)) {
         // Go to delivery
@@ -123,11 +132,14 @@ function optimizeRoute(
         if (pickups.length === 0) break;
 
         let nearest = pickups[0];
-        let minDist = distances[currentPoint][nearest.id];
+        if (!nearest?.id) break;
+        let minDist = currentDistances[nearest.id] ?? Infinity;
 
         pickups.forEach((pickup) => {
-          if (distances[currentPoint][pickup.id] < minDist) {
-            minDist = distances[currentPoint][pickup.id];
+          if (!pickup.id) return;
+          const dist = currentDistances[pickup.id] ?? Infinity;
+          if (dist < minDist) {
+            minDist = dist;
             nearest = pickup;
           }
         });
@@ -207,9 +219,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Filter out loads with missing required location data
+    const validLoads = loads.filter(
+      (load) => 
+        load.pickupCity && load.pickupState && 
+        load.deliveryCity && load.deliveryState &&
+        load.pickupDate && load.deliveryDate
+    );
+
+    if (validLoads.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_LOADS',
+            message: 'All loads are missing required location or date information',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // Optimize route
     const optimizedSequence = optimizeRoute(
-      loads,
+      validLoads.map((load) => {
+        // TypeScript now knows these are non-null after filtering
+        const pickupCity = load.pickupCity!;
+        const pickupState = load.pickupState!;
+        const deliveryCity = load.deliveryCity!;
+        const deliveryState = load.deliveryState!;
+        const pickupDate = load.pickupDate!;
+        const deliveryDate = load.deliveryDate!;
+        
+        return {
+          id: load.id,
+          pickupCity,
+          pickupState,
+          deliveryCity,
+          deliveryState,
+          pickupDate,
+          deliveryDate,
+          revenue: load.revenue,
+          distance: load.totalMiles ?? undefined,
+        };
+      }),
       validated.optimizationType,
       validated.startLocation
     );
@@ -220,8 +273,8 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < optimizedSequence.length; i++) {
       const loadId = optimizedSequence[i];
-      const load = loads.find((l) => l.id === loadId);
-      if (!load) continue;
+      const load = validLoads.find((l) => l.id === loadId);
+      if (!load || !load.pickupCity || !load.pickupState || !load.deliveryCity || !load.deliveryState) continue;
 
       waypoints.push({
         loadId,

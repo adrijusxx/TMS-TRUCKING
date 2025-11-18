@@ -36,9 +36,9 @@ export async function GET(request: NextRequest) {
         // Test connection by attempting to fetch vehicles
         const vehicles = await getSamsaraVehicles();
         samsaraConnected = vehicles !== null && Array.isArray(vehicles);
-        if (samsaraConnected) {
+        if (samsaraConnected && vehicles && vehicles.length > 0) {
           // Get driver count - you can also fetch drivers separately
-          samsaraDriverCount = vehicles.length || 0;
+          samsaraDriverCount = vehicles.length;
         }
       } catch (error) {
         console.error('Samsara connection check failed:', error);

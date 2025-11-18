@@ -158,7 +158,7 @@ export const createLoadSchema = z.object({
   if (data.stops && data.stops.length > 0) {
     // Multi-stop load - single pickup/delivery fields are optional
     // Clear any errors on single-stop fields
-    return true;
+    return;
   }
   
   // Single-stop load validation - all fields required

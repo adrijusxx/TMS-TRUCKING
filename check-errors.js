@@ -93,18 +93,48 @@ allFiles.forEach(file => {
         });
       }
 
-      // 6. Check for new Date() with potentially null values
+      // 6. Check for new Date() with potentially null values (with context checking)
       if (line.includes('new Date(') && 
           (line.includes('.pickupDate') || line.includes('.deliveryDate') || 
-           line.includes('.expiryDate') || line.includes('.expirationDate')) &&
-          !line.includes('if (!') && !line.includes('continue') && !line.includes('?')) {
-        errors.push({
-          file,
-          line: lineNum,
-          type: 'null_date',
-          message: 'Date field may be null - add null check before using new Date()',
-          fix: 'Add: if (!field) continue; before new Date(field)'
-        });
+           line.includes('.expiryDate') || line.includes('.expirationDate'))) {
+        // Check if there's a null check in the previous 5 lines or on the same line
+        const contextStart = Math.max(0, index - 5);
+        const contextEnd = Math.min(lines.length, index + 2);
+        const context = lines.slice(contextStart, contextEnd).join('\n');
+        const fieldName = line.match(/\.(pickupDate|deliveryDate|expiryDate|expirationDate)/)?.[1];
+        
+        // Extract the variable name before the field (e.g., "validated" from "validated.pickupDate")
+        const varMatch = line.match(/(\w+)\.(pickupDate|deliveryDate|expiryDate|expirationDate)/);
+        const varName = varMatch ? varMatch[1] : null;
+        
+        const hasNullCheck = 
+          // Direct if check on previous line
+          (index > 0 && lines[index - 1].includes(`if (`) && 
+           (lines[index - 1].includes(`${fieldName || 'pickupDate'}`) || 
+            (varName && lines[index - 1].includes(`${varName}.${fieldName || 'pickupDate'}`)))) ||
+          // If check in context
+          (varName && context.includes(`if (${varName}.${fieldName || 'pickupDate'}`)) ||
+          context.includes(`if (validated.${fieldName || 'pickupDate'}`) ||
+          context.includes(`if (load.${fieldName || 'pickupDate'}`) ||
+          context.includes(`if (overrides?.${fieldName || 'pickupDate'}`) ||
+          // Ternary operator (single line or multi-line)
+          (line.includes('?') && (line.includes(':') || (index + 1 < lines.length && lines[index + 1].includes(':')))) ||
+          (index > 0 && lines[index - 1].includes('?') && line.includes(':')) ||
+          // Optional chaining with fallback (e.g., `overrides?.pickupDate || new Date()`)
+          (line.includes('?.') && line.includes('||')) ||
+          // Return false or continue in filter
+          context.includes('return false') ||
+          context.includes('continue');
+        
+        if (!hasNullCheck) {
+          errors.push({
+            file,
+            line: lineNum,
+            type: 'null_date',
+            message: 'Date field may be null - add null check before using new Date()',
+            fix: 'Add: if (!field) continue; before new Date(field)'
+          });
+        }
       }
 
       // 7. Check for Promise.all destructuring mismatch

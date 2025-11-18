@@ -190,7 +190,7 @@ export default function SettlementList() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={statusColors[settlement.status]}
+                        className={statusColors[settlement.status as SettlementStatus]}
                       >
                         {formatStatus(settlement.status)}
                       </Badge>

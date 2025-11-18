@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { createQuickBooksInvoice, refreshQuickBooksToken } from '@/lib/integrations/quickbooks';
-import { decrypt } from '@/lib/utils/encryption';
+import { encrypt, decrypt } from '@/lib/utils/encryption';
 import { retry } from '@/lib/utils/retry';
 import { z } from 'zod';
 
@@ -38,9 +38,6 @@ export async function POST(request: NextRequest) {
       },
       include: {
         customer: true,
-        payments: {
-          orderBy: { paymentDate: 'desc' },
-        },
       },
     });
 
@@ -249,21 +246,24 @@ export async function POST(request: NextRequest) {
     console.error('QuickBooks invoice sync error:', error);
 
     // Update integration with error
-    try {
-      await prisma.integration.update({
-        where: {
-          companyId_provider: {
-            companyId: session.user.companyId,
-            provider: 'QUICKBOOKS',
+    const session = await auth().catch(() => null);
+    if (session?.user?.companyId) {
+      try {
+        await prisma.integration.update({
+          where: {
+            companyId_provider: {
+              companyId: session.user.companyId,
+              provider: 'QUICKBOOKS',
+            },
           },
-        },
-        data: {
-          lastSyncStatus: 'error',
-          lastError: error.message || 'Unknown error',
-        },
-      });
-    } catch (updateError) {
-      // Ignore update errors
+          data: {
+            lastSyncStatus: 'error',
+            lastError: error.message || 'Unknown error',
+          },
+        });
+      } catch (updateError) {
+        // Ignore update errors
+      }
     }
 
     return NextResponse.json(

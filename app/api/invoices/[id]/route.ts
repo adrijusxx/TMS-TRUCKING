@@ -30,9 +30,6 @@ export async function GET(
       },
       include: {
         customer: true,
-        payments: {
-          orderBy: { paymentDate: 'desc' },
-        },
       },
     });
 

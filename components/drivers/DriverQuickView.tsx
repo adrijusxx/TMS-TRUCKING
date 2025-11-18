@@ -112,7 +112,7 @@ export default function DriverQuickView({ driverId, open, onOpenChange }: Driver
               </div>
               <Badge
                 variant="outline"
-                className={`${statusColors[driver.status]}`}
+                className={`${statusColors[driver.status as DriverStatus]}`}
               >
                 {formatStatus(driver.status)}
               </Badge>

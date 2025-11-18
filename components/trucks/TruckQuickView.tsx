@@ -110,7 +110,7 @@ export default function TruckQuickView({ truckId, open, onOpenChange }: TruckQui
               </div>
               <Badge
                 variant="outline"
-                className={`${statusColors[truck.status]}`}
+                className={`${statusColors[truck.status as TruckStatus]}`}
               >
                 {formatStatus(truck.status)}
               </Badge>

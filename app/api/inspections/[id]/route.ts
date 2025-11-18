@@ -47,6 +47,7 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     const inspection = await prisma.inspection.findFirst({
       where: {
         id: resolvedParams.id,
@@ -124,6 +125,7 @@ export async function PATCH(
       );
     }
 
+    const resolvedParams = await params;
     const body = await request.json();
     const validatedData = updateInspectionSchema.parse(body);
 
@@ -234,6 +236,7 @@ export async function DELETE(
       );
     }
 
+    const resolvedParams = await params;
     const inspection = await prisma.inspection.findFirst({
       where: {
         id: resolvedParams.id,

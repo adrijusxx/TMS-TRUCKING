@@ -12,6 +12,11 @@ import LoadStatusDistribution from '@/components/dashboard/LoadStatusDistributio
 import DriverPerformanceSummary from '@/components/dashboard/DriverPerformanceSummary';
 import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSummary';
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
+import { LoadStatus } from '@prisma/client';
+
+// Mark this page as dynamic since it uses auth() which internally uses headers()
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export default async function DashboardPage() {
   try {
@@ -176,6 +181,13 @@ export default async function DashboardPage() {
     </div>
   );
   } catch (error) {
+    // Don't log Next.js build-time dynamic route warnings
+    if (error instanceof Error && error.message.includes('Dynamic server usage')) {
+      // This is a build-time warning, not a runtime error
+      // Re-throw to let Next.js handle it properly
+      throw error;
+    }
+    
     console.error('Dashboard error:', error);
     return (
       <div className="p-4">

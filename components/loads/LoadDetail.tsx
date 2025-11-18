@@ -139,7 +139,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={statusColors[load.status]}>
+          <Badge variant="outline" className={statusColors[load.status as LoadStatus]}>
             {formatStatus(load.status)}
           </Badge>
           {can('loads.edit') && (
@@ -504,7 +504,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className={statusColors[history.status]}
+                          className={statusColors[history.status as LoadStatus]}
                         >
                           {formatStatus(history.status)}
                         </Badge>

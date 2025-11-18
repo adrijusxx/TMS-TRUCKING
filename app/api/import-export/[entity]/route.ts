@@ -5,6 +5,7 @@ import { hasPermission } from '@/lib/permissions';
 import { exportToCSV } from '@/lib/export';
 import { csvFileToJSON, parseCSV } from '@/lib/import-export/csv-import';
 import { z } from 'zod';
+import { TruckStatus, LoadStatus } from '@prisma/client';
 
 /**
  * GET /api/import-export/[entity]
@@ -250,7 +251,6 @@ export async function GET(
         data = await prisma.invoice.findMany({
           where,
           include: {
-            load: { select: { loadNumber: true } },
             customer: { select: { name: true } },
           },
         });
@@ -265,7 +265,7 @@ export async function GET(
         ];
         data = data.map((invoice) => ({
           'Invoice Number': invoice.invoiceNumber,
-          'Load Number': invoice.load?.loadNumber || '',
+          'Load Number': invoice.loadIds && invoice.loadIds.length > 0 ? invoice.loadIds.join(', ') : '',
           Customer: invoice.customer?.name || '',
           Amount: invoice.amount.toString(),
           Status: invoice.status,
@@ -1342,11 +1342,22 @@ export async function POST(
             fuelAdvance: validated.fuelAdvance || 0,
             expenses: 0,
             hazmat: validated.hazmat || false,
-            // Include additional fields from Excel
-            shipmentId: validated.shipmentId || null,
-            stopsCount: validated.stopsCount || null,
-            totalPay: validated.totalPay || null,
-            totalMiles: validated.totalMiles || null,
+            // Include additional fields from Excel (extract directly from row since they're not in validation schema)
+            shipmentId: nullToUndefined(getValue(row, ['Shipment ID', 'Shipment ID', 'shipment_id'])) || null,
+            stopsCount: (() => { 
+              const v = getValue(row, ['Stops count', 'Stops Count', 'stops_count']);
+              if (v === null || v === '') return null;
+              const parsed = parseInt(String(v));
+              return isNaN(parsed) ? null : parsed;
+            })(),
+            totalPay: (() => { 
+              const v = getValue(row, ['Total pay', 'Total Pay', 'total_pay']);
+              if (v === null || v === '') return null;
+              const cleaned = String(v).replace(/[$,\s]/g, '');
+              const parsed = parseFloat(cleaned);
+              return isNaN(parsed) ? null : parsed;
+            })(),
+            // totalMiles already set above at line 1317, don't duplicate
             serviceFee: validated.serviceFee || null,
           };
           
@@ -1600,8 +1611,7 @@ export async function POST(
                   },
                 },
               })
-            ),
-            { timeout: 30000 } // 30 second timeout per batch
+            )
           );
           
           // Create status history entries for loads with stops
@@ -1798,19 +1808,40 @@ export async function POST(
           console.log(`[Drivers Import] Created driver ${finalDriverNumber} (${driver.id})`);
         } catch (error: any) {
           console.error(`[Drivers Import] Error creating driver at row ${i + 1}:`, error);
-          console.error(`[Drivers Import] Row data:`, {
-            email,
-            firstName,
-            lastName,
-            driverNumber,
-            licenseNumber,
-            licenseState,
-            phone,
-            licenseExpiry: defaultLicenseExpiry,
-            medicalCardExpiry: defaultMedicalExpiry,
-            payType,
-            payRate,
-          });
+          // Use try-catch to safely log variables that might not be in scope
+          try {
+            const row = importResult.data[i];
+            const email = getValue(row, ['Email', 'email', 'Email Address', 'email_address', 'E-mail', 'e-mail', 'EmailAddress']);
+            const firstName = getValue(row, ['First Name', 'First Name', 'first_name', 'FirstName', 'firstName', 'First', 'first', 'FName', 'fname']);
+            const lastName = getValue(row, ['Last Name', 'Last Name', 'last_name', 'LastName', 'lastName', 'Last', 'last', 'LName', 'lname', 'Surname', 'surname']);
+            const driverNumber = getValue(row, ['Driver Number', 'Driver Number', 'driver_number', 'DriverNumber', 'driverNumber', 'Driver #', 'Driver #', 'DriverNo', 'driver_no', 'Driver ID', 'driver_id']);
+            const licenseNumber = getValue(row, ['License Number', 'License Number', 'license_number', 'LicenseNumber', 'License', 'license', 'CDL', 'cdl', 'CDL Number', 'cdl_number', 'CDL #', 'cdl #']);
+            const licenseState = getValue(row, ['License State', 'License State', 'license_state', 'LicenseState', 'State', 'state', 'License State Code', 'State Code', 'state_code', 'CDL State', 'cdl_state']);
+            const phone = getValue(row, ['Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Phone #', 'phone #', 'Mobile', 'mobile', 'Cell', 'cell', 'Cell Phone', 'cell_phone', 'Contact Number', 'contact_number', 'Contact', 'contact']);
+            const licenseExpiry = parseDate(getValue(row, ['License Expiry', 'License Expiry', 'license_expiry', 'LicenseExpiry', 'License Expiration', 'License Exp Date', 'license_exp_date', 'CDL Expiry', 'cdl_expiry', 'CDL Expiration', 'Expiration Date', 'expiration_date']));
+            const medicalCardExpiry = parseDate(getValue(row, ['Medical Card Expiry', 'Medical Card Expiry', 'medical_card_expiry', 'MedicalCardExpiry', 'Medical Expiration', 'Medical Exp Date', 'medical_exp_date', 'Medical Card Exp', 'Medical Exp', 'DOT Medical Expiry', 'dot_medical_expiry']));
+            const defaultLicenseExpiry = licenseExpiry || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+            const defaultMedicalExpiry = medicalCardExpiry || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+            const payTypeValue = getValue(row, ['Pay Type', 'Pay Type', 'pay_type', 'PayType', 'Payment Type', 'payment_type', 'Compensation Type', 'compensation_type']);
+            const payType = payTypeValue ? (payTypeValue.toString().toUpperCase().replace(/[_\s-]/g, '_') as any) : 'PER_MILE';
+            const payRate = parseFloat(String(getValue(row, ['Pay Rate', 'Pay Rate', 'pay_rate', 'PayRate', 'Rate', 'rate', 'Pay Per Mile', 'pay_per_mile', 'Mile Rate', 'mile_rate', 'Hourly Rate', 'hourly_rate']) || '0')) || 0;
+            
+            console.error(`[Drivers Import] Row data:`, {
+              email,
+              firstName,
+              lastName,
+              driverNumber,
+              licenseNumber,
+              licenseState,
+              phone,
+              licenseExpiry: defaultLicenseExpiry,
+              medicalCardExpiry: defaultMedicalExpiry,
+              payType,
+              payRate,
+            });
+          } catch (logError: any) {
+            console.error(`[Drivers Import] Could not extract row data for logging:`, logError);
+          }
           errors.push({
             row: i + 1,
             field: 'General',

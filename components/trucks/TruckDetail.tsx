@@ -54,7 +54,7 @@ export default function TruckDetail({ truck }: TruckDetailProps) {
             </p>
           </div>
         </div>
-        <Badge variant="outline" className={statusColors[truck.status]}>
+        <Badge variant="outline" className={statusColors[truck.status as TruckStatus]}>
           {formatStatus(truck.status)}
         </Badge>
       </div>

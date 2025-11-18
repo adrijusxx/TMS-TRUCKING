@@ -6,6 +6,7 @@
 
 import { sendNotificationEmail, emailTemplates } from './email';
 import { prisma } from '../prisma';
+import { LoadStatus } from '@prisma/client';
 
 /**
  * Send notification when a load is assigned to a driver
@@ -35,8 +36,8 @@ export async function notifyLoadAssigned(loadId: string, driverId: string) {
       emailTemplates.loadAssigned(
         load.loadNumber,
         load.customer.name,
-        load.pickupCity,
-        load.deliveryCity
+        (load.pickupCity || 'N/A') as string,
+        (load.deliveryCity || 'N/A') as string
       )
     );
 

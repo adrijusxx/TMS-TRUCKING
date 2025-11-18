@@ -61,7 +61,7 @@ export default function DriverDetail({ driver }: DriverDetailProps) {
             </p>
           </div>
         </div>
-        <Badge variant="outline" className={statusColors[driver.status]}>
+        <Badge variant="outline" className={statusColors[driver.status as DriverStatus]}>
           {formatStatus(driver.status)}
         </Badge>
       </div>

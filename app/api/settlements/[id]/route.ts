@@ -23,6 +23,7 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     const settlement = await prisma.settlement.findFirst({
       where: {
         id: resolvedParams.id,
@@ -116,6 +117,7 @@ export async function PATCH(
       );
     }
 
+    const resolvedParams = await params;
     // Verify settlement belongs to company
     const existing = await prisma.settlement.findFirst({
       where: {

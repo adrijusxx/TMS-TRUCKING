@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { LoadStatus } from '@prisma/client';
 
 interface LoadStatusUpdateProps {
   loadId: string;

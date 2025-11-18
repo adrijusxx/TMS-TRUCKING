@@ -112,7 +112,7 @@ export default function InvoiceDetail({ invoice }: InvoiceDetailProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={statusColors[invoice.status]}>
+          <Badge variant="outline" className={statusColors[invoice.status as InvoiceStatus]}>
             {formatStatus(invoice.status)}
           </Badge>
           {invoice.qbSynced && (

@@ -51,7 +51,7 @@ export default function CustomerTrackingView({ load }: CustomerTrackingViewProps
               Track your shipment in real-time
             </p>
           </div>
-          <Badge variant="outline" className={statusColors[load.status]}>
+          <Badge variant="outline" className={statusColors[load.status as LoadStatus]}>
             {formatStatus(load.status)}
           </Badge>
         </div>
@@ -200,7 +200,7 @@ export default function CustomerTrackingView({ load }: CustomerTrackingViewProps
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className={statusColors[history.status]}
+                          className={statusColors[history.status as LoadStatus]}
                         >
                           {formatStatus(history.status)}
                         </Badge>

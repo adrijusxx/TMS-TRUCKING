@@ -8,6 +8,7 @@
 import { prisma } from '../prisma';
 import { autoUpdateLoadStatuses } from '../automation/load-status';
 import { checkAllDocumentExpiries } from '../automation/document-expiry';
+import { LoadStatus } from '@prisma/client';
 
 /**
  * Run all daily automation tasks
@@ -24,7 +25,6 @@ export async function runDailyAutomationTasks() {
     const companies = await prisma.company.findMany({
       where: {
         isActive: true,
-        deletedAt: null,
       },
       select: {
         id: true,
@@ -79,7 +79,6 @@ export async function runHourlyAutomationTasks() {
     const companies = await prisma.company.findMany({
       where: {
         isActive: true,
-        deletedAt: null,
       },
       select: {
         id: true,
@@ -127,7 +126,6 @@ export async function runWeeklyAutomationTasks() {
     const companies = await prisma.company.findMany({
       where: {
         isActive: true,
-        deletedAt: null,
       },
       select: {
         id: true,

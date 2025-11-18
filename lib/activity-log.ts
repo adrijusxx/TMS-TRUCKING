@@ -17,6 +17,7 @@ export type ActivityAction =
   | 'LOGOUT'
   | 'EXPORT'
   | 'GENERATE'
+  | 'INVOICE_GENERATED'
   | 'SEND'
   | 'APPROVE'
   | 'REJECT';

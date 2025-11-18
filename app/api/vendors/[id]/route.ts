@@ -47,6 +47,7 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     const vendor = await prisma.vendor.findFirst({
       where: {
         id: resolvedParams.id,
@@ -107,6 +108,7 @@ export async function PATCH(
       );
     }
 
+    const resolvedParams = await params;
     const body = await request.json();
     const validatedData = updateVendorSchema.parse(body);
 
@@ -186,6 +188,7 @@ export async function DELETE(
       );
     }
 
+    const resolvedParams = await params;
     const vendor = await prisma.vendor.findFirst({
       where: {
         id: resolvedParams.id,

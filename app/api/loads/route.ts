@@ -3,7 +3,6 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { createLoadSchema } from '@/lib/validations/load';
 import { z } from 'zod';
-import { notifyLoadCreated } from '@/lib/notifications/triggers';
 import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
@@ -392,12 +391,16 @@ export async function POST(request: NextRequest) {
       deliveryCity = validated.deliveryCity || null;
       deliveryState = validated.deliveryState || null;
       deliveryZip = validated.deliveryZip || null;
-      pickupDate = validated.pickupDate instanceof Date 
-        ? validated.pickupDate 
-        : new Date(validated.pickupDate!);
-      deliveryDate = validated.deliveryDate instanceof Date 
-        ? validated.deliveryDate 
-        : new Date(validated.deliveryDate!);
+      pickupDate = validated.pickupDate 
+        ? (validated.pickupDate instanceof Date 
+          ? validated.pickupDate 
+          : new Date(validated.pickupDate))
+        : null;
+      deliveryDate = validated.deliveryDate 
+        ? (validated.deliveryDate instanceof Date 
+          ? validated.deliveryDate 
+          : new Date(validated.deliveryDate))
+        : null;
       pickupTimeStart = validated.pickupTimeStart 
         ? (validated.pickupTimeStart instanceof Date ? validated.pickupTimeStart : new Date(validated.pickupTimeStart))
         : null;

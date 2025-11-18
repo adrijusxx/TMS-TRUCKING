@@ -78,7 +78,7 @@ export default function EditLoadForm({ loadId, initialData }: EditLoadFormProps)
     setValue,
     watch,
   } = useForm<UpdateLoadInput>({
-    resolver: zodResolver(updateLoadSchema),
+    resolver: zodResolver(updateLoadSchema) as any,
     defaultValues: {},
   });
 
@@ -205,7 +205,7 @@ export default function EditLoadForm({ loadId, initialData }: EditLoadFormProps)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <LoadStopsDisplay stops={stops} />
+              <LoadStopsDisplay stops={stops as any} />
             </CardContent>
           </Card>
         )}

@@ -57,6 +57,7 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     const load = await prisma.load.findFirst({
       where: {
         id: resolvedParams.id,
@@ -75,8 +76,6 @@ export async function GET(
             zip: true,
           },
         },
-        pickupLocation: true,
-        deliveryLocation: true,
         statusHistory: {
           orderBy: { createdAt: 'desc' },
           take: 10,
@@ -104,22 +103,26 @@ export async function GET(
         state: load.pickupState,
         address: load.pickupAddress,
         date: load.pickupDate,
-        timeWindow: load.pickupTimeWindow,
+        timeWindow: load.pickupTimeStart && load.pickupTimeEnd 
+          ? `${load.pickupTimeStart.toISOString()} - ${load.pickupTimeEnd.toISOString()}`
+          : null,
         contact: load.pickupContact,
         phone: load.pickupPhone,
-        latitude: load.pickupLocation?.latitude,
-        longitude: load.pickupLocation?.longitude,
+        latitude: null,
+        longitude: null,
       },
       delivery: {
         city: load.deliveryCity,
         state: load.deliveryState,
         address: load.deliveryAddress,
         date: load.deliveryDate,
-        timeWindow: load.deliveryTimeWindow,
+        timeWindow: load.deliveryTimeStart && load.deliveryTimeEnd
+          ? `${load.deliveryTimeStart.toISOString()} - ${load.deliveryTimeEnd.toISOString()}`
+          : null,
         contact: load.deliveryContact,
         phone: load.deliveryPhone,
-        latitude: load.deliveryLocation?.latitude,
-        longitude: load.deliveryLocation?.longitude,
+        latitude: null,
+        longitude: null,
       },
       customer: {
         name: load.customer.name,
@@ -130,7 +133,7 @@ export async function GET(
       commodity: load.commodity,
       weight: load.weight,
       revenue: load.revenue,
-      notes: load.notes,
+      notes: load.dispatchNotes || null,
       statusHistory: load.statusHistory.map((h) => ({
         status: h.status,
         location: h.location,
@@ -192,6 +195,7 @@ export async function PATCH(
       );
     }
 
+    const resolvedParams = await params;
     const body = await request.json();
     const validated = updateStatusSchema.parse(body);
 
@@ -227,10 +231,11 @@ export async function PATCH(
       data: {
         loadId: resolvedParams.id,
         status: validated.status,
-        location: validated.location,
-        latitude: validated.latitude,
-        longitude: validated.longitude,
-        notes: validated.notes,
+        location: validated.location || null,
+        createdBy: session.user.id,
+        latitude: validated.latitude ?? null,
+        longitude: validated.longitude ?? null,
+        notes: validated.notes || null,
       },
     });
 

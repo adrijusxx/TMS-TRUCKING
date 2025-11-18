@@ -18,7 +18,7 @@ import {
 } from '@/lib/permissions';
 
 // Group permissions by category
-const permissionCategories = {
+const permissionCategories: Record<string, Permission[]> = {
   'Loads Management': [
     'loads.view',
     'loads.create',
@@ -250,7 +250,7 @@ export default function RolePermissions() {
                           (el as any).indeterminate = someSelected;
                         }
                       }}
-                      onCheckedChange={() => handleCategoryToggle(selectedRole, perms)}
+                      onCheckedChange={() => handleCategoryToggle(selectedRole, perms as Permission[])}
                     />
                     <Label className="font-semibold cursor-pointer">
                       {category}
@@ -267,7 +267,7 @@ export default function RolePermissions() {
                         id={`${selectedRole}-${permission}`}
                         checked={currentRolePerms.includes(permission)}
                         onCheckedChange={() =>
-                          handlePermissionToggle(selectedRole, permission)
+                          handlePermissionToggle(selectedRole, permission as Permission)
                         }
                       />
                       <Label

@@ -33,6 +33,9 @@ export async function autoUpdateLoadStatuses(companyId: string) {
   const updates: Array<{ id: string; oldStatus: LoadStatus; newStatus: LoadStatus }> = [];
 
   for (const load of loadsToUpdate) {
+    // Skip loads without required dates
+    if (!load.pickupDate || !load.deliveryDate) continue;
+    
     const pickupDate = new Date(load.pickupDate);
     const deliveryDate = new Date(load.deliveryDate);
     const pickupDateOnly = new Date(

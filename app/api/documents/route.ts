@@ -37,12 +37,6 @@ export async function GET(request: NextRequest) {
       prisma.document.findMany({
         where,
         include: {
-          uploadedBy: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
-          },
           load: {
             select: {
               loadNumber: true,

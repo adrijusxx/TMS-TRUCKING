@@ -77,7 +77,7 @@ export default function CreateLoadForm() {
     watch,
     reset,
   } = useForm<CreateLoadInput>({
-    resolver: zodResolver(createLoadSchema),
+    resolver: zodResolver(createLoadSchema) as any,
     defaultValues: {
       loadType: 'FTL',
       equipmentType: 'DRY_VAN',
@@ -310,7 +310,7 @@ export default function CreateLoadForm() {
       hasDelivery: !!data.deliveryLocation,
     });
     try {
-      createMutation.mutate(data);
+      createMutation.mutate(data as CreateLoadInput);
     } catch (err) {
       console.error('Form submission error:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit form');
@@ -472,7 +472,8 @@ export default function CreateLoadForm() {
     
     // Set hazmat
     if (data.hazmat !== undefined) {
-      setValue('hazmat', data.hazmat === true || data.hazmat === 'true', { shouldValidate: false });
+      const hazmatValue = typeof data.hazmat === 'boolean' ? data.hazmat : data.hazmat === 'true' || data.hazmat === true;
+      setValue('hazmat', hazmatValue, { shouldValidate: false });
     } else {
       setValue('hazmat', false, { shouldValidate: false });
     }
@@ -681,9 +682,19 @@ export default function CreateLoadForm() {
             </CardHeader>
             <CardContent>
               <EditableLoadStops
-                stops={stops}
+                stops={stops as any}
                 onChange={(updatedStops) => {
-                  setValue('stops', updatedStops, { shouldValidate: false });
+                  // Ensure earliestArrival and latestArrival are strings
+                  const normalizedStops = updatedStops.map((stop: any) => ({
+                    ...stop,
+                    earliestArrival: stop.earliestArrival && typeof stop.earliestArrival !== 'string'
+                      ? (stop.earliestArrival instanceof Date ? stop.earliestArrival.toISOString() : String(stop.earliestArrival))
+                      : stop.earliestArrival,
+                    latestArrival: stop.latestArrival && typeof stop.latestArrival !== 'string'
+                      ? (stop.latestArrival instanceof Date ? stop.latestArrival.toISOString() : String(stop.latestArrival))
+                      : stop.latestArrival,
+                  }));
+                  setValue('stops', normalizedStops as any, { shouldValidate: false });
                 }}
                 compact={stops.length > 3}
               />

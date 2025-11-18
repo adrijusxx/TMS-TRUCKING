@@ -9,7 +9,7 @@ const uploadSchema = z.object({
   loadId: z.string().cuid().optional(),
   driverId: z.string().cuid().optional(),
   truckId: z.string().cuid().optional(),
-  type: z.enum(['BOL', 'POD', 'INVOICE', 'RATE_CONFIRMATION', 'SETTLEMENT', 'LICENSE', 'MEDICAL_CARD', 'INSURANCE', 'INSPECTION', 'MAINTENANCE', 'OTHER']),
+  type: z.enum(['BOL', 'POD', 'INVOICE', 'RATE_CONFIRMATION', 'DRIVER_LICENSE', 'MEDICAL_CARD', 'INSURANCE', 'REGISTRATION', 'INSPECTION', 'LEASE_AGREEMENT', 'W9', 'COI', 'OTHER']),
   fileName: z.string().min(1),
   title: z.string().min(1), // Required title field
   fileUrl: z.string().min(1), // Accept URL or path
@@ -114,9 +114,18 @@ export async function POST(request: NextRequest) {
 
     const document = await prisma.document.create({
       data: {
-        ...validated,
+        type: validated.type,
+        title: validated.title,
+        description: validated.description || null,
+        fileName: validated.fileName,
+        fileUrl: validated.fileUrl,
+        fileSize: validated.fileSize || 0,
+        mimeType: validated.mimeType || 'application/octet-stream',
         companyId: session.user.companyId,
-        uploadedBy: session.user.id, // uploadedBy is a String field, not a relation
+        uploadedBy: session.user.id,
+        loadId: validated.loadId || null,
+        driverId: validated.driverId || null,
+        truckId: validated.truckId || null,
       },
     });
 

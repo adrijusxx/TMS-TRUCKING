@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { DriverStatus } from '@prisma/client';
 import {
   getSamsaraDrivers,
   getSamsaraHOSStatuses,
