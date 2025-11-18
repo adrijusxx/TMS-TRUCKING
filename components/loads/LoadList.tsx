@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/export';
 import { Package, Plus, Search, Filter, Download, FileText, Edit, MapPin, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -155,13 +155,13 @@ async function fetchLoads(params: {
   if (params.status) queryParams.set('status', params.status);
   if (params.search) queryParams.set('search', params.search);
 
-  const response = await fetch(`/api/loads?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/loads?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch loads');
   return response.json();
 }
 
 async function deleteLoad(loadId: string) {
-  const response = await fetch(`/api/loads/${loadId}`, {
+  const response = await fetch(apiUrl(`/api/loads/${loadId}`), {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -172,7 +172,7 @@ async function deleteLoad(loadId: string) {
 }
 
 async function bulkDeleteLoads(loadIds: string[]) {
-  const response = await fetch('/api/loads/bulk', {
+  const response = await fetch(apiUrl('/api/loads/bulk'), {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ loadIds }),
@@ -210,7 +210,7 @@ async function fetchAllLoadIds(
       }
     });
 
-    const response = await fetch(`/api/loads?${queryParams}`);
+    const response = await fetch(apiUrl(`/api/loads?${queryParams}`));
     if (!response.ok) throw new Error('Failed to fetch load IDs');
     const data = await response.json();
     const loads = data.data || [];

@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { FileText, Plus, Search, Filter, Download } from 'lucide-react';
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/export';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { InvoiceStatus } from '@prisma/client';
 import AdvancedFilters from '@/components/filters/AdvancedFilters';
 import SavedFilters from '@/components/filters/SavedFilters';
@@ -80,7 +80,7 @@ async function fetchInvoices(params: {
     }
   });
 
-  const response = await fetch(`/api/invoices?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/invoices?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch invoices');
   return response.json();
 }

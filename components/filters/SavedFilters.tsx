@@ -24,6 +24,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { apiUrl } from '@/lib/utils';
 
 interface SavedFilter {
   id: string;
@@ -39,13 +40,13 @@ interface SavedFiltersProps {
 }
 
 async function fetchSavedFilters(entityType: string) {
-  const response = await fetch(`/api/filters/saved?entityType=${entityType}`);
+  const response = await fetch(apiUrl(`/api/filters/saved?entityType=${entityType}`));
   if (!response.ok) throw new Error('Failed to fetch saved filters');
   return response.json();
 }
 
 async function saveFilter(data: { name: string; filters: Record<string, any>; entityType: string }) {
-  const response = await fetch('/api/filters/saved', {
+  const response = await fetch(apiUrl('/api/filters/saved'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -55,7 +56,7 @@ async function saveFilter(data: { name: string; filters: Record<string, any>; en
 }
 
 async function deleteFilter(id: string) {
-  const response = await fetch(`/api/filters/saved/${id}`, {
+  const response = await fetch(apiUrl(`/api/filters/saved/${id}`), {
     method: 'DELETE',
   });
   if (!response.ok) throw new Error('Failed to delete filter');

@@ -32,7 +32,7 @@ import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardSh
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -104,7 +104,7 @@ function formatPayType(payType: PayType): string {
 }
 
 async function deleteDriver(driverId: string) {
-  const response = await fetch(`/api/drivers/${driverId}`, {
+  const response = await fetch(apiUrl(`/api/drivers/${driverId}`), {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -115,7 +115,7 @@ async function deleteDriver(driverId: string) {
 }
 
 async function bulkDeleteDrivers(driverIds: string[]) {
-  const response = await fetch('/api/drivers/bulk', {
+  const response = await fetch(apiUrl('/api/drivers/bulk'), {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ driverIds }),
@@ -147,7 +147,7 @@ async function fetchDrivers(params: {
     }
   });
 
-  const response = await fetch(`/api/drivers?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/drivers?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch drivers');
   return response.json();
 }

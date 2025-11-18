@@ -19,7 +19,7 @@ import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { CustomerType } from '@prisma/client';
 import { usePermissions } from '@/hooks/usePermissions';
 import AdvancedFilters from '@/components/filters/AdvancedFilters';
@@ -64,7 +64,7 @@ async function fetchCustomers(params: {
     }
   });
 
-  const response = await fetch(`/api/customers?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/customers?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch customers');
   return response.json();
 }

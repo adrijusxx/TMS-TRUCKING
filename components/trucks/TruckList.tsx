@@ -33,6 +33,7 @@ import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
+import { apiUrl } from '@/lib/utils';
 
 interface TruckData {
   id: string;
@@ -92,7 +93,7 @@ async function fetchTrucks(params: {
     }
   });
 
-  const response = await fetch(`/api/trucks?${queryParams}`);
+  const response = await fetch(apiUrl(`/api/trucks?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch trucks');
   return response.json();
 }
