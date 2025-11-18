@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, AlertTriangle, FileText, DollarSign } from 'lucide-react';
 import Link from 'next/link';
-import { formatDate } from '@/lib/utils';
+import { formatDate, apiUrl } from '@/lib/utils';
 
 interface Deadline {
   id: string;
@@ -19,7 +19,7 @@ interface Deadline {
 }
 
 async function fetchUpcomingDeadlines() {
-  const response = await fetch('/api/dashboard/deadlines');
+  const response = await fetch(apiUrl('/api/dashboard/deadlines'));
   if (!response.ok) throw new Error('Failed to fetch deadlines');
   return response.json();
 }

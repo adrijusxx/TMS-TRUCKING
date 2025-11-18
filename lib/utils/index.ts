@@ -30,3 +30,33 @@ export function formatDateTime(date: Date | string): string {
   }).format(new Date(date));
 }
 
+/**
+ * Get the basePath for API calls
+ * In browser, extracts from window.location.pathname
+ * On server, uses NEXT_PUBLIC_BASE_PATH env var
+ */
+export function getBasePath(): string {
+  if (typeof window !== 'undefined') {
+    // Client-side: extract from current URL
+    const pathname = window.location.pathname;
+    if (pathname.startsWith('/tms')) return '/tms';
+    if (pathname.startsWith('/crm')) return '/crm';
+  }
+  // Server-side or fallback: use env var
+  return process.env.NEXT_PUBLIC_BASE_PATH || '/tms';
+}
+
+/**
+ * Construct an API URL with basePath
+ * @param path - API path (e.g., '/api/activity' or 'api/activity')
+ * @returns Full API URL with basePath (e.g., '/tms/api/activity')
+ */
+export function apiUrl(path: string): string {
+  const basePath = getBasePath();
+  // Ensure path starts with /
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  // Ensure basePath doesn't end with /
+  const normalizedBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+  return `${normalizedBasePath}${normalizedPath}`;
+}
+

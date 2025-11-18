@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Users, Award, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { apiUrl } from '@/lib/utils';
 
 interface DriverPerformance {
   totalDrivers: number;
@@ -26,7 +27,7 @@ interface DriverPerformance {
 }
 
 async function fetchDriverPerformance() {
-  const response = await fetch('/api/dashboard/driver-performance');
+  const response = await fetch(apiUrl('/api/dashboard/driver-performance'));
   if (!response.ok) throw new Error('Failed to fetch driver performance');
   return response.json();
 }

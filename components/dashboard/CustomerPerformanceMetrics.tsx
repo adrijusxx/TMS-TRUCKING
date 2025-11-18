@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, TrendingUp, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 
 interface CustomerPerformance {
   totalCustomers: number;
@@ -24,7 +24,7 @@ interface CustomerPerformance {
 }
 
 async function fetchCustomerPerformance() {
-  const response = await fetch('/api/dashboard/customer-performance');
+  const response = await fetch(apiUrl('/api/dashboard/customer-performance'));
   if (!response.ok) throw new Error('Failed to fetch customer performance');
   return response.json();
 }

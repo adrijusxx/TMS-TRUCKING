@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Activity } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { apiUrl } from '@/lib/utils';
 
 async function fetchActivityLogs(filters?: {
   userId?: string;
@@ -18,7 +19,7 @@ async function fetchActivityLogs(filters?: {
   if (filters?.entityId) params.set('entityId', filters.entityId);
   if (filters?.limit) params.set('limit', filters.limit.toString());
 
-  const response = await fetch(`/api/activity?${params.toString()}`);
+  const response = await fetch(apiUrl(`/api/activity?${params.toString()}`));
   if (!response.ok) throw new Error('Failed to fetch activity logs');
   return response.json();
 }

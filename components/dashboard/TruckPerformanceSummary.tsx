@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Truck, Wrench, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { apiUrl } from '@/lib/utils';
 
 interface TruckPerformance {
   totalTrucks: number;
@@ -26,7 +27,7 @@ interface TruckPerformance {
 }
 
 async function fetchTruckPerformance() {
-  const response = await fetch('/api/dashboard/truck-performance');
+  const response = await fetch(apiUrl('/api/dashboard/truck-performance'));
   if (!response.ok) throw new Error('Failed to fetch truck performance');
   return response.json();
 }

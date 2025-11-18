@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Package, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { LoadStatus } from '@prisma/client';
 
 interface Load {
@@ -43,7 +43,7 @@ function formatStatus(status: LoadStatus): string {
 }
 
 async function fetchRecentLoads() {
-  const response = await fetch('/api/loads?page=1&limit=5&status=all');
+  const response = await fetch(apiUrl('/api/loads?page=1&limit=5&status=all'));
   if (!response.ok) throw new Error('Failed to fetch loads');
   return response.json();
 }

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Package } from 'lucide-react';
 import { LoadStatus } from '@prisma/client';
+import { apiUrl } from '@/lib/utils';
 
 interface StatusData {
   status: LoadStatus;
@@ -41,7 +42,7 @@ const statusLabels: Record<LoadStatus, string> = {
 };
 
 async function fetchLoadStatusDistribution() {
-  const response = await fetch('/api/dashboard/load-status-distribution');
+  const response = await fetch(apiUrl('/api/dashboard/load-status-distribution'));
   if (!response.ok) throw new Error('Failed to fetch load status distribution');
   return response.json();
 }

@@ -13,7 +13,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 
 interface RevenueData {
   month: string;
@@ -22,7 +22,7 @@ interface RevenueData {
 }
 
 async function fetchRevenueTrends() {
-  const response = await fetch('/api/dashboard/revenue-trends');
+  const response = await fetch(apiUrl('/api/dashboard/revenue-trends'));
   if (!response.ok) throw new Error('Failed to fetch revenue trends');
   return response.json();
 }
