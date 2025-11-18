@@ -65,6 +65,26 @@ export default function LoginPage() {
         basePath 
       });
 
+      // Test NextAuth API endpoint before attempting sign in
+      try {
+        const sessionTest = await fetch(`${basePath}/api/auth/session`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
+        if (!sessionTest.ok && sessionTest.status !== 401) {
+          console.error('NextAuth API not responding:', sessionTest.status, sessionTest.statusText);
+          setError(`Authentication server error: ${sessionTest.status} ${sessionTest.statusText}`);
+          setIsLoading(false);
+          return;
+        }
+      } catch (fetchError) {
+        console.error('Failed to reach NextAuth API:', fetchError);
+        setError('Cannot connect to authentication server. Please check your connection.');
+        setIsLoading(false);
+        return;
+      }
+
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
@@ -84,8 +104,8 @@ export default function LoginPage() {
       }
 
       if (!result) {
-        console.error('No result from signIn');
-        setError('No response from authentication server');
+        console.error('No result from signIn - this usually means NextAuth API route is not responding');
+        setError('No response from authentication server. Please check server logs.');
         setIsLoading(false);
         return;
       }
