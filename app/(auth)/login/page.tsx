@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -17,6 +17,19 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check for error from query params (e.g., from /api/auth/error redirect)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const errorParam = params.get('error');
+    if (errorParam) {
+      setError(errorParam === 'CredentialsSignin' 
+        ? 'Invalid email or password' 
+        : 'An error occurred during sign in');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const {
     register,
@@ -46,6 +59,12 @@ export default function LoginPage() {
         ? `${basePath}${callbackUrl}`
         : callbackUrl;
       
+      console.log('Attempting sign in with:', { 
+        email: data.email, 
+        callbackUrl: fullCallbackUrl,
+        basePath 
+      });
+
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
@@ -53,10 +72,20 @@ export default function LoginPage() {
         callbackUrl: fullCallbackUrl,
       });
 
+      console.log('Sign in result:', result);
+
       if (result?.error) {
+        console.error('Sign in error:', result.error);
         setError(result.error === 'CredentialsSignin' 
           ? 'Invalid email or password' 
-          : 'An error occurred during sign in');
+          : `Sign in error: ${result.error}`);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!result) {
+        console.error('No result from signIn');
+        setError('No response from authentication server');
         setIsLoading(false);
         return;
       }
