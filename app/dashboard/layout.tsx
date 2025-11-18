@@ -14,9 +14,8 @@ export default async function Layout({
   const session = await auth();
 
   if (!session) {
-    // Get basePath from environment (set at build time)
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '/tms';
-    redirect(`${basePath}/login`);
+    // Next.js redirect() automatically prepends basePath from next.config.js
+    redirect('/login');
   }
 
   return <DashboardLayout>{children}</DashboardLayout>;
