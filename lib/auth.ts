@@ -7,6 +7,9 @@ import bcrypt from 'bcryptjs';
 export const authOptions: NextAuthConfig = {
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true, // Required for basePath/subdirectory deployments
+  // Explicitly set basePath to help NextAuth parse actions correctly
+  // NextAuth v5 should auto-detect from Next.js config, but explicit setting helps
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',
   providers: [
     CredentialsProvider({
       name: 'Credentials',
