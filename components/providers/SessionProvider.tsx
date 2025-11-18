@@ -3,24 +3,11 @@
 import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react';
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  // NextAuth should automatically detect basePath from Next.js config
-  // But we can also extract it from the current URL as a fallback
-  const getBasePath = () => {
-    if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname;
-      if (pathname.startsWith('/tms')) return '/tms';
-      if (pathname.startsWith('/crm')) return '/crm';
-    }
-    // This should be available at build time
-    return process.env.NEXT_PUBLIC_BASE_PATH || '/tms';
-  };
-
-  const basePath = getBasePath();
-  
-  // For NextAuth v5 (Auth.js), we need to ensure the basePath is used
-  // The basePath prop tells NextAuth where the API routes are
+  // NextAuth v5 (Auth.js) automatically detects basePath from Next.js config
+  // No need to manually pass basePath - it will use the basePath from next.config.js
+  // The NEXTAUTH_URL environment variable should include the basePath
   return (
-    <NextAuthSessionProvider basePath={`${basePath}/api/auth`}>
+    <NextAuthSessionProvider>
       {children}
     </NextAuthSessionProvider>
   );
