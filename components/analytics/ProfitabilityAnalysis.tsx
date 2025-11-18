@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { formatCurrencyForExport } from '@/lib/export';
 import { TrendingUp, Building2, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
@@ -23,7 +23,7 @@ import ExportButton from './ExportButton';
 
 async function fetchProfitability(groupBy: string, startDate: string, endDate: string) {
   const response = await fetch(
-    `/api/analytics/profitability?groupBy=${groupBy}&startDate=${startDate}&endDate=${endDate}`
+    apiUrl(`/api/analytics/profitability?groupBy=${groupBy}&startDate=${startDate}&endDate=${endDate}`)
   );
   if (!response.ok) throw new Error('Failed to fetch profitability data');
   return response.json();

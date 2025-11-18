@@ -14,7 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { formatCurrencyForExport } from '@/lib/export';
 import ExportButton from './ExportButton';
 import { TrendingUp, TrendingDown, Award, AlertTriangle, CheckCircle } from 'lucide-react';
@@ -29,7 +29,7 @@ async function fetchDriverPerformance(startDate: string, endDate: string, driver
   });
   if (driverId) params.set('driverId', driverId);
 
-  const response = await fetch(`/api/analytics/drivers/performance?${params}`);
+  const response = await fetch(apiUrl(`/api/analytics/drivers/performance?${params}`));
   if (!response.ok) throw new Error('Failed to fetch driver performance');
   return response.json();
 }

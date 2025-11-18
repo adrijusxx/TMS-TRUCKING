@@ -8,15 +8,16 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Bell, Mail, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 
 async function fetchPreferences() {
-  const response = await fetch('/api/notifications/preferences');
+  const response = await fetch(apiUrl('/api/notifications/preferences'));
   if (!response.ok) throw new Error('Failed to fetch preferences');
   return response.json();
 }
 
 async function updatePreferences(data: any) {
-  const response = await fetch('/api/notifications/preferences', {
+  const response = await fetch(apiUrl('/api/notifications/preferences'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

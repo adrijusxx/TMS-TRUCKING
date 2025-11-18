@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { formatCurrencyForExport } from '@/lib/export';
 import ExportButton from './ExportButton';
 import { MapPin, TrendingDown, DollarSign, Gauge } from 'lucide-react';
@@ -28,7 +28,7 @@ async function fetchEmptyMiles(startDate: string, endDate: string, truckId?: str
   if (truckId) params.set('truckId', truckId);
   if (driverId) params.set('driverId', driverId);
 
-  const response = await fetch(`/api/analytics/empty-miles?${params}`);
+  const response = await fetch(apiUrl(`/api/analytics/empty-miles?${params}`));
   if (!response.ok) throw new Error('Failed to fetch empty miles data');
   return response.json();
 }

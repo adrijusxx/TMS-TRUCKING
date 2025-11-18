@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import {
   DollarSign,
   Package,
@@ -16,14 +16,14 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 async function fetchDashboardStats() {
-  const response = await fetch('/api/analytics/dashboard');
+  const response = await fetch(apiUrl('/api/analytics/dashboard'));
   if (!response.ok) throw new Error('Failed to fetch dashboard stats');
   return response.json();
 }
 
 async function fetchRevenueReport(startDate: string, endDate: string) {
   const response = await fetch(
-    `/api/analytics/revenue?startDate=${startDate}&endDate=${endDate}&groupBy=day`
+    apiUrl(`/api/analytics/revenue?startDate=${startDate}&endDate=${endDate}&groupBy=day`)
   );
   if (!response.ok) throw new Error('Failed to fetch revenue report');
   return response.json();

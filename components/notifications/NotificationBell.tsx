@@ -10,17 +10,17 @@ import {
 } from '@/components/ui/popover';
 import { Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, apiUrl } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 async function fetchNotifications() {
-  const response = await fetch('/api/notifications?unreadOnly=false&limit=10');
+  const response = await fetch(apiUrl('/api/notifications?unreadOnly=false&limit=10'));
   if (!response.ok) throw new Error('Failed to fetch notifications');
   return response.json();
 }
 
 async function markAsRead(notificationIds: string[]) {
-  const response = await fetch('/api/notifications', {
+  const response = await fetch(apiUrl('/api/notifications'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ notificationIds }),
@@ -30,7 +30,7 @@ async function markAsRead(notificationIds: string[]) {
 }
 
 async function markAllAsRead() {
-  const response = await fetch('/api/notifications', {
+  const response = await fetch(apiUrl('/api/notifications'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ markAllAsRead: true }),

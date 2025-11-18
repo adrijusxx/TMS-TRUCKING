@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 
 async function fetchRevenueForecast(months: number, forecastMonths: number) {
   const response = await fetch(
-    `/api/analytics/revenue-forecast?months=${months}&forecastMonths=${forecastMonths}`
+    apiUrl(`/api/analytics/revenue-forecast?months=${months}&forecastMonths=${forecastMonths}`)
   );
   if (!response.ok) throw new Error('Failed to fetch revenue forecast');
   return response.json();

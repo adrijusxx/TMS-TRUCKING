@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDate, formatCurrency } from '@/lib/utils';
+import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { Package, Users, Truck, Calendar, CheckSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadAssignmentDialog from './LoadAssignmentDialog';
@@ -14,13 +14,13 @@ import { toast } from 'sonner';
 import RouteOptimizer from '@/components/routes/RouteOptimizer';
 
 async function fetchDispatchBoard(date: string) {
-  const response = await fetch(`/api/dispatch/board?date=${date}`);
+  const response = await fetch(apiUrl(`/api/dispatch/board?date=${date}`));
   if (!response.ok) throw new Error('Failed to fetch dispatch board');
   return response.json();
 }
 
 async function bulkAssignLoads(data: { loadIds: string[]; driverId?: string; truckId?: string }) {
-  const response = await fetch('/api/dispatch/bulk-assign', {
+  const response = await fetch(apiUrl('/api/dispatch/bulk-assign'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
