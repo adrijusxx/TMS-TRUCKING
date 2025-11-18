@@ -9,6 +9,12 @@ export const prisma =
   new PrismaClient({
     // Only log errors and warnings - reduce console noise
     log: ['error', 'warn'],
+    // Add connection pool configuration to prevent connection errors
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
