@@ -7,10 +7,10 @@ import bcrypt from 'bcryptjs';
 export const authOptions: NextAuthConfig = {
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true, // Required for basePath/subdirectory deployments
-  // DO NOT set basePath here - NextAuth v5 auto-detects from NEXTAUTH_URL
-  // When Next.js has basePath, it strips it before passing to route handlers
-  // NextAuth receives /api/auth/session (not /tms/api/auth/session)
-  // Setting basePath here causes "UnknownAction" errors
+  // CRITICAL: NextAuth v5 beta needs basePath set to the path it RECEIVES (after Next.js strips basePath)
+  // Next.js strips /tms before passing to route handlers, so NextAuth receives /api/auth/session
+  // Therefore basePath must be /api/auth (not /tms/api/auth)
+  basePath: '/api/auth',
   providers: [
     CredentialsProvider({
       name: 'Credentials',
