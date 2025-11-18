@@ -48,13 +48,24 @@ export default function LoginPage() {
         const params = new URLSearchParams(window.location.search);
         const callbackUrl = params.get('callbackUrl') || '/dashboard';
         
-        // Get basePath from environment (e.g., /tms or /crm)
-        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+        // Extract basePath from current URL (e.g., /tms or /crm)
+        // If we're at /tms/login, extract /tms; if at /crm/login, extract /crm
+        const currentPath = window.location.pathname;
+        const basePath = currentPath.startsWith('/tms') ? '/tms' 
+          : currentPath.startsWith('/crm') ? '/crm' 
+          : process.env.NEXT_PUBLIC_BASE_PATH || '';
         
         // Ensure callbackUrl includes basePath
-        const fullPath = callbackUrl.startsWith(basePath) 
-          ? callbackUrl 
-          : `${basePath}${callbackUrl}`;
+        // If callbackUrl already has basePath, use it; otherwise prepend basePath
+        let fullPath = callbackUrl;
+        if (basePath && !callbackUrl.startsWith(basePath)) {
+          fullPath = `${basePath}${callbackUrl}`;
+        }
+        
+        // Debug logging (remove in production)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Login redirect:', { callbackUrl, basePath, fullPath, currentPath });
+        }
         
         // Use window.location for a hard redirect to ensure session is set
         window.location.href = fullPath;
