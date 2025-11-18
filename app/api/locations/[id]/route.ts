@@ -36,7 +36,7 @@ const updateLocationSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -49,7 +49,7 @@ export async function GET(
 
     const location = await prisma.location.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -83,7 +83,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -106,7 +106,7 @@ export async function PATCH(
 
     const existing = await prisma.location.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -120,7 +120,7 @@ export async function PATCH(
     }
 
     const location = await prisma.location.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: validatedData,
     });
 
@@ -159,7 +159,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -179,7 +179,7 @@ export async function DELETE(
 
     const location = await prisma.location.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -193,7 +193,7 @@ export async function DELETE(
     }
 
     await prisma.location.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: { deletedAt: new Date() },
     });
 

@@ -73,12 +73,16 @@ export async function GET(request: NextRequest) {
 
     for (let i = 0; i < loads.length; i++) {
       const load = loads[i];
-      const loadedMiles = load.route?.totalDistance || load.distance || 0;
+      const loadedMiles = load.route?.totalDistance || 0;
       totalLoadedMiles += loadedMiles;
 
       // Calculate empty miles to next pickup
       if (i < loads.length - 1) {
         const nextLoad = loads[i + 1];
+        // Skip if cities/states are missing
+        if (!load.deliveryCity || !load.deliveryState || !nextLoad.pickupCity || !nextLoad.pickupState) {
+          continue;
+        }
         const emptyMiles = calculateEmptyMiles(
           load.deliveryCity,
           load.deliveryState,
@@ -169,7 +173,6 @@ export async function GET(request: NextRequest) {
                     totalDistance: true,
                   },
                 },
-                distance: true,
               },
             },
           },
@@ -182,7 +185,7 @@ export async function GET(request: NextRequest) {
     let totalFuelMiles = 0;
     fuelEntries.forEach((entry) => {
       const truckMiles = entry.truck.loads.reduce(
-        (sum, load) => sum + (load.route?.totalDistance || load.distance || 0),
+        (sum, load) => sum + (load.route?.totalDistance || 0),
         0
       );
       totalFuelCost += entry.totalCost;

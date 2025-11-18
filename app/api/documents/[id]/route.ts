@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -16,9 +16,10 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     const document = await prisma.document.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -82,7 +83,7 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -94,9 +95,10 @@ export async function DELETE(
       );
     }
 
+    const resolvedParams = await params;
     const existingDocument = await prisma.document.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -129,7 +131,7 @@ export async function DELETE(
 
     // Soft delete
     await prisma.document.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: { deletedAt: new Date() },
     });
 

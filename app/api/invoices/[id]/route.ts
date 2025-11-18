@@ -7,7 +7,7 @@ import { hasPermission } from '@/lib/permissions';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -19,10 +19,11 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     // Verify invoice belongs to company via customer
     const invoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         customer: {
           companyId: session.user.companyId,
         },
@@ -82,7 +83,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -94,12 +95,13 @@ export async function PATCH(
       );
     }
 
+    const resolvedParams = await params;
     const body = await request.json();
     const { status, notes } = body;
 
     const existingInvoice = await prisma.invoice.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         customer: {
           companyId: session.user.companyId,
         },
@@ -142,7 +144,7 @@ export async function PATCH(
     }
 
     const invoice = await prisma.invoice.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: updateData,
       include: {
         customer: {

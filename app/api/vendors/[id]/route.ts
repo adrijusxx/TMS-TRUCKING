@@ -36,7 +36,7 @@ const updateVendorSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -49,7 +49,7 @@ export async function GET(
 
     const vendor = await prisma.vendor.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -89,7 +89,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -112,7 +112,7 @@ export async function PATCH(
 
     const existing = await prisma.vendor.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -126,7 +126,7 @@ export async function PATCH(
     }
 
     const vendor = await prisma.vendor.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: validatedData,
       include: {
         contacts: true,
@@ -168,7 +168,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -188,7 +188,7 @@ export async function DELETE(
 
     const vendor = await prisma.vendor.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -202,7 +202,7 @@ export async function DELETE(
     }
 
     await prisma.vendor.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: { deletedAt: new Date() },
     });
 

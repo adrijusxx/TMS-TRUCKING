@@ -27,7 +27,7 @@ const updateStatusSchema = z.object({
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -59,7 +59,7 @@ export async function GET(
 
     const load = await prisma.load.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         driverId: driver.id,
         deletedAt: null,
       },
@@ -162,7 +162,7 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -198,7 +198,7 @@ export async function PATCH(
     // Verify load belongs to driver
     const load = await prisma.load.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         driverId: driver.id,
         deletedAt: null,
       },
@@ -216,7 +216,7 @@ export async function PATCH(
 
     // Update load status
     const updatedLoad = await prisma.load.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: {
         status: validated.status,
       },
@@ -225,7 +225,7 @@ export async function PATCH(
     // Create status history entry
     await prisma.loadStatusHistory.create({
       data: {
-        loadId: params.id,
+        loadId: resolvedParams.id,
         status: validated.status,
         location: validated.location,
         latitude: validated.latitude,

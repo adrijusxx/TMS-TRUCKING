@@ -81,8 +81,9 @@ export async function GET(request: NextRequest) {
       const totalRevenue = completedLoads.reduce((sum, load) => sum + load.revenue, 0);
       const totalDriverPay = completedLoads.reduce((sum, load) => sum + (load.driverPay || 0), 0);
       const totalMiles = completedLoads.reduce((sum, load) => {
-        // Simplified - would use actual route distance
-        return sum + (load.distance || 500);
+        // Simplified - would use actual route distance from route table or calculate from locations
+        // For now, use a default estimate of 500 miles per load
+        return sum + 500;
       }, 0);
 
       // Calculate HOS compliance

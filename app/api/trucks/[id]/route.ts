@@ -7,7 +7,7 @@ import { hasPermission } from '@/lib/permissions';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -19,9 +19,10 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     const truck = await prisma.truck.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -94,7 +95,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -106,9 +107,10 @@ export async function PATCH(
       );
     }
 
+    const resolvedParams = await params;
     const existingTruck = await prisma.truck.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -162,7 +164,7 @@ export async function PATCH(
     }
 
     const truck = await prisma.truck.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: updateData,
       include: {
         currentDrivers: {
@@ -212,7 +214,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -224,9 +226,10 @@ export async function DELETE(
       );
     }
 
+    const resolvedParams = await params;
     const existingTruck = await prisma.truck.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -259,7 +262,7 @@ export async function DELETE(
 
     // Soft delete
     await prisma.truck.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: { deletedAt: new Date(), isActive: false },
     });
 

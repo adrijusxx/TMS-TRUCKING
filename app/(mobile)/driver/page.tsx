@@ -24,6 +24,15 @@ export default async function DriverMobilePage() {
     redirect('/dashboard');
   }
 
-  return <DriverMobileDashboard driver={driver} />;
+  // Convert null to undefined for currentTruck to match component type
+  const driverWithUndefinedTruck = {
+    ...driver,
+    currentTruck: driver.currentTruck ? {
+      id: driver.currentTruck.id,
+      truckNumber: driver.currentTruck.truckNumber,
+    } : undefined,
+  };
+
+  return <DriverMobileDashboard driver={driverWithUndefinedTruck} />;
 }
 

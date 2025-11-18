@@ -5,7 +5,7 @@ import { notifyHOSViolation } from '@/lib/notifications/triggers';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { driverId: string } }
+  { params }: { params: Promise<{ driverId: string }> }
 ) {
   try {
     const session = await auth();
@@ -17,10 +17,11 @@ export async function GET(
       );
     }
 
+    const resolvedParams = await params;
     // Verify driver belongs to company
     const driver = await prisma.driver.findFirst({
       where: {
-        id: params.driverId,
+        id: resolvedParams.driverId,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -42,7 +43,7 @@ export async function GET(
 
     const records = await prisma.hOSRecord.findMany({
       where: {
-        driverId: params.driverId,
+        driverId: resolvedParams.driverId,
         date: { gte: eightDaysAgo },
       },
       orderBy: { date: 'desc' },
@@ -101,7 +102,7 @@ export async function GET(
     if (violations.length > 0) {
       for (const violation of violations) {
         await notifyHOSViolation(
-          params.driverId,
+          resolvedParams.driverId,
           violation,
           violation
         );
@@ -111,7 +112,7 @@ export async function GET(
     return NextResponse.json({
       success: true,
       data: {
-        driverId: params.driverId,
+        driverId: resolvedParams.driverId,
         period: {
           startDate: eightDaysAgo.toISOString().split('T')[0],
           endDate: new Date().toISOString().split('T')[0],

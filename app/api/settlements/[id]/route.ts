@@ -11,7 +11,7 @@ const updateSettlementSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -25,7 +25,7 @@ export async function GET(
 
     const settlement = await prisma.settlement.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         driver: {
           companyId: session.user.companyId,
         },
@@ -99,7 +99,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
@@ -114,7 +114,7 @@ export async function PATCH(
     // Verify settlement belongs to company
     const existing = await prisma.settlement.findFirst({
       where: {
-        id: params.id,
+        id: resolvedParams.id,
         driver: {
           companyId: session.user.companyId,
         },
@@ -144,7 +144,7 @@ export async function PATCH(
     }
 
     const settlement = await prisma.settlement.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id },
       data: updateData,
     });
 
