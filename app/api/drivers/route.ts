@@ -5,6 +5,7 @@ import { createDriverSchema } from '@/lib/validations/driver';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { hasPermission } from '@/lib/permissions';
+import { calculateDriverTariff } from '@/lib/utils/driverTariff';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,8 +20,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 500);
     const skip = (page - 1) * limit;
+    const tab = searchParams.get('tab') || 'all';
     const status = searchParams.get('status');
     const search = searchParams.get('search');
     const licenseState = searchParams.get('licenseState');
@@ -29,9 +31,32 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       companyId: session.user.companyId,
-      isActive: true,
       deletedAt: null,
     };
+
+    // Tab-based filtering
+    switch (tab) {
+      case 'active':
+        where.isActive = true;
+        where.employeeStatus = 'ACTIVE';
+        break;
+      case 'unassigned':
+        where.isActive = true;
+        where.employeeStatus = 'ACTIVE';
+        where.currentTruckId = null;
+        break;
+      case 'terminated':
+        where.employeeStatus = 'TERMINATED';
+        break;
+      case 'vacation':
+        where.isActive = true;
+        where.status = 'ON_LEAVE';
+        break;
+      case 'all':
+      default:
+        // Show all drivers (active and terminated)
+        break;
+    }
 
     if (status) {
       where.status = status;
@@ -54,6 +79,7 @@ export async function GET(request: NextRequest) {
         { driverNumber: { contains: search, mode: 'insensitive' } },
         { user: { firstName: { contains: search, mode: 'insensitive' } } },
         { user: { lastName: { contains: search, mode: 'insensitive' } } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
@@ -70,6 +96,19 @@ export async function GET(request: NextRequest) {
           drugTestDate: true,
           backgroundCheck: true,
           status: true,
+          employeeStatus: true,
+          assignmentStatus: true,
+          dispatchStatus: true,
+          driverType: true,
+          mcNumber: true,
+          teamDriver: true,
+          payTo: true,
+          driverTariff: true,
+          warnings: true,
+          notes: true,
+          hireDate: true,
+          terminationDate: true,
+          driverTags: true,
           homeTerminal: true,
           emergencyContact: true,
           emergencyPhone: true,
@@ -85,6 +124,24 @@ export async function GET(request: NextRequest) {
               id: true,
               truckNumber: true,
             },
+          },
+          currentTrailerId: true,
+          currentTrailer: {
+            select: {
+              id: true,
+              trailerNumber: true,
+            },
+          },
+          loads: {
+            select: {
+              revenue: true,
+              driverPay: true,
+              totalMiles: true,
+              loadedMiles: true,
+              emptyMiles: true,
+              serviceFee: true,
+            },
+            take: 100, // Get recent loads for tariff calculation
           },
           user: {
             select: {
@@ -103,9 +160,30 @@ export async function GET(request: NextRequest) {
       prisma.driver.count({ where }),
     ]);
 
+    // Calculate driver tariff for each driver based on their loads
+    const driversWithTariff = drivers.map((driver) => {
+      const tariff = calculateDriverTariff({
+        payType: driver.payType,
+        payRate: driver.payRate,
+        loads: driver.loads || [],
+      });
+
+      return {
+        ...driver,
+        firstName: driver.user.firstName,
+        lastName: driver.user.lastName,
+        email: driver.user.email,
+        phone: driver.user.phone,
+        driverTariff: driver.driverTariff || tariff,
+        truck: driver.currentTruck,
+        trailer: driver.currentTrailer,
+        tags: driver.driverTags || [],
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      data: drivers,
+      data: driversWithTariff,
       meta: {
         total,
         page,

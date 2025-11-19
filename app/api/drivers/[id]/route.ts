@@ -133,9 +133,44 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateDriverSchema.parse(body);
 
-    const updateData: any = { ...validated };
-    delete updateData.password;
-    delete updateData.email;
+    const updateData: any = {};
+    
+    // Driver-specific fields
+    const driverFields = [
+      'status', 'employeeStatus', 'assignmentStatus', 'dispatchStatus',
+      'currentTruckId', 'currentTrailerId', 'socialSecurityNumber',
+      'birthDate', 'hireDate', 'terminationDate', 'tenure', 'gender',
+      'maritalStatus', 'localDriver', 'telegramNumber', 'thresholdAmount',
+      'licenseIssueDate', 'cdlExperience', 'restrictions', 'dlClass',
+      'driverType', 'endorsements', 'driverFacingCamera', 'address1',
+      'address2', 'city', 'state', 'zipCode', 'country', 'dispatchPreferences',
+      'assignedDispatcherId', 'hrManagerId', 'safetyManagerId', 'mcNumber',
+      'teamDriver', 'otherId', 'driverTags', 'notes', 'emergencyContactName',
+      'emergencyContactRelation', 'emergencyContactAddress1', 'emergencyContactAddress2',
+      'emergencyContactCity', 'emergencyContactState', 'emergencyContactZip',
+      'emergencyContactCountry', 'emergencyContactPhone', 'emergencyContactEmail',
+      'driverTariff', 'payTo', 'warnings', 'licenseNumber', 'licenseState',
+      'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
+      'payType', 'payRate', 'homeTerminal', 'emergencyContact', 'emergencyPhone',
+    ];
+
+    driverFields.forEach((field) => {
+      if (validated[field as keyof typeof validated] !== undefined) {
+        updateData[field] = validated[field as keyof typeof validated];
+      }
+    });
+
+    // Convert date strings to Date objects
+    const dateFields = [
+      'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
+      'birthDate', 'hireDate', 'terminationDate', 'licenseIssueDate',
+    ];
+    
+    dateFields.forEach((field) => {
+      if (updateData[field] && typeof updateData[field] === 'string') {
+        updateData[field] = new Date(updateData[field]);
+      }
+    });
 
     // Update user if needed
     if (validated.firstName || validated.lastName || validated.phone) {
@@ -156,18 +191,6 @@ export async function PATCH(
         where: { id: existingDriver.userId },
         data: { password: hashedPassword },
       });
-    }
-
-    // Convert dates
-    if (validated.licenseExpiry) {
-      updateData.licenseExpiry = validated.licenseExpiry instanceof Date
-        ? validated.licenseExpiry
-        : new Date(validated.licenseExpiry);
-    }
-    if (validated.medicalCardExpiry) {
-      updateData.medicalCardExpiry = validated.medicalCardExpiry instanceof Date
-        ? validated.medicalCardExpiry
-        : new Date(validated.medicalCardExpiry);
     }
 
     const driver = await prisma.driver.update({

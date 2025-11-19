@@ -48,6 +48,8 @@ const statusColors: Record<DriverStatus, string> = {
   SLEEPER_BERTH: 'bg-indigo-100 text-indigo-800 border-indigo-200',
   ON_LEAVE: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   INACTIVE: 'bg-red-100 text-red-800 border-red-200',
+  IN_TRANSIT: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  DISPATCHED: 'bg-cyan-100 text-cyan-800 border-cyan-200',
 };
 
 function formatStatus(status: DriverStatus): string {
