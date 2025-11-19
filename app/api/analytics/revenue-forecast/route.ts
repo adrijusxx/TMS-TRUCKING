@@ -23,28 +23,40 @@ export async function GET(request: NextRequest) {
     startDate.setMonth(startDate.getMonth() - months);
     const endDate = new Date();
 
+    // Include ALL loads for revenue forecast, not just completed ones
     const loads = await prisma.load.findMany({
       where: {
         companyId: session.user.companyId,
-        deliveredAt: {
-          gte: startDate,
-          lte: endDate,
-        },
         deletedAt: null,
-        status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
+        OR: [
+          { pickupDate: { gte: startDate, lte: endDate } },
+          { deliveryDate: { gte: startDate, lte: endDate } },
+          { deliveredAt: { gte: startDate, lte: endDate } },
+        ],
       },
       select: {
+        pickupDate: true,
+        deliveryDate: true,
         deliveredAt: true,
         revenue: true,
       },
     });
 
-    // Group by month
+    // Group by month - use deliveredAt, deliveryDate, or pickupDate (in that order)
     const monthlyRevenue: Record<string, number> = {};
     loads.forEach((load) => {
+      let date: Date | null = null;
       if (load.deliveredAt) {
-        const month = load.deliveredAt.toISOString().slice(0, 7); // YYYY-MM
-        monthlyRevenue[month] = (monthlyRevenue[month] || 0) + load.revenue;
+        date = new Date(load.deliveredAt);
+      } else if (load.deliveryDate) {
+        date = new Date(load.deliveryDate);
+      } else if (load.pickupDate) {
+        date = new Date(load.pickupDate);
+      }
+      
+      if (date) {
+        const month = date.toISOString().slice(0, 7); // YYYY-MM
+        monthlyRevenue[month] = (monthlyRevenue[month] || 0) + (load.revenue || 0);
       }
     });
 

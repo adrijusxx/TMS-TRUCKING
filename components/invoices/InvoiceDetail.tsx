@@ -40,6 +40,8 @@ const statusColors: Record<InvoiceStatus, string> = {
   PAID: 'bg-green-100 text-green-800 border-green-200',
   OVERDUE: 'bg-red-100 text-red-800 border-red-200',
   CANCELLED: 'bg-gray-100 text-gray-800 border-gray-200',
+  INVOICED: 'bg-purple-100 text-purple-800 border-purple-200',
+  POSTED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
 function formatStatus(status: InvoiceStatus): string {

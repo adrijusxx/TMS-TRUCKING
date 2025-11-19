@@ -133,7 +133,30 @@ export async function GET(request: NextRequest) {
     const [loads, total, sums] = await Promise.all([
       prisma.load.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          loadNumber: true,
+          status: true,
+          pickupLocation: true,
+          pickupCity: true,
+          pickupState: true,
+          pickupDate: true,
+          deliveryLocation: true,
+          deliveryCity: true,
+          deliveryState: true,
+          deliveryDate: true,
+          revenue: true,
+          driverPay: true,
+          totalPay: true,
+          totalMiles: true,
+          loadedMiles: true,
+          emptyMiles: true,
+          trailerNumber: true,
+          shipmentId: true,
+          stopsCount: true,
+          serviceFee: true,
+          createdAt: true,
+          updatedAt: true,
           customer: {
             select: {
               id: true,
@@ -157,6 +180,14 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               truckNumber: true,
+            },
+          },
+          dispatcher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
             },
           },
           stops: {

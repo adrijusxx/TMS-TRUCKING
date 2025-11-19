@@ -53,6 +53,7 @@ export const createLoadSchema = z.object({
   pickupContact: z.string().optional(),
   pickupPhone: z.string().optional(),
   pickupNotes: z.string().optional(),
+  pickupCompany: z.string().optional(),
   
   // Single delivery (optional if stops are provided)
   deliveryLocation: z.string().optional(),
@@ -66,6 +67,7 @@ export const createLoadSchema = z.object({
   deliveryContact: z.string().optional(),
   deliveryPhone: z.string().optional(),
   deliveryNotes: z.string().optional(),
+  deliveryCompany: z.string().optional(),
   
   // Load specs
   weight: z.number().positive('Weight must be positive'),
@@ -133,12 +135,32 @@ export const createLoadSchema = z.object({
           }
           return undefined;
         },
-        z.number().positive().optional()
+        z.number().nonnegative().optional() // Allow 0 or positive, will be calculated if needed
       ),
       
       // Optional
       trailerNumber: z.string().optional(),
       dispatchNotes: z.string().optional(),
+      // Additional fields from import
+      coDriverId: z.string().optional(),
+      dispatcherId: z.string().optional(),
+      createdById: z.string().optional(),
+      tripId: z.string().optional(),
+      mcNumber: z.string().optional(),
+      revenuePerMile: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const num = parseFloat(val);
+            return isNaN(num) ? undefined : num;
+          }
+          if (typeof val === 'number') {
+            return isNaN(val) ? undefined : val;
+          }
+          return undefined;
+        },
+        z.number().nonnegative().optional()
+      ),
       serviceFee: z.preprocess(
         (val) => {
           if (val === undefined || val === null || val === '') return undefined;

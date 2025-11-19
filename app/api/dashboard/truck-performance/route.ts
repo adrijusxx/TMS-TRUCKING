@@ -26,15 +26,14 @@ export async function GET(request: NextRequest) {
       include: {
         loads: {
           where: {
-            status: {
-              in: ['DELIVERED', 'INVOICED', 'PAID'],
-            },
             deletedAt: null,
           },
           select: {
             id: true,
+            status: true,
             revenue: true,
             deliveredAt: true,
+            pickupDate: true,
           },
         },
         maintenanceRecords: {
@@ -58,12 +57,23 @@ export async function GET(request: NextRequest) {
 
     // Calculate performance metrics for each truck
     const truckPerformance = trucks.map((truck) => {
-      const loadsCompleted = truck.loads.length;
-      const totalRevenue = truck.loads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+      const allLoads = truck.loads;
+      const loadsCompleted = allLoads.filter((l) => 
+        ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status)
+      ).length;
+      const totalRevenue = allLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
 
-      // Calculate utilization rate (simplified - would use actual days in service)
-      // For now, use loads completed as a proxy
-      const utilizationRate = loadsCompleted > 0 ? Math.min(100, (loadsCompleted / 10) * 100) : 0;
+      // Calculate utilization rate based on total loads (all statuses)
+      // Count loads in last 30 days for better utilization metric
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentLoads = allLoads.filter((l) => {
+        const pickupDate = l.pickupDate ? new Date(l.pickupDate) : null;
+        return pickupDate && pickupDate >= thirtyDaysAgo;
+      }).length;
+      
+      // Utilization: percentage of time truck has loads (simplified)
+      const utilizationRate = recentLoads > 0 ? Math.min(100, (recentLoads / 30) * 100) : 0;
 
       return {
         id: truck.id,
@@ -89,7 +99,10 @@ export async function GET(request: NextRequest) {
 
     // Get top performers (by revenue and utilization)
     const topPerformers = truckPerformance
-      .filter((t) => t.loadsCompleted >= 3) // At least 3 loads
+      .filter((t) => {
+        const truck = trucks.find((tr) => tr.id === t.id);
+        return truck && truck.loads.length >= 1; // At least 1 load (any status)
+      })
       .sort((a, b) => {
         // Sort by revenue first, then utilization
         if (b.revenue !== a.revenue) {

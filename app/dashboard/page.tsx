@@ -12,6 +12,7 @@ import LoadStatusDistribution from '@/components/dashboard/LoadStatusDistributio
 import DriverPerformanceSummary from '@/components/dashboard/DriverPerformanceSummary';
 import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSummary';
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { LoadStatus } from '@prisma/client';
 
 // Mark this page as dynamic since it uses auth() which internally uses headers()
@@ -130,6 +131,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumb items={[{ label: 'Dashboard' }]} />
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">

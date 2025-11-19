@@ -6,7 +6,7 @@ import InvoiceDetail from '@/components/invoices/InvoiceDetail';
 export default async function InvoiceDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await auth();
 
@@ -14,9 +14,11 @@ export default async function InvoiceDetailPage({
     redirect('/login');
   }
 
+  const { id } = await params;
+
   const invoice = await prisma.invoice.findFirst({
     where: {
-      id: params.id,
+      id,
       customer: {
         companyId: session.user.companyId,
       },

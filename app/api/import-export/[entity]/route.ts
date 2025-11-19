@@ -410,6 +410,17 @@ export async function POST(
 
     const formData = await request.formData();
     const file = formData.get('file') as File | Blob;
+    
+    // Get column mapping if provided
+    let columnMapping: Record<string, string> = {};
+    const mappingStr = formData.get('columnMapping') as string | null;
+    if (mappingStr) {
+      try {
+        columnMapping = JSON.parse(mappingStr);
+      } catch (e) {
+        console.warn('[Import] Failed to parse column mapping:', e);
+      }
+    }
 
     if (!file) {
       return NextResponse.json(
@@ -477,12 +488,145 @@ export async function POST(
     // Normalize headers from Excel/CSV
     const normalizeKey = (key: string) => String(key || '').trim().toLowerCase().replace(/\s+/g, '_');
 
+    // State name to code mapping
+    const stateNameToCode: Record<string, string> = {
+      'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+      'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+      'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+      'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+      'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+      'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+      'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+      'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+      'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+      'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+      'district of columbia': 'DC', 'washington dc': 'DC', 'dc': 'DC',
+    };
+
+    // Helper to convert state name to 2-letter code
+    const normalizeState = (state: string | null | undefined): string | null => {
+      if (!state) return null;
+      const stateStr = String(state).trim();
+      
+      // If already 2 characters, return as-is (assuming it's already a code)
+      if (stateStr.length === 2) {
+        return stateStr.toUpperCase();
+      }
+      
+      // Try to find in mapping
+      const stateLower = stateStr.toLowerCase();
+      const code = stateNameToCode[stateLower];
+      if (code) {
+        return code;
+      }
+      
+      // Try partial match (e.g., "New York" might be split)
+      for (const [name, code] of Object.entries(stateNameToCode)) {
+        // Check if state name contains the key or vice versa
+        if (name.includes(stateLower) || stateLower.includes(name)) {
+          return code;
+        }
+        // Also try matching individual words
+        const stateWords = stateLower.split(/\s+/);
+        const nameWords = name.split(/\s+/);
+        if (stateWords.some(sw => nameWords.some(nw => nw.includes(sw) || sw.includes(nw)))) {
+          return code;
+        }
+      }
+      
+      // Try common abbreviations that might be in the data
+      const abbreviationMap: Record<string, string> = {
+        'calif': 'CA', 'california': 'CA',
+        'fla': 'FL', 'florida': 'FL',
+        'tex': 'TX', 'texas': 'TX',
+        'ny': 'NY', 'new york': 'NY',
+        'ill': 'IL', 'illinois': 'IL',
+        'pa': 'PA', 'pennsylvania': 'PA',
+        'oh': 'OH', 'ohio': 'OH',
+        'ga': 'GA', 'georgia': 'GA',
+        'nc': 'NC', 'north carolina': 'NC',
+        'mi': 'MI', 'michigan': 'MI',
+        'nj': 'NJ', 'new jersey': 'NJ',
+        'va': 'VA', 'virginia': 'VA',
+        'wa': 'WA', 'washington': 'WA',
+        'az': 'AZ', 'arizona': 'AZ',
+        'ma': 'MA', 'massachusetts': 'MA',
+        'tn': 'TN', 'tennessee': 'TN',
+        'in': 'IN', 'indiana': 'IN',
+        'mo': 'MO', 'missouri': 'MO',
+        'md': 'MD', 'maryland': 'MD',
+        'wi': 'WI', 'wisconsin': 'WI',
+        'co': 'CO', 'colorado': 'CO',
+        'mn': 'MN', 'minnesota': 'MN',
+        'sc': 'SC', 'south carolina': 'SC',
+        'al': 'AL', 'alabama': 'AL',
+        'la': 'LA', 'louisiana': 'LA',
+        'ky': 'KY', 'kentucky': 'KY',
+        'or': 'OR', 'oregon': 'OR',
+        'ok': 'OK', 'oklahoma': 'OK',
+        'ct': 'CT', 'connecticut': 'CT',
+        'ia': 'IA', 'iowa': 'IA',
+        'ut': 'UT', 'utah': 'UT',
+        'ar': 'AR', 'arkansas': 'AR',
+        'nv': 'NV', 'nevada': 'NV',
+        'ms': 'MS', 'mississippi': 'MS',
+        'ks': 'KS', 'kansas': 'KS',
+        'nm': 'NM', 'new mexico': 'NM',
+        'ne': 'NE', 'nebraska': 'NE',
+        'wv': 'WV', 'west virginia': 'WV',
+        'id': 'ID', 'idaho': 'ID',
+        'hi': 'HI', 'hawaii': 'HI',
+        'nh': 'NH', 'new hampshire': 'NH',
+        'me': 'ME', 'maine': 'ME',
+        'mt': 'MT', 'montana': 'MT',
+        'ri': 'RI', 'rhode island': 'RI',
+        'de': 'DE', 'delaware': 'DE',
+        'sd': 'SD', 'south dakota': 'SD',
+        'nd': 'ND', 'north dakota': 'ND',
+        'ak': 'AK', 'alaska': 'AK',
+        'dc': 'DC', 'district of columbia': 'DC',
+        'vt': 'VT', 'vermont': 'VT',
+        'wy': 'WY', 'wyoming': 'WY',
+      };
+      
+      const abbrevCode = abbreviationMap[stateLower];
+      if (abbrevCode) {
+        return abbrevCode;
+      }
+      
+      // If not found, return null (validation will catch it, but we'll try to use empty string as fallback)
+      return null;
+    };
+
     // Helper to get value from row (rows already have normalized keys from Excel/CSV import)
+    // Uses column mapping if provided: maps system field names to Excel column names
     const getValue = (row: any, headerNames: string[]): any => {
       if (!row || typeof row !== 'object') return null;
       
+      // Build reverse mapping: system field -> Excel column
+      const reverseMapping: Record<string, string> = {};
+      Object.entries(columnMapping).forEach(([excelCol, systemField]) => {
+        if (systemField && systemField !== '__none__') {
+          reverseMapping[systemField] = excelCol;
+        }
+      });
+      
       // Try normalized keys first (since Excel/CSV import normalizes them)
       for (const headerName of headerNames) {
+        // First, check if there's a column mapping for this system field
+        const mappedExcelCol = reverseMapping[headerName];
+        if (mappedExcelCol) {
+          const mappedNormalized = normalizeKey(mappedExcelCol);
+          // Try mapped Excel column
+          if (row[mappedNormalized] !== undefined && row[mappedNormalized] !== null && row[mappedNormalized] !== '') {
+            return row[mappedNormalized];
+          }
+          // Try original mapped column name
+          if (row[mappedExcelCol] !== undefined && row[mappedExcelCol] !== null && row[mappedExcelCol] !== '') {
+            return row[mappedExcelCol];
+          }
+        }
+        
         const normalized = normalizeKey(headerName);
         
         // Direct access with normalized key
@@ -514,10 +658,91 @@ export async function POST(
       return value === null ? undefined : value;
     };
 
-    // Helper to parse date
+    // Helper to parse date - handles various formats
     const parseDate = (value: any): Date | null => {
       if (!value) return null;
       if (value instanceof Date) return value;
+      
+      // Handle string dates
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed || trimmed === '' || trimmed.toLowerCase() === 'n/a' || trimmed.toLowerCase() === 'na') {
+          return null;
+        }
+        
+        // Try parsing as-is
+        let date = new Date(trimmed);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+        
+        // Try common Excel date formats
+        // Excel serial date (days since 1900-01-01)
+        const excelSerialMatch = trimmed.match(/^(\d+)(\.\d+)?$/);
+        if (excelSerialMatch) {
+          const excelSerial = parseFloat(excelSerialMatch[1]);
+          // Excel epoch is 1900-01-01, but Excel incorrectly treats 1900 as a leap year
+          const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+          date = new Date(excelEpoch.getTime() + excelSerial * 24 * 60 * 60 * 1000);
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+        
+        // Try MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD formats
+        const dateFormats = [
+          /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, // MM/DD/YYYY or DD/MM/YYYY
+          /^(\d{4})-(\d{1,2})-(\d{1,2})$/, // YYYY-MM-DD
+          /^(\d{1,2})-(\d{1,2})-(\d{4})$/, // MM-DD-YYYY or DD-MM-YYYY
+        ];
+        
+        for (const format of dateFormats) {
+          const match = trimmed.match(format);
+          if (match) {
+            let year, month, day;
+            if (format === dateFormats[1]) {
+              // YYYY-MM-DD
+              year = parseInt(match[1]);
+              month = parseInt(match[2]) - 1; // JS months are 0-indexed
+              day = parseInt(match[3]);
+            } else {
+              // Try MM/DD/YYYY first (US format)
+              month = parseInt(match[1]) - 1;
+              day = parseInt(match[2]);
+              year = parseInt(match[3]);
+              // If month > 12, it's probably DD/MM/YYYY
+              if (month > 11) {
+                day = parseInt(match[1]);
+                month = parseInt(match[2]) - 1;
+                year = parseInt(match[3]);
+              }
+            }
+            date = new Date(year, month, day);
+            if (!isNaN(date.getTime())) {
+              return date;
+            }
+          }
+        }
+      }
+      
+      // Try parsing as number (timestamp or Excel serial)
+      if (typeof value === 'number') {
+        // If it's a reasonable timestamp (after 1970), use it
+        if (value > 0 && value < 10000000000000) {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+        // Otherwise might be Excel serial date
+        const excelEpoch = new Date(1899, 11, 30);
+        const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      }
+      
+      // Last resort: try standard Date constructor
       const date = new Date(value);
       return isNaN(date.getTime()) ? null : date;
     };
@@ -919,8 +1144,8 @@ export async function POST(
       console.log(`[Loads Import] Starting optimized bulk import for ${importResult.data.length} rows...`);
 
       // STEP 1: Pre-fetch all related entities into memory maps for O(1) lookups
-      console.log('[Loads Import] Pre-fetching customers, trucks, trailers, and drivers...');
-      const [allCustomers, allTrucks, allTrailers, allDrivers, existingLoads] = await Promise.all([
+      console.log('[Loads Import] Pre-fetching customers, trucks, trailers, drivers, dispatchers, and users...');
+      const [allCustomers, allTrucks, allTrailers, allDrivers, allDispatchers, allUsers, existingLoads] = await Promise.all([
         prisma.customer.findMany({
           where: {
             companyId: session.user.companyId,
@@ -933,14 +1158,14 @@ export async function POST(
             companyId: session.user.companyId,
             deletedAt: null,
           },
-          select: { id: true, truckNumber: true },
+          select: { id: true, truckNumber: true, mcNumber: true },
         }),
         prisma.trailer.findMany({
           where: {
             companyId: session.user.companyId,
             deletedAt: null,
           },
-          select: { id: true, trailerNumber: true },
+          select: { id: true, trailerNumber: true, mcNumber: true },
         }),
         prisma.driver.findMany({
           where: {
@@ -959,6 +1184,21 @@ export async function POST(
             },
           },
         }),
+        prisma.user.findMany({
+          where: {
+            companyId: session.user.companyId,
+            deletedAt: null,
+            role: 'DISPATCHER',
+          },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        }),
+        prisma.user.findMany({
+          where: {
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        }),
         prisma.load.findMany({
           where: {
             companyId: session.user.companyId,
@@ -971,8 +1211,12 @@ export async function POST(
       // Create lookup maps
       const customerMap = new Map<string, string>(); // name/number -> id
       const truckMap = new Map<string, string>(); // truckNumber -> id
+      const truckMcMap = new Map<string, string>(); // mcNumber -> id
       const trailerMap = new Map<string, string>(); // trailerNumber -> id
+      const trailerMcMap = new Map<string, string>(); // mcNumber -> id
       const driverMap = new Map<string, string>(); // driverNumber/name/email -> id
+      const dispatcherMap = new Map<string, string>(); // name/email -> id
+      const userMap = new Map<string, string>(); // name/email -> id
       const existingLoadNumbers = new Set<string>();
 
       allCustomers.forEach((c) => {
@@ -981,11 +1225,27 @@ export async function POST(
       });
 
       allTrucks.forEach((t) => {
-        truckMap.set(t.truckNumber.toLowerCase(), t.id);
+        // Store truck number as-is (lowercase)
+        const truckKey = t.truckNumber.toLowerCase().trim();
+        truckMap.set(truckKey, t.id);
+        
+        // Also store without leading zeros for flexible matching
+        const truckKeyNoZeros = truckKey.replace(/^0+/, '');
+        if (truckKeyNoZeros !== truckKey) {
+          truckMap.set(truckKeyNoZeros, t.id);
+        }
+        
+        // Also store with leading zeros if it doesn't have them
+        if (!truckKey.match(/^0/)) {
+          truckMap.set(`0${truckKey}`, t.id);
+        }
+        
+        if (t.mcNumber) truckMcMap.set(t.mcNumber.toLowerCase(), t.id);
       });
 
       allTrailers.forEach((t) => {
         trailerMap.set(t.trailerNumber.toLowerCase(), t.id);
+        if (t.mcNumber) trailerMcMap.set(t.mcNumber.toLowerCase(), t.id);
       });
 
       allDrivers.forEach((d) => {
@@ -1009,13 +1269,103 @@ export async function POST(
         }
       });
 
+      // Map dispatchers by name and email
+      allDispatchers.forEach((u) => {
+        if (u.firstName && u.lastName) {
+          const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+          dispatcherMap.set(fullName, u.id);
+          dispatcherMap.set(fullName.replace(/\s+/g, ''), u.id);
+          dispatcherMap.set(u.lastName.toLowerCase(), u.id);
+        }
+        if (u.email) {
+          dispatcherMap.set(u.email.toLowerCase(), u.id);
+        }
+      });
+
+      // Map all users by name and email (for createdBy)
+      allUsers.forEach((u) => {
+        if (u.firstName && u.lastName) {
+          const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+          userMap.set(fullName, u.id);
+          userMap.set(fullName.replace(/\s+/g, ''), u.id);
+          userMap.set(u.lastName.toLowerCase(), u.id);
+        }
+        if (u.email) {
+          userMap.set(u.email.toLowerCase(), u.id);
+        }
+      });
+
       existingLoads.forEach((l) => existingLoadNumbers.add(l.loadNumber));
 
-      console.log(`[Loads Import] Pre-fetched ${allCustomers.length} customers, ${allTrucks.length} trucks, ${allTrailers.length} trailers, ${allDrivers.length} drivers`);
+      // Pre-fetch last delivery locations for drivers and trucks to calculate deadhead miles
+      const lastDeliveryLocations = new Map<string, { city: string; state: string; zip?: string }>(); // driverId/truckId -> location
+      
+      const recentLoads = await prisma.load.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+          OR: [
+            { driverId: { not: null } },
+            { truckId: { not: null } },
+          ],
+          deliveryDate: { not: null },
+          deliveryCity: { not: null },
+          deliveryState: { not: null },
+        },
+        select: {
+          driverId: true,
+          truckId: true,
+          deliveryCity: true,
+          deliveryState: true,
+          deliveryZip: true,
+          deliveryDate: true,
+        },
+        orderBy: { deliveryDate: 'desc' },
+        take: 1000, // Get recent loads to find last delivery locations
+      });
+
+      // Track last delivery location for each driver and truck
+      for (const load of recentLoads) {
+        if (load.driverId && load.deliveryCity && load.deliveryState) {
+          const key = `driver:${load.driverId}`;
+          if (!lastDeliveryLocations.has(key)) {
+            lastDeliveryLocations.set(key, {
+              city: load.deliveryCity,
+              state: load.deliveryState,
+              zip: load.deliveryZip || undefined,
+            });
+          }
+        }
+        if (load.truckId && load.deliveryCity && load.deliveryState) {
+          const key = `truck:${load.truckId}`;
+          if (!lastDeliveryLocations.has(key)) {
+            lastDeliveryLocations.set(key, {
+              city: load.deliveryCity,
+              state: load.deliveryState,
+              zip: load.deliveryZip || undefined,
+            });
+          }
+        }
+      }
+
+      console.log(`[Loads Import] Pre-fetched ${allCustomers.length} customers, ${allTrucks.length} trucks, ${allTrailers.length} trailers, ${allDrivers.length} drivers, ${allDispatchers.length} dispatchers, ${allUsers.length} users`);
+      console.log(`[Loads Import] Found ${lastDeliveryLocations.size} last delivery locations for deadhead calculation`);
 
       // STEP 2: Process all rows and prepare data
       const BATCH_SIZE = 500; // Process in batches of 500
-      const preparedLoads: Array<{ rowIndex: number; data: any; stops?: any[] }> = [];
+      type PreparedLoad = {
+        rowIndex: number;
+        data: any;
+        stops?: any[];
+        _deadheadCalc?: {
+          origin: { city: string; state: string; zip?: string };
+          destination: { city: string; state: string; zip?: string };
+        };
+      };
+      const preparedLoads: PreparedLoad[] = [];
+      
+      // Import calculateDistanceMatrix for deadhead calculation
+      const { calculateDistanceMatrix } = await import('@/lib/maps/google-maps');
 
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
@@ -1040,12 +1390,36 @@ export async function POST(
             }
 
             if (!customerId) {
-              errors.push({
-                row: i + 1,
-                field: 'Customer',
-                error: `Customer not found: ${customerName}. Please create the customer first.`,
-              });
-              continue;
+              // Auto-create customer if not found
+              try {
+                const newCustomer = await prisma.customer.create({
+                  data: {
+                    name: customerName,
+                    customerNumber: `AUTO-${Date.now()}-${i}`,
+                    companyId: session.user.companyId,
+                    type: 'BROKER', // Default to BROKER for imported customers
+                    status: 'ACTIVE',
+                    address: '', // Required fields
+                    city: '',
+                    state: '',
+                    zip: '',
+                    phone: '',
+                    email: '',
+                  },
+                });
+                customerId = newCustomer.id;
+                // Add to map for future lookups in this import
+                customerMap.set(customerKey, customerId);
+                console.log(`[Loads Import] Auto-created customer: ${customerName} (ID: ${customerId})`);
+              } catch (createError: any) {
+                console.error(`[Loads Import] Failed to auto-create customer ${customerName}:`, createError);
+                errors.push({
+                  row: i + 1,
+                  field: 'Customer',
+                  error: `Customer not found: ${customerName}. Auto-creation failed: ${createError.message || 'Unknown error'}`,
+                });
+                continue;
+              }
             }
           } else {
             errors.push({
@@ -1057,13 +1431,67 @@ export async function POST(
           }
 
           // Find truck if provided - use map lookup
-          const truckNumber = getValue(row, ['Truck', 'truck', 'Truck Number', 'truck_number']);
+          const truckNumber = getValue(row, ['Truck', 'truck', 'Truck Number', 'truck_number', 'Truck#', 'truck#', 'Unit number', 'Unit Number']);
           let truckId: string | null = null;
           if (truckNumber) {
-            const truckKey = String(truckNumber).trim().toLowerCase();
+            const truckValue = String(truckNumber).trim();
+            const truckKey = truckValue.toLowerCase();
+            const truckKeyNoZeros = truckKey.replace(/^0+/, '');
+            
+            console.log(`[Loads Import] Row ${i + 1}: Looking for truck "${truckValue}" (normalized: "${truckKey}", no zeros: "${truckKeyNoZeros}")`);
+            
+            // Try multiple matching strategies
+            // 1. Exact match (as provided)
             truckId = truckMap.get(truckKey) || null;
+            
+            // 2. Match without leading zeros
+            if (!truckId && truckKeyNoZeros !== truckKey) {
+              truckId = truckMap.get(truckKeyNoZeros) || null;
+              if (truckId) {
+                console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (without leading zeros) to ID: ${truckId}`);
+              }
+            }
+            
+            // 3. Match with leading zero added
+            if (!truckId && !truckKey.match(/^0/)) {
+              truckId = truckMap.get(`0${truckKey}`) || null;
+              if (truckId) {
+                console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (with leading zero) to ID: ${truckId}`);
+              }
+            }
+            
+            // 4. Try partial/numeric match (for cases like "877" matching "T877" or similar)
             if (!truckId) {
-              console.log(`[Loads Import] Truck "${truckNumber}" not found in database`);
+              for (const [key, id] of truckMap.entries()) {
+                // Remove all non-numeric characters and compare
+                const truckNumeric = truckKey.replace(/\D/g, '');
+                const keyNumeric = key.replace(/\D/g, '');
+                
+                if (truckNumeric && keyNumeric && truckNumeric === keyNumeric) {
+                  truckId = id;
+                  console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (numeric match) to "${key}" (ID: ${id})`);
+                  break;
+                }
+                
+                // Also try substring match
+                if (key.includes(truckKey) || truckKey.includes(key)) {
+                  truckId = id;
+                  console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (substring match) to "${key}" (ID: ${id})`);
+                  break;
+                }
+              }
+            }
+            
+            if (!truckId) {
+              console.log(`[Loads Import] Row ${i + 1}: Truck "${truckValue}" not found. Available trucks (first 10): ${Array.from(truckMap.keys()).slice(0, 10).join(', ')}`);
+              // Add to errors but don't block import
+              errors.push({
+                row: i + 1,
+                field: 'Truck',
+                error: `Truck "${truckValue}" not found in database`,
+              });
+            } else {
+              console.log(`[Loads Import] Row ${i + 1}: Successfully matched truck "${truckValue}" to ID: ${truckId}`);
             }
           }
 
@@ -1117,18 +1545,120 @@ export async function POST(
             console.log(`[Loads Import] Row ${i + 1}: No driver value found in Excel row`);
           }
 
-          // Parse pickup/delivery locations
+          // Find co-driver if provided - use map lookup (same logic as driver)
+          const coDriverValue = getValue(row, ['Co-Driver', 'Co Driver', 'CoDriver', 'co_driver', 'Co-Driver Name', 'co_driver_name']);
+          let coDriverId: string | null = null;
+          if (coDriverValue) {
+            const coDriverKey = String(coDriverValue).toLowerCase().trim();
+            coDriverId = driverMap.get(coDriverKey) || null;
+            
+            // If not found by exact match, try partial match
+            if (!coDriverId) {
+              const coDriverWords = coDriverKey.split(/\s+/).filter(w => w.length > 2);
+              for (const [key, id] of driverMap.entries()) {
+                const keyWords = key.split(/\s+/);
+                const hasMatch = coDriverWords.some(excelWord => 
+                  keyWords.some(keyWord => 
+                    keyWord.includes(excelWord) || excelWord.includes(keyWord)
+                  )
+                );
+                if (hasMatch) {
+                  coDriverId = id;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Find dispatcher if provided - use dispatcher map lookup
+          const dispatcherValue = getValue(row, ['Dispatcher', 'dispatcher', 'Dispatcher Name', 'dispatcher_name', 'Dispatcher/Carrier', 'dispatcher_carrier']);
+          let dispatcherId: string | null = null;
+          if (dispatcherValue) {
+            const dispatcherKey = String(dispatcherValue).toLowerCase().trim();
+            console.log(`[Loads Import] Row ${i + 1}: Looking for dispatcher "${dispatcherValue}" (normalized: "${dispatcherKey}")`);
+            console.log(`[Loads Import] Available dispatcher keys (first 5):`, Array.from(dispatcherMap.keys()).slice(0, 5));
+            
+            // Try exact match first
+            dispatcherId = dispatcherMap.get(dispatcherKey) || null;
+            
+            // If not found by exact match, try partial match
+            if (!dispatcherId) {
+              const dispatcherWords = dispatcherKey.split(/\s+/).filter(w => w.length > 2);
+              console.log(`[Loads Import] Row ${i + 1}: No exact match, trying partial match with words:`, dispatcherWords);
+              for (const [key, id] of dispatcherMap.entries()) {
+                const keyWords = key.split(/\s+/);
+                const hasMatch = dispatcherWords.some(excelWord => 
+                  keyWords.some(keyWord => 
+                    keyWord.includes(excelWord) || excelWord.includes(keyWord)
+                  )
+                );
+                if (hasMatch) {
+                  dispatcherId = id;
+                  console.log(`[Loads Import] Row ${i + 1}: Matched dispatcher "${dispatcherValue}" to "${key}" (ID: ${id})`);
+                  break;
+                }
+              }
+            } else {
+              console.log(`[Loads Import] Row ${i + 1}: Exact match for dispatcher "${dispatcherValue}" (ID: ${dispatcherId})`);
+            }
+            
+            if (!dispatcherId) {
+              console.log(`[Loads Import] Row ${i + 1}: Could not find dispatcher "${dispatcherValue}" in database`);
+            }
+          } else {
+            console.log(`[Loads Import] Row ${i + 1}: No dispatcher value found in Excel row`);
+          }
+
+          // Find createdBy user if provided - use user map lookup
+          const createdByValue = getValue(row, ['Created By', 'Created by', 'created_by', 'Created By Name', 'created_by_name']);
+          let createdById: string | null = null;
+          if (createdByValue) {
+            const createdByKey = String(createdByValue).toLowerCase().trim();
+            createdById = userMap.get(createdByKey) || null;
+            
+            // If not found by exact match, try partial match
+            if (!createdById) {
+              const createdByWords = createdByKey.split(/\s+/).filter(w => w.length > 2);
+              for (const [key, id] of userMap.entries()) {
+                const keyWords = key.split(/\s+/);
+                const hasMatch = createdByWords.some(excelWord => 
+                  keyWords.some(keyWord => 
+                    keyWord.includes(excelWord) || excelWord.includes(keyWord)
+                  )
+                );
+                if (hasMatch) {
+                  createdById = id;
+                  break;
+                }
+              }
+            }
+          } else {
+            // Default to current user if not specified
+            createdById = session.user.id;
+          }
+
+          // Parse pickup/delivery locations - prioritize zipcode for accurate geocoding
           const pickupLocation = getValue(row, ['Pickup location', 'Pickup Location', 'pickup_location', 'Pickup', 'pickup']);
           const deliveryLocation = getValue(row, ['Delivery location', 'Delivery Location', 'delivery_location', 'Delivery', 'delivery']);
 
-          // Extract city/state from location strings
-          const parseLocation = (location: string | null): { city: string; state: string; address?: string } | null => {
+          // Extract city/state/zip from location strings (format: "City, State, ZIP" or "City, State ZIP")
+          const parseLocation = (location: string | null): { city: string; state: string; zip?: string; address?: string } | null => {
             if (!location) return null;
             const parts = String(location).split(',').map((p) => p.trim());
             if (parts.length >= 2) {
+              // Try to extract ZIP from last part (could be "State ZIP" or just "State")
+              const lastPart = parts[parts.length - 1];
+              const zipMatch = lastPart.match(/\b(\d{5}(?:-\d{4})?)\b/);
+              const zip = zipMatch ? zipMatch[1] : undefined;
+              const stateRaw = zipMatch ? lastPart.replace(zipMatch[0], '').trim() : lastPart;
+              
+              // Normalize state name to 2-letter code
+              const state = normalizeState(stateRaw) || stateRaw;
+              
               return { 
                 city: parts[0], 
-                state: parts[1],
+                state: state || '',
+                zip,
                 address: parts.length > 2 ? parts.slice(0, -2).join(', ') : parts[0]
               };
             }
@@ -1142,22 +1672,55 @@ export async function POST(
           const pickupAddress = getValue(row, ['Pickup Address', 'pickup_address', 'Pickup address']) || pickup?.address || '';
           const deliveryAddress = getValue(row, ['Delivery Address', 'delivery_address', 'Delivery address']) || delivery?.address || '';
 
-          // Get cities and states
+          // Get cities, states, and zipcodes - prioritize zipcode for accurate location
+          const pickupZip = pickup?.zip || getValue(row, ['Pickup Zip', 'Pickup ZIP', 'pickup_zip', 'Pickup Zipcode', 'pickup_zipcode']) || '';
+          const deliveryZip = delivery?.zip || getValue(row, ['Delivery Zip', 'Delivery ZIP', 'delivery_zip', 'Delivery Zipcode', 'delivery_zipcode']) || '';
           const pickupCity = pickup?.city || getValue(row, ['Pickup City', 'PickupCity', 'pickup_city']) || '';
-          const pickupState = pickup?.state || getValue(row, ['Pickup State', 'PickupState', 'pickup_state']) || '';
+          const pickupStateRaw = pickup?.state || getValue(row, ['Pickup State', 'PickupState', 'pickup_state']) || '';
+          const pickupState = normalizeState(pickupStateRaw) || '';
           const deliveryCity = delivery?.city || getValue(row, ['Delivery City', 'DeliveryCity', 'delivery_city']) || '';
-          const deliveryState = delivery?.state || getValue(row, ['Delivery State', 'DeliveryState', 'delivery_state']) || '';
+          const deliveryStateRaw = delivery?.state || getValue(row, ['Delivery State', 'DeliveryState', 'delivery_state']) || '';
+          const deliveryState = normalizeState(deliveryStateRaw) || '';
+
+          // Get pickup/delivery companies
+          const pickupCompany = getValue(row, ['Pickup company', 'Pickup Company', 'pickup_company', 'Pickup Company Name', 'pickup_company_name']);
+          const deliveryCompany = getValue(row, ['Delivery company', 'Delivery Company', 'delivery_company', 'Delivery Company Name', 'delivery_company_name']);
+
+          // Get MC Number (can be from truck, trailer, or load level)
+          const mcNumber = getValue(row, ['MC Number', 'MC number', 'mc_number', 'MC#']);
+          
+          // Get Trip ID
+          const tripId = getValue(row, ['Trip ID', 'Trip Id', 'trip_id', 'Trip Number', 'trip_number']);
+
+          // Parse pickup/delivery times
+          const pickupTime = getValue(row, ['Pickup Time', 'Pickup time', 'pickup_time', 'PU date']);
+          const deliveryTime = getValue(row, ['Delivery Time', 'Delivery time', 'delivery_time', 'DEL date']);
+          const pickupAppointment = getValue(row, ['Pickup Appointment', 'Pickup appointment', 'pickup_appointment']);
+          const deliveryAppointment = getValue(row, ['Delivery Appointment', 'Delivery appointment', 'delivery_appointment']);
 
           // Map CSV/Excel columns to load schema
           const loadData: any = {
+            // Prioritize Load ID over Shipment ID (which has DT- prefix)
             loadNumber: getValue(row, ['Load ID', 'Load ID', 'load_id', 'Load Number', 'LoadNumber', 'load_number']) ||
-              getValue(row, ['Shipment ID', 'Shipment ID', 'shipment_id']) ||
+              (() => {
+                // Only use Shipment ID if it doesn't start with DT- or if Load ID is not found
+                const shipmentId = getValue(row, ['Shipment ID', 'Shipment ID', 'shipment_id']);
+                if (shipmentId && !String(shipmentId).startsWith('DT-') && !String(shipmentId).startsWith('DT ')) {
+                  return shipmentId;
+                }
+                return null;
+              })() ||
               `LOAD-${Date.now()}-${i}`,
             customerId,
             driverId: driverId || undefined,
+            coDriverId: coDriverId || undefined,
             truckId: truckId || undefined,
             trailerId: trailerId || undefined,
             trailerNumber: trailerNumber || undefined,
+            dispatcherId: dispatcherId || undefined,
+            createdById: createdById || undefined,
+            tripId: tripId || undefined,
+            mcNumber: mcNumber || undefined,
             loadType: LoadType.FTL,
             // Map equipment type from Excel (default to DRY_VAN if not found)
             equipmentType: (() => {
@@ -1179,14 +1742,16 @@ export async function POST(
             pickupLocation: pickupLocation || pickupCity || 'Unknown',
             pickupAddress: pickupAddress || pickupCity || 'Unknown',
             pickupCity: pickupCity || 'Unknown',
-            pickupState: pickupState && pickupState.length === 2 ? pickupState : '',
+            pickupState: pickupState || '',
             pickupZip: getValue(row, ['Pickup ZIP', 'Pickup Zip', 'pickup_zip', 'Pickup ZIP Code']) || '00000', // Default to '00000' if missing (required by schema)
+            pickupCompany: pickupCompany || undefined,
             deliveryLocation: deliveryLocation || deliveryCity || 'Unknown',
             deliveryAddress: deliveryAddress || deliveryCity || 'Unknown',
             deliveryCity: deliveryCity || 'Unknown',
-            deliveryState: deliveryState && deliveryState.length === 2 ? deliveryState : '',
+            deliveryState: deliveryState || '',
             deliveryZip: getValue(row, ['Delivery ZIP', 'Delivery Zip', 'delivery_zip', 'Delivery ZIP Code']) || '00000', // Default to '00000' if missing (required by schema)
-            pickupDate: parseDate(getValue(row, ['Pickup Date', 'PickupDate', 'pickup_date'])) || new Date(),
+            deliveryCompany: deliveryCompany || undefined,
+            pickupDate: parseDate(getValue(row, ['Pickup Date', 'PickupDate', 'pickup_date', 'PU date', 'pu_date'])) || new Date(),
             deliveryDate: parseDate(getValue(row, ['DEL date', 'DEL Date', 'Delivery Date', 'DeliveryDate', 'delivery_date'])),
             revenue: (() => {
               const revenueValue = getValue(row, ['Load pay', 'Load Pay', 'Revenue', 'revenue', 'Pay', 'pay']);
@@ -1286,35 +1851,90 @@ export async function POST(
           // Prepare load data for batch creation
           const loadCreateData: any = {
             ...loadDataWithoutStops,
-            // Location fields
-            pickupLocation: validated.pickupLocation || null,
+            // Location fields - use zipcode for accurate geocoding
+            pickupLocation: (() => {
+              // Build location string with zipcode for better geocoding
+              const parts = [];
+              if (pickupCity) parts.push(pickupCity);
+              if (pickupState) parts.push(pickupState);
+              if (pickupZip) parts.push(pickupZip);
+              return parts.length > 0 ? parts.join(', ') : (validated.pickupLocation || null);
+            })(),
             pickupAddress: validated.pickupAddress || null,
-            pickupCity: validated.pickupCity || null,
-            pickupState: validated.pickupState || null,
-            pickupZip: validated.pickupZip || null,
-            deliveryLocation: validated.deliveryLocation || null,
+            pickupCity: pickupCity || validated.pickupCity || null,
+            pickupState: pickupState || (validated.pickupState ? normalizeState(validated.pickupState) : null) || null,
+            pickupZip: pickupZip || validated.pickupZip || null,
+            deliveryLocation: (() => {
+              // Build location string with zipcode for better geocoding
+              const parts = [];
+              if (deliveryCity) parts.push(deliveryCity);
+              if (deliveryState) parts.push(deliveryState);
+              if (deliveryZip) parts.push(deliveryZip);
+              return parts.length > 0 ? parts.join(', ') : (validated.deliveryLocation || null);
+            })(),
             deliveryAddress: validated.deliveryAddress || null,
-            deliveryCity: validated.deliveryCity || null,
-            deliveryState: validated.deliveryState || null,
-            deliveryZip: validated.deliveryZip || null,
+            deliveryCity: deliveryCity || validated.deliveryCity || null,
+            deliveryState: deliveryState || (validated.deliveryState ? normalizeState(validated.deliveryState) : null) || '',
+            deliveryZip: deliveryZip || validated.deliveryZip || null,
             // Date fields (converted to Date objects)
             pickupDate: pickupDate || null,
             deliveryDate: deliveryDate || null,
             pickupTimeStart: validated.pickupTimeStart 
               ? (validated.pickupTimeStart instanceof Date ? validated.pickupTimeStart : new Date(validated.pickupTimeStart))
-              : null,
+              : (pickupAppointment ? parseDate(pickupAppointment) : (pickupTime ? parseDate(pickupTime) : null)),
             pickupTimeEnd: validated.pickupTimeEnd 
               ? (validated.pickupTimeEnd instanceof Date ? validated.pickupTimeEnd : new Date(validated.pickupTimeEnd))
               : null,
             deliveryTimeStart: validated.deliveryTimeStart 
               ? (validated.deliveryTimeStart instanceof Date ? validated.deliveryTimeStart : new Date(validated.deliveryTimeStart))
-              : null,
+              : (deliveryAppointment ? parseDate(deliveryAppointment) : (deliveryTime ? parseDate(deliveryTime) : null)),
             deliveryTimeEnd: validated.deliveryTimeEnd 
               ? (validated.deliveryTimeEnd instanceof Date ? validated.deliveryTimeEnd : new Date(validated.deliveryTimeEnd))
               : null,
             loadedMiles: loadedMiles ?? null,
-            emptyMiles: emptyMiles ?? null,
-            totalMiles: totalMiles ?? (loadedMiles != null && emptyMiles != null ? loadedMiles + emptyMiles : null),
+            emptyMiles: (() => {
+              // First try to get from Excel column
+              const v = getValue(row, ['Empty miles', 'Empty Miles', 'empty_miles', 'Empty mile', 'Deadhead', 'deadhead']);
+              if (v !== null && v !== '') {
+                const cleaned = String(v).replace(/[,\s]/g, '');
+                const parsed = parseFloat(cleaned);
+                if (!isNaN(parsed) && parsed > 0) return parsed;
+              }
+              
+              // Calculate deadhead from driver/truck's last delivery to current pickup
+              if ((truckId || driverId) && pickupCity && pickupState) {
+                const locationKey = driverId ? `driver:${driverId}` : `truck:${truckId}`;
+                const lastDelivery = lastDeliveryLocations.get(locationKey);
+                
+                if (lastDelivery && lastDelivery.city && lastDelivery.state) {
+                  // Calculate distance asynchronously - we'll do this in batch after all loads are prepared
+                  // Store the calculation info for later
+                  return null; // Will be calculated in batch
+                }
+              }
+              
+              return emptyMiles ?? null;
+            })(),
+            totalMiles: (() => {
+              // If totalMiles is provided and > 0, use it
+              if (totalMiles && totalMiles > 0) {
+                return totalMiles;
+              }
+              // Otherwise, calculate from loadedMiles + emptyMiles
+              if (loadedMiles != null && emptyMiles != null) {
+                const calculated = loadedMiles + emptyMiles;
+                return calculated > 0 ? calculated : 1; // Default to 1 if calculated is 0
+              }
+              // If we have at least one, use it
+              if (loadedMiles != null && loadedMiles > 0) {
+                return loadedMiles;
+              }
+              if (emptyMiles != null && emptyMiles > 0) {
+                return emptyMiles;
+              }
+              // Default to 1 to satisfy validation (better than 0)
+              return 1;
+            })(),
             companyId: session.user.companyId,
             // Map load status from Excel (default to PENDING if not found)
             status: (() => {
@@ -1357,8 +1977,27 @@ export async function POST(
               const parsed = parseFloat(cleaned);
               return isNaN(parsed) ? null : parsed;
             })(),
-            // totalMiles already set above at line 1317, don't duplicate
+            // totalMiles already set above, don't duplicate
             serviceFee: validated.serviceFee || null,
+            // Additional fields - ensure these are set even if not in validation schema
+            driverId: driverId || null,
+            truckId: truckId || null,
+            trailerId: trailerId || null,
+            coDriverId: coDriverId || null,
+            dispatcherId: dispatcherId || null,
+            createdById: createdById || session.user.id,
+            tripId: tripId || null,
+            mcNumber: mcNumber || null,
+            pickupCompany: pickupCompany || null,
+            deliveryCompany: deliveryCompany || null,
+            revenuePerMile: (() => {
+              const revenue = validated.revenue || 0;
+              const miles = totalMiles ?? (loadedMiles != null && emptyMiles != null ? loadedMiles + emptyMiles : null);
+              if (miles && miles > 0 && revenue > 0) {
+                return revenue / miles;
+              }
+              return null;
+            })(),
           };
           
           // Log the load data being created for debugging
@@ -1371,13 +2010,34 @@ export async function POST(
               totalMiles: loadCreateData.totalMiles,
               shipmentId: loadCreateData.shipmentId,
               stopsCount: loadCreateData.stopsCount,
+              truckId: loadCreateData.truckId,
+              dispatcherId: loadCreateData.dispatcherId,
+              driverId: loadCreateData.driverId,
             });
           }
 
+          // Store deadhead calculation info if needed
+          let needsDeadheadCalc = false;
+          let deadheadOrigin: { city: string; state: string; zip?: string } | null = null;
+          
+          if ((truckId || driverId) && pickupCity && pickupState) {
+            const locationKey = driverId ? `driver:${driverId}` : `truck:${truckId}`;
+            const lastDelivery = lastDeliveryLocations.get(locationKey);
+            
+            if (lastDelivery && lastDelivery.city && lastDelivery.state && !loadCreateData.emptyMiles) {
+              needsDeadheadCalc = true;
+              deadheadOrigin = lastDelivery;
+            }
+          }
+          
           // Store prepared load (with stops if any)
           preparedLoads.push({
             rowIndex: i + 1,
             data: loadCreateData,
+            _deadheadCalc: needsDeadheadCalc ? {
+              origin: deadheadOrigin!,
+              destination: { city: pickupCity, state: pickupState, zip: pickupZip || undefined },
+            } : undefined,
             stops: stops && stops.length > 0 ? stops.map((stop) => ({
               stopType: stop.stopType,
               sequence: stop.sequence,
@@ -1430,12 +2090,85 @@ export async function POST(
 
       console.log(`[Loads Import] Prepared ${preparedLoads.length} loads for batch creation`);
 
+      // STEP 2.5: Calculate deadhead miles for loads that need it
+      const loadsNeedingDeadhead = preparedLoads.filter(l => l._deadheadCalc);
+      if (loadsNeedingDeadhead.length > 0) {
+        console.log(`[Loads Import] Calculating deadhead miles for ${loadsNeedingDeadhead.length} loads...`);
+        
+        // Calculate distances in batches to avoid API limits
+        const DEADHEAD_BATCH_SIZE = 25; // Google Maps allows up to 25 destinations per request
+        for (let i = 0; i < loadsNeedingDeadhead.length; i += DEADHEAD_BATCH_SIZE) {
+          const batch = loadsNeedingDeadhead.slice(i, i + DEADHEAD_BATCH_SIZE);
+          
+          try {
+            const origins = batch.map(l => l._deadheadCalc!.origin);
+            const destinations = batch.map(l => l._deadheadCalc!.destination);
+            
+            // Use zipcode if available for better accuracy
+            const originStrings = origins.map(o => 
+              o.zip ? `${o.city}, ${o.state} ${o.zip}` : `${o.city}, ${o.state}`
+            );
+            const destStrings = destinations.map(d => 
+              d.zip ? `${d.city}, ${d.state} ${d.zip}` : `${d.city}, ${d.state}`
+            );
+            
+            const distanceMatrix = await calculateDistanceMatrix({
+              origins: origins.map((o, idx) => ({ city: o.city, state: o.state })),
+              destinations: destinations.map((d, idx) => ({ city: d.city, state: d.state })),
+              mode: 'driving',
+              units: 'imperial',
+            });
+            
+            // Update emptyMiles for each load in the batch
+            batch.forEach((load, idx) => {
+              if (distanceMatrix[idx] && distanceMatrix[idx][0]) {
+                const distanceMeters = distanceMatrix[idx][0].distance;
+                const distanceMiles = distanceMeters * 0.000621371; // Convert meters to miles
+                load.data.emptyMiles = Math.round(distanceMiles * 100) / 100; // Round to 2 decimals
+                
+                // Recalculate totalMiles if loadedMiles exists
+                if (load.data.loadedMiles) {
+                  load.data.totalMiles = load.data.loadedMiles + load.data.emptyMiles;
+                } else if (load.data.totalMiles && load.data.emptyMiles) {
+                  // If totalMiles exists but loadedMiles doesn't, we can't recalculate
+                  // Just keep the totalMiles as is
+                }
+                
+                // Update last delivery location for this driver/truck for subsequent loads
+                if (load.data.driverId && load.data.deliveryCity && load.data.deliveryState) {
+                  lastDeliveryLocations.set(`driver:${load.data.driverId}`, {
+                    city: load.data.deliveryCity,
+                    state: load.data.deliveryState,
+                    zip: load.data.deliveryZip || undefined,
+                  });
+                }
+                if (load.data.truckId && load.data.deliveryCity && load.data.deliveryState) {
+                  lastDeliveryLocations.set(`truck:${load.data.truckId}`, {
+                    city: load.data.deliveryCity,
+                    state: load.data.deliveryState,
+                    zip: load.data.deliveryZip || undefined,
+                  });
+                }
+                
+                console.log(`[Loads Import] Calculated deadhead: ${load.data.emptyMiles} miles from ${load._deadheadCalc!.origin.city} to ${load._deadheadCalc!.destination.city}`);
+              }
+            });
+          } catch (error) {
+            console.error(`[Loads Import] Error calculating deadhead miles for batch ${i / DEADHEAD_BATCH_SIZE + 1}:`, error);
+            // Continue without deadhead calculation - loads will be created without emptyMiles
+          }
+        }
+      }
+
       // STEP 3: Batch create loads in transactions
       const loadsWithStops: typeof preparedLoads = [];
       const loadsWithoutStops: typeof preparedLoads = [];
 
-      // Separate loads with and without stops
+      // Separate loads with and without stops, and clean up _deadheadCalc
       preparedLoads.forEach((load) => {
+        // Remove _deadheadCalc before saving (it's only for calculation)
+        delete (load as any)._deadheadCalc;
+        
         if (load.stops && load.stops.length > 0) {
           loadsWithStops.push(load);
         } else {

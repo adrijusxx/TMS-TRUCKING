@@ -94,7 +94,12 @@ export default function LoadMap({ load }: LoadMapProps) {
       try {
         await loadGoogleMapsApi(['places', 'geometry', 'drawing']);
         if (isMounted) {
-          initializeMap();
+          // Small delay to ensure container is fully rendered
+          setTimeout(() => {
+            if (isMounted) {
+              initializeMap();
+            }
+          }, 100);
         }
       } catch (err: any) {
         console.error('Google Maps load error:', err);
@@ -111,6 +116,42 @@ export default function LoadMap({ load }: LoadMapProps) {
       isMounted = false;
     };
   }, []);
+
+  // Resize map when container becomes visible or dimensions change
+  useEffect(() => {
+    if (!map || !mapRef.current) return;
+
+    const resizeMap = () => {
+      if (map && window.google) {
+        // Trigger resize after a small delay to ensure layout is complete
+        setTimeout(() => {
+          if (map && window.google) {
+            window.google.maps.event.trigger(map, 'resize');
+          }
+        }, 100);
+      }
+    };
+
+    // Resize on mount and when map is set
+    resizeMap();
+
+    // Use ResizeObserver to detect container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      resizeMap();
+    });
+
+    if (mapRef.current) {
+      resizeObserver.observe(mapRef.current);
+    }
+
+    // Also listen for window resize
+    window.addEventListener('resize', resizeMap);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', resizeMap);
+    };
+  }, [map]);
 
   const initializeMap = () => {
     if (!mapRef.current || !window.google) return;
@@ -148,6 +189,14 @@ export default function LoadMap({ load }: LoadMapProps) {
     setMap(mapInstance);
     setDirectionsService(directionsServiceInstance);
     setDirectionsRenderer(directionsRendererInstance);
+    
+    // Trigger resize after initialization to ensure proper sizing
+    setTimeout(() => {
+      if (mapInstance && window.google) {
+        window.google.maps.event.trigger(mapInstance, 'resize');
+      }
+    }, 200);
+    
     setIsLoading(false);
   };
 
@@ -547,7 +596,17 @@ export default function LoadMap({ load }: LoadMapProps) {
           </div>
         ) : (
           <div className="relative w-full">
-            <div ref={mapRef} className="w-full h-[600px] min-h-[600px] rounded-lg border" style={{ minHeight: '600px' }} />
+            <div 
+              ref={mapRef} 
+              className="w-full h-[600px] min-h-[600px] rounded-lg border" 
+              style={{ 
+                minHeight: '600px',
+                height: '600px',
+                width: '100%',
+                position: 'relative',
+                overflow: 'hidden'
+              }} 
+            />
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-lg">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />

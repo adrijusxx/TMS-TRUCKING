@@ -26,16 +26,15 @@ export async function GET(request: NextRequest) {
       include: {
         loads: {
           where: {
-            status: {
-              in: ['DELIVERED', 'INVOICED', 'PAID'],
-            },
             deletedAt: null,
           },
           select: {
             id: true,
             revenue: true,
+            status: true,
             deliveredAt: true,
             deliveryDate: true,
+            pickupDate: true,
           },
         },
       },
@@ -45,39 +44,53 @@ export async function GET(request: NextRequest) {
 
     // Calculate performance metrics for each customer
     const customerPerformance = customers.map((customer) => {
-      const loadsCompleted = customer.loads.length;
-      const totalRevenue = customer.loads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+      const allLoads = customer.loads;
+      const loadsCompleted = allLoads.filter((l) => 
+        ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status)
+      ).length;
+      const totalRevenue = allLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
       const averageRevenuePerLoad =
-        loadsCompleted > 0 ? totalRevenue / loadsCompleted : 0;
+        allLoads.length > 0 ? totalRevenue / allLoads.length : 0;
 
-      // Calculate on-time rate
-      const onTimeLoads = customer.loads.filter((l) => {
+      // Calculate on-time rate (only for completed loads)
+      const completedLoads = allLoads.filter((l) => 
+        ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status) && l.deliveredAt
+      );
+      const onTimeLoads = completedLoads.filter((l) => {
         if (!l.deliveredAt || !l.deliveryDate) return false;
         const delivered = new Date(l.deliveredAt);
         const expected = new Date(l.deliveryDate);
         // Consider on-time if delivered within 24 hours of expected
         return delivered <= new Date(expected.getTime() + 24 * 60 * 60 * 1000);
       }).length;
-      const onTimeRate = loadsCompleted > 0 ? (onTimeLoads / loadsCompleted) * 100 : 0;
+      const onTimeRate = completedLoads.length > 0 ? (onTimeLoads / completedLoads.length) * 100 : 0;
 
       return {
         id: customer.id,
         name: customer.name,
         revenue: totalRevenue,
-        loadsCompleted,
+        loadsCompleted, // Count of completed loads
+        totalLoads: allLoads.length, // Total loads (all statuses)
         averageRevenuePerLoad,
         onTimeRate,
       };
     });
 
-    // Get active customers (customers with at least one completed load in last 90 days)
+    // Get active customers (customers with at least one load in last 90 days)
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     const activeCustomers = customerPerformance.filter((c) => {
-      const recentLoads = customers
-        .find((cust) => cust.id === c.id)
-        ?.loads.filter((l) => l.deliveredAt && new Date(l.deliveredAt) >= ninetyDaysAgo);
-      return recentLoads && recentLoads.length > 0;
+      const customer = customers.find((cust) => cust.id === c.id);
+      if (!customer) return false;
+      // Check if customer has any loads with pickupDate or deliveryDate in last 90 days
+      const recentLoads = customer.loads.filter((l) => {
+        const pickupDate = l.pickupDate ? new Date(l.pickupDate) : null;
+        const deliveryDate = l.deliveryDate ? new Date(l.deliveryDate) : null;
+        return (pickupDate && pickupDate >= ninetyDaysAgo) || 
+               (deliveryDate && deliveryDate >= ninetyDaysAgo) ||
+               (l.deliveredAt && new Date(l.deliveredAt) >= ninetyDaysAgo);
+      });
+      return recentLoads.length > 0;
     }).length;
 
     // Calculate totals
@@ -85,9 +98,12 @@ export async function GET(request: NextRequest) {
     const averageRevenuePerCustomer =
       totalCustomers > 0 ? totalRevenue / totalCustomers : 0;
 
-    // Get top customers (by revenue)
+    // Get top customers (by revenue) - include all customers with at least 1 load
     const topCustomers = customerPerformance
-      .filter((c) => c.loadsCompleted >= 1) // At least 1 load
+      .filter((c) => {
+        const customer = customers.find((cust) => cust.id === c.id);
+        return customer && customer.loads.length >= 1; // At least 1 load (any status)
+      })
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
 

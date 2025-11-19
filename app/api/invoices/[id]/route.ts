@@ -30,6 +30,28 @@ export async function GET(
       },
       include: {
         customer: true,
+        payments: {
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        reconciliations: {
+          include: {
+            reconciledBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -94,7 +116,16 @@ export async function PATCH(
 
     const resolvedParams = await params;
     const body = await request.json();
-    const { status, notes } = body;
+    const { 
+      status, 
+      notes, 
+      mcNumber, 
+      subStatus, 
+      reconciliationStatus, 
+      invoiceNote, 
+      paymentNote, 
+      loadId 
+    } = body;
 
     const existingInvoice = await prisma.invoice.findFirst({
       where: {
@@ -138,6 +169,24 @@ export async function PATCH(
     }
     if (notes !== undefined) {
       updateData.notes = notes;
+    }
+    if (mcNumber !== undefined) {
+      updateData.mcNumber = mcNumber;
+    }
+    if (subStatus !== undefined) {
+      updateData.subStatus = subStatus;
+    }
+    if (reconciliationStatus !== undefined) {
+      updateData.reconciliationStatus = reconciliationStatus;
+    }
+    if (invoiceNote !== undefined) {
+      updateData.invoiceNote = invoiceNote;
+    }
+    if (paymentNote !== undefined) {
+      updateData.paymentNote = paymentNote;
+    }
+    if (loadId !== undefined) {
+      updateData.loadId = loadId;
     }
 
     const invoice = await prisma.invoice.update({

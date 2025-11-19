@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
     const invoiceDate = searchParams.get('invoiceDate');
     const dueDate = searchParams.get('dueDate');
     const minTotal = searchParams.get('minTotal');
+    const mcNumber = searchParams.get('mcNumber');
+    const reconciliationStatus = searchParams.get('reconciliationStatus');
 
     // Get customer IDs for this company
     const companyCustomers = await prisma.customer.findMany({
@@ -67,10 +69,20 @@ export async function GET(request: NextRequest) {
       where.total = { gte: parseFloat(minTotal) };
     }
 
+    if (mcNumber) {
+      where.mcNumber = { contains: mcNumber, mode: 'insensitive' };
+    }
+
+    if (reconciliationStatus) {
+      where.reconciliationStatus = reconciliationStatus;
+    }
+
     if (search) {
       where.OR = [
         { invoiceNumber: { contains: search, mode: 'insensitive' } },
         { customer: { name: { contains: search, mode: 'insensitive' } } },
+        { mcNumber: { contains: search, mode: 'insensitive' } },
+        { loadId: { contains: search, mode: 'insensitive' } },
       ];
     }
 

@@ -67,19 +67,22 @@ export async function GET(request: NextRequest) {
     const totalCost = fuelEntries.reduce((sum, entry) => sum + entry.totalCost, 0);
     const averageCostPerGallon = fuelEntries.length > 0 ? totalCost / totalGallons : 0;
 
-    // Get loads for the period to calculate fuel efficiency
+    // Get loads for the period to calculate fuel efficiency - include ALL loads
     const loads = await prisma.load.findMany({
       where: {
         companyId: session.user.companyId,
-        deliveredAt: {
-          gte: startDate,
-          lte: endDate,
-        },
         deletedAt: null,
+        OR: [
+          { pickupDate: { gte: startDate, lte: endDate } },
+          { deliveryDate: { gte: startDate, lte: endDate } },
+          { deliveredAt: { gte: startDate, lte: endDate } },
+        ],
         ...(truckId ? { truckId } : {}),
       },
       select: {
         revenue: true,
+        loadedMiles: true,
+        emptyMiles: true,
         route: {
           select: {
             totalDistance: true,
@@ -89,7 +92,10 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    const totalMiles = loads.reduce((sum, load) => sum + (load.route?.totalDistance || load.totalMiles || 0), 0);
+    const totalMiles = loads.reduce((sum, load) => {
+      // Prioritize totalMiles, then loadedMiles + emptyMiles, then route distance
+      return sum + (load.totalMiles || (load.loadedMiles || 0) + (load.emptyMiles || 0) || load.route?.totalDistance || 0);
+    }, 0);
     const milesPerGallon = totalGallons > 0 ? totalMiles / totalGallons : 0;
     const fuelCostPerMile = totalMiles > 0 ? totalCost / totalMiles : 0;
 

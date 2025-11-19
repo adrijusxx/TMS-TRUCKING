@@ -30,9 +30,11 @@ async function fetchCustomerPerformance() {
 }
 
 export default function CustomerPerformanceMetrics() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['customer-performance'],
     queryFn: fetchCustomerPerformance,
+    retry: 2,
+    staleTime: 60000, // Cache for 1 minute
   });
 
   const performance: CustomerPerformance = data?.data || {
@@ -65,6 +67,15 @@ export default function CustomerPerformanceMetrics() {
         {isLoading ? (
           <div className="text-center py-4 text-sm text-muted-foreground">
             Loading customer data...
+          </div>
+        ) : error ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-destructive mb-2">
+              Failed to load customer performance data
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

@@ -33,9 +33,11 @@ async function fetchDriverPerformance() {
 }
 
 export default function DriverPerformanceSummary() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['driver-performance'],
     queryFn: fetchDriverPerformance,
+    retry: 2,
+    staleTime: 60000, // Cache for 1 minute
   });
 
   const performance: DriverPerformance = data?.data || {
@@ -71,6 +73,15 @@ export default function DriverPerformanceSummary() {
         {isLoading ? (
           <div className="text-center py-4 text-sm text-muted-foreground">
             Loading driver data...
+          </div>
+        ) : error ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-destructive mb-2">
+              Failed to load driver performance data
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

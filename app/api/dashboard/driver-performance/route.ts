@@ -32,13 +32,11 @@ export async function GET(request: NextRequest) {
         },
         loads: {
           where: {
-            status: {
-              in: ['DELIVERED', 'INVOICED', 'PAID'],
-            },
             deletedAt: null,
           },
           select: {
             id: true,
+            status: true,
             deliveredAt: true,
             deliveryDate: true,
             revenue: true,
@@ -54,9 +52,17 @@ export async function GET(request: NextRequest) {
 
     // Calculate performance metrics for each driver
     const driverPerformance = drivers.map((driver) => {
-      const totalLoads = driver.loads.length;
-      const completedLoads = driver.loads.filter((l) => l.deliveredAt).length;
-      const onTimeLoads = driver.loads.filter((l) => {
+      const allLoads = driver.loads;
+      const totalLoads = allLoads.length;
+      const completedLoads = allLoads.filter((l) => 
+        ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status)
+      ).length;
+      
+      // Calculate on-time rate only for completed loads
+      const completedLoadsWithDates = allLoads.filter((l) => 
+        ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status) && l.deliveredAt && l.deliveryDate
+      );
+      const onTimeLoads = completedLoadsWithDates.filter((l) => {
         if (!l.deliveredAt || !l.deliveryDate) return false;
         const delivered = new Date(l.deliveredAt);
         const expected = new Date(l.deliveryDate);
@@ -65,8 +71,8 @@ export async function GET(request: NextRequest) {
       }).length;
 
       const completionRate = totalLoads > 0 ? (completedLoads / totalLoads) * 100 : 0;
-      const onTimeRate = completedLoads > 0 ? (onTimeLoads / completedLoads) * 100 : 0;
-      const totalRevenue = driver.loads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+      const onTimeRate = completedLoadsWithDates.length > 0 ? (onTimeLoads / completedLoadsWithDates.length) * 100 : 0;
+      const totalRevenue = allLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
 
       return {
         id: driver.id,
@@ -95,10 +101,17 @@ export async function GET(request: NextRequest) {
         : 0;
 
     // Get top performers (by revenue, with good completion and on-time rates)
+    // If no drivers meet the criteria, show top by revenue
     const topPerformers = driverPerformance
-      .filter((d) => d.totalLoads >= 3) // At least 3 loads
-      .filter((d) => d.completionRate >= 80 && d.onTimeRate >= 70) // Good performance
-      .sort((a, b) => b.revenue - a.revenue)
+      .filter((d) => d.totalLoads >= 1) // At least 1 load
+      .sort((a, b) => {
+        // Sort by revenue first
+        if (b.revenue !== a.revenue) {
+          return b.revenue - a.revenue;
+        }
+        // Then by completion rate
+        return b.completionRate - a.completionRate;
+      })
       .slice(0, 5);
 
     return NextResponse.json({

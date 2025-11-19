@@ -23,16 +23,16 @@ export async function GET(request: NextRequest) {
       : new Date();
     const groupBy = searchParams.get('groupBy') || 'customer'; // customer, lane
 
-    // Get all completed loads in date range
+    // Get all loads in date range - include ALL loads, not just completed ones
     const loads = await prisma.load.findMany({
       where: {
         companyId: session.user.companyId,
-        status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
-        deliveredAt: {
-          gte: startDate,
-          lte: endDate,
-        },
         deletedAt: null,
+        OR: [
+          { pickupDate: { gte: startDate, lte: endDate } },
+          { deliveryDate: { gte: startDate, lte: endDate } },
+          { deliveredAt: { gte: startDate, lte: endDate } },
+        ],
       },
       include: {
         customer: {

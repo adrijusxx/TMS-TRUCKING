@@ -23,7 +23,15 @@ import {
 } from '@/components/ui/select';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/export';
-import { Package, Plus, Search, Filter, Download, FileText, Edit, MapPin, Trash2, Upload } from 'lucide-react';
+import { Package, Plus, Search, Filter, Download, FileText, Edit, MapPin, Trash2, Upload, Settings2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
@@ -57,6 +65,7 @@ import DocumentViewerDialog from '@/components/loads/DocumentViewerDialog';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 interface Load {
   id: string;
@@ -79,9 +88,17 @@ interface Load {
     id: string;
     truckNumber: string;
   };
+  dispatcher?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  pickupLocation?: string | null;
   pickupCity: string;
   pickupState: string;
   pickupDate: Date;
+  deliveryLocation?: string | null;
   deliveryCity: string;
   deliveryState: string;
   deliveryDate?: Date | null;
@@ -245,6 +262,30 @@ export default function LoadList() {
   const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
   const [deleteLoadId, setDeleteLoadId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState({
+    checkbox: true,
+    loadNumber: true,
+    customer: true,
+    route: true,
+    stops: true,
+    pickupDate: true,
+    deliveryDate: true,
+    driver: true,
+    dispatcher: true,
+    truck: true,
+    trailer: true,
+    status: true,
+    revenue: true,
+    driverPay: true,
+    serviceFee: true,
+    ratePerMile: true,
+    miles: true,
+    emptyMiles: true,
+    documents: true,
+    actions: true,
+  });
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters],
@@ -375,6 +416,7 @@ export default function LoadList() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumb items={[{ label: 'Loads', href: '/dashboard/loads' }]} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -415,6 +457,178 @@ export default function LoadList() {
             }} 
           />
           <ExportDialog entityType="loads" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 max-h-[400px] overflow-y-auto">
+              <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.checkbox}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, checkbox: checked })
+                }
+              >
+                Checkbox
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.loadNumber}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, loadNumber: checked })
+                }
+              >
+                Load #
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.customer}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, customer: checked })
+                }
+              >
+                Customer
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.route}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, route: checked })
+                }
+              >
+                Route
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.stops}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, stops: checked })
+                }
+              >
+                Stops
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.pickupDate}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, pickupDate: checked })
+                }
+              >
+                Pickup Date
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.deliveryDate}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, deliveryDate: checked })
+                }
+              >
+                Delivery Date
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.driver}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, driver: checked })
+                }
+              >
+                Driver
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.dispatcher}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, dispatcher: checked })
+                }
+              >
+                Dispatcher
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.truck}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, truck: checked })
+                }
+              >
+                Truck
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.trailer}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, trailer: checked })
+                }
+              >
+                Trailer
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.status}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, status: checked })
+                }
+              >
+                Status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.revenue}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, revenue: checked })
+                }
+              >
+                Revenue
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.driverPay}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, driverPay: checked })
+                }
+              >
+                Driver Pay
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.serviceFee}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, serviceFee: checked })
+                }
+              >
+                Service Fee
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.ratePerMile}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, ratePerMile: checked })
+                }
+              >
+                Rate/Mile
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.miles}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, miles: checked })
+                }
+              >
+                Total Miles
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.emptyMiles}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, emptyMiles: checked })
+                }
+              >
+                Empty Miles
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.documents}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, documents: checked })
+                }
+              >
+                Documents
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.actions}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, actions: checked })
+                }
+              >
+                Actions
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {can('loads.create') && (
             <Link href="/dashboard/loads/new">
               <Button>
@@ -603,7 +817,7 @@ export default function LoadList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-32">
+                  {visibleColumns.checkbox && <TableHead className="w-32">
                     <div className="flex flex-col gap-1">
                       <Checkbox
                         checked={selectAllPages || (selectedLoadIds.length === loads.length && loads.length > 0 && !selectAllPages)}
@@ -639,31 +853,32 @@ export default function LoadList() {
                         </Button>
                       )}
                     </div>
-                  </TableHead>
-                  <TableHead>Load #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Route</TableHead>
-                  <TableHead>Stops</TableHead>
-                  <TableHead>Pickup Date</TableHead>
-                  <TableHead>Delivery Date</TableHead>
-                  <TableHead>Driver</TableHead>
-                  <TableHead>Dispatcher</TableHead>
-                  <TableHead>Truck</TableHead>
-                  <TableHead>Trailer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Driver Pay</TableHead>
-                  <TableHead className="text-right">Service Fee</TableHead>
-                  <TableHead className="text-right">Rate/Mile</TableHead>
-                  <TableHead className="text-right">Miles</TableHead>
-                  <TableHead>Docs</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  </TableHead>}
+                  {visibleColumns.loadNumber && <TableHead>Load #</TableHead>}
+                  {visibleColumns.customer && <TableHead>Customer</TableHead>}
+                  {visibleColumns.route && <TableHead>Route</TableHead>}
+                  {visibleColumns.stops && <TableHead>Stops</TableHead>}
+                  {visibleColumns.pickupDate && <TableHead>Pickup Date</TableHead>}
+                  {visibleColumns.deliveryDate && <TableHead>Delivery Date</TableHead>}
+                  {visibleColumns.driver && <TableHead>Driver</TableHead>}
+                  {visibleColumns.dispatcher && <TableHead>Dispatcher</TableHead>}
+                  {visibleColumns.truck && <TableHead>Truck</TableHead>}
+                  {visibleColumns.trailer && <TableHead>Trailer</TableHead>}
+                  {visibleColumns.status && <TableHead>Status</TableHead>}
+                  {visibleColumns.revenue && <TableHead className="text-right">Revenue</TableHead>}
+                  {visibleColumns.driverPay && <TableHead className="text-right">Driver Pay</TableHead>}
+                  {visibleColumns.serviceFee && <TableHead className="text-right">Service Fee</TableHead>}
+                  {visibleColumns.ratePerMile && <TableHead className="text-right">Rate/Mile</TableHead>}
+                  {visibleColumns.miles && <TableHead className="text-right">Total Miles</TableHead>}
+                  {visibleColumns.emptyMiles && <TableHead className="text-right">Empty Miles</TableHead>}
+                  {visibleColumns.documents && <TableHead>Docs</TableHead>}
+                  {visibleColumns.actions && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loads.map((load) => (
                   <TableRow key={load.id}>
-                    <TableCell>
+                    {visibleColumns.checkbox && <TableCell>
                       <Checkbox
                         checked={selectAllPages || selectedLoadIds.includes(load.id)}
                         onCheckedChange={(checked) => {
@@ -678,41 +893,35 @@ export default function LoadList() {
                         }}
                         disabled={selectAllPages}
                       />
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div>
-                        <button
-                          onClick={() => setQuickViewLoadId(load.id)}
-                          className="text-primary hover:underline text-left"
-                        >
-                          {load.loadNumber}
-                        </button>
-                        {load.shipmentId && (
-                          <div className="text-xs text-muted-foreground">
-                            Shipment: {load.shipmentId}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{load.customer.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {load.customer.customerNumber}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.loadNumber && <TableCell className="font-medium">
+                      <button
+                        onClick={() => setQuickViewLoadId(load.id)}
+                        className="text-primary hover:underline text-left"
+                      >
+                        {load.loadNumber}
+                      </button>
+                    </TableCell>}
+                    {visibleColumns.customer && <TableCell>
+                      <div className="font-medium">{load.customer.name}</div>
+                    </TableCell>}
+                    {visibleColumns.route && <TableCell>
                       <div className="text-sm">
-                        {(load.pickupCity || load.deliveryCity) ? (
+                        {(load.pickupCity && load.pickupCity !== 'Unknown' && load.deliveryCity && load.deliveryCity !== 'Unknown') ? (
                           <>
                             <div>
-                              {load.pickupCity || 'N/A'}, {load.pickupState || ''}
+                              {load.pickupCity}, {load.pickupState || ''}
                             </div>
                             <div className="text-muted-foreground">→</div>
                             <div>
-                              {load.deliveryCity || 'N/A'}, {load.deliveryState || ''}
+                              {load.deliveryCity}, {load.deliveryState || ''}
                             </div>
+                          </>
+                        ) : load.pickupLocation || load.deliveryLocation ? (
+                          <>
+                            <div>{load.pickupLocation || 'N/A'}</div>
+                            <div className="text-muted-foreground">→</div>
+                            <div>{load.deliveryLocation || 'N/A'}</div>
                           </>
                         ) : load.stops && load.stops.length > 0 ? (
                           <div className="text-muted-foreground">
@@ -723,8 +932,8 @@ export default function LoadList() {
                           <div className="text-muted-foreground">-</div>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.stops && <TableCell>
                       {load.stopsCount !== undefined && load.stopsCount !== null ? (
                         <div className="text-sm">
                           <span className="font-medium">{load.stopsCount}</span>
@@ -746,14 +955,14 @@ export default function LoadList() {
                       ) : (
                         <span className="text-muted-foreground text-sm">1</span>
                       )}
-                    </TableCell>
-                    <TableCell>{formatDate(load.pickupDate)}</TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.pickupDate && <TableCell>{formatDate(load.pickupDate)}</TableCell>}
+                    {visibleColumns.deliveryDate && <TableCell>
                       {load.deliveryDate ? formatDate(load.deliveryDate) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.driver && <TableCell>
                       {load.driver ? (
                         <div>
                           {load.driver.user.firstName}{' '}
@@ -765,47 +974,42 @@ export default function LoadList() {
                       ) : (
                         <span className="text-muted-foreground">Unassigned</span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {load.statusHistory && load.statusHistory.length > 0 ? (
-                        <div className="text-sm">
-                          <div className="text-muted-foreground">
-                            User #{load.statusHistory[0].createdBy.slice(0, 8)}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatDate(load.statusHistory[0].createdAt)}
-                          </div>
+                    </TableCell>}
+                    {visibleColumns.dispatcher && <TableCell>
+                      {load.dispatcher ? (
+                        <div>
+                          {load.dispatcher.firstName} {load.dispatcher.lastName}
                         </div>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.truck && <TableCell>
                       {load.truck ? (
                         load.truck.truckNumber
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.trailer && <TableCell>
                       {load.trailerNumber ? (
                         <span className="font-medium">{load.trailerNumber}</span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.status && <TableCell>
                       <Badge
                         variant="outline"
                         className={statusColors[load.status as LoadStatus]}
                       >
                         {formatStatus(load.status)}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
+                    </TableCell>}
+                    {visibleColumns.revenue && <TableCell className="text-right font-medium">
                       {formatCurrency(load.revenue)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
+                    </TableCell>}
+                    {visibleColumns.driverPay && <TableCell className="text-right text-sm">
                       {load.driverPay || load.totalPay ? (
                         <div>
                           {load.driverPay ? (
@@ -822,15 +1026,15 @@ export default function LoadList() {
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
+                    </TableCell>}
+                    {visibleColumns.serviceFee && <TableCell className="text-right text-sm">
                       {load.serviceFee ? (
                         <div className="font-medium">{formatCurrency(load.serviceFee)}</div>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
+                    </TableCell>}
+                    {visibleColumns.ratePerMile && <TableCell className="text-right text-sm">
                       {load.totalMiles && load.totalMiles > 0 ? (
                         <div>
                           <div>${(load.revenue / load.totalMiles).toFixed(2)}</div>
@@ -843,27 +1047,22 @@ export default function LoadList() {
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
+                    </TableCell>}
+                    {visibleColumns.miles && <TableCell className="text-right">
                       {load.totalMiles ? (
-                        <div>
-                          <div className="font-medium">{load.totalMiles.toLocaleString()}</div>
-                          {load.loadedMiles && load.loadedMiles > 0 && (
-                            <div className="text-xs text-muted-foreground">
-                              {load.loadedMiles.toLocaleString()} loaded
-                            </div>
-                          )}
-                          {load.emptyMiles && load.emptyMiles > 0 && (
-                            <div className="text-xs text-muted-foreground">
-                              {load.emptyMiles.toLocaleString()} empty
-                            </div>
-                          )}
-                        </div>
+                        <div className="font-medium">{load.totalMiles.toLocaleString()}</div>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell>
+                    </TableCell>}
+                    {visibleColumns.emptyMiles && <TableCell className="text-right">
+                      {load.emptyMiles ? (
+                        <div className="font-medium">{load.emptyMiles.toLocaleString()}</div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>}
+                    {visibleColumns.documents && <TableCell>
                       {load.documents && load.documents.length > 0 ? (
                         <div className="flex items-center gap-1">
                           <FileText className="h-4 w-4 text-blue-600" />
@@ -873,8 +1072,8 @@ export default function LoadList() {
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
+                    </TableCell>}
+                    {visibleColumns.actions && <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <LoadStatusQuickActions
                           loadId={load.id}
@@ -904,7 +1103,7 @@ export default function LoadList() {
                           </Button>
                         )}
                       </div>
-                    </TableCell>
+                    </TableCell>}
                   </TableRow>
                 ))}
               </TableBody>

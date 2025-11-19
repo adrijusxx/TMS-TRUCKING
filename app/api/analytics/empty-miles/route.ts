@@ -24,19 +24,30 @@ export async function GET(request: NextRequest) {
     const truckId = searchParams.get('truckId');
     const driverId = searchParams.get('driverId');
 
-    // Get all loads in the period
+    // Get all loads in the period - include ALL loads, use pickupDate or deliveryDate
     const loads = await prisma.load.findMany({
       where: {
         companyId: session.user.companyId,
-        deliveredAt: {
-          gte: startDate,
-          lte: endDate,
-        },
         deletedAt: null,
+        OR: [
+          { pickupDate: { gte: startDate, lte: endDate } },
+          { deliveryDate: { gte: startDate, lte: endDate } },
+          { deliveredAt: { gte: startDate, lte: endDate } },
+        ],
         ...(truckId ? { truckId } : {}),
         ...(driverId ? { driverId } : {}),
       },
-      include: {
+      select: {
+        id: true,
+        truckId: true,
+        driverId: true,
+        loadedMiles: true,
+        emptyMiles: true,
+        totalMiles: true,
+        pickupCity: true,
+        pickupState: true,
+        deliveryCity: true,
+        deliveryState: true,
         truck: {
           select: {
             id: true,
@@ -61,7 +72,11 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { deliveredAt: 'desc' },
+      orderBy: [
+        { deliveredAt: 'desc' },
+        { deliveryDate: 'desc' },
+        { pickupDate: 'desc' },
+      ],
     });
 
     // Calculate empty miles
@@ -73,72 +88,81 @@ export async function GET(request: NextRequest) {
 
     for (let i = 0; i < loads.length; i++) {
       const load = loads[i];
-      const loadedMiles = load.route?.totalDistance || 0;
+      // Use loadedMiles, or calculate from totalMiles and emptyMiles
+      const loadedMiles = load.loadedMiles || (load.totalMiles ? load.totalMiles - (load.emptyMiles || 0) : 0) || load.route?.totalDistance || 0;
       totalLoadedMiles += loadedMiles;
 
-      // Calculate empty miles to next pickup
-      if (i < loads.length - 1) {
+      // Use stored emptyMiles if available, otherwise calculate from next load
+      let emptyMiles = load.emptyMiles || 0;
+      
+      // If emptyMiles is not stored, try to calculate from next load
+      if (!emptyMiles && i < loads.length - 1) {
         const nextLoad = loads[i + 1];
-        // Skip if cities/states are missing
-        if (!load.deliveryCity || !load.deliveryState || !nextLoad.pickupCity || !nextLoad.pickupState) {
-          continue;
+        // Only calculate if cities/states are available
+        if (load.deliveryCity && load.deliveryState && nextLoad.pickupCity && nextLoad.pickupState) {
+          emptyMiles = calculateEmptyMiles(
+            load.deliveryCity,
+            load.deliveryState,
+            nextLoad.pickupCity,
+            nextLoad.pickupState
+          );
         }
-        const emptyMiles = calculateEmptyMiles(
-          load.deliveryCity,
-          load.deliveryState,
-          nextLoad.pickupCity,
-          nextLoad.pickupState
-        );
-        totalEmptyMiles += emptyMiles;
+      }
+      
+      totalEmptyMiles += emptyMiles;
 
-        // Track by truck
-        if (load.truckId) {
-          const truckId = load.truckId;
-          if (!emptyMilesByTruck[truckId]) {
-            emptyMilesByTruck[truckId] = {
-              truckId,
-              truckNumber: load.truck?.truckNumber || 'Unknown',
-              emptyMiles: 0,
-              loadedMiles: 0,
-              totalMiles: 0,
-            };
-          }
-          emptyMilesByTruck[truckId].emptyMiles += emptyMiles;
-          emptyMilesByTruck[truckId].loadedMiles += loadedMiles;
-          emptyMilesByTruck[truckId].totalMiles += emptyMiles + loadedMiles;
-        }
-
-        // Track by driver
-        if (load.driverId) {
-          const driverId = load.driverId;
-          if (!emptyMilesByDriver[driverId]) {
-            emptyMilesByDriver[driverId] = {
-              driverId,
-              driverName: `${load.driver?.user.firstName} ${load.driver?.user.lastName}`,
-              driverNumber: load.driver?.driverNumber || 'Unknown',
-              emptyMiles: 0,
-              loadedMiles: 0,
-              totalMiles: 0,
-            };
-          }
-          emptyMilesByDriver[driverId].emptyMiles += emptyMiles;
-          emptyMilesByDriver[driverId].loadedMiles += loadedMiles;
-          emptyMilesByDriver[driverId].totalMiles += emptyMiles + loadedMiles;
-        }
-
-        // Track by lane (delivery to next pickup)
-        const lane = `${load.deliveryCity}, ${load.deliveryState} → ${nextLoad.pickupCity}, ${nextLoad.pickupState}`;
-        if (!emptyMilesByLane[lane]) {
-          emptyMilesByLane[lane] = {
-            lane,
-            origin: `${load.deliveryCity}, ${load.deliveryState}`,
-            destination: `${nextLoad.pickupCity}, ${nextLoad.pickupState}`,
+      // Track by truck
+      if (load.truckId) {
+        const truckId = load.truckId;
+        if (!emptyMilesByTruck[truckId]) {
+          emptyMilesByTruck[truckId] = {
+            truckId,
+            truckNumber: load.truck?.truckNumber || 'Unknown',
             emptyMiles: 0,
-            count: 0,
+            loadedMiles: 0,
+            totalMiles: 0,
           };
         }
-        emptyMilesByLane[lane].emptyMiles += emptyMiles;
-        emptyMilesByLane[lane].count += 1;
+        emptyMilesByTruck[truckId].emptyMiles += emptyMiles;
+        emptyMilesByTruck[truckId].loadedMiles += loadedMiles;
+        emptyMilesByTruck[truckId].totalMiles += emptyMiles + loadedMiles;
+      }
+
+      // Track by driver
+      if (load.driverId) {
+        const driverId = load.driverId;
+        if (!emptyMilesByDriver[driverId]) {
+          emptyMilesByDriver[driverId] = {
+            driverId,
+            driverName: `${load.driver?.user.firstName} ${load.driver?.user.lastName}`,
+            driverNumber: load.driver?.driverNumber || 'Unknown',
+            emptyMiles: 0,
+            loadedMiles: 0,
+            totalMiles: 0,
+          };
+        }
+        emptyMilesByDriver[driverId].emptyMiles += emptyMiles;
+        emptyMilesByDriver[driverId].loadedMiles += loadedMiles;
+        emptyMilesByDriver[driverId].totalMiles += emptyMiles + loadedMiles;
+      }
+
+      // Track by lane (delivery to next pickup) - only if we have next load info
+      if (i < loads.length - 1 && load.deliveryCity && load.deliveryState) {
+        const nextLoad = loads[i + 1];
+        if (nextLoad.pickupCity && nextLoad.pickupState) {
+          const lane = `${load.deliveryCity}, ${load.deliveryState} → ${nextLoad.pickupCity}, ${nextLoad.pickupState}`;
+          if (!emptyMilesByLane[lane]) {
+            emptyMilesByLane[lane] = {
+              lane,
+              origin: `${load.deliveryCity}, ${load.deliveryState}`,
+              destination: `${nextLoad.pickupCity}, ${nextLoad.pickupState}`,
+              emptyMiles: 0,
+              count: 0,
+            };
+          }
+          emptyMilesByLane[lane].emptyMiles += emptyMiles;
+          emptyMilesByLane[lane].count += 1;
+        }
       }
     }
 
@@ -160,12 +184,13 @@ export async function GET(request: NextRequest) {
         totalCost: true,
         truck: {
           select: {
-            loads: {
+              loads: {
               where: {
-                deliveredAt: {
-                  gte: startDate,
-                  lte: endDate,
-                },
+                OR: [
+                  { pickupDate: { gte: startDate, lte: endDate } },
+                  { deliveryDate: { gte: startDate, lte: endDate } },
+                  { deliveredAt: { gte: startDate, lte: endDate } },
+                ],
               },
               select: {
                 route: {

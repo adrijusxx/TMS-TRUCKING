@@ -15,15 +15,21 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date();
-    const todayStart = new Date(now.setHours(0, 0, 0, 0));
-    const todayEnd = new Date(now.setHours(23, 59, 59, 999));
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
     
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - 7);
+    weekStart.setHours(0, 0, 0, 0);
     
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    monthStart.setHours(0, 0, 0, 0);
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    lastMonthStart.setHours(0, 0, 0, 0);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    lastMonthEnd.setHours(23, 59, 59, 999);
 
     // Revenue calculations
     const [
@@ -42,49 +48,70 @@ export async function GET(request: NextRequest) {
       availableDrivers,
       onLeaveDrivers,
     ] = await Promise.all([
-      // Today's revenue
+      // Today's revenue - include ALL loads, use pickupDate or deliveryDate
       prisma.load.aggregate({
         where: {
           companyId: session.user.companyId,
-          status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
-          deliveredAt: {
-            gte: todayStart,
-            lte: todayEnd,
-          },
           deletedAt: null,
+          OR: [
+            { pickupDate: { gte: todayStart, lte: todayEnd } },
+            { deliveryDate: { gte: todayStart, lte: todayEnd } },
+            { deliveredAt: { gte: todayStart, lte: todayEnd } },
+          ],
         },
         _sum: { revenue: true },
       }),
-      // This week's revenue
+      // This week's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
           companyId: session.user.companyId,
-          status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
-          deliveredAt: { gte: weekStart },
           deletedAt: null,
+          OR: [
+            { pickupDate: { gte: weekStart } },
+            { deliveryDate: { gte: weekStart } },
+            { deliveredAt: { gte: weekStart } },
+          ],
         },
         _sum: { revenue: true },
       }),
-      // This month's revenue
+      // This month's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
           companyId: session.user.companyId,
-          status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
-          deliveredAt: { gte: monthStart },
           deletedAt: null,
+          OR: [
+            { pickupDate: { gte: monthStart } },
+            { deliveryDate: { gte: monthStart } },
+            { deliveredAt: { gte: monthStart } },
+          ],
         },
         _sum: { revenue: true },
       }),
-      // Last month's revenue
+      // Last month's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
           companyId: session.user.companyId,
-          status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
-          deliveredAt: {
-            gte: lastMonthStart,
-            lte: lastMonthEnd,
-          },
           deletedAt: null,
+          OR: [
+            { 
+              pickupDate: { 
+                gte: lastMonthStart,
+                lte: lastMonthEnd,
+              } 
+            },
+            { 
+              deliveryDate: { 
+                gte: lastMonthStart,
+                lte: lastMonthEnd,
+              } 
+            },
+            { 
+              deliveredAt: { 
+                gte: lastMonthStart,
+                lte: lastMonthEnd,
+              } 
+            },
+          ],
         },
         _sum: { revenue: true },
       }),

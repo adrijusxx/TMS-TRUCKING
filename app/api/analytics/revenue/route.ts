@@ -26,12 +26,12 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       companyId: session.user.companyId,
-      status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
-      deliveredAt: {
-        gte: startDate,
-        lte: endDate,
-      },
       deletedAt: null,
+      OR: [
+        { pickupDate: { gte: startDate, lte: endDate } },
+        { deliveryDate: { gte: startDate, lte: endDate } },
+        { deliveredAt: { gte: startDate, lte: endDate } },
+      ],
     };
 
     if (customerId) {
@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
       where,
       select: {
         revenue: true,
+        pickupDate: true,
+        deliveryDate: true,
         deliveredAt: true,
         customerId: true,
         customer: {
@@ -62,10 +64,19 @@ export async function GET(request: NextRequest) {
     const breakdown: Record<string, { revenue: number; loads: number }> = {};
 
     loads.forEach((load) => {
-      if (!load.deliveredAt) return;
+      // Use deliveredAt, deliveryDate, or pickupDate (in that order)
+      let date: Date | null = null;
+      if (load.deliveredAt) {
+        date = new Date(load.deliveredAt);
+      } else if (load.deliveryDate) {
+        date = new Date(load.deliveryDate);
+      } else if (load.pickupDate) {
+        date = new Date(load.pickupDate);
+      }
+      
+      if (!date) return;
 
       let key: string;
-      const date = new Date(load.deliveredAt);
 
       if (groupBy === 'day') {
         key = date.toISOString().split('T')[0];

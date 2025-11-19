@@ -48,9 +48,11 @@ async function fetchLoadStatusDistribution() {
 }
 
 export default function LoadStatusDistribution() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['load-status-distribution'],
     queryFn: fetchLoadStatusDistribution,
+    retry: 2,
+    staleTime: 60000, // Cache for 1 minute
   });
 
   const statusData: StatusData[] = data?.data || [];
@@ -76,6 +78,15 @@ export default function LoadStatusDistribution() {
         {isLoading ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
             Loading status data...
+          </div>
+        ) : error ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-destructive mb-2">
+              Failed to load load status distribution
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </p>
           </div>
         ) : statusData.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">

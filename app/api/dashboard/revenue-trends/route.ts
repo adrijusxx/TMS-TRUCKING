@@ -20,34 +20,43 @@ export async function GET(request: NextRequest) {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    // Get loads grouped by month
+    // Get loads grouped by month - include ALL loads, use pickupDate or deliveryDate
     const loads = await prisma.load.findMany({
       where: {
         companyId: session.user.companyId,
-        deliveredAt: {
-          gte: sixMonthsAgo,
-          lte: now,
-        },
-        status: {
-          in: ['DELIVERED', 'INVOICED', 'PAID'],
-        },
         deletedAt: null,
+        OR: [
+          { pickupDate: { gte: sixMonthsAgo, lte: now } },
+          { deliveryDate: { gte: sixMonthsAgo, lte: now } },
+          { deliveredAt: { gte: sixMonthsAgo, lte: now } },
+        ],
       },
       select: {
         revenue: true,
+        pickupDate: true,
+        deliveryDate: true,
         deliveredAt: true,
+        status: true,
       },
     });
 
-    // Group by month
+    // Group by month - use pickupDate, deliveryDate, or deliveredAt
     const monthlyData: Record<string, { revenue: number; loads: number }> = {};
 
     for (const load of loads) {
-      if (!load.deliveredAt) continue;
+      // Determine which date to use for grouping
+      let date: Date | null = null;
+      if (load.deliveredAt) {
+        date = new Date(load.deliveredAt);
+      } else if (load.deliveryDate) {
+        date = new Date(load.deliveryDate);
+      } else if (load.pickupDate) {
+        date = new Date(load.pickupDate);
+      }
+      
+      if (!date) continue;
 
-      const date = new Date(load.deliveredAt);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthName = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = { revenue: 0, loads: 0 };

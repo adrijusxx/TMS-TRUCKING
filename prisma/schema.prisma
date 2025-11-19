@@ -32,6 +32,11 @@ model User {
   activityLogs            ActivityLog[]
   notificationPreferences NotificationPreferences?
   inventoryTransactions   InventoryTransaction[]
+  createdBatches          InvoiceBatch[]
+  createdPayments         Payment[]
+  reconciliations         Reconciliation[]
+  dispatchedLoads         Load[]              @relation("LoadDispatcher")
+  createdLoads            Load[]              @relation("LoadCreatedBy")
 
   @@index([companyId])
   @@index([email])
@@ -78,6 +83,7 @@ model Company {
   locations             Location[]
   safetyIncidents       SafetyIncident[]
   safetyTrainings       SafetyTraining[]
+  invoiceBatches        InvoiceBatch[]
 }
 
 // ============================================
@@ -93,9 +99,17 @@ model Load {
   customer      Customer @relation(fields: [customerId], references: [id])
   driverId      String?
   driver        Driver?  @relation(fields: [driverId], references: [id])
+  coDriverId    String?
+  coDriver      Driver?  @relation("CoDriver", fields: [coDriverId], references: [id])
   truckId       String?
   truck         Truck?   @relation(fields: [truckId], references: [id])
   trailerNumber String?
+  dispatcherId  String?
+  dispatcher    User?    @relation("LoadDispatcher", fields: [dispatcherId], references: [id])
+  createdById   String?
+  createdBy     User?    @relation("LoadCreatedBy", fields: [createdById], references: [id])
+  tripId        String?  // Trip ID from Excel
+  mcNumber      String?  // MC Number (can be on load level)
 
   // Load Details
   status        LoadStatus    @default(PENDING)
@@ -108,6 +122,7 @@ model Load {
   pickupCity      String?
   pickupState     String?
   pickupZip       String?
+  pickupCompany   String?  // Pickup company name
   pickupDate      DateTime?
   pickupTimeStart DateTime?
   pickupTimeEnd   DateTime?
@@ -121,6 +136,7 @@ model Load {
   deliveryCity      String?
   deliveryState     String?
   deliveryZip       String?
+  deliveryCompany   String?  // Delivery company name
   deliveryDate      DateTime?
   deliveryTimeStart DateTime?
   deliveryTimeEnd   DateTime?
@@ -149,6 +165,7 @@ model Load {
   loadedMiles Float?
   emptyMiles  Float?
   totalMiles  Float?
+  revenuePerMile Float?  // Calculated: revenue / totalMiles
 
   // Status Tracking
   assignedAt  DateTime?
@@ -191,6 +208,8 @@ model Load {
   @@index([companyId])
   @@index([customerId])
   @@index([driverId])
+  @@index([coDriverId])
+  @@index([dispatcherId])
   @@index([status])
   @@index([pickupDate])
   @@index([deliveryDate])
@@ -385,6 +404,7 @@ model Driver {
 
   // Relations
   loads           Load[]
+  coDriverLoads   Load[]              @relation("CoDriver")
   hosRecords      HOSRecord[]
   documents       Document[]
   settlements     Settlement[]
@@ -1013,14 +1033,29 @@ model Invoice {
   qbInvoiceId String?
   qbSyncedAt  DateTime?
 
+  // Enhanced fields
+  mcNumber             String?
+  subStatus            String?
+  reconciliationStatus ReconciliationStatus @default(NOT_RECONCILED)
+  invoiceNote          String?
+  paymentNote          String?
+  loadId               String? // Single load reference for display
+
   notes String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relations
+  payments        Payment[]
+  batchItems      InvoiceBatchItem[]
+  reconciliations Reconciliation[]
+
   @@index([customerId])
   @@index([status])
   @@index([invoiceNumber])
+  @@index([mcNumber])
+  @@index([reconciliationStatus])
 }
 
 enum InvoiceStatus {
@@ -1030,6 +1065,8 @@ enum InvoiceStatus {
   PAID
   OVERDUE
   CANCELLED
+  INVOICED
+  POSTED
 }
 
 model Settlement {
@@ -1068,6 +1105,132 @@ enum SettlementStatus {
   APPROVED
   PAID
   DISPUTED
+}
+
+// ============================================
+// INVOICE BATCHES
+// ============================================
+
+model InvoiceBatch {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  batchNumber String          @unique
+  postStatus  BatchPostStatus @default(UNPOSTED)
+  mcNumber    String?
+  totalAmount Float           @default(0)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  sentToFactoringAt DateTime?
+  factoringCompany  String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  items InvoiceBatchItem[]
+
+  @@index([companyId])
+  @@index([postStatus])
+  @@index([batchNumber])
+  @@index([createdById])
+}
+
+model InvoiceBatchItem {
+  id        String       @id @default(cuid())
+  batchId   String
+  batch     InvoiceBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([batchId, invoiceId])
+  @@index([batchId])
+  @@index([invoiceId])
+}
+
+enum BatchPostStatus {
+  UNPOSTED
+  POSTED
+  PAID
+}
+
+// ============================================
+// PAYMENTS
+// ============================================
+
+model Payment {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  paymentNumber   String        @unique
+  amount          Float
+  paymentDate     DateTime
+  paymentMethod   PaymentMethod
+  referenceNumber String?
+  notes           String?
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  reconciliations Reconciliation[]
+
+  @@index([invoiceId])
+  @@index([paymentNumber])
+  @@index([paymentDate])
+  @@index([createdById])
+}
+
+enum PaymentMethod {
+  CHECK
+  WIRE
+  ACH
+  CREDIT_CARD
+  CASH
+  OTHER
+}
+
+// ============================================
+// RECONCILIATION
+// ============================================
+
+model Reconciliation {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  reconciledAmount Float
+  reconciledAt     DateTime
+  reconciledById   String
+  reconciledBy     User     @relation(fields: [reconciledById], references: [id])
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@index([reconciledAt])
+  @@index([reconciledById])
+}
+
+enum ReconciliationStatus {
+  NOT_RECONCILED
+  PARTIALLY_RECONCILED
+  FULLY_RECONCILED
 }
 
 // ============================================

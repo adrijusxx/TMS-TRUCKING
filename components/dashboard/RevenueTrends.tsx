@@ -28,9 +28,11 @@ async function fetchRevenueTrends() {
 }
 
 export default function RevenueTrends() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['revenue-trends'],
     queryFn: fetchRevenueTrends,
+    retry: 2,
+    staleTime: 60000, // Cache for 1 minute
   });
 
   const revenueData: RevenueData[] = data?.data || [];
@@ -71,6 +73,15 @@ export default function RevenueTrends() {
         {isLoading ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
             Loading revenue data...
+          </div>
+        ) : error ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-destructive mb-2">
+              Failed to load revenue trends
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </p>
           </div>
         ) : revenueData.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">

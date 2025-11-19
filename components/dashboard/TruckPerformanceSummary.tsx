@@ -33,9 +33,11 @@ async function fetchTruckPerformance() {
 }
 
 export default function TruckPerformanceSummary() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['truck-performance'],
     queryFn: fetchTruckPerformance,
+    retry: 2,
+    staleTime: 60000, // Cache for 1 minute
   });
 
   const performance: TruckPerformance = data?.data || {
@@ -70,6 +72,15 @@ export default function TruckPerformanceSummary() {
         {isLoading ? (
           <div className="text-center py-4 text-sm text-muted-foreground">
             Loading truck data...
+          </div>
+        ) : error ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-destructive mb-2">
+              Failed to load truck performance data
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

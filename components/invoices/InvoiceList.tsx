@@ -21,19 +21,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FileText, Plus, Search, Filter, Download } from 'lucide-react';
+import { FileText, Plus, Search, Filter, Download, Upload, Settings2 } from 'lucide-react';
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/export';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { InvoiceStatus } from '@prisma/client';
+import { getAgingInfo } from '@/lib/utils/aging';
 import AdvancedFilters from '@/components/filters/AdvancedFilters';
 import SavedFilters from '@/components/filters/SavedFilters';
 import InvoiceListStats from '@/components/invoices/InvoiceListStats';
 import InvoiceQuickView from '@/components/invoices/InvoiceQuickView';
+import InvoiceImportDialog from '@/components/invoices/InvoiceImportDialog';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Invoice {
   id: string;
   invoiceNumber: string;
+  loadId?: string | null;
   customer: {
     name: string;
     customerNumber: string;
@@ -45,6 +56,11 @@ interface Invoice {
   subtotal: number;
   tax: number;
   paidAmount?: number;
+  mcNumber?: string | null;
+  subStatus?: string | null;
+  reconciliationStatus?: string;
+  invoiceNote?: string | null;
+  paymentNote?: string | null;
 }
 
 const statusColors: Record<InvoiceStatus, string> = {
@@ -54,6 +70,8 @@ const statusColors: Record<InvoiceStatus, string> = {
   PAID: 'bg-green-100 text-green-800 border-green-200',
   OVERDUE: 'bg-red-100 text-red-800 border-red-200',
   CANCELLED: 'bg-gray-100 text-gray-800 border-gray-200',
+  INVOICED: 'bg-purple-100 text-purple-800 border-purple-200',
+  POSTED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
 function formatStatus(status: InvoiceStatus): string {
@@ -92,6 +110,27 @@ export default function InvoiceList() {
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
   const [quickViewInvoiceId, setQuickViewInvoiceId] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState({
+    checkbox: true,
+    invoiceId: true,
+    loadId: true,
+    mcNumber: true,
+    date: true,
+    invoiceStatus: true,
+    subStatus: true,
+    agingDays: true,
+    agingStatus: true,
+    accrual: true,
+    paid: true,
+    balanceDue: true,
+    reconciliation: true,
+    invoiceNote: true,
+    paymentNote: true,
+    actions: true,
+  });
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['invoices', page, statusFilter, searchQuery, advancedFilters],
@@ -143,6 +182,13 @@ export default function InvoiceList() {
       <div className="flex gap-2">
         <Button
           variant="outline"
+          onClick={() => setImportDialogOpen(true)}
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          Import
+        </Button>
+        <Button
+          variant="outline"
           onClick={() => {
             const exportData = invoices.map((invoice) => ({
               'Invoice Number': invoice.invoiceNumber,
@@ -167,6 +213,138 @@ export default function InvoiceList() {
           <Download className="h-4 w-4 mr-2" />
           Export CSV
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <Settings2 className="h-4 w-4 mr-2" />
+              Columns
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.checkbox}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, checkbox: checked })
+              }
+            >
+              Checkbox
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.invoiceId}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, invoiceId: checked })
+              }
+            >
+              Invoice ID
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.loadId}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, loadId: checked })
+              }
+            >
+              Load ID
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.mcNumber}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, mcNumber: checked })
+              }
+            >
+              MC Number
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.date}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, date: checked })
+              }
+            >
+              Date
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.invoiceStatus}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, invoiceStatus: checked })
+              }
+            >
+              Invoice Status
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.subStatus}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, subStatus: checked })
+              }
+            >
+              Sub Status
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.agingDays}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, agingDays: checked })
+              }
+            >
+              Aging Days
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.agingStatus}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, agingStatus: checked })
+              }
+            >
+              Aging Status
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.accrual}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, accrual: checked })
+              }
+            >
+              Accrual
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.paid}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, paid: checked })
+              }
+            >
+              Paid
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.balanceDue}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, balanceDue: checked })
+              }
+            >
+              Balance Due
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.reconciliation}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, reconciliation: checked })
+              }
+            >
+              Reconciliation
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.invoiceNote}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, invoiceNote: checked })
+              }
+            >
+              Invoice Note
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={visibleColumns.paymentNote}
+              onCheckedChange={(checked) =>
+                setVisibleColumns({ ...visibleColumns, paymentNote: checked })
+              }
+            >
+              Payment Note
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Link href="/dashboard/invoices/aging">
           <Button variant="outline">
             Aging Report
@@ -280,60 +458,132 @@ export default function InvoiceList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Subtotal</TableHead>
-                  <TableHead>Tax</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {visibleColumns.checkbox && (
+                    <TableHead>
+                      <input type="checkbox" className="rounded" />
+                    </TableHead>
+                  )}
+                  {visibleColumns.invoiceId && <TableHead>Invoice ID</TableHead>}
+                  {visibleColumns.loadId && <TableHead>Load ID</TableHead>}
+                  {visibleColumns.mcNumber && <TableHead>MC number</TableHead>}
+                  {visibleColumns.date && <TableHead>Date</TableHead>}
+                  {visibleColumns.invoiceStatus && <TableHead>Invoice status</TableHead>}
+                  {visibleColumns.subStatus && <TableHead>Sub status</TableHead>}
+                  {visibleColumns.agingDays && <TableHead>Aging days</TableHead>}
+                  {visibleColumns.agingStatus && <TableHead>Aging status</TableHead>}
+                  {visibleColumns.accrual && <TableHead>Accrual</TableHead>}
+                  {visibleColumns.paid && <TableHead>Paid</TableHead>}
+                  {visibleColumns.balanceDue && (
+                    <TableHead className="text-right">Balance due</TableHead>
+                  )}
+                  {visibleColumns.reconciliation && <TableHead>Reconciliation</TableHead>}
+                  {visibleColumns.invoiceNote && <TableHead>Invoice note</TableHead>}
+                  {visibleColumns.paymentNote && <TableHead>Payment note</TableHead>}
+                  {visibleColumns.actions && (
+                    <TableHead className="text-right">Actions</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((invoice) => (
-                  <TableRow key={invoice.id}>
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={() => setQuickViewInvoiceId(invoice.id)}
-                        className="text-primary hover:underline text-left"
-                      >
-                        {invoice.invoiceNumber}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{invoice.customer.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {invoice.customer.customerNumber}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                    <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                    <TableCell>{formatCurrency(invoice.subtotal)}</TableCell>
-                    <TableCell>{formatCurrency(invoice.tax)}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(invoice.total)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={statusColors[invoice.status as InvoiceStatus]}
-                      >
-                        {formatStatus(invoice.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/dashboard/invoices/${invoice.id}`}>
-                        <Button variant="ghost" size="sm">
-                          View
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {invoices.map((invoice) => {
+                  const aging = getAgingInfo(invoice.dueDate);
+                  const balance = invoice.total - (invoice.paidAmount || 0);
+                  return (
+                    <TableRow key={invoice.id}>
+                      {visibleColumns.checkbox && (
+                        <TableCell>
+                          <input type="checkbox" className="rounded" />
+                        </TableCell>
+                      )}
+                      {visibleColumns.invoiceId && (
+                        <TableCell className="font-medium">
+                          <button
+                            onClick={() => setQuickViewInvoiceId(invoice.id)}
+                            className="text-primary hover:underline text-left"
+                          >
+                            {invoice.invoiceNumber}
+                          </button>
+                        </TableCell>
+                      )}
+                      {visibleColumns.loadId && (
+                        <TableCell>{invoice.loadId || '-'}</TableCell>
+                      )}
+                      {visibleColumns.mcNumber && (
+                        <TableCell>{invoice.mcNumber || invoice.customer.name}</TableCell>
+                      )}
+                      {visibleColumns.date && (
+                        <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
+                      )}
+                      {visibleColumns.invoiceStatus && (
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={statusColors[invoice.status as InvoiceStatus]}
+                          >
+                            {formatStatus(invoice.status)}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {visibleColumns.subStatus && (
+                        <TableCell>{invoice.subStatus || '/'}</TableCell>
+                      )}
+                      {visibleColumns.agingDays && (
+                        <TableCell>{aging.daysPastDue}</TableCell>
+                      )}
+                      {visibleColumns.agingStatus && (
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={
+                              aging.agingStatus === 'NOT_OVERDUE'
+                                ? 'bg-green-100 text-green-800 border-green-200'
+                                : 'bg-red-100 text-red-800 border-red-200'
+                            }
+                          >
+                            {aging.agingStatus === 'NOT_OVERDUE' ? 'NOT OVERDUE' : aging.agingStatus}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {visibleColumns.accrual && (
+                        <TableCell>{formatCurrency(invoice.total)}</TableCell>
+                      )}
+                      {visibleColumns.paid && (
+                        <TableCell>{formatCurrency(invoice.paidAmount || 0)}</TableCell>
+                      )}
+                      {visibleColumns.balanceDue && (
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(balance)}
+                        </TableCell>
+                      )}
+                      {visibleColumns.reconciliation && (
+                        <TableCell>
+                          {invoice.reconciliationStatus === 'NOT_RECONCILED' ? (
+                            <span className="text-red-600">Not reconciled</span>
+                          ) : invoice.reconciliationStatus === 'FULLY_RECONCILED' ? (
+                            <span className="text-green-600">Fully reconciled</span>
+                          ) : (
+                            <span className="text-yellow-600">Partially reconciled</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {visibleColumns.invoiceNote && (
+                        <TableCell>{invoice.invoiceNote || '-'}</TableCell>
+                      )}
+                      {visibleColumns.paymentNote && (
+                        <TableCell>{invoice.paymentNote || '-'}</TableCell>
+                      )}
+                      {visibleColumns.actions && (
+                        <TableCell className="text-right">
+                          <Link href={`/dashboard/invoices/${invoice.id}`}>
+                            <Button variant="ghost" size="sm">
+                              View
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -374,6 +624,11 @@ export default function InvoiceList() {
         onOpenChange={(open) => {
           if (!open) setQuickViewInvoiceId(null);
         }}
+      />
+
+      <InvoiceImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
       />
     </div>
   );

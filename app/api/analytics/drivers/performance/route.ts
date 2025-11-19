@@ -43,11 +43,12 @@ export async function GET(request: NextRequest) {
         },
         loads: {
           where: {
-            deliveredAt: {
-              gte: startDate,
-              lte: endDate,
-            },
             deletedAt: null,
+            OR: [
+              { pickupDate: { gte: startDate, lte: endDate } },
+              { deliveryDate: { gte: startDate, lte: endDate } },
+              { deliveredAt: { gte: startDate, lte: endDate } },
+            ],
           },
           include: {
             customer: {
@@ -69,21 +70,23 @@ export async function GET(request: NextRequest) {
     });
 
     const performanceData = drivers.map((driver) => {
-      const completedLoads = driver.loads.filter(
+      // Include all loads, not just completed ones
+      const allLoads = driver.loads;
+      const completedLoads = allLoads.filter(
         (load) => load.status === 'DELIVERED' || load.status === 'INVOICED' || load.status === 'PAID'
       );
-      const totalLoads = driver.loads.length;
+      const totalLoads = allLoads.length;
       const onTimeLoads = completedLoads.filter((load) => {
         if (!load.deliveredAt || !load.deliveryDate) return false;
         return new Date(load.deliveredAt) <= new Date(load.deliveryDate);
       });
 
-      const totalRevenue = completedLoads.reduce((sum, load) => sum + load.revenue, 0);
-      const totalDriverPay = completedLoads.reduce((sum, load) => sum + (load.driverPay || 0), 0);
-      const totalMiles = completedLoads.reduce((sum, load) => {
-        // Simplified - would use actual route distance from route table or calculate from locations
-        // For now, use a default estimate of 500 miles per load
-        return sum + 500;
+      // Calculate revenue and pay from all loads
+      const totalRevenue = allLoads.reduce((sum, load) => sum + (load.revenue || 0), 0);
+      const totalDriverPay = allLoads.reduce((sum, load) => sum + (load.driverPay || 0), 0);
+      const totalMiles = allLoads.reduce((sum, load) => {
+        // Use totalMiles if available, otherwise estimate
+        return sum + (load.totalMiles || load.loadedMiles || load.emptyMiles || 0);
       }, 0);
 
       // Calculate HOS compliance
