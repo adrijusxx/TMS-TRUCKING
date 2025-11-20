@@ -22,9 +22,118 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
+    const isAdmin = session.user?.role === 'ADMIN';
 
     // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    let baseFilter: any = await buildMcNumberWhereClause(session, request);
+    
+    console.log('[Trailers API] Initial baseFilter from buildMcNumberWhereClause:', JSON.stringify(baseFilter, null, 2));
+    console.log('[Trailers API] Admin check:', { isAdmin, mcViewMode, hasMcViewMode: !!mcViewMode });
+    
+    // Admin-only: Override MC filter based on view mode
+    if (isAdmin && mcViewMode === 'all') {
+      // Remove MC number filter to show all MCs (admin only)
+      if (baseFilter.mcNumber) {
+        delete baseFilter.mcNumber;
+      }
+      if (baseFilter.OR) {
+        delete baseFilter.OR;
+      }
+    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
+      // Filter by specific MC number ID (admin selecting specific MC)
+      // Handle both "mc:ID" format and plain ID format
+      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
+      console.log('[Trailers API] Looking up MC by ID:', mcId);
+      
+      const mcNumberRecord = await prisma.mcNumber.findUnique({
+        where: { id: mcId },
+        select: { number: true, companyId: true, companyName: true },
+      });
+      
+      console.log('[Trailers API] MC record found:', mcNumberRecord ? {
+        number: mcNumberRecord.number,
+        companyName: mcNumberRecord.companyName,
+        companyId: mcNumberRecord.companyId,
+      } : 'NOT FOUND');
+      
+      if (mcNumberRecord) {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { companyId: true, userCompanies: { select: { companyId: true } } },
+        });
+        const accessibleCompanyIds = [
+          user?.companyId,
+          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
+        ].filter(Boolean) as string[];
+        
+        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
+          const trimmedMcNumber = mcNumberRecord.number?.trim();
+          const trimmedCompanyName = mcNumberRecord.companyName?.trim();
+          
+          console.log('[Trailers API] Admin MC filter:', {
+            mcId,
+            mcNumberValue: mcNumberRecord.number,
+            companyName: mcNumberRecord.companyName,
+            trimmedMcNumber,
+            trimmedCompanyName,
+            companyId: session.user.companyId,
+          });
+          
+          // Build OR conditions to match both MC number value AND company name
+          // This handles cases where existing data has company names instead of MC numbers
+          const orConditions: any[] = [];
+          
+          if (trimmedMcNumber) {
+            // Match exact MC number value (e.g., "160847")
+            orConditions.push({ mcNumber: trimmedMcNumber });
+          }
+          
+          if (trimmedCompanyName) {
+            // Match company name (case-insensitive contains match)
+            // This handles cases where mcNumber field contains company name
+            orConditions.push({ mcNumber: { contains: trimmedCompanyName, mode: 'insensitive' } });
+            // Also try without spaces or special characters for partial matches
+            const companyNameNoSpaces = trimmedCompanyName.replace(/[^a-z0-9]/gi, '');
+            if (companyNameNoSpaces.length > 5) {
+              orConditions.push({ mcNumber: { contains: companyNameNoSpaces, mode: 'insensitive' } });
+            }
+          }
+          
+          // ALWAYS use OR conditions if we have any - this ensures we match both MC numbers and company names
+          if (orConditions.length > 0) {
+            // Remove any existing mcNumber from baseFilter
+            if (baseFilter.mcNumber) {
+              delete baseFilter.mcNumber;
+            }
+            
+            baseFilter = {
+              ...baseFilter,
+              OR: orConditions,
+            };
+            
+            console.log('[Trailers API] Using OR conditions for MC filter:', orConditions);
+          }
+        }
+      }
+    }
+    console.log('[Trailers API] Final baseFilter:', JSON.stringify(baseFilter, null, 2));
+    // Non-admin users: always use baseFilter (their assigned MC)
+
+    // Debug: Check what MC numbers are actually in the database before filtering
+    const sampleTrailersBeforeFilter = await prisma.trailer.findMany({
+      where: {
+        companyId: session.user.companyId,
+        deletedAt: null,
+      },
+      select: { trailerNumber: true, mcNumber: true },
+      take: 10,
+    });
+    console.log('[Trailers API] Sample trailers BEFORE filter:', sampleTrailersBeforeFilter.map(t => ({
+      trailerNumber: t.trailerNumber,
+      mcNumber: t.mcNumber,
+      mcNumberType: t.mcNumber ? (isNaN(Number(t.mcNumber)) ? 'company_name' : 'numeric_mc') : 'null',
+    })));
 
     // Build where clause
     const where: any = {
@@ -32,15 +141,27 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
     };
 
-    // Add search filter
+    // Add search filter - merge with existing OR conditions if any
     if (search) {
-      where.OR = [
+      const searchOr = [
         { trailerNumber: { contains: search, mode: 'insensitive' } },
         { make: { contains: search, mode: 'insensitive' } },
         { model: { contains: search, mode: 'insensitive' } },
         { licensePlate: { contains: search, mode: 'insensitive' } },
         { vin: { contains: search, mode: 'insensitive' } },
       ];
+      
+      // If baseFilter already has OR conditions (for MC number matching), combine them with AND
+      if (where.OR) {
+        // MC number OR conditions must be satisfied AND search OR conditions must be satisfied
+        where.AND = [
+          { OR: where.OR }, // MC number matching (numeric or company name)
+          { OR: searchOr }, // Search conditions
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchOr;
+      }
     }
 
     // Fetch trailers with relations

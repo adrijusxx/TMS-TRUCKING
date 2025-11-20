@@ -142,6 +142,7 @@ export default function LiveMap() {
 
   useEffect(() => {
     if (selectedTruck) {
+      // Reset to overview tab when a new truck is selected
       setDetailTab('overview');
     }
   }, [selectedTruck?.truckId]);
@@ -664,13 +665,13 @@ const buildBadgeIcon = ({
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs value={detailTab} onValueChange={setDetailTab} className="w-full">
-              <TabsList className="grid grid-cols-5">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="sensors">Sensors</TabsTrigger>
-                <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
-                <TabsTrigger value="media">Media</TabsTrigger>
-                <TabsTrigger value="trips">Trips</TabsTrigger>
+            <Tabs value={detailTab} onValueChange={setDetailTab} className="w-full" key={selectedTruck.truckId}>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+                <TabsTrigger value="sensors" className="text-xs sm:text-sm">Sensors</TabsTrigger>
+                <TabsTrigger value="diagnostics" className="text-xs sm:text-sm">Diagnostics</TabsTrigger>
+                <TabsTrigger value="media" className="text-xs sm:text-sm">Media</TabsTrigger>
+                <TabsTrigger value="trips" className="text-xs sm:text-sm">Trips</TabsTrigger>
               </TabsList>
               <TabsContent value="overview" className="space-y-4 pt-4">
                 {selectedTruck.location ? (

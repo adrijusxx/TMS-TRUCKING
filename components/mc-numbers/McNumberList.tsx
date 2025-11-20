@@ -102,6 +102,7 @@ export default function McNumberList({
     mutationFn: deleteMcNumber,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mc-numbers'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] }); // Refresh MC switcher
       toast.success('MC number deleted successfully');
       setSelectedIds([]);
     },

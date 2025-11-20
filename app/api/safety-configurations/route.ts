@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const createSafetyConfigSchema = z.object({
@@ -23,8 +24,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category');
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const where: any = {
-      companyId: session.user.companyId,
+      ...mcWhere,
       deletedAt: null,
     };
 
@@ -60,9 +62,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createSafetyConfigSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.safetyConfiguration.findFirst({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         category: validatedData.category,
         key: validatedData.key,
         deletedAt: null,
@@ -80,6 +83,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         companyId: session.user.companyId,
+        mcNumberId: mcWhere.mcNumberId || null,
         value: typeof validatedData.value === 'string' ? validatedData.value : JSON.stringify(validatedData.value),
       },
     });

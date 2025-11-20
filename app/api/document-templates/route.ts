@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { DocumentType, Prisma } from '@prisma/client';
 
@@ -26,8 +27,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const type = searchParams.get('type');
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const where: any = {
-      companyId: session.user.companyId,
+      ...mcWhere,
       deletedAt: null,
     };
 
@@ -63,9 +65,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createTemplateSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.documentTemplate.findFirst({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         name: validatedData.name,
         deletedAt: null,
       },
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
     if (validatedData.isDefault) {
       await prisma.documentTemplate.updateMany({
         where: {
-          companyId: session.user.companyId,
+          ...mcWhere,
           type: validatedData.type,
           isDefault: true,
           deletedAt: null,
@@ -94,6 +97,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         companyId: session.user.companyId,
+        mcNumberId: mcWhere.mcNumberId || null,
         variables: validatedData.variables ? JSON.stringify(validatedData.variables) : Prisma.JsonNull,
         isDefault: validatedData.isDefault ?? false,
       },

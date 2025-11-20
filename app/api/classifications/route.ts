@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { ClassificationType } from '@prisma/client';
 
@@ -27,8 +28,9 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type');
     const parentId = searchParams.get('parentId');
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const where: any = {
-      companyId: session.user.companyId,
+      ...mcWhere,
       deletedAt: null,
     };
 
@@ -70,9 +72,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createClassificationSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.classification.findFirst({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         type: validatedData.type,
         name: validatedData.name,
         deletedAt: null,
@@ -90,6 +93,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         companyId: session.user.companyId,
+        mcNumberId: mcWhere.mcNumberId || null,
         order: validatedData.order ?? 0,
       },
       include: { parent: true, children: true },

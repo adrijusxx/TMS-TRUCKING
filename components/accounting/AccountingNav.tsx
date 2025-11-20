@@ -11,6 +11,9 @@ import {
   MapPin,
   BarChart3,
   ChevronRight,
+  Sliders,
+  Calculator,
+  Tag,
 } from 'lucide-react';
 
 interface NavItem {
@@ -28,6 +31,11 @@ const navItems: NavItem[] = [
   { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
   { name: 'Locations', href: '/dashboard/locations', icon: MapPin },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+  { name: 'Automation', href: '/dashboard/automation', icon: Sliders },
+  { name: 'Net Profit', href: '/dashboard/accounting/net-profit', icon: Calculator },
+  { name: 'Expenses', href: '/dashboard/accounting/expenses', icon: Tag },
+  { name: 'Tariffs', href: '/dashboard/accounting/tariffs', icon: DollarSign },
+  { name: 'Payment Types', href: '/dashboard/accounting/order-payment-types', icon: CreditCard },
 ];
 
 export default function AccountingNav() {

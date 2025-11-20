@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Truck, Search, Download, Upload, Plus, Edit, Trash2 } from 'lucide-react';
 import { formatDate, apiUrl } from '@/lib/utils';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import Link from 'next/link';
 import {
@@ -70,11 +71,14 @@ async function fetchTrailers(params: {
   page?: number;
   limit?: number;
   search?: string;
+  mc?: string | null;
+  [key: string]: any;
 }) {
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.set('page', params.page.toString());
   if (params.limit) queryParams.set('limit', params.limit.toString());
   if (params.search) queryParams.set('search', params.search);
+  if (params.mc) queryParams.set('mc', params.mc);
 
   const response = await fetch(apiUrl(`/api/trailers?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch trailers');
@@ -95,18 +99,21 @@ async function deleteTrailer(id: string) {
 export default function TrailerList() {
   const { can } = usePermissions();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const mcParam = searchParams?.get('mc');
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [trailerToDelete, setTrailerToDelete] = useState<Trailer | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['trailers', page, searchQuery],
+    queryKey: ['trailers', page, searchQuery, mcParam],
     queryFn: () =>
       fetchTrailers({
         page,
         limit: 20,
         search: searchQuery || undefined,
+        mc: mcParam || undefined,
       }),
   });
 
@@ -165,7 +172,7 @@ export default function TrailerList() {
               </Button>
             </Link>
           )}
-          <ImportDialog entityType="trailers" onImportComplete={() => refetch()} />
+          <ImportButton entityType="trailers" />
           <ExportDialog entityType="trailers" />
         </div>
       </div>

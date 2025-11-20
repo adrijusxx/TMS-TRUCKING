@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const updateSafetyConfigSchema = z.object({
@@ -20,11 +21,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
     const config = await prisma.safetyConfiguration.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -61,10 +63,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateSafetyConfigSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.safetyConfiguration.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -116,10 +119,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params;
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.safetyConfiguration.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });

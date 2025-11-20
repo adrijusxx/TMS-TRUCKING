@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const updateOrderPaymentTypeSchema = z.object({
@@ -24,14 +25,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-
-    const type = await prisma.orderPaymentType.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
+    let type;
+    try {
+      const mcWhere = await buildMcNumberIdWhereClause(session, request);
+      type = await prisma.orderPaymentType.findFirst({
+        where: {
+          id,
+          ...mcWhere,
+          deletedAt: null,
+        },
+      });
+    } catch (error: any) {
+      // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+      if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+        type = await prisma.orderPaymentType.findFirst({
+          where: {
+            id,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     if (!type) {
       return NextResponse.json(
@@ -65,13 +82,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateOrderPaymentTypeSchema.parse(body);
 
-    const existing = await prisma.orderPaymentType.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
+    let mcWhere;
+    let existing;
+    try {
+      mcWhere = await buildMcNumberIdWhereClause(session, request);
+      existing = await prisma.orderPaymentType.findFirst({
+        where: {
+          id,
+          ...mcWhere,
+          deletedAt: null,
+        },
+      });
+    } catch (error: any) {
+      // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+      if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+        mcWhere = { companyId: session.user.companyId };
+        existing = await prisma.orderPaymentType.findFirst({
+          where: {
+            id,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     if (!existing) {
       return NextResponse.json(
@@ -81,15 +117,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (validatedData.isDefault === true) {
-      await prisma.orderPaymentType.updateMany({
-        where: {
-          companyId: session.user.companyId,
-          isDefault: true,
-          id: { not: id },
-          deletedAt: null,
-        },
-        data: { isDefault: false },
-      });
+      try {
+        await prisma.orderPaymentType.updateMany({
+          where: {
+            ...mcWhere,
+            isDefault: true,
+            id: { not: id },
+            deletedAt: null,
+          },
+          data: { isDefault: false },
+        });
+      } catch (error: any) {
+        // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+        if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+          await prisma.orderPaymentType.updateMany({
+            where: {
+              companyId: session.user.companyId,
+              isDefault: true,
+              id: { not: id },
+              deletedAt: null,
+            },
+            data: { isDefault: false },
+          });
+        } else {
+          throw error;
+        }
+      }
     }
 
     const type = await prisma.orderPaymentType.update({
@@ -125,13 +178,30 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params;
 
-    const existing = await prisma.orderPaymentType.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
+    let existing;
+    try {
+      const mcWhere = await buildMcNumberIdWhereClause(session, request);
+      existing = await prisma.orderPaymentType.findFirst({
+        where: {
+          id,
+          ...mcWhere,
+          deletedAt: null,
+        },
+      });
+    } catch (error: any) {
+      // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+      if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+        existing = await prisma.orderPaymentType.findFirst({
+          where: {
+            id,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     if (!existing) {
       return NextResponse.json(

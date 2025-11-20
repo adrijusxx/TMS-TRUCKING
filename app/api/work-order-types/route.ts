@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { WorkOrderPriority } from '@prisma/client';
 
@@ -23,9 +24,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const types = await prisma.workOrderType.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
@@ -54,9 +56,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createWorkOrderTypeSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.workOrderType.findFirst({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         name: validatedData.name,
         deletedAt: null,
       },
@@ -73,6 +76,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         companyId: session.user.companyId,
+        mcNumberId: mcWhere.mcNumberId || null,
         defaultPriority: validatedData.defaultPriority ?? WorkOrderPriority.MEDIUM,
       },
     });

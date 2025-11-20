@@ -12,22 +12,22 @@ datasource db {
 // ============================================
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  password  String
-  firstName String
-  lastName  String
-  phone     String?
-  role      UserRole
-  companyId String // Primary/default company
-  company   Company   @relation(fields: [companyId], references: [id])
+  id         String    @id @default(cuid())
+  email      String    @unique
+  password   String
+  firstName  String
+  lastName   String
+  phone      String?
+  role       UserRole
+  companyId  String // Primary/default company
+  company    Company   @relation(fields: [companyId], references: [id])
   mcNumberId String? // MC Number assignment for dispatchers/employees
   mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
-  isActive  Boolean   @default(true)
-  lastLogin DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  isActive   Boolean   @default(true)
+  lastLogin  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   // Relations for driver-specific data
   driver                  Driver?
@@ -37,17 +37,17 @@ model User {
   createdBatches          InvoiceBatch[]
   createdPayments         Payment[]
   reconciliations         Reconciliation[]
-  dispatchedLoads         Load[]              @relation("LoadDispatcher")
-  createdLoads            Load[]              @relation("LoadCreatedBy")
-  assignedDrivers         Driver[]            @relation("DriverDispatcher")
-  hrManagedDrivers         Driver[]           @relation("DriverHRManager")
-  safetyManagedDrivers     Driver[]            @relation("DriverSafetyManager")
-  driverComments           DriverComment[]     @relation("DriverCommentCreator")
-  userCompanies            UserCompany[]       // Multi-company access
-  createdProjects          Project[] @relation("ProjectCreator")
-  assignedProjects         Project[] @relation("ProjectAssignee")
-  createdTasks             Task[] @relation("TaskCreator")
-  assignedTasks            Task[] @relation("TaskAssignee")
+  dispatchedLoads         Load[]                   @relation("LoadDispatcher")
+  createdLoads            Load[]                   @relation("LoadCreatedBy")
+  assignedDrivers         Driver[]                 @relation("DriverDispatcher")
+  hrManagedDrivers        Driver[]                 @relation("DriverHRManager")
+  safetyManagedDrivers    Driver[]                 @relation("DriverSafetyManager")
+  driverComments          DriverComment[]          @relation("DriverCommentCreator")
+  userCompanies           UserCompany[] // Multi-company access
+  createdProjects         Project[]                @relation("ProjectCreator")
+  assignedProjects        Project[]                @relation("ProjectAssignee")
+  createdTasks            Task[]                   @relation("TaskCreator")
+  assignedTasks           Task[]                   @relation("TaskAssignee")
 
   @@index([companyId])
   @@index([email])
@@ -155,8 +155,8 @@ model Load {
   dispatcher    User?    @relation("LoadDispatcher", fields: [dispatcherId], references: [id])
   createdById   String?
   createdBy     User?    @relation("LoadCreatedBy", fields: [createdById], references: [id])
-  tripId        String?  // Trip ID from Excel
-  mcNumber      String?  // MC Number (can be on load level)
+  tripId        String? // Trip ID from Excel
+  mcNumber      String? // MC Number (can be on load level)
 
   // Load Details
   status        LoadStatus    @default(PENDING)
@@ -169,7 +169,7 @@ model Load {
   pickupCity      String?
   pickupState     String?
   pickupZip       String?
-  pickupCompany   String?  // Pickup company name
+  pickupCompany   String? // Pickup company name
   pickupDate      DateTime?
   pickupTimeStart DateTime?
   pickupTimeEnd   DateTime?
@@ -183,7 +183,7 @@ model Load {
   deliveryCity      String?
   deliveryState     String?
   deliveryZip       String?
-  deliveryCompany   String?  // Delivery company name
+  deliveryCompany   String? // Delivery company name
   deliveryDate      DateTime?
   deliveryTimeStart DateTime?
   deliveryTimeEnd   DateTime?
@@ -209,10 +209,10 @@ model Load {
   serviceFee  Float? // Service fee from Excel
 
   // Distances
-  loadedMiles Float?
-  emptyMiles  Float?
-  totalMiles  Float?
-  revenuePerMile Float?  // Calculated: revenue / totalMiles
+  loadedMiles    Float?
+  emptyMiles     Float?
+  totalMiles     Float?
+  revenuePerMile Float? // Calculated: revenue / totalMiles
 
   // Status Tracking
   assignedAt  DateTime?
@@ -415,33 +415,33 @@ model Driver {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Driver Details
-  driverNumber  String   @unique
-  licenseNumber String
-  licenseState  String
-  licenseExpiry DateTime
+  driverNumber     String    @unique
+  licenseNumber    String
+  licenseState     String
+  licenseExpiry    DateTime
   licenseIssueDate DateTime?
 
   // Personal Information
   socialSecurityNumber String?
-  birthDate           DateTime?
-  hireDate            DateTime?
-  terminationDate     DateTime?
-  tenure              String? // e.g., "0-6 months", "1-2 years"
-  gender              Gender?
-  maritalStatus       MaritalStatus?
-  localDriver         Boolean @default(false)
-  telegramNumber      String?
-  thresholdAmount     Float?
+  birthDate            DateTime?
+  hireDate             DateTime?
+  terminationDate      DateTime?
+  tenure               String? // e.g., "0-6 months", "1-2 years"
+  gender               Gender?
+  maritalStatus        MaritalStatus?
+  localDriver          Boolean        @default(false)
+  telegramNumber       String?
+  thresholdAmount      Float?
 
   // Medical & Compliance
-  medicalCardExpiry DateTime
-  drugTestDate      DateTime?
-  backgroundCheck   DateTime?
-  cdlExperience     String? // e.g., "1-2 years"
-  restrictions      String?
-  dlClass           String? // e.g., "A", "B", "C"
-  driverType        DriverType @default(COMPANY_DRIVER)
-  endorsements      String[] // Array of endorsement codes (e.g., ["N", "T"])
+  medicalCardExpiry  DateTime
+  drugTestDate       DateTime?
+  backgroundCheck    DateTime?
+  cdlExperience      String? // e.g., "1-2 years"
+  restrictions       String?
+  dlClass            String? // e.g., "A", "B", "C"
+  driverType         DriverType @default(COMPANY_DRIVER)
+  endorsements       String[] // Array of endorsement codes (e.g., ["N", "T"])
   driverFacingCamera String? // "Yes" or "No"
 
   // Address Information
@@ -456,15 +456,15 @@ model Driver {
   dispatchPreferences String?
 
   // Status
-  status          DriverStatus @default(AVAILABLE)
-  employeeStatus  EmployeeStatus @default(ACTIVE)
+  status           DriverStatus     @default(AVAILABLE)
+  employeeStatus   EmployeeStatus   @default(ACTIVE)
   assignmentStatus AssignmentStatus @default(READY_TO_GO)
-  dispatchStatus  DispatchStatus?
-  currentTruckId  String?
-  currentTruck    Truck?       @relation("TruckDriver", fields: [currentTruckId], references: [id])
+  dispatchStatus   DispatchStatus?
+  currentTruckId   String?
+  currentTruck     Truck?           @relation("TruckDriver", fields: [currentTruckId], references: [id])
   currentTrailerId String?
-  currentTrailer  Trailer?     @relation("CurrentTrailer", fields: [currentTrailerId], references: [id])
-  homeTerminal    String?
+  currentTrailer   Trailer?         @relation("CurrentTrailer", fields: [currentTrailerId], references: [id])
+  homeTerminal     String?
 
   // Assignments
   assignedDispatcherId String?
@@ -502,10 +502,10 @@ model Driver {
   onTimePercentage Float  @default(100)
 
   // Pay
-  payType PayType @default(PER_MILE)
-  payRate Float
-  driverTariff    String? // Calculated tariff display (e.g., "$0.65 per mile + 30 per stop")
-  payTo            String? // Who to pay to (e.g., company name)
+  payType      PayType @default(PER_MILE)
+  payRate      Float
+  driverTariff String? // Calculated tariff display (e.g., "$0.65 per mile + 30 per stop")
+  payTo        String? // Who to pay to (e.g., company name)
 
   // Warnings
   warnings String?
@@ -517,7 +517,7 @@ model Driver {
 
   // Relations
   loads           Load[]
-  coDriverLoads   Load[]              @relation("CoDriver")
+  coDriverLoads   Load[]                 @relation("CoDriver")
   hosRecords      HOSRecord[]
   documents       Document[]
   settlements     Settlement[]
@@ -526,7 +526,7 @@ model Driver {
   inspections     Inspection[]
   safetyIncidents SafetyIncident[]
   safetyTrainings SafetyTraining[]
-  trailers        Trailer[]        @relation("TrailerDriver")
+  trailers        Trailer[]              @relation("TrailerDriver")
   truckHistory    DriverTruckHistory[]
   trailerHistory  DriverTrailerHistory[]
   comments        DriverComment[]
@@ -542,23 +542,23 @@ model Driver {
 }
 
 model DriverTruckHistory {
-  id        String  @id @default(cuid())
-  driverId  String
-  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  truckId   String
-  truck     Truck   @relation(fields: [truckId], references: [id])
-  
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  truckId  String
+  truck    Truck  @relation(fields: [truckId], references: [id])
+
   date        DateTime
-  isActive    Boolean @default(true)
+  isActive    Boolean   @default(true)
   pickupDate  DateTime?
   dropOffDate DateTime?
   pickupMile  Float?
   dropOffMile Float?
   note        String?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([driverId])
   @@index([truckId])
   @@index([date])
@@ -570,29 +570,29 @@ model DriverTrailerHistory {
   driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
   trailerId String
   trailer   Trailer @relation(fields: [trailerId], references: [id])
-  
+
   pickupDate  DateTime?
   dropOffDate DateTime?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([driverId])
   @@index([trailerId])
 }
 
 model DriverComment {
-  id        String  @id @default(cuid())
-  driverId  String
-  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  
-  comment   String
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  comment     String
   createdById String
-  createdBy User    @relation("DriverCommentCreator", fields: [createdById], references: [id])
-  
+  createdBy   User   @relation("DriverCommentCreator", fields: [createdById], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([driverId])
   @@index([createdAt])
 }
@@ -745,8 +745,8 @@ model Truck {
 
   // Additional Fields from Excel
   legacyTags Json? // Tags as JSON array (legacy, use tags relation instead)
-  notes    String? // Notes field
-  warnings String? // Warnings field
+  notes      String? // Notes field
+  warnings   String? // Warnings field
 
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
@@ -760,9 +760,9 @@ model Truck {
   documents          Document[]
   inspections        Inspection[]
   safetyIncidents    SafetyIncident[]
-  assignedTrailers   Trailer[]           @relation("TruckTrailer")
+  assignedTrailers   Trailer[]            @relation("TruckTrailer")
   driverTruckHistory DriverTruckHistory[]
-  tags                TruckTag[]
+  tags               TruckTag[]
 
   fuelEntries FuelEntry[]
 
@@ -819,9 +819,9 @@ model Trailer {
   deletedAt DateTime?
 
   // Relations
-  loads Load[]
-  driverTrailerHistory DriverTrailerHistory[]
-  currentDriverTrailers Driver[] @relation("CurrentTrailer")
+  loads                 Load[]
+  driverTrailerHistory  DriverTrailerHistory[]
+  currentDriverTrailers Driver[]               @relation("CurrentTrailer")
 
   @@index([companyId])
   @@index([trailerNumber])
@@ -2082,21 +2082,35 @@ model McNumber {
   id           String       @id @default(cuid())
   companyId    String
   company      Company      @relation(fields: [companyId], references: [id])
-  companyName  String       // Company name associated with this MC number
+  companyName  String // Company name associated with this MC number
   type         McNumberType @default(CARRIER)
   companyPhone String?
-  owner        String?      // Owner name
+  owner        String? // Owner name
   isDefault    Boolean      @default(false) // Only one default per company
-  usdot        String?      // USDOT number
+  usdot        String? // USDOT number
   notes        String?
-  number       String       // MC number value
+  number       String // MC number value
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   // Relations
-  users User[] // Users assigned to this MC number
+  users                 User[] // Users assigned to this MC number
+  paymentConfigurations PaymentConfiguration[]
+  orderPaymentTypes     OrderPaymentType[]
+  dynamicStatuses       DynamicStatus[]
+  documentTemplates     DocumentTemplate[]
+  defaultConfigurations DefaultConfiguration[]
+  workOrderTypes        WorkOrderType[]
+  safetyConfigurations  SafetyConfiguration[]
+  reportTemplates       ReportTemplate[]
+  reportConstructors    ReportConstructor[]
+  netProfitFormulas     NetProfitFormula[]
+  classifications       Classification[]
+  expenseCategories     ExpenseCategory[]
+  expenseTypes          ExpenseType[]
+  tariffs               Tariff[]
 
   @@unique([companyId, number]) // MC number must be unique per company
   @@index([companyId])
@@ -2115,24 +2129,24 @@ enum McNumberType {
 // ============================================
 
 model Tag {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id])
-  name      String
-  color     String?  // Hex color code
-  category  String?  // Category for grouping tags
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  name        String
+  color       String? // Hex color code
+  category    String? // Category for grouping tags
   description String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
   // Relations
-  loadTags       LoadTag[]
-  driverTags     DriverTag[]
-  truckTags      TruckTag[]
-  customerTags   CustomerTag[]
-  invoiceTags    InvoiceTag[]
+  loadTags     LoadTag[]
+  driverTags   DriverTag[]
+  truckTags    TruckTag[]
+  customerTags CustomerTag[]
+  invoiceTags  InvoiceTag[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -2215,45 +2229,51 @@ model InvoiceTag {
 // ============================================
 
 model ExpenseCategory {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id])
-  name      String
-  code      String? // Category code
-  description String?
-  parentId  String? // For hierarchical categories
-  parent    ExpenseCategory? @relation("CategoryParent", fields: [parentId], references: [id])
-  children  ExpenseCategory[] @relation("CategoryParent")
+  id           String            @id @default(cuid())
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id])
+  mcNumberId   String?
+  mcNumber     McNumber?         @relation(fields: [mcNumberId], references: [id])
+  name         String
+  code         String? // Category code
+  description  String?
+  parentId     String? // For hierarchical categories
+  parent       ExpenseCategory?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children     ExpenseCategory[] @relation("CategoryParent")
   expenseTypes ExpenseType[] // Relation to expense types
-  isActive  Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([parentId])
 }
 
 model ExpenseType {
-  id          String  @id @default(cuid())
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
-  categoryId  String?
-  category    ExpenseCategory? @relation(fields: [categoryId], references: [id])
-  name        String
-  code        String?
-  description String?
-  defaultAmount Float?
-  isReimbursable Boolean @default(true)
-  requiresReceipt Boolean @default(false)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  id              String           @id @default(cuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  mcNumberId      String?
+  mcNumber        McNumber?        @relation(fields: [mcNumberId], references: [id])
+  categoryId      String?
+  category        ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  name            String
+  code            String?
+  description     String?
+  defaultAmount   Float?
+  isReimbursable  Boolean          @default(true)
+  requiresReceipt Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([categoryId])
 }
 
@@ -2262,32 +2282,35 @@ model ExpenseType {
 // ============================================
 
 model Tariff {
-  id          String  @id @default(cuid())
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
-  name        String
-  code        String?
-  description String?
-  type        TariffType @default(RATE_PER_MILE)
-  rate        Float
-  minimumRate Float?
-  perStop     Float?
-  perPound    Float?
-  perMile     Float?
+  id            String     @id @default(cuid())
+  companyId     String
+  company       Company    @relation(fields: [companyId], references: [id])
+  mcNumberId    String?
+  mcNumber      McNumber?  @relation(fields: [mcNumberId], references: [id])
+  name          String
+  code          String?
+  description   String?
+  type          TariffType @default(RATE_PER_MILE)
+  rate          Float
+  minimumRate   Float?
+  perStop       Float?
+  perPound      Float?
+  perMile       Float?
   fuelSurcharge Float? // Percentage or fixed amount
   effectiveDate DateTime?
-  expiryDate  DateTime?
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  expiryDate    DateTime?
+  isDefault     Boolean    @default(false)
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
 
   // Relations
   tariffRules TariffRule[]
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([type])
   @@index([isDefault])
 }
@@ -2302,13 +2325,13 @@ enum TariffType {
 }
 
 model TariffRule {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   tariffId  String
-  tariff    Tariff  @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  tariff    Tariff   @relation(fields: [tariffId], references: [id], onDelete: Cascade)
   condition String // e.g., "distance > 500", "weight > 45000"
   rate      Float
-  priority  Int @default(0) // Higher priority rules applied first
-  isActive  Boolean @default(true)
+  priority  Int      @default(0) // Higher priority rules applied first
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2317,22 +2340,25 @@ model TariffRule {
 }
 
 model PaymentConfiguration {
-  id                String  @id @default(cuid())
+  id                String         @id @default(cuid())
   companyId         String
-  company           Company @relation(fields: [companyId], references: [id])
+  company           Company        @relation(fields: [companyId], references: [id])
+  mcNumberId        String?
+  mcNumber          McNumber?      @relation(fields: [mcNumberId], references: [id])
   paymentType       String // e.g., "DRIVER_SETTLEMENT", "CUSTOMER_INVOICE"
   defaultMethod     PaymentMethod?
   defaultTerms      Int? // days
-  autoApprove       Boolean @default(false)
+  autoApprove       Boolean        @default(false)
   approvalThreshold Float? // Amount above which approval required
-  requiresPO        Boolean @default(false)
-  isActive          Boolean @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  requiresPO        Boolean        @default(false)
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
   deletedAt         DateTime?
 
-  @@unique([companyId, paymentType])
+  @@unique([companyId, mcNumberId, paymentType])
   @@index([companyId])
+  @@index([mcNumberId])
 }
 
 // ============================================
@@ -2340,22 +2366,25 @@ model PaymentConfiguration {
 // ============================================
 
 model OrderPaymentType {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
   name        String
   code        String?
   description String?
   terms       Int? // Payment terms in days
-  requiresPO  Boolean @default(false)
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  requiresPO  Boolean   @default(false)
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
 }
 
 // ============================================
@@ -2363,25 +2392,28 @@ model OrderPaymentType {
 // ============================================
 
 model DynamicStatus {
-  id          String  @id @default(cuid())
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
-  entityType  EntityType // LOAD, DRIVER, TRUCK, INVOICE, etc.
-  name        String
-  code        String?
-  color       String? // Hex color code
-  icon        String?
-  description String?
-  order       Int @default(0) // Display order
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
+  id            String     @id @default(cuid())
+  companyId     String
+  company       Company    @relation(fields: [companyId], references: [id])
+  mcNumberId    String?
+  mcNumber      McNumber?  @relation(fields: [mcNumberId], references: [id])
+  entityType    EntityType // LOAD, DRIVER, TRUCK, INVOICE, etc.
+  name          String
+  code          String?
+  color         String? // Hex color code
+  icon          String?
+  description   String?
+  order         Int        @default(0) // Display order
+  isDefault     Boolean    @default(false)
+  isActive      Boolean    @default(true)
   workflowRules Json? // Workflow configuration
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
 
-  @@unique([companyId, entityType, name])
+  @@unique([companyId, mcNumberId, entityType, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([entityType])
   @@index([order])
 }
@@ -2405,22 +2437,25 @@ enum EntityType {
 // ============================================
 
 model DocumentTemplate {
-  id          String  @id @default(cuid())
+  id          String       @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?    @relation(fields: [mcNumberId], references: [id])
   name        String
   type        DocumentType
   description String?
   content     String // Template content (HTML/XML/Markdown)
   variables   Json? // Available variables
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isDefault   Boolean      @default(false)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([type])
 }
 
@@ -2429,20 +2464,23 @@ model DocumentTemplate {
 // ============================================
 
 model DefaultConfiguration {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
   category    String // e.g., "LOAD", "DRIVER", "INVOICE"
   key         String // Configuration key
   value       Json // Configuration value (can be any type)
   description String?
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, category, key])
+  @@unique([companyId, mcNumberId, category, key])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([category])
 }
 
@@ -2451,22 +2489,25 @@ model DefaultConfiguration {
 // ============================================
 
 model WorkOrderType {
-  id          String  @id @default(cuid())
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
-  name        String
-  code        String?
-  description String?
-  category    String? // e.g., "MAINTENANCE", "REPAIR", "INSPECTION"
+  id              String            @id @default(cuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id])
+  mcNumberId      String?
+  mcNumber        McNumber?         @relation(fields: [mcNumberId], references: [id])
+  name            String
+  code            String?
+  description     String?
+  category        String? // e.g., "MAINTENANCE", "REPAIR", "INSPECTION"
   defaultPriority WorkOrderPriority @default(MEDIUM)
-  estimatedHours Float?
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  estimatedHours  Float?
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([category])
 }
 
@@ -2478,20 +2519,23 @@ enum WorkOrderPriority {
 }
 
 model SafetyConfiguration {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
   category    String // e.g., "TRAINING", "COMPLIANCE", "INCIDENT"
   key         String
   value       Json
   description String?
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, category, key])
+  @@unique([companyId, mcNumberId, category, key])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([category])
 }
 
@@ -2500,9 +2544,11 @@ model SafetyConfiguration {
 // ============================================
 
 model ReportTemplate {
-  id          String  @id @default(cuid())
+  id          String       @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?    @relation(fields: [mcNumberId], references: [id])
   name        String
   type        ReportType
   description String?
@@ -2510,14 +2556,15 @@ model ReportTemplate {
   template    Json // Report template configuration
   fields      Json? // Available fields
   filters     Json? // Default filters
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isDefault   Boolean      @default(false)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([type])
 }
 
@@ -2538,9 +2585,11 @@ enum ReportFormat {
 }
 
 model ReportConstructor {
-  id          String  @id @default(cuid())
+  id          String       @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company      @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?    @relation(fields: [mcNumberId], references: [id])
   name        String
   description String?
   entityType  EntityType
@@ -2550,13 +2599,14 @@ model ReportConstructor {
   grouping    Json? // Grouping configuration
   sorting     Json? // Sorting configuration
   format      ReportFormat @default(PDF)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([entityType])
 }
 
@@ -2565,26 +2615,26 @@ model ReportConstructor {
 // ============================================
 
 model Project {
-  id          String  @id @default(cuid())
-  companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
-  name        String
-  description String?
-  status      ProjectStatus @default(ACTIVE)
-  startDate   DateTime?
-  endDate     DateTime?
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id])
+  name         String
+  description  String?
+  status       ProjectStatus   @default(ACTIVE)
+  startDate    DateTime?
+  endDate      DateTime?
   assignedToId String?
-  assignedTo User? @relation("ProjectAssignee", fields: [assignedToId], references: [id])
-  createdById String
-  createdBy  User   @relation("ProjectCreator", fields: [createdById], references: [id])
-  priority   ProjectPriority @default(MEDIUM)
-  isActive   Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  assignedTo   User?           @relation("ProjectAssignee", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User            @relation("ProjectCreator", fields: [createdById], references: [id])
+  priority     ProjectPriority @default(MEDIUM)
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
 
   // Relations
-  tasks       Task[]
+  tasks Task[]
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -2607,25 +2657,25 @@ enum ProjectPriority {
 }
 
 model Task {
-  id          String  @id @default(cuid())
-  projectId   String
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  status      TaskStatus @default(PENDING)
-  priority    TaskPriority @default(MEDIUM)
-  dueDate     DateTime?
-  assignedToId String?
-  assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  createdById String
-  createdBy  User   @relation("TaskCreator", fields: [createdById], references: [id])
-  completedAt DateTime?
+  id             String       @id @default(cuid())
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  status         TaskStatus   @default(PENDING)
+  priority       TaskPriority @default(MEDIUM)
+  dueDate        DateTime?
+  assignedToId   String?
+  assignedTo     User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdById    String
+  createdBy      User         @relation("TaskCreator", fields: [createdById], references: [id])
+  completedAt    DateTime?
   estimatedHours Float?
-  actualHours Float?
-  isActive   Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  actualHours    Float?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
 
   @@index([projectId])
   @@index([status])
@@ -2653,21 +2703,24 @@ enum TaskPriority {
 // ============================================
 
 model NetProfitFormula {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
   name        String
   description String?
   formula     String // Formula expression
   variables   Json? // Formula variables and their sources
-  isDefault   Boolean @default(false)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, name])
+  @@unique([companyId, mcNumberId, name])
   @@index([companyId])
+  @@index([mcNumberId])
 }
 
 // ============================================
@@ -2675,24 +2728,27 @@ model NetProfitFormula {
 // ============================================
 
 model Classification {
-  id          String  @id @default(cuid())
+  id          String             @id @default(cuid())
   companyId   String
-  company     Company @relation(fields: [companyId], references: [id])
+  company     Company            @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?          @relation(fields: [mcNumberId], references: [id])
   name        String
   code        String?
   type        ClassificationType
   description String?
   parentId    String? // For hierarchical classifications
-  parent      Classification? @relation("ClassificationParent", fields: [parentId], references: [id])
-  children    Classification[] @relation("ClassificationParent")
-  order       Int @default(0)
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  parent      Classification?    @relation("ClassificationParent", fields: [parentId], references: [id])
+  children    Classification[]   @relation("ClassificationParent")
+  order       Int                @default(0)
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
   deletedAt   DateTime?
 
-  @@unique([companyId, type, name])
+  @@unique([companyId, mcNumberId, type, name])
   @@index([companyId])
+  @@index([mcNumberId])
   @@index([type])
   @@index([parentId])
   @@index([order])
@@ -2706,4 +2762,3 @@ enum ClassificationType {
   COST_CENTER
   CUSTOM
 }
-

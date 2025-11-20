@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { LoadStatus } from '@prisma/client';
+import { getCurrentMcNumber } from '@/lib/mc-number-filter';
 
 /**
  * POST /api/import-export/bulk
@@ -58,12 +59,16 @@ export async function POST(request: NextRequest) {
         const headers = data[0] as string[];
         const rows = data.slice(1) as any[];
 
+        // Get current MC number for this import session
+        const { mcNumber: currentMcNumber } = await getCurrentMcNumber(session, request);
+
         // Import based on entity type
         const importResult = await importEntityData(
           fileInfo.entity,
           headers,
           rows,
-          session.user.companyId
+          session.user.companyId,
+          currentMcNumber
         );
 
         results[fileInfo.entity] = importResult;
@@ -98,7 +103,8 @@ async function importEntityData(
   entityType: string,
   headers: string[],
   rows: any[],
-  companyId: string
+  companyId: string,
+  currentMcNumber?: string | null
 ): Promise<any> {
   const created: any[] = [];
   const errors: any[] = [];
@@ -175,7 +181,7 @@ async function importEntityData(
               customerNumber,
               name,
               type: getValue(row, ['Customer type', 'Customer Type', 'type']) || 'DIRECT',
-              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']),
+              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || null,
               location: getValue(row, ['Location', 'location']),
               website: getValue(row, ['Website', 'website']),
               referenceNumber: getValue(row, ['Reference number', 'Reference Number', 'reference_number']),
@@ -262,7 +268,7 @@ async function importEntityData(
               year: parseInt(getValue(row, ['Year', 'year']) || '0') || new Date().getFullYear(),
               licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']) || '',
               state: getValue(row, ['State', 'state']) || '',
-              mcNumber: getValue(row, ['MC number', 'MC Number', 'mc_number']),
+              mcNumber: getValue(row, ['MC number', 'MC Number', 'mc_number']) || currentMcNumber || null,
               equipmentType: 'DRY_VAN', // Default, should be mapped from Excel
               capacity: 45000, // Default
               status: getValue(row, ['Status', 'status']) || 'AVAILABLE',
@@ -337,7 +343,7 @@ async function importEntityData(
               year: parseInt(getValue(row, ['Year', 'year']) || '0') || null,
               licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']),
               state: getValue(row, ['State', 'state']),
-              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']),
+              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || null,
               type: getValue(row, ['Type', 'type']),
               ownership: getValue(row, ['Ownership', 'ownership']),
               ownerName: getValue(row, ['Owner name', 'Owner Name', 'owner_name']),
@@ -587,6 +593,7 @@ async function importEntityData(
               onTimeDelivery: getValue(row, ['On Time Delivery', 'On Time Delivery']) === 'Yes' || null,
               lastUpdate: parseDate(getValue(row, ['Last update', 'Last Update', 'last_update'])),
               status: mapLoadStatus(getValue(row, ['Load status', 'Load Status', 'status']) || 'PENDING'),
+              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || null,
             },
           });
 

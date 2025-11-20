@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { TariffType } from '@prisma/client';
 
@@ -30,9 +31,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const tariffs = await prisma.tariff.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
       include: { tariffRules: true },
@@ -62,9 +64,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createTariffSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.tariff.findFirst({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         name: validatedData.name,
         deletedAt: null,
       },
@@ -80,7 +83,7 @@ export async function POST(request: NextRequest) {
     if (validatedData.isDefault) {
       await prisma.tariff.updateMany({
         where: {
-          companyId: session.user.companyId,
+          ...mcWhere,
           isDefault: true,
           deletedAt: null,
         },
@@ -92,6 +95,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         companyId: session.user.companyId,
+        mcNumberId: mcWhere.mcNumberId || null,
         effectiveDate: validatedData.effectiveDate ? new Date(validatedData.effectiveDate) : null,
         expiryDate: validatedData.expiryDate ? new Date(validatedData.expiryDate) : null,
         isDefault: validatedData.isDefault ?? false,

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -29,7 +30,7 @@ import TruckListStats from '@/components/trucks/TruckListStats';
 import TruckQuickView from '@/components/trucks/TruckQuickView';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { usePermissions } from '@/hooks/usePermissions';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -100,6 +101,8 @@ async function fetchTrucks(params: {
 
 export default function TruckList() {
   const { can } = usePermissions();
+  const searchParams = useSearchParams();
+  const mcParam = searchParams?.get('mc');
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,13 +112,14 @@ export default function TruckList() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['trucks', page, statusFilter, searchQuery, advancedFilters],
+    queryKey: ['trucks', page, statusFilter, searchQuery, advancedFilters, mcParam],
     queryFn: () =>
       fetchTrucks({
         page,
         limit: 20,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
+        mc: mcParam || undefined,
         ...advancedFilters,
       }),
   });
@@ -156,7 +160,7 @@ export default function TruckList() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog entityType="trucks" onImportComplete={() => refetch()} />
+          <ImportButton entityType="trucks" />
           <ExportDialog entityType="trucks" />
           {can('trucks.create') && (
             <Link href="/dashboard/trucks/new">

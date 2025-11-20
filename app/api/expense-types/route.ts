@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const createExpenseTypeSchema = z.object({
@@ -26,8 +27,9 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const categoryId = searchParams.get('categoryId');
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const where: any = {
-      companyId: session.user.companyId,
+      ...mcWhere,
       deletedAt: null,
     };
 
@@ -64,9 +66,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createExpenseTypeSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.expenseType.findFirst({
       where: {
-        companyId: session.user.companyId,
+        ...mcWhere,
         name: validatedData.name,
         deletedAt: null,
       },
@@ -83,6 +86,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         companyId: session.user.companyId,
+        mcNumberId: mcWhere.mcNumberId || null,
         isReimbursable: validatedData.isReimbursable ?? true,
         requiresReceipt: validatedData.requiresReceipt ?? false,
       },

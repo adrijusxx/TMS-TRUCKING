@@ -112,7 +112,8 @@ export async function POST(request: NextRequest) {
       
       // Verify MC number belongs to the company user has access to
       if (mcNumberRecord && mcNumberRecord.companyId === actualCompanyId) {
-        mcNumber = mcNumberRecord.number;
+        // Normalize MC number: trim whitespace
+        mcNumber = mcNumberRecord.number?.trim() || null;
       } else {
         // MC number doesn't belong to this company, clear it
         mcNumberId = null;

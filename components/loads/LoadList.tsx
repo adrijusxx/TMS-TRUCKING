@@ -34,7 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import {
@@ -175,6 +175,7 @@ async function fetchLoads(params: {
   if (params.status) queryParams.set('status', params.status);
   if (params.search) queryParams.set('search', params.search);
   if (params.my) queryParams.set('my', params.my);
+  if (params.mc) queryParams.set('mc', params.mc);
 
   const response = await fetch(apiUrl(`/api/loads?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch loads');
@@ -312,14 +313,17 @@ export default function LoadList() {
     actions: true,
   });
 
+  const mcParam = searchParams?.get('mc');
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters, view],
+    queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters, view, mcParam],
     queryFn: async () => {
+      const mcParam = searchParams?.get('mc');
       const params: any = {
         page,
         limit: pageSize,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
+        mc: mcParam || undefined,
         ...advancedFilters,
       };
       
@@ -458,36 +462,7 @@ export default function LoadList() {
           </p>
         </div>
         <div className="flex gap-2">
-          <ImportDialog 
-            entityType="loads" 
-            onImportComplete={async (data) => {
-              console.log('[LoadList] Import complete callback called', { dataLength: Array.isArray(data) ? data.length : 'not array' });
-              
-              // Remove all cached queries for loads
-              queryClient.removeQueries({ queryKey: ['loads'] });
-              
-              // Invalidate all loads queries
-              await queryClient.invalidateQueries({ 
-                queryKey: ['loads'],
-                exact: false,
-                refetchType: 'active',
-              });
-              
-              // Force refetch immediately
-              await refetch();
-              
-              // Refetch again after delays to ensure database commits are visible
-              setTimeout(async () => {
-                await refetch();
-                console.log('[LoadList] First refetch after import');
-              }, 500);
-              
-              setTimeout(async () => {
-                await refetch();
-                console.log('[LoadList] Second refetch after import');
-              }, 2000);
-            }} 
-          />
+          <ImportButton entityType="loads" />
           <ExportDialog entityType="loads" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

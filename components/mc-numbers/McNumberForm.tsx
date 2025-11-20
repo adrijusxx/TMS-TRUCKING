@@ -147,6 +147,7 @@ export default function McNumberForm({
     mutationFn: createMcNumber,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mc-numbers'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] }); // Refresh MC switcher
       toast.success('MC number created successfully');
       onOpenChange(false);
       reset();
@@ -162,6 +163,7 @@ export default function McNumberForm({
       updateMcNumber(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mc-numbers'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] }); // Refresh MC switcher
       toast.success('MC number updated successfully');
       onOpenChange(false);
       reset();

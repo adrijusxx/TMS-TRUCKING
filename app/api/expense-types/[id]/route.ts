@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const updateExpenseTypeSchema = z.object({
@@ -25,11 +26,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
     const expenseType = await prisma.expenseType.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
       include: { category: true },
@@ -67,10 +69,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateExpenseTypeSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.expenseType.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -85,7 +88,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (validatedData.name && validatedData.name !== existing.name) {
       const duplicate = await prisma.expenseType.findFirst({
         where: {
-          companyId: session.user.companyId,
+          ...mcWhere,
           name: validatedData.name,
           id: { not: id },
           deletedAt: null,
@@ -134,10 +137,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params;
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.expenseType.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });

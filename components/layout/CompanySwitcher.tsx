@@ -132,12 +132,19 @@ export default function CompanySwitcher() {
     if (mode === 'current') {
       params.delete('mc');
       setMcViewMode('current');
+      // Set cookie to indicate current MC mode (will use session MC)
+      document.cookie = `mcViewMode=current; path=/; max-age=31536000`; // 1 year
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
       // Invalidate queries to refresh data with current MC (no page reload)
       queryClient.invalidateQueries();
     } else if (mode === 'all') {
       params.set('mc', 'all');
       setMcViewMode('all');
+      // Set cookie to indicate "all MCs" mode
+      document.cookie = `mcViewMode=all; path=/; max-age=31536000`; // 1 year
+      // Clear MC number cookies so API knows to show all
+      localStorage.removeItem('currentMcNumberId');
+      localStorage.removeItem('currentMcNumber');
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
       // Invalidate queries to refresh data showing all MCs (no page reload)
       queryClient.invalidateQueries();
@@ -145,6 +152,8 @@ export default function CompanySwitcher() {
       // Specific MC selected - switch to that MC and remove 'all' state
       params.set('mc', mode);
       setMcViewMode(mode);
+      // Clear "all" mode cookie
+      document.cookie = `mcViewMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
       // Switch to the MC number (updates session)
       switchMutation.mutate(mode);

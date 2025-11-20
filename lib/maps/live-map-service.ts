@@ -370,19 +370,27 @@ export class LiveMapService {
   }
 
   private async getSamsaraVehiclesWithTelemetry(): Promise<SamsaraVehicleWithLocation[]> {
-    const diagnosticsPromise = getSamsaraVehicleDiagnostics().catch((error) => {
-      console.info(
-        '[Samsara] Diagnostics unavailable:',
-        error instanceof Error ? error.message : error
-      );
-      return null;
-    });
+    // Get vehicles first, then diagnostics (which may need vehicle IDs)
+    const vehiclesPromise = getSamsaraVehicles();
+    const locationsPromise = getSamsaraVehicleLocations();
 
-    const [vehicles, locations, diagnostics] = await Promise.all([
-      getSamsaraVehicles(),
-      getSamsaraVehicleLocations(),
-      diagnosticsPromise,
-    ]);
+    const [vehicles, locations] = await Promise.all([vehiclesPromise, locationsPromise]);
+
+    // Try diagnostics with vehicle IDs if available
+    const diagnosticsPromise = (async () => {
+      try {
+        const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
+        if (vehicleIds && vehicleIds.length > 0) {
+          return await getSamsaraVehicleDiagnostics(vehicleIds);
+        }
+        return await getSamsaraVehicleDiagnostics();
+      } catch (error) {
+        // Diagnostics are optional - fail silently
+        return null;
+      }
+    })();
+
+    const diagnostics = await diagnosticsPromise;
 
     const statsPromise = getSamsaraVehicleStats().catch((error) => {
       console.info('[Samsara] Stats unavailable:', error instanceof Error ? error.message : error);

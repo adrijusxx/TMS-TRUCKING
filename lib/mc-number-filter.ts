@@ -35,7 +35,12 @@ export async function getCurrentMcNumber(session: any, request?: any): Promise<{
       where: { id: mcNumberId },
       select: { number: true },
     });
-    mcNumber = mcNumberRecord?.number || null;
+    mcNumber = mcNumberRecord?.number?.trim() || null;
+  }
+
+  // Normalize MC number value (trim whitespace)
+  if (mcNumber) {
+    mcNumber = mcNumber.trim();
   }
 
   return { mcNumberId, mcNumber };
@@ -95,11 +100,117 @@ export async function buildMcNumberWhereClause(session: any, request?: any): Pro
     throw new Error('Company ID is required');
   }
 
+  // Check if "all MCs" mode is selected via cookie or URL parameter
+  let showAllMcNumbers = false;
+  if (request) {
+    // Check cookie for mcViewMode=all
+    let mcViewModeCookie: string | null = null;
+    if (request.cookies && typeof request.cookies.get === 'function') {
+      // API route - NextRequest has cookies as a Map-like object with get method
+      mcViewModeCookie = request.cookies.get('mcViewMode')?.value || null;
+    } else if (typeof request.get === 'function') {
+      // Server component - cookies() helper returns a cookie store with get method
+      const cookieValue = request.get('mcViewMode');
+      mcViewModeCookie = cookieValue?.value || null;
+    }
+    
+    if (mcViewModeCookie === 'all') {
+      showAllMcNumbers = true;
+    }
+    
+    // Also check URL search params for mc=all (fallback)
+    if (!showAllMcNumbers) {
+      if (request.nextUrl) {
+        const mcParam = request.nextUrl.searchParams?.get('mc');
+        if (mcParam === 'all') {
+          showAllMcNumbers = true;
+        }
+      } else if (request.searchParams) {
+        // Alternative: request might have searchParams directly
+        const mcParam = request.searchParams.get('mc');
+        if (mcParam === 'all') {
+          showAllMcNumbers = true;
+        }
+      }
+    }
+  }
+
+  // If "all MCs" is selected, don't filter by MC number
+  if (showAllMcNumbers) {
+    return { companyId };
+  }
+
   const { mcNumber } = await getCurrentMcNumber(session, request);
 
   const whereClause: any = { companyId };
   if (mcNumber) {
-    whereClause.mcNumber = mcNumber;
+    // Normalize MC number for comparison: trim whitespace
+    whereClause.mcNumber = mcNumber.trim();
+  }
+
+  return whereClause;
+}
+
+/**
+ * Builds a where clause for settings models that use mcNumberId instead of mcNumber
+ * @param session - The NextAuth session object
+ * @param request - Optional NextRequest object to read cookies from
+ * @returns Promise<{ companyId: string; mcNumberId?: string | null }> - Where clause object
+ */
+export async function buildMcNumberIdWhereClause(session: any, request?: any): Promise<{ companyId: string; mcNumberId?: string | null }> {
+  const companyId = session?.user?.companyId || session?.user?.currentCompanyId;
+  if (!companyId) {
+    throw new Error('Company ID is required');
+  }
+
+  // Check if "all MCs" mode is selected via cookie or URL parameter
+  let showAllMcNumbers = false;
+  if (request) {
+    // Check cookie for mcViewMode=all
+    let mcViewModeCookie: string | null = null;
+    if (request.cookies && typeof request.cookies.get === 'function') {
+      // API route - NextRequest has cookies as a Map-like object with get method
+      mcViewModeCookie = request.cookies.get('mcViewMode')?.value || null;
+    } else if (typeof request.get === 'function') {
+      // Server component - cookies() helper returns a cookie store with get method
+      const cookieValue = request.get('mcViewMode');
+      mcViewModeCookie = cookieValue?.value || null;
+    }
+    
+    if (mcViewModeCookie === 'all') {
+      showAllMcNumbers = true;
+    }
+    
+    // Also check URL search params for mc=all (fallback)
+    if (!showAllMcNumbers) {
+      if (request.nextUrl) {
+        const mcParam = request.nextUrl.searchParams?.get('mc');
+        if (mcParam === 'all') {
+          showAllMcNumbers = true;
+        }
+      } else if (request.searchParams) {
+        // Alternative: request might have searchParams directly
+        const mcParam = request.searchParams.get('mc');
+        if (mcParam === 'all') {
+          showAllMcNumbers = true;
+        }
+      }
+    }
+  }
+
+  // If "all MCs" is selected, don't filter by MC number
+  if (showAllMcNumbers) {
+    return { companyId };
+  }
+
+  const { mcNumberId } = await getCurrentMcNumber(session, request);
+
+  const whereClause: any = { companyId };
+  if (mcNumberId) {
+    whereClause.mcNumberId = mcNumberId;
+  } else {
+    // If no MC number is selected, only show settings that are not MC-specific (mcNumberId is null)
+    whereClause.mcNumberId = null;
   }
 
   return whereClause;

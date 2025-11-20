@@ -71,6 +71,7 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: undefined },
   { name: 'Fleet Management', href: '/dashboard/trucks', icon: Truck, permission: 'trucks.view' },
   { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'drivers.view' },
+  { name: 'Reports', href: '/dashboard/reports', icon: ChartBar, permission: undefined },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'settings.view' },
 ];
 

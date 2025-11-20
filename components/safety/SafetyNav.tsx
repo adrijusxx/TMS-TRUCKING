@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Shield, ChevronRight } from 'lucide-react';
+import { Shield, ChevronRight, FileText, Wrench } from 'lucide-react';
 
 interface NavItem {
   name: string;
@@ -12,6 +12,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Safety', href: '/dashboard/safety', icon: Shield },
+  { name: 'Documents', href: '/dashboard/safety/documents', icon: FileText },
+  { name: 'Work Orders', href: '/dashboard/safety/work-orders', icon: Wrench },
 ];
 
 export default function SafetyNav() {

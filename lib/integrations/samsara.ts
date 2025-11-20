@@ -316,17 +316,34 @@ export async function getSamsaraVehicleLocations(
 
 /**
  * Get diagnostics / fault codes for vehicles
+ * Note: Some Samsara API configurations may require vehicleIds parameter
  */
-export async function getSamsaraVehicleDiagnostics(): Promise<SamsaraVehicleDiagnostic[] | null> {
-  const result = await samsaraRequest<
-    SamsaraVehicleDiagnostic[] | { data?: SamsaraVehicleDiagnostic[] }
-  >('/fleet/vehicles/diagnostics');
+export async function getSamsaraVehicleDiagnostics(vehicleIds?: string[]): Promise<SamsaraVehicleDiagnostic[] | null> {
+  try {
+    let endpoint = '/fleet/vehicles/diagnostics';
+    if (vehicleIds && vehicleIds.length > 0) {
+      const params = new URLSearchParams();
+      params.append('vehicleIds', vehicleIds.join(','));
+      endpoint = `${endpoint}?${params.toString()}`;
+    }
 
-  if (!result) return null;
-  if (Array.isArray(result)) return result;
-  if (Array.isArray(result.data)) return result.data;
+    const result = await samsaraRequest<
+      SamsaraVehicleDiagnostic[] | { data?: SamsaraVehicleDiagnostic[] }
+    >(endpoint);
 
-  return null;
+    if (!result) return null;
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result.data)) return result.data;
+
+    return null;
+  } catch (error: any) {
+    // Suppress "invalid id" errors - diagnostics might not be available for all configurations
+    if (error?.message?.includes('invalid id') || error?.message?.includes('invalid')) {
+      console.debug('[Samsara] Diagnostics endpoint unavailable or requires vehicle IDs');
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**

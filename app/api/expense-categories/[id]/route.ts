@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const updateCategorySchema = z.object({
@@ -22,15 +23,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
-
-    const category = await prisma.expenseCategory.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-      include: { parent: true, children: true },
-    });
+    let category;
+    try {
+      const mcWhere = await buildMcNumberIdWhereClause(session, request);
+      category = await prisma.expenseCategory.findFirst({
+        where: {
+          id,
+          ...mcWhere,
+          deletedAt: null,
+        },
+        include: { parent: true, children: true },
+      });
+    } catch (error: any) {
+      // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+      if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+        category = await prisma.expenseCategory.findFirst({
+          where: {
+            id,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+          include: { parent: true, children: true },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     if (!category) {
       return NextResponse.json(
@@ -64,13 +82,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateCategorySchema.parse(body);
 
-    const existing = await prisma.expenseCategory.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
+    let mcWhere;
+    let existing;
+    try {
+      mcWhere = await buildMcNumberIdWhereClause(session, request);
+      existing = await prisma.expenseCategory.findFirst({
+        where: {
+          id,
+          ...mcWhere,
+          deletedAt: null,
+        },
+      });
+    } catch (error: any) {
+      // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+      if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+        mcWhere = { companyId: session.user.companyId };
+        existing = await prisma.expenseCategory.findFirst({
+          where: {
+            id,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     if (!existing) {
       return NextResponse.json(
@@ -80,14 +117,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (validatedData.name && validatedData.name !== existing.name) {
-      const duplicate = await prisma.expenseCategory.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          name: validatedData.name,
-          id: { not: id },
-          deletedAt: null,
-        },
-      });
+      let duplicate;
+      try {
+        duplicate = await prisma.expenseCategory.findFirst({
+          where: {
+            ...mcWhere,
+            name: validatedData.name,
+            id: { not: id },
+            deletedAt: null,
+          },
+        });
+      } catch (error: any) {
+        // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+        if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+          duplicate = await prisma.expenseCategory.findFirst({
+            where: {
+              companyId: session.user.companyId,
+              name: validatedData.name,
+              id: { not: id },
+              deletedAt: null,
+            },
+          });
+        } else {
+          throw error;
+        }
+      }
 
       if (duplicate) {
         return NextResponse.json(
@@ -130,13 +184,30 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params;
 
-    const existing = await prisma.expenseCategory.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
+    let existing;
+    try {
+      const mcWhere = await buildMcNumberIdWhereClause(session, request);
+      existing = await prisma.expenseCategory.findFirst({
+        where: {
+          id,
+          ...mcWhere,
+          deletedAt: null,
+        },
+      });
+    } catch (error: any) {
+      // If mcNumberId column doesn't exist (P2022), fall back to companyId only
+      if (error?.code === 'P2022' && error?.meta?.column?.includes('mcNumberId')) {
+        existing = await prisma.expenseCategory.findFirst({
+          where: {
+            id,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
 
     if (!existing) {
       return NextResponse.json(

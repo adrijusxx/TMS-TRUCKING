@@ -32,9 +32,68 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const revenue = searchParams.get('revenue');
     const my = searchParams.get('my'); // Filter for "My Loads"
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
+    const isAdmin = session.user?.role === 'ADMIN';
 
     // Build base where clause with MC number filtering if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    let baseFilter: any = await buildMcNumberWhereClause(session, request);
+    
+    // Admin-only: Override MC filter based on view mode
+    if (isAdmin && mcViewMode === 'all') {
+      // Remove MC number filter to show all MCs (admin only)
+      if (baseFilter.mcNumber) {
+        delete baseFilter.mcNumber;
+      }
+    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
+      // Filter by specific MC number ID (admin selecting specific MC)
+      // Handle both "mc:ID" format and plain ID format
+      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
+      const mcNumberRecord = await prisma.mcNumber.findUnique({
+        where: { id: mcId },
+        select: { number: true, companyId: true, companyName: true },
+      });
+      if (mcNumberRecord) {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { companyId: true, userCompanies: { select: { companyId: true } } },
+        });
+        const accessibleCompanyIds = [
+          user?.companyId,
+          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
+        ].filter(Boolean) as string[];
+        
+        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
+          const trimmedMcNumber = mcNumberRecord.number?.trim();
+          const trimmedCompanyName = mcNumberRecord.companyName?.trim();
+          
+          // Build OR conditions to match both MC number value AND company name
+          const orConditions: any[] = [];
+          
+          if (trimmedMcNumber) {
+            orConditions.push({ mcNumber: trimmedMcNumber });
+          }
+          
+          if (trimmedCompanyName) {
+            orConditions.push({ mcNumber: { contains: trimmedCompanyName, mode: 'insensitive' } });
+          }
+          
+          if (orConditions.length > 1) {
+            baseFilter = {
+              ...baseFilter,
+              OR: orConditions,
+            };
+            delete baseFilter.mcNumber;
+          } else if (orConditions.length === 1) {
+            baseFilter = {
+              ...baseFilter,
+              ...orConditions[0],
+            };
+          }
+        }
+      }
+    }
+    // Non-admin users: always use baseFilter (their assigned MC)
+
     const where: any = {
       ...baseFilter,
       deletedAt: null,

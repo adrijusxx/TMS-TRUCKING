@@ -45,8 +45,10 @@ export async function GET(request: NextRequest) {
         delete customerFilter.mcNumber;
       } else if (mcViewMode !== 'current' && mcViewMode !== null) {
         // Filter by specific MC number ID (admin selecting specific MC)
+        // Handle both "mc:ID" format and plain ID format
+        const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
         const mcNumberRecord = await prisma.mcNumber.findUnique({
-          where: { id: mcViewMode },
+          where: { id: mcId },
           select: { number: true, companyId: true },
         });
         if (mcNumberRecord) {
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest) {
           if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
             customerFilter = {
               ...baseFilter,
-              mcNumber: mcNumberRecord.number,
+              mcNumber: mcNumberRecord.number?.trim() || null,
             };
           }
         }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { ReportFormat } from '@prisma/client';
 
@@ -27,11 +28,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
     const constructor = await prisma.reportConstructor.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -68,10 +70,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateReportConstructorSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.reportConstructor.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -137,10 +140,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params;
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.reportConstructor.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });

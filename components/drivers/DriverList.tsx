@@ -29,7 +29,7 @@ import SavedFilters from '@/components/filters/SavedFilters';
 import DriverListStats from '@/components/drivers/DriverListStats';
 import DriverQuickView from '@/components/drivers/DriverQuickView';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
@@ -262,7 +262,7 @@ export default function DriverList() {
           </p>
         </div>
         <div className="flex gap-2">
-          <ImportDialog entityType="drivers" />
+          <ImportButton entityType="drivers" />
           <ExportDialog entityType="drivers" />
           {can('drivers.create') && (
             <Link href="/dashboard/drivers/new">

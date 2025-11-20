@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { WorkOrderPriority } from '@prisma/client';
 
@@ -26,10 +27,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const type = await prisma.workOrderType.findFirst({
       where: {
         id: id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -66,10 +68,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateWorkOrderTypeSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.workOrderType.findFirst({
       where: {
         id: id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -114,10 +117,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       );
     }
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.workOrderType.findFirst({
       where: {
         id: id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });

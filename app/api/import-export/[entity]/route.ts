@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
 import { exportToCSV } from '@/lib/export';
 import { csvFileToJSON, parseCSV } from '@/lib/import-export/csv-import';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { TruckStatus, LoadStatus } from '@prisma/client';
 
@@ -27,6 +28,8 @@ export async function GET(
     const { entity } = await params;
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'csv';
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
+    const isAdmin = session.user?.role === 'ADMIN';
 
     // Check permission based on entity type
     const permissionMap: Record<string, string> = {
@@ -52,9 +55,47 @@ export async function GET(
       );
     }
 
+    // Build base filter with MC number if applicable
+    let baseFilter = await buildMcNumberWhereClause(session, request);
+    
+    // Admin-only: Override MC filter based on view mode
+    if (isAdmin && mcViewMode === 'all') {
+      // Remove MC number filter to show all MCs (admin only)
+      if (baseFilter.mcNumber) {
+        delete baseFilter.mcNumber;
+      }
+    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
+      // Filter by specific MC number ID (admin selecting specific MC)
+      // Handle both "mc:ID" format and plain ID format
+      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
+      const mcNumberRecord = await prisma.mcNumber.findUnique({
+        where: { id: mcId },
+        select: { number: true, companyId: true },
+      });
+      if (mcNumberRecord) {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { companyId: true, userCompanies: { select: { companyId: true } } },
+        });
+        const accessibleCompanyIds = [
+          user?.companyId,
+          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
+        ].filter(Boolean) as string[];
+        
+        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
+          const trimmedMcNumber = mcNumberRecord.number?.trim();
+          baseFilter = {
+            ...baseFilter,
+            mcNumber: trimmedMcNumber ? trimmedMcNumber : undefined,
+          };
+        }
+      }
+    }
+    // Non-admin users: always use baseFilter (their assigned MC)
+
     // Fetch data based on entity type
     const where: any = {
-      companyId: session.user.companyId,
+      ...baseFilter,
       deletedAt: null,
     };
 
@@ -379,10 +420,6 @@ export async function POST(
       );
     }
 
-    // Get currently selected MC number to use as fallback when importing
-    const { getCurrentMcNumber } = await import('@/lib/mc-number-filter');
-    const { mcNumber: currentMcNumber } = await getCurrentMcNumber(session, request);
-
     const { entity } = await params;
 
     // Check permission - allow multiple permissions per entity
@@ -414,6 +451,30 @@ export async function POST(
 
     const formData = await request.formData();
     const file = formData.get('file') as File | Blob;
+    
+    // Get MC number from form data, or fallback to session MC number
+    const formMcNumber = formData.get('mcNumber') as string | null;
+    let currentMcNumber: string | undefined = undefined;
+    
+    if (formMcNumber) {
+      // Normalize MC number: trim whitespace
+      currentMcNumber = formMcNumber.trim() || undefined;
+      console.log('[Import] MC number from form:', {
+        formMcNumber,
+        currentMcNumber,
+        entity,
+      });
+    } else {
+      // Fallback to session MC number
+      const { getCurrentMcNumber } = await import('@/lib/mc-number-filter');
+      const { mcNumber } = await getCurrentMcNumber(session, request);
+      currentMcNumber = mcNumber?.trim() || undefined;
+      console.log('[Import] MC number from session:', {
+        mcNumber,
+        currentMcNumber,
+        entity,
+      });
+    }
     
     // Get column mapping if provided
     let columnMapping: Record<string, string> = {};
@@ -799,7 +860,24 @@ export async function POST(
     };
 
     if (entity === 'customers') {
-      // Import customers
+      // Import customers - batch processing for performance
+      const BATCH_SIZE = 500;
+      const customersToCreate: any[] = [];
+      const existingCustomers = new Set<string>(); // customerNumber and name (lowercase)
+      
+      // Pre-fetch existing customers to avoid duplicate checks
+      const existingCustomersData = await prisma.customer.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { customerNumber: true, name: true },
+      });
+      existingCustomersData.forEach(c => {
+        existingCustomers.add(c.customerNumber);
+        existingCustomers.add(c.name.toLowerCase().trim());
+      });
+
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
         try {
@@ -813,15 +891,8 @@ export async function POST(
             getValue(row, ['Customer Number', 'Customer Number', 'customer_number']) ||
             `CUST-${Date.now()}-${i}`;
 
-          const existing = await prisma.customer.findFirst({
-            where: {
-              companyId: session.user.companyId,
-              deletedAt: null,
-              OR: [{ customerNumber }, { name: { equals: name, mode: 'insensitive' } }],
-            },
-          });
-
-          if (existing) {
+          // Check if customer already exists
+          if (existingCustomers.has(customerNumber) || existingCustomers.has(name.toLowerCase().trim())) {
             errors.push({ row: i + 1, error: `Customer already exists: ${name}` });
             continue;
           }
@@ -829,45 +900,119 @@ export async function POST(
           const rawType = getValue(row, ['Customer type', 'Customer Type', 'type']);
           const customerType = mapCustomerType(rawType);
 
-          const customer = await prisma.customer.create({
-            data: {
+          customersToCreate.push({
+            companyId: session.user.companyId,
+            customerNumber,
+            name,
+            type: customerType,
+            // Accepts both numeric MC numbers (e.g., "160847") and string values (e.g., company names) from CSV
+            // If multiple values in CSV cell (e.g., "160847, 1090857"), uses FIRST value only
+            // Priority: CSV column > Form MC selection > undefined
+            mcNumber: (() => {
+              const csvMcValue = getValue(row, ['MC Number', 'MC Number', 'mc_number']);
+              if (csvMcValue) {
+                const csvStr = csvMcValue.toString().trim();
+                // Handle multiple values - split by comma, semicolon, pipe, or slash
+                const values = csvStr.split(/[,;|/]/).map((v: string) => v.trim()).filter((v: string) => v);
+                return values.length > 0 ? values[0] : undefined;
+              }
+              return currentMcNumber || undefined;
+            })(),
+            location: getValue(row, ['Location', 'location']),
+            website: getValue(row, ['Website', 'website']),
+            referenceNumber: getValue(row, ['Reference number', 'Reference Number', 'reference_number']),
+            address: getValue(row, ['Address', 'address']) || '',
+            city: getValue(row, ['City', 'city']) || '',
+            state: getValue(row, ['State', 'state']) || '',
+            zip: getValue(row, ['ZIP', 'Zip', 'zip']) || '',
+            phone: getValue(row, ['Contact number', 'Contact Number', 'Phone', 'phone']) || '',
+            contactNumber: getValue(row, ['Contact number', 'Contact Number', 'contact_number']),
+            email: getValue(row, ['Email', 'email']) || '',
+            billingAddress: getValue(row, ['Billing Address', 'Billing Address', 'billing_address']),
+            billingEmails: getValue(row, ['Billing emails', 'Billing Emails', 'billing_emails']),
+            billingType: getValue(row, ['Billing type', 'Billing Type', 'billing_type']),
+            rateConfirmationRequired:
+              getValue(row, ['Rate confirmation required', 'Rate Confirmation Required']) === true ||
+              String(getValue(row, ['Rate confirmation required', 'Rate Confirmation Required']) || '').toLowerCase() === 'yes',
+            status: getValue(row, ['Status', 'status']),
+            tags: parseTags(getValue(row, ['Tags', 'tags'])),
+            warning: getValue(row, ['Warning', 'warning']),
+            creditRate: parseFloat(String(getValue(row, ['Credit rate', 'Credit Rate', 'credit_rate']) || '0')) || null,
+            riskLevel: getValue(row, ['Risk level', 'Risk Level', 'risk_level']),
+            comments: getValue(row, ['Commnets', 'Comments', 'comments']),
+          });
+          
+          existingCustomers.add(customerNumber);
+          existingCustomers.add(name.toLowerCase().trim());
+        } catch (error: any) {
+          errors.push({ row: i + 1, error: error.message || 'Failed to process customer' });
+        }
+      }
+
+      // Batch create customers for better performance
+      for (let i = 0; i < customersToCreate.length; i += BATCH_SIZE) {
+        const batch = customersToCreate.slice(i, i + BATCH_SIZE);
+        try {
+          await prisma.customer.createMany({
+            data: batch as any,
+            skipDuplicates: true,
+          });
+          // Fetch created customers to get their IDs
+          const createdBatch = await prisma.customer.findMany({
+            where: {
               companyId: session.user.companyId,
-              customerNumber,
-              name,
-              type: customerType,
-              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || undefined,
-              location: getValue(row, ['Location', 'location']),
-              website: getValue(row, ['Website', 'website']),
-              referenceNumber: getValue(row, ['Reference number', 'Reference Number', 'reference_number']),
-              address: getValue(row, ['Address', 'address']) || '',
-              city: getValue(row, ['City', 'city']) || '',
-              state: getValue(row, ['State', 'state']) || '',
-              zip: getValue(row, ['ZIP', 'Zip', 'zip']) || '',
-              phone: getValue(row, ['Contact number', 'Contact Number', 'Phone', 'phone']) || '',
-              contactNumber: getValue(row, ['Contact number', 'Contact Number', 'contact_number']),
-              email: getValue(row, ['Email', 'email']) || '',
-              billingAddress: getValue(row, ['Billing Address', 'Billing Address', 'billing_address']),
-              billingEmails: getValue(row, ['Billing emails', 'Billing Emails', 'billing_emails']),
-              billingType: getValue(row, ['Billing type', 'Billing Type', 'billing_type']),
-              rateConfirmationRequired:
-                getValue(row, ['Rate confirmation required', 'Rate Confirmation Required']) === true ||
-                String(getValue(row, ['Rate confirmation required', 'Rate Confirmation Required']) || '').toLowerCase() === 'yes',
-              status: getValue(row, ['Status', 'status']),
-              tags: parseTags(getValue(row, ['Tags', 'tags'])),
-              warning: getValue(row, ['Warning', 'warning']),
-              creditRate: parseFloat(String(getValue(row, ['Credit rate', 'Credit Rate', 'credit_rate']) || '0')) || null,
-              riskLevel: getValue(row, ['Risk level', 'Risk Level', 'risk_level']),
-              comments: getValue(row, ['Commnets', 'Comments', 'comments']),
+              customerNumber: { in: batch.map(c => c.customerNumber) },
             },
           });
-
-          created.push(customer);
+          created.push(...createdBatch);
         } catch (error: any) {
-          errors.push({ row: i + 1, error: error.message || 'Failed to create customer' });
+          // If batch fails, try individual creates
+          for (let j = 0; j < batch.length; j++) {
+            const customerData = batch[j];
+            try {
+              const customer = await prisma.customer.create({ data: customerData as any });
+              created.push(customer);
+            } catch (err: any) {
+              errors.push({ row: i * BATCH_SIZE + j + 1, error: err.message || 'Failed to create customer' });
+            }
+          }
         }
       }
     } else if (entity === 'trucks') {
-      // Import trucks
+      // Import trucks - batch processing for performance
+      const BATCH_SIZE = 500;
+      const trucksToCreate: any[] = [];
+      const existingTrucks = new Set<string>(); // truckNumber and VIN
+      
+      // Pre-fetch existing trucks to avoid duplicate checks
+      const existingTrucksData = await prisma.truck.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { truckNumber: true, vin: true },
+      });
+      existingTrucksData.forEach(t => {
+        existingTrucks.add(t.truckNumber);
+        if (t.vin) existingTrucks.add(t.vin);
+      });
+
+      // Map Excel status values to TruckStatus enum
+      const mapTruckStatus = (statusValue: any): 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'INACTIVE' => {
+        if (!statusValue) return 'AVAILABLE';
+        const normalized = String(statusValue).trim().toUpperCase().replace(/[_\s]/g, '_');
+        
+        // Direct matches
+        if (normalized === 'AVAILABLE') return 'AVAILABLE';
+        if (normalized === 'IN_USE' || normalized === 'INUSE' || normalized === 'IN_TRANSIT' || normalized === 'INTRANSIT') return 'IN_USE';
+        if (normalized === 'MAINTENANCE' || normalized === 'MAINT') return 'MAINTENANCE';
+        if (normalized === 'OUT_OF_SERVICE' || normalized === 'OUTOFSERVICE' || normalized === 'OOS') return 'OUT_OF_SERVICE';
+        if (normalized === 'INACTIVE') return 'INACTIVE';
+        
+        // Fallback to AVAILABLE for unknown values
+        return 'AVAILABLE';
+      };
+
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
         try {
@@ -883,15 +1028,8 @@ export async function POST(
             continue;
           }
 
-          const existing = await prisma.truck.findFirst({
-            where: {
-              companyId: session.user.companyId,
-              deletedAt: null,
-              OR: [{ truckNumber }, { vin }],
-            },
-          });
-
-          if (existing) {
+          // Check if truck already exists
+          if (existingTrucks.has(truckNumber) || existingTrucks.has(vin)) {
             errors.push({ row: i + 1, error: `Truck already exists: ${truckNumber}` });
             continue;
           }
@@ -908,62 +1046,99 @@ export async function POST(
             getValue(row, ['Annual inspection expiry date', 'Annual Inspection Expiry Date', 'inspection_expiry'])
           ) || new Date();
 
-          // Map Excel status values to TruckStatus enum
-          const mapTruckStatus = (statusValue: any): 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'INACTIVE' => {
-            if (!statusValue) return 'AVAILABLE';
-            const normalized = String(statusValue).trim().toUpperCase().replace(/[_\s]/g, '_');
-            
-            // Direct matches
-            if (normalized === 'AVAILABLE') return 'AVAILABLE';
-            if (normalized === 'IN_USE' || normalized === 'INUSE' || normalized === 'IN_TRANSIT' || normalized === 'INTRANSIT') return 'IN_USE';
-            if (normalized === 'MAINTENANCE' || normalized === 'MAINT') return 'MAINTENANCE';
-            if (normalized === 'OUT_OF_SERVICE' || normalized === 'OUTOFSERVICE' || normalized === 'OOS') return 'OUT_OF_SERVICE';
-            if (normalized === 'INACTIVE') return 'INACTIVE';
-            
-            // Fallback to AVAILABLE for unknown values
-            return 'AVAILABLE';
-          };
-
           const rawStatus = getValue(row, ['Status', 'status']);
           const truckStatus = mapTruckStatus(rawStatus);
 
-          const truck = await prisma.truck.create({
-            data: {
+          trucksToCreate.push({
+            companyId: session.user.companyId,
+            truckNumber,
+            vin,
+            make: getValue(row, ['Make', 'make']) || '',
+            model: getValue(row, ['Model', 'model']) || '',
+            year: parseInt(String(getValue(row, ['Year', 'year']) || new Date().getFullYear())) || new Date().getFullYear(),
+            licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']) || '',
+            state: getValue(row, ['State', 'state']) || '',
+            // Accepts both numeric MC numbers (e.g., "160847") and string values (e.g., company names) from CSV
+            // If multiple values in CSV cell (e.g., "160847, 1090857"), uses FIRST value only
+            // Priority: CSV column > Form MC selection > undefined
+            mcNumber: (() => {
+              const csvMcValue = getValue(row, ['MC number', 'MC Number', 'mc_number']);
+              if (csvMcValue) {
+                const csvStr = csvMcValue.toString().trim();
+                // Handle multiple values - split by comma, semicolon, pipe, or slash
+                const values = csvStr.split(/[,;|/]/).map((v: string) => v.trim()).filter((v: string) => v);
+                return values.length > 0 ? values[0] : undefined;
+              }
+              return currentMcNumber || undefined;
+            })(),
+            equipmentType: 'DRY_VAN',
+            capacity: 45000,
+            status: truckStatus,
+            fleetStatus: getValue(row, ['Fleet Status', 'Fleet Status', 'fleet_status']),
+            ownership: getValue(row, ['Ownership', 'ownership']),
+            ownerName: getValue(row, ['Owner name', 'Owner Name', 'owner_name']),
+            odometerReading: parseFloat(String(getValue(row, ['Odometer', 'odometer']) || '0')) || 0,
+            registrationExpiry,
+            insuranceExpiry,
+            inspectionExpiry,
+            tollTagNumber: getValue(row, ['Toll tag number', 'Toll Tag Number', 'toll_tag_number']),
+            fuelCard: getValue(row, ['Fuel card', 'Fuel Card', 'fuel_card']),
+            notes: getValue(row, ['Notes', 'notes']),
+            warnings: getValue(row, ['Warnings', 'warnings']),
+          });
+          
+          existingTrucks.add(truckNumber);
+          if (vin) existingTrucks.add(vin);
+        } catch (error: any) {
+          errors.push({ row: i + 1, error: error.message || 'Failed to process truck' });
+        }
+      }
+
+      // Batch create trucks for better performance
+      for (let i = 0; i < trucksToCreate.length; i += BATCH_SIZE) {
+        const batch = trucksToCreate.slice(i, i + BATCH_SIZE);
+        try {
+          await prisma.truck.createMany({
+            data: batch as any,
+            skipDuplicates: true,
+          });
+          // Fetch created trucks to get their IDs
+          const createdBatch = await prisma.truck.findMany({
+            where: {
               companyId: session.user.companyId,
-              truckNumber,
-              vin,
-              make: getValue(row, ['Make', 'make']) || '',
-              model: getValue(row, ['Model', 'model']) || '',
-              year: parseInt(String(getValue(row, ['Year', 'year']) || new Date().getFullYear())) || new Date().getFullYear(),
-              licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']) || '',
-              state: getValue(row, ['State', 'state']) || '',
-              mcNumber: getValue(row, ['MC number', 'MC Number', 'mc_number']) || currentMcNumber || undefined,
-              equipmentType: 'DRY_VAN',
-              capacity: 45000,
-              status: truckStatus,
-              fleetStatus: getValue(row, ['Fleet Status', 'Fleet Status', 'fleet_status']),
-              ownership: getValue(row, ['Ownership', 'ownership']),
-              ownerName: getValue(row, ['Owner name', 'Owner Name', 'owner_name']),
-              odometerReading: parseFloat(String(getValue(row, ['Odometer', 'odometer']) || '0')) || 0,
-              registrationExpiry,
-              insuranceExpiry,
-              inspectionExpiry,
-              tollTagNumber: getValue(row, ['Toll tag number', 'Toll Tag Number', 'toll_tag_number']),
-              fuelCard: getValue(row, ['Fuel card', 'Fuel Card', 'fuel_card']),
-              // Note: tags are handled via TruckTag relation, not directly on Truck model
-              notes: getValue(row, ['Notes', 'notes']),
-              warnings: getValue(row, ['Warnings', 'warnings']),
+              truckNumber: { in: batch.map(t => t.truckNumber) },
             },
           });
-
-          created.push(truck);
+          created.push(...createdBatch);
         } catch (error: any) {
-          errors.push({ row: i + 1, error: error.message || 'Failed to create truck' });
+          // If batch fails, try individual creates
+          for (let j = 0; j < batch.length; j++) {
+            const truckData = batch[j];
+            try {
+              const truck = await prisma.truck.create({ data: truckData as any });
+              created.push(truck);
+            } catch (err: any) {
+              errors.push({ row: i * BATCH_SIZE + j + 1, error: err.message || 'Failed to create truck' });
+            }
+          }
         }
       }
     } else if (entity === 'trailers') {
-      // Import trailers
-      console.log(`[Trailers Import] Starting import of ${importResult.data.length} trailers for company ${session.user.companyId}`);
+      // Import trailers - batch processing for performance
+      const BATCH_SIZE = 500; // Increased for better performance with large imports
+      const trailersToCreate: any[] = [];
+      const existingTrailerNumbers = new Set<string>();
+      
+      // Pre-fetch existing trailers to avoid duplicate checks
+      const existingTrailers = await prisma.trailer.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { trailerNumber: true },
+      });
+      existingTrailers.forEach(t => existingTrailerNumbers.add(t.trailerNumber));
+
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
         try {
@@ -973,15 +1148,7 @@ export async function POST(
             continue;
           }
 
-          const existing = await prisma.trailer.findFirst({
-            where: {
-              companyId: session.user.companyId,
-              deletedAt: null,
-              trailerNumber,
-            },
-          });
-
-          if (existing) {
+          if (existingTrailerNumbers.has(trailerNumber)) {
             errors.push({ row: i + 1, error: `Trailer already exists: ${trailerNumber}` });
             continue;
           }
@@ -989,57 +1156,146 @@ export async function POST(
           const make = getValue(row, ['make', 'Make']) || 'Unknown';
           const model = getValue(row, ['model', 'Model']) || 'Unknown';
 
+          // Note: assignedTruckId will be resolved in batch after creation
           const assignedTruckNumber = getValue(row, ['assigned_truck', 'Assigned truck', 'Assigned Truck']);
-          let assignedTruckId: string | null = null;
-          if (assignedTruckNumber) {
-            const truck = await prisma.truck.findFirst({
-              where: {
-                companyId: session.user.companyId,
-                deletedAt: null,
-                truckNumber: assignedTruckNumber,
-              },
-            });
-            if (truck) assignedTruckId = truck.id;
-          }
 
-          const trailer = await prisma.trailer.create({
-            data: {
-              companyId: session.user.companyId,
-              trailerNumber,
-              vin: getValue(row, ['vin', 'Vin', 'VIN']) || null,
-              make,
-              model,
-              year: parseInt(String(getValue(row, ['year', 'Year']) || '0')) || null,
-              licensePlate: getValue(row, ['plate_number', 'Plate number', 'Plate Number', 'license_plate']) || null,
-              state: getValue(row, ['state', 'State']) || null,
-              mcNumber: getValue(row, ['mc_number', 'MC Number', 'MC Number']) || currentMcNumber || null,
-              type: getValue(row, ['type', 'Type']) || null,
-              ownership: getValue(row, ['ownership', 'Ownership']) || null,
-              ownerName: getValue(row, ['owner_name', 'Owner name', 'Owner Name']) || null,
-              ...(assignedTruckId ? { assignedTruckId } : {}),
-              status: getValue(row, ['status', 'Status']) || null,
-              fleetStatus: getValue(row, ['fleet_status', 'Fleet Status', 'Fleet Status']) || null,
-              registrationExpiry: parseDate(
-                getValue(row, ['registration_expiry', 'Registration expiry date', 'Registration Expiry Date'])
-              ),
-              inspectionExpiry: parseDate(
-                getValue(row, ['inspection_expiry', 'Annual inspection expiry date', 'Annual Inspection Expiry Date'])
-              ),
-              insuranceExpiry: parseDate(
-                getValue(row, ['insurance_expiry', 'Insurance expiry date', 'Insurance Expiry Date'])
-              ),
-              // Note: tags are handled via TrailerTag relation, not directly on Trailer model
-            },
+          trailersToCreate.push({
+            companyId: session.user.companyId,
+            trailerNumber,
+            vin: getValue(row, ['vin', 'Vin', 'VIN']) || null,
+            make,
+            model,
+            year: parseInt(String(getValue(row, ['year', 'Year']) || '0')) || null,
+            licensePlate: getValue(row, ['plate_number', 'Plate number', 'Plate Number', 'license_plate']) || null,
+            state: getValue(row, ['state', 'State']) || null,
+            mcNumber: (() => {
+              // CSV column has priority (for mixed MC imports), falls back to form MC number
+              // Accepts BOTH formats in CSV:
+              //   - Numeric MC numbers: "160847", "1090857" (as strings)
+              //   - String values: "FOUR WAYS LOGISTICS II INC", "Truckzilla Inc" (company names)
+              //   - Multiple values: "160847, 1090857" or "MC1, MC2" → uses FIRST value only
+              // This allows importing multiple MC numbers in one file with any format
+              // Priority: CSV column value > Form MC selection > null
+              const csvMcValue = getValue(row, ['mc_number', 'MC Number', 'MC Number']);
+              
+              let finalValue: string | null = null;
+              
+              if (csvMcValue) {
+                const csvStr = csvMcValue.toString().trim();
+                if (csvStr) {
+                  // Check if multiple values (separated by comma, semicolon, pipe, or slash)
+                  const multipleValues = csvStr.split(/[,;|/]/).map((v: string) => v.trim()).filter((v: string) => v);
+                  
+                  if (multipleValues.length > 1) {
+                    // Multiple MC numbers found - use the first one
+                    finalValue = multipleValues[0];
+                    if (i === 0) { // Log warning for first row only
+                      console.warn('[Import Trailers] Multiple MC numbers in CSV cell, using first:', {
+                        original: csvStr,
+                        values: multipleValues,
+                        using: finalValue,
+                      });
+                    }
+                  } else {
+                    // Single value
+                    finalValue = csvStr;
+                  }
+                }
+              } else if (currentMcNumber) {
+                // Fall back to form MC selection
+                finalValue = currentMcNumber;
+              }
+              
+              if (i === 0) { // Log first trailer for debugging
+                console.log('[Import Trailers] MC number:', {
+                  fromRow: csvMcValue,
+                  currentMcNumber,
+                  final: finalValue,
+                  note: csvMcValue ? `Using MC from CSV column` : (currentMcNumber ? 'Using MC from form selection' : 'No MC number'),
+                });
+              }
+              
+              return finalValue;
+            })(),
+            type: getValue(row, ['type', 'Type']) || null,
+            ownership: getValue(row, ['ownership', 'Ownership']) || null,
+            ownerName: getValue(row, ['owner_name', 'Owner name', 'Owner Name']) || null,
+            assignedTruckNumber: assignedTruckNumber || null, // Store for later resolution
+            status: getValue(row, ['status', 'Status']) || null,
+            fleetStatus: getValue(row, ['fleet_status', 'Fleet Status', 'Fleet Status']) || null,
+            registrationExpiry: parseDate(
+              getValue(row, ['registration_expiry', 'Registration expiry date', 'Registration Expiry Date'])
+            ),
+            inspectionExpiry: parseDate(
+              getValue(row, ['inspection_expiry', 'Annual inspection expiry date', 'Annual Inspection Expiry Date'])
+            ),
+            insuranceExpiry: parseDate(
+              getValue(row, ['insurance_expiry', 'Insurance expiry date', 'Insurance Expiry Date'])
+            ),
           });
-
-          created.push(trailer);
-          console.log(`[Trailers Import] Created trailer ${trailerNumber} (${trailer.id})`);
+          
+          existingTrailerNumbers.add(trailerNumber);
         } catch (error: any) {
-          console.error(`[Trailers Import] Error creating trailer at row ${i + 1}:`, error);
-          errors.push({ row: i + 1, error: error.message || 'Failed to create trailer' });
+          errors.push({ row: i + 1, error: error.message || 'Failed to process trailer' });
         }
       }
-      console.log(`[Trailers Import] Completed: ${created.length} created, ${errors.length} errors`);
+
+      // Pre-fetch trucks for assignment resolution
+      const trucksForAssignment = await prisma.truck.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { id: true, truckNumber: true },
+      });
+      const truckNumberMap = new Map(trucksForAssignment.map(t => [t.truckNumber, t.id]));
+
+      // Batch create trailers for better performance
+      for (let i = 0; i < trailersToCreate.length; i += BATCH_SIZE) {
+        const batch = trailersToCreate.slice(i, i + BATCH_SIZE);
+        try {
+          // Resolve assigned truck IDs before creating
+          const batchWithTruckIds = batch.map((t: any) => {
+            const { assignedTruckNumber, ...rest } = t;
+            const assignedTruckId = assignedTruckNumber ? truckNumberMap.get(assignedTruckNumber) || null : null;
+            return {
+              ...rest,
+              ...(assignedTruckId ? { assignedTruckId } : {}),
+            };
+          });
+
+          await prisma.trailer.createMany({
+            data: batchWithTruckIds as any,
+            skipDuplicates: true,
+          });
+          // Fetch created trailers to get their IDs
+          const createdBatch = await prisma.trailer.findMany({
+            where: {
+              companyId: session.user.companyId,
+              trailerNumber: { in: batch.map(t => t.trailerNumber) },
+            },
+          });
+          created.push(...createdBatch);
+        } catch (error: any) {
+          // If batch fails, try individual creates
+          for (let j = 0; j < batch.length; j++) {
+            const trailerData = batch[j];
+            try {
+              const { assignedTruckNumber, ...rest } = trailerData as any;
+              const assignedTruckId = assignedTruckNumber ? truckNumberMap.get(assignedTruckNumber) || null : null;
+              const trailer = await prisma.trailer.create({ 
+                data: {
+                  ...rest,
+                  ...(assignedTruckId ? { assignedTruckId } : {}),
+                }
+              });
+              created.push(trailer);
+            } catch (err: any) {
+              errors.push({ row: i * BATCH_SIZE + j + 1, error: err.message || 'Failed to create trailer' });
+            }
+          }
+        }
+      }
     } else if (entity === 'vendors') {
       // Import vendors
       for (let i = 0; i < importResult.data.length; i++) {
@@ -1145,10 +1401,10 @@ export async function POST(
       const { createLoadSchema } = await import('@/lib/validations/load');
       const { LoadType, EquipmentType, LoadStatus } = await import('@prisma/client');
 
-      console.log(`[Loads Import] Starting optimized bulk import for ${importResult.data.length} rows...`);
+      // Starting optimized bulk import
 
       // STEP 1: Pre-fetch all related entities into memory maps for O(1) lookups
-      console.log('[Loads Import] Pre-fetching customers, trucks, trailers, drivers, dispatchers, and users...');
+      // Pre-fetching related data for matching
       const [allCustomers, allTrucks, allTrailers, allDrivers, allDispatchers, allUsers, existingLoads] = await Promise.all([
         prisma.customer.findMany({
           where: {
@@ -1352,8 +1608,7 @@ export async function POST(
         }
       }
 
-      console.log(`[Loads Import] Pre-fetched ${allCustomers.length} customers, ${allTrucks.length} trucks, ${allTrailers.length} trailers, ${allDrivers.length} drivers, ${allDispatchers.length} dispatchers, ${allUsers.length} users`);
-      console.log(`[Loads Import] Found ${lastDeliveryLocations.size} last delivery locations for deadhead calculation`);
+      // Pre-fetch complete
 
       // STEP 2: Process all rows and prepare data
       const BATCH_SIZE = 500; // Process in batches of 500
@@ -1414,9 +1669,8 @@ export async function POST(
                 customerId = newCustomer.id;
                 // Add to map for future lookups in this import
                 customerMap.set(customerKey, customerId);
-                console.log(`[Loads Import] Auto-created customer: ${customerName} (ID: ${customerId})`);
               } catch (createError: any) {
-                console.error(`[Loads Import] Failed to auto-create customer ${customerName}:`, createError);
+                // Failed to auto-create customer
                 errors.push({
                   row: i + 1,
                   field: 'Customer',
@@ -1442,7 +1696,6 @@ export async function POST(
             const truckKey = truckValue.toLowerCase();
             const truckKeyNoZeros = truckKey.replace(/^0+/, '');
             
-            console.log(`[Loads Import] Row ${i + 1}: Looking for truck "${truckValue}" (normalized: "${truckKey}", no zeros: "${truckKeyNoZeros}")`);
             
             // Try multiple matching strategies
             // 1. Exact match (as provided)
@@ -1452,7 +1705,6 @@ export async function POST(
             if (!truckId && truckKeyNoZeros !== truckKey) {
               truckId = truckMap.get(truckKeyNoZeros) || null;
               if (truckId) {
-                console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (without leading zeros) to ID: ${truckId}`);
               }
             }
             
@@ -1460,7 +1712,6 @@ export async function POST(
             if (!truckId && !truckKey.match(/^0/)) {
               truckId = truckMap.get(`0${truckKey}`) || null;
               if (truckId) {
-                console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (with leading zero) to ID: ${truckId}`);
               }
             }
             
@@ -1473,21 +1724,18 @@ export async function POST(
                 
                 if (truckNumeric && keyNumeric && truckNumeric === keyNumeric) {
                   truckId = id;
-                  console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (numeric match) to "${key}" (ID: ${id})`);
                   break;
                 }
                 
                 // Also try substring match
                 if (key.includes(truckKey) || truckKey.includes(key)) {
                   truckId = id;
-                  console.log(`[Loads Import] Row ${i + 1}: Matched truck "${truckValue}" (substring match) to "${key}" (ID: ${id})`);
                   break;
                 }
               }
             }
             
             if (!truckId) {
-              console.log(`[Loads Import] Row ${i + 1}: Truck "${truckValue}" not found. Available trucks (first 10): ${Array.from(truckMap.keys()).slice(0, 10).join(', ')}`);
               // Add to errors but don't block import
               errors.push({
                 row: i + 1,
@@ -1495,7 +1743,6 @@ export async function POST(
                 error: `Truck "${truckValue}" not found in database`,
               });
             } else {
-              console.log(`[Loads Import] Row ${i + 1}: Successfully matched truck "${truckValue}" to ID: ${truckId}`);
             }
           }
 
@@ -1506,7 +1753,6 @@ export async function POST(
             const trailerKey = String(trailerNumber).trim().toLowerCase();
             trailerId = trailerMap.get(trailerKey) || null;
             if (!trailerId) {
-              console.log(`[Loads Import] Trailer "${trailerNumber}" not found in database`);
             }
           }
 
@@ -1515,8 +1761,6 @@ export async function POST(
           let driverId: string | null = null;
           if (driverValue) {
             const driverKey = String(driverValue).toLowerCase().trim();
-            console.log(`[Loads Import] Row ${i + 1}: Looking for driver "${driverValue}" (normalized: "${driverKey}")`);
-            console.log(`[Loads Import] Available driver keys (first 5):`, Array.from(driverMap.keys()).slice(0, 5));
             
             driverId = driverMap.get(driverKey) || null;
 
@@ -1524,7 +1768,6 @@ export async function POST(
             if (!driverId) {
               // Try matching by last name or any word in the name
               const driverWords = driverKey.split(/\s+/).filter(w => w.length > 2); // Filter out short words
-              console.log(`[Loads Import] Row ${i + 1}: No exact match, trying partial match with words:`, driverWords);
               for (const [key, id] of driverMap.entries()) {
                 const keyWords = key.split(/\s+/);
                 // Check if any word from Excel matches any word in the driver name
@@ -1535,18 +1778,14 @@ export async function POST(
                 );
                 if (hasMatch) {
                   driverId = id;
-                  console.log(`[Loads Import] Row ${i + 1}: Matched driver "${driverValue}" to "${key}" (ID: ${id})`);
                   break;
                 }
               }
               if (!driverId) {
-                console.log(`[Loads Import] Row ${i + 1}: Could not find driver "${driverValue}" in database`);
               }
             } else {
-              console.log(`[Loads Import] Row ${i + 1}: Exact match for driver "${driverValue}" (ID: ${driverId})`);
             }
           } else {
-            console.log(`[Loads Import] Row ${i + 1}: No driver value found in Excel row`);
           }
 
           // Find co-driver if provided - use map lookup (same logic as driver)
@@ -1579,8 +1818,6 @@ export async function POST(
           let dispatcherId: string | null = null;
           if (dispatcherValue) {
             const dispatcherKey = String(dispatcherValue).toLowerCase().trim();
-            console.log(`[Loads Import] Row ${i + 1}: Looking for dispatcher "${dispatcherValue}" (normalized: "${dispatcherKey}")`);
-            console.log(`[Loads Import] Available dispatcher keys (first 5):`, Array.from(dispatcherMap.keys()).slice(0, 5));
             
             // Try exact match first
             dispatcherId = dispatcherMap.get(dispatcherKey) || null;
@@ -1588,7 +1825,6 @@ export async function POST(
             // If not found by exact match, try partial match
             if (!dispatcherId) {
               const dispatcherWords = dispatcherKey.split(/\s+/).filter(w => w.length > 2);
-              console.log(`[Loads Import] Row ${i + 1}: No exact match, trying partial match with words:`, dispatcherWords);
               for (const [key, id] of dispatcherMap.entries()) {
                 const keyWords = key.split(/\s+/);
                 const hasMatch = dispatcherWords.some(excelWord => 
@@ -1598,19 +1834,15 @@ export async function POST(
                 );
                 if (hasMatch) {
                   dispatcherId = id;
-                  console.log(`[Loads Import] Row ${i + 1}: Matched dispatcher "${dispatcherValue}" to "${key}" (ID: ${id})`);
                   break;
                 }
               }
             } else {
-              console.log(`[Loads Import] Row ${i + 1}: Exact match for dispatcher "${dispatcherValue}" (ID: ${dispatcherId})`);
             }
             
             if (!dispatcherId) {
-              console.log(`[Loads Import] Row ${i + 1}: Could not find dispatcher "${dispatcherValue}" in database`);
             }
           } else {
-            console.log(`[Loads Import] Row ${i + 1}: No dispatcher value found in Excel row`);
           }
 
           // Find createdBy user if provided - use user map lookup
@@ -1697,11 +1929,23 @@ export async function POST(
           // Get Trip ID
           const tripId = getValue(row, ['Trip ID', 'Trip Id', 'trip_id', 'Trip Number', 'trip_number']);
 
-          // Parse pickup/delivery times
-          const pickupTime = getValue(row, ['Pickup Time', 'Pickup time', 'pickup_time', 'PU date']);
-          const deliveryTime = getValue(row, ['Delivery Time', 'Delivery time', 'delivery_time', 'DEL date']);
-          const pickupAppointment = getValue(row, ['Pickup Appointment', 'Pickup appointment', 'pickup_appointment']);
-          const deliveryAppointment = getValue(row, ['Delivery Appointment', 'Delivery appointment', 'delivery_appointment']);
+          // Parse pickup/delivery times - support multiple column name variations
+          const pickupTime = getValue(row, ['Pickup Time', 'Pickup time', 'pickup_time', 'pu_time', 'PU Time']);
+          const deliveryTime = getValue(row, ['Delivery Time', 'Delivery time', 'delivery_time', 'del_time', 'DEL Time']);
+          const pickupAppointment = getValue(row, ['Pickup Appointment', 'Pickup appointment', 'pickup_appointment', 'Pickup Appointment Time', 'pickup_appointment_time']);
+          const deliveryAppointment = getValue(row, ['Delivery Appointment', 'Delivery appointment', 'delivery_appointment', 'Delivery Appointment Time', 'delivery_appointment_time']);
+          
+          // Get driver/carrier (can be driver name or carrier name)
+          const driverCarrier = getValue(row, ['Driver/Carrier', 'Driver/Carrier', 'driver/carrier', 'driver_carrier', 'Driver Carrier', 'driver carrier']);
+          
+          // Get driver MC
+          const driverMc = getValue(row, ['Driver MC', 'driver_mc', 'Driver MC Number', 'driver_mc_number']);
+          
+          // Get created date
+          const createdDate = getValue(row, ['Created Date', 'created_date', 'Created date', 'Date Created', 'date_created']);
+          
+          // Get last update
+          const lastUpdate = getValue(row, ['Last Update', 'last_update', 'Last update', 'Updated At', 'updated_at']);
 
           // Map CSV/Excel columns to load schema
           const loadData: any = {
@@ -1756,22 +2000,25 @@ export async function POST(
             deliveryState: deliveryState || '',
             deliveryZip: getValue(row, ['Delivery ZIP', 'Delivery Zip', 'delivery_zip', 'Delivery ZIP Code']) || '00000', // Default to '00000' if missing (required by schema)
             deliveryCompany: deliveryCompany || undefined,
-            pickupDate: parseDate(getValue(row, ['Pickup Date', 'PickupDate', 'pickup_date', 'PU date', 'pu_date'])) || new Date(),
-            deliveryDate: parseDate(getValue(row, ['DEL date', 'DEL Date', 'Delivery Date', 'DeliveryDate', 'delivery_date'])),
+            pickupDate: parseDate(getValue(row, ['Pickup Date', 'PickupDate', 'pickup_date', 'PU date', 'pu_date', 'Pickup date'])) || new Date(),
+            pickupTimeStart: parseDate(pickupTime || pickupAppointment),
+            pickupTimeEnd: parseDate(pickupTime || pickupAppointment), // Use same time if only one provided
+            deliveryDate: parseDate(getValue(row, ['DEL date', 'DEL Date', 'del_date', 'Delivery Date', 'DeliveryDate', 'delivery_date', 'Delivery date'])),
+            deliveryTimeStart: parseDate(deliveryTime || deliveryAppointment),
+            deliveryTimeEnd: parseDate(deliveryTime || deliveryAppointment), // Use same time if only one provided
+            createdAt: parseDate(createdDate) || new Date(),
+            updatedAt: parseDate(lastUpdate) || new Date(),
             revenue: (() => {
               const revenueValue = getValue(row, ['Load pay', 'Load Pay', 'Revenue', 'revenue', 'Pay', 'pay']);
               if (!revenueValue) {
-                console.log(`[Loads Import] No revenue value found for load ${getValue(row, ['Load ID', 'Load ID', 'load_id', 'Load Number', 'LoadNumber', 'load_number'])}`);
                 return 0;
               }
               // Remove currency symbols and commas, then parse
               const cleaned = String(revenueValue).replace(/[$,\s]/g, '');
               const parsed = parseFloat(cleaned);
               if (isNaN(parsed)) {
-                console.log(`[Loads Import] Could not parse revenue value: "${revenueValue}"`);
                 return 0;
               }
-              console.log(`[Loads Import] Parsed revenue: "${revenueValue}" -> ${parsed}`);
               return parsed;
             })(),
             driverPay: (() => {
@@ -1809,16 +2056,40 @@ export async function POST(
               return isNaN(parsed) ? undefined : parsed;
             })(),
             totalMiles: (() => { 
-              const v = getValue(row, ['Total miles', 'Total Miles', 'total_miles']);
+              const v = getValue(row, ['Total miles', 'Total Miles', 'total_miles', 'Miles', 'miles', 'mile']);
               if (v === null || v === '') return undefined;
               // Remove commas and parse
               const cleaned = String(v).replace(/[,\s]/g, '');
               const parsed = parseFloat(cleaned);
               return isNaN(parsed) ? undefined : parsed;
             })(),
+            loadedMiles: (() => {
+              const v = getValue(row, ['Loaded miles', 'Loaded Miles', 'loaded_miles', 'Mile', 'mile']);
+              if (v === null || v === '') return undefined;
+              const parsed = parseFloat(String(v));
+              return isNaN(parsed) ? undefined : parsed;
+            })(),
+            emptyMiles: (() => {
+              const v = getValue(row, ['Empty miles', 'Empty Miles', 'empty_miles', 'Empty Mile', 'empty_mile']);
+              if (v === null || v === '') return undefined;
+              const parsed = parseFloat(String(v));
+              return isNaN(parsed) ? undefined : parsed;
+            })(),
+            revenuePerMile: (() => {
+              const rpmValue = getValue(row, ['Revenue Per Mile', 'revenue_per_mile', 'Revenue per mile', 'RPM', 'rpm']);
+              if (!rpmValue) return undefined;
+              const cleaned = String(rpmValue).replace(/[$,\s]/g, '');
+              const parsed = parseFloat(cleaned);
+              return isNaN(parsed) ? undefined : parsed;
+            })(),
             lastNote: nullToUndefined(getValue(row, ['Last note', 'Last Note', 'last_note', 'Notes', 'notes'])),
-            onTimeDelivery: getValue(row, ['On Time Delivery', 'On Time Delivery', 'on_time_delivery']) === 'Yes' ? true : undefined,
-            lastUpdate: nullToUndefined(parseDate(getValue(row, ['Last update', 'Last Update', 'last_update']))),
+            onTimeDelivery: (() => {
+              const v = getValue(row, ['On Time Delivery', 'on_time_delivery', 'On time delivery', 'On Time', 'on_time']);
+              if (v === null || v === '') return undefined;
+              const str = String(v).toLowerCase().trim();
+              return str === 'true' || str === 'yes' || str === '1' || str === 'y' || str === 'yes';
+            })(),
+            dispatchNotes: nullToUndefined(getValue(row, ['Dispatch Notes', 'dispatch_notes', 'Dispatch notes', 'Notes', 'notes'])),
           };
 
           // Validate using schema
@@ -2006,20 +2277,6 @@ export async function POST(
           };
           
           // Log the load data being created for debugging
-          if (i < 3) { // Log first 3 loads
-            console.log(`[Loads Import] Load ${i + 1} data:`, {
-              loadNumber: loadCreateData.loadNumber,
-              revenue: loadCreateData.revenue,
-              driverPay: loadCreateData.driverPay,
-              totalPay: loadCreateData.totalPay,
-              totalMiles: loadCreateData.totalMiles,
-              shipmentId: loadCreateData.shipmentId,
-              stopsCount: loadCreateData.stopsCount,
-              truckId: loadCreateData.truckId,
-              dispatcherId: loadCreateData.dispatcherId,
-              driverId: loadCreateData.driverId,
-            });
-          }
 
           // Store deadhead calculation info if needed
           let needsDeadheadCalc = false;
@@ -2076,14 +2333,14 @@ export async function POST(
             const validationErrors = error.issues.map((err: any) => 
               `${err.path.join('.')}: ${err.message}`
             ).join('; ');
-            console.error(`[Loads Import] Validation error at row ${i + 1}:`, validationErrors);
+            // Validation error logged
             errors.push({
               row: i + 1,
               field: 'Validation',
               error: validationErrors || 'Validation failed',
             });
           } else {
-            console.error(`[Loads Import] Error at row ${i + 1}:`, error);
+            // Error logged
             errors.push({
               row: i + 1,
               field: 'General',
@@ -2093,12 +2350,10 @@ export async function POST(
         }
       }
 
-      console.log(`[Loads Import] Prepared ${preparedLoads.length} loads for batch creation`);
 
       // STEP 2.5: Calculate deadhead miles for loads that need it
       const loadsNeedingDeadhead = preparedLoads.filter(l => l._deadheadCalc);
       if (loadsNeedingDeadhead.length > 0) {
-        console.log(`[Loads Import] Calculating deadhead miles for ${loadsNeedingDeadhead.length} loads...`);
         
         // Calculate distances in batches to avoid API limits
         const DEADHEAD_BATCH_SIZE = 25; // Google Maps allows up to 25 destinations per request
@@ -2155,11 +2410,10 @@ export async function POST(
                   });
                 }
                 
-                console.log(`[Loads Import] Calculated deadhead: ${load.data.emptyMiles} miles from ${load._deadheadCalc!.origin.city} to ${load._deadheadCalc!.destination.city}`);
               }
             });
           } catch (error) {
-            console.error(`[Loads Import] Error calculating deadhead miles for batch ${i / DEADHEAD_BATCH_SIZE + 1}:`, error);
+            // Error calculating deadhead miles
             // Continue without deadhead calculation - loads will be created without emptyMiles
           }
         }
@@ -2183,7 +2437,6 @@ export async function POST(
 
       // Batch create loads without stops using createMany (much faster)
       if (loadsWithoutStops.length > 0) {
-        console.log(`[Loads Import] Creating ${loadsWithoutStops.length} loads without stops in batches of ${BATCH_SIZE}...`);
         for (let i = 0; i < loadsWithoutStops.length; i += BATCH_SIZE) {
           const batch = loadsWithoutStops.slice(i, i + BATCH_SIZE);
           const batchLoadNumbers = batch.map((l) => l.data.loadNumber);
@@ -2202,7 +2455,6 @@ export async function POST(
           const deletedLoads = existingLoads.filter(l => l.deletedAt !== null);
           const activeLoads = existingLoads.filter(l => l.deletedAt === null);
           
-          console.log(`[Loads Import] Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${newLoads.length} new, ${activeLoads.length} existing active, ${deletedLoads.length} deleted`);
           
           // Update existing active loads with new data
           if (activeLoads.length > 0) {
@@ -2224,7 +2476,7 @@ export async function POST(
                   },
                 });
               } catch (error: any) {
-                console.error(`[Loads Import] Error updating load ${load.data.loadNumber}:`, error);
+                // Error updating load
                 errors.push({
                   row: load.rowIndex,
                   field: 'General',
@@ -2232,7 +2484,6 @@ export async function POST(
                 });
               }
             }
-            console.log(`[Loads Import] Updated ${loadsToUpdate.length} existing loads`);
           }
           
           // Restore and update soft-deleted loads
@@ -2256,7 +2507,7 @@ export async function POST(
                   },
                 });
               } catch (error: any) {
-                console.error(`[Loads Import] Error restoring load ${load.data.loadNumber}:`, error);
+                // Error restoring load
                 errors.push({
                   row: load.rowIndex,
                   field: 'General',
@@ -2264,7 +2515,6 @@ export async function POST(
                 });
               }
             }
-            console.log(`[Loads Import] Restored and updated ${loadsToRestore.length} soft-deleted loads`);
           }
           
           // Create new loads
@@ -2274,9 +2524,8 @@ export async function POST(
                 data: newLoads.map((l) => l.data),
                 skipDuplicates: false, // We've already filtered duplicates
               });
-              console.log(`[Loads Import] createMany result:`, { count: createResult.count, batchSize: newLoads.length });
             } catch (error: any) {
-              console.error(`[Loads Import] Error in batch ${Math.floor(i / BATCH_SIZE) + 1}:`, error);
+              // Error in batch
               // Fall back to individual creates for this batch
               for (const load of newLoads) {
                 try {
@@ -2305,9 +2554,6 @@ export async function POST(
             select: { id: true, loadNumber: true, createdAt: true, status: true },
           });
           
-          console.log(`[Loads Import] Batch ${Math.floor(i / BATCH_SIZE) + 1}: Found ${createdBatch.length} loads total`);
-          console.log(`[Loads Import] Load numbers in batch:`, batchLoadNumbers.slice(0, 5));
-          console.log(`[Loads Import] Found load numbers:`, createdBatch.map(l => l.loadNumber).slice(0, 5));
           
           // Create status history entries for all loads (new, updated, and restored)
           if (createdBatch.length > 0) {
@@ -2323,9 +2569,8 @@ export async function POST(
                 data: statusHistoryEntries,
                 skipDuplicates: false,
               });
-              console.log(`[Loads Import] Created ${statusHistoryEntries.length} status history entries`);
             } catch (error: any) {
-              console.error(`[Loads Import] Error creating status history:`, error);
+              // Error creating status history
               // Don't fail the import if status history creation fails
             }
           }
@@ -2336,7 +2581,6 @@ export async function POST(
 
       // Create loads with stops individually (but still in transactions for better performance)
       if (loadsWithStops.length > 0) {
-        console.log(`[Loads Import] Creating ${loadsWithStops.length} loads with stops in batches of ${BATCH_SIZE}...`);
         for (let i = 0; i < loadsWithStops.length; i += BATCH_SIZE) {
           const batch = loadsWithStops.slice(i, i + BATCH_SIZE);
           const createdLoads = await prisma.$transaction(
@@ -2366,9 +2610,8 @@ export async function POST(
                 data: statusHistoryEntries,
                 skipDuplicates: false,
               });
-              console.log(`[Loads Import] Created ${statusHistoryEntries.length} status history entries for loads with stops`);
             } catch (error: any) {
-              console.error(`[Loads Import] Error creating status history for loads with stops:`, error);
+              // Error creating status history
             }
           }
           
@@ -2379,17 +2622,15 @@ export async function POST(
             },
           });
           created.push(...createdBatch);
-          console.log(`[Loads Import] Batch ${Math.floor(i / BATCH_SIZE) + 1}: Created ${createdBatch.length} loads with stops`);
         }
       }
       
-      console.log(`[Loads Import] Completed: ${created.length} created, ${errors.length} errors`);
     } else if (entity === 'drivers') {
-      // Import drivers
-      console.log(`[Drivers Import] Starting import for ${importResult.data.length} rows...`);
+      // Import drivers - optimized with pre-fetching and batch transactions
       const bcrypt = await import('bcryptjs');
+      const BATCH_SIZE = 200; // Smaller batch for drivers due to User+Driver relationship
       
-      // Pre-fetch all trucks for efficient lookup (like loads import)
+      // Pre-fetch all trucks for efficient lookup
       const allTrucks = await prisma.truck.findMany({
         where: {
           companyId: session.user.companyId,
@@ -2412,12 +2653,26 @@ export async function POST(
         truckMap.set(t.truckNumber.trim(), t.id);
       });
       
-      console.log(`[Drivers Import] Pre-fetched ${allTrucks.length} trucks for assignment`);
+      // Pre-fetch existing drivers and users to avoid duplicate checks
+      const existingDrivers = await prisma.driver.findMany({
+        where: { companyId: session.user.companyId },
+        select: { driverNumber: true, user: { select: { email: true } } },
+      });
+      const existingUsers = await prisma.user.findMany({
+        where: { companyId: session.user.companyId },
+        select: { email: true },
+      });
+      
+      const existingDriverNumbers = new Set(existingDrivers.map(d => d.driverNumber));
+      const existingEmails = new Set([
+        ...existingDrivers.map(d => d.user.email.toLowerCase()),
+        ...existingUsers.map(u => u.email.toLowerCase()),
+      ]);
+      
+      const driversToCreate: Array<{ userData: any; driverData: any; rowIndex: number }> = [];
       
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
-        console.log(`[Drivers Import] Processing row ${i + 1}...`);
-        console.log(`[Drivers Import] Row keys:`, Object.keys(row));
         try {
           // Get required fields - try multiple column name variations
           const email = getValue(row, ['Email', 'email', 'Email Address', 'email_address', 'E-mail', 'e-mail', 'EmailAddress']);
@@ -2428,16 +2683,6 @@ export async function POST(
           const licenseNumber = getValue(row, ['License Number', 'License Number', 'license_number', 'LicenseNumber', 'License', 'license', 'CDL', 'cdl', 'CDL Number', 'cdl_number', 'CDL #', 'cdl #']);
           const licenseState = getValue(row, ['License State', 'License State', 'license_state', 'LicenseState', 'State', 'state', 'License State Code', 'State Code', 'state_code', 'CDL State', 'cdl_state']);
           const phone = getValue(row, ['Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Phone #', 'phone #', 'Mobile', 'mobile', 'Cell', 'cell', 'Cell Phone', 'cell_phone', 'Contact Number', 'contact_number', 'Contact', 'contact']);
-          
-          console.log(`[Drivers Import] Row ${i + 1} extracted values:`, {
-            email: email ? '✓' : '✗',
-            firstName: firstName ? '✓' : '✗',
-            lastName: lastName ? '✓' : '✗',
-            driverNumber: driverNumber ? '✓' : '✗',
-            licenseNumber: licenseNumber ? '✓' : '✗',
-            licenseState: licenseState ? '✓' : '✗',
-            phone: phone ? '✓' : '✗',
-          });
           
           // Generate driver number if not provided (use first initial + last name + row number)
           const firstInitial = firstName?.[0]?.toUpperCase() || '';
@@ -2451,20 +2696,13 @@ export async function POST(
           // Default license state if not provided
           const finalLicenseState = licenseState || 'XX';
           
-          console.log(`[Drivers Import] Row ${i + 1} field mapping:`, {
-            mcNumber: mcNumber || 'N/A',
-            driverNumber: finalDriverNumber,
-            licenseNumber: finalLicenseNumber,
-            licenseState: finalLicenseState,
-          });
-          
           // Validate required fields
           if (!email || !firstName || !lastName) {
             const missing = [];
             if (!email) missing.push('email');
             if (!firstName) missing.push('firstName');
             if (!lastName) missing.push('lastName');
-            console.error(`[Drivers Import] Row ${i + 1} missing required fields:`, missing);
+            // Missing required fields
             errors.push({
               row: i + 1,
               field: 'Required Fields',
@@ -2473,24 +2711,8 @@ export async function POST(
             continue;
           }
           
-          console.log(`[Drivers Import] Row ${i + 1} using generated values:`, {
-            driverNumber: finalDriverNumber,
-            licenseNumber: finalLicenseNumber,
-            licenseState: finalLicenseState,
-          });
-          
-          // Check if driver already exists
-          const existingDriver = await prisma.driver.findFirst({
-            where: {
-              OR: [
-                { driverNumber: finalDriverNumber },
-                { user: { email: email.toLowerCase() } },
-              ],
-              companyId: session.user.companyId,
-            },
-          });
-          
-          if (existingDriver) {
+          // Check if driver or user already exists (using pre-fetched data)
+          if (existingDriverNumbers.has(finalDriverNumber) || existingEmails.has(email.toLowerCase())) {
             errors.push({
               row: i + 1,
               field: 'Driver',
@@ -2499,22 +2721,9 @@ export async function POST(
             continue;
           }
           
-          // Check if user already exists
-          const existingUser = await prisma.user.findFirst({
-            where: {
-              email: email.toLowerCase(),
-              companyId: session.user.companyId,
-            },
-          });
-          
-          if (existingUser) {
-            errors.push({
-              row: i + 1,
-              field: 'User',
-              error: `User with email ${email} already exists`,
-            });
-            continue;
-          }
+          // Mark as processed to avoid duplicates in same batch
+          existingDriverNumbers.add(finalDriverNumber);
+          existingEmails.add(email.toLowerCase());
           
           // Parse dates - try multiple column name variations
           const licenseExpiry = parseDate(getValue(row, ['License Expiry', 'License Expiry', 'license_expiry', 'LicenseExpiry', 'License Expiration', 'License Exp Date', 'license_exp_date', 'CDL Expiry', 'cdl_expiry', 'CDL Expiration', 'Expiration Date', 'expiration_date']));
@@ -2564,9 +2773,7 @@ export async function POST(
             
             if (truckId) {
               currentTruckId = truckId;
-              console.log(`[Drivers Import] Row ${i + 1}: Found truck ${truckNumber} (ID: ${truckId})`);
             } else {
-              console.log(`[Drivers Import] Row ${i + 1}: Truck ${truckNumber} not found in database`);
             }
           }
           
@@ -2628,9 +2835,13 @@ export async function POST(
           // Generate default password (user can change it later)
           const defaultPassword = await bcrypt.hash('Driver123!', 10);
           
-          // Create user first
-          const user = await prisma.user.create({
-            data: {
+          // Use MC number from file if present, otherwise use currently selected MC number
+          const driverMcNumber = (mcNumber || currentMcNumber || '').toString().trim() || null;
+          
+          // Prepare user and driver data for batch creation
+          driversToCreate.push({
+            rowIndex: i + 1,
+            userData: {
               email: email.toLowerCase(),
               password: defaultPassword,
               firstName,
@@ -2639,15 +2850,7 @@ export async function POST(
               role: 'DRIVER',
               companyId: session.user.companyId,
             },
-          });
-          
-          // Create driver
-          // Use MC number from file if present, otherwise use currently selected MC number
-          const driverMcNumber = mcNumber || currentMcNumber || null;
-          
-          const driver = await prisma.driver.create({
-            data: {
-              userId: user.id,
+            driverData: {
               companyId: session.user.companyId,
               driverNumber: finalDriverNumber,
               licenseNumber: finalLicenseNumber,
@@ -2672,56 +2875,62 @@ export async function POST(
             },
           });
           
-          created.push(driver);
-          console.log(`[Drivers Import] Created driver ${finalDriverNumber} (${driver.id})`);
         } catch (error: any) {
-          console.error(`[Drivers Import] Error creating driver at row ${i + 1}:`, error);
-          // Use try-catch to safely log variables that might not be in scope
-          try {
-            const row = importResult.data[i];
-            const email = getValue(row, ['Email', 'email', 'Email Address', 'email_address', 'E-mail', 'e-mail', 'EmailAddress']);
-            const firstName = getValue(row, ['First Name', 'First Name', 'first_name', 'FirstName', 'firstName', 'First', 'first', 'FName', 'fname']);
-            const lastName = getValue(row, ['Last Name', 'Last Name', 'last_name', 'LastName', 'lastName', 'Last', 'last', 'LName', 'lname', 'Surname', 'surname']);
-            const driverNumber = getValue(row, ['Driver Number', 'Driver Number', 'driver_number', 'DriverNumber', 'driverNumber', 'Driver #', 'Driver #', 'DriverNo', 'driver_no', 'Driver ID', 'driver_id']);
-            const licenseNumber = getValue(row, ['License Number', 'License Number', 'license_number', 'LicenseNumber', 'License', 'license', 'CDL', 'cdl', 'CDL Number', 'cdl_number', 'CDL #', 'cdl #']);
-            const licenseState = getValue(row, ['License State', 'License State', 'license_state', 'LicenseState', 'State', 'state', 'License State Code', 'State Code', 'state_code', 'CDL State', 'cdl_state']);
-            const phone = getValue(row, ['Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Phone #', 'phone #', 'Mobile', 'mobile', 'Cell', 'cell', 'Cell Phone', 'cell_phone', 'Contact Number', 'contact_number', 'Contact', 'contact']);
-            const licenseExpiry = parseDate(getValue(row, ['License Expiry', 'License Expiry', 'license_expiry', 'LicenseExpiry', 'License Expiration', 'License Exp Date', 'license_exp_date', 'CDL Expiry', 'cdl_expiry', 'CDL Expiration', 'Expiration Date', 'expiration_date']));
-            const medicalCardExpiry = parseDate(getValue(row, ['Medical Card Expiry', 'Medical Card Expiry', 'medical_card_expiry', 'MedicalCardExpiry', 'Medical Expiration', 'Medical Exp Date', 'medical_exp_date', 'Medical Card Exp', 'Medical Exp', 'DOT Medical Expiry', 'dot_medical_expiry']));
-            const defaultLicenseExpiry = licenseExpiry || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-            const defaultMedicalExpiry = medicalCardExpiry || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-            const payTypeValue = getValue(row, ['Pay Type', 'Pay Type', 'pay_type', 'PayType', 'Payment Type', 'payment_type', 'Compensation Type', 'compensation_type']);
-            const payType = payTypeValue ? (payTypeValue.toString().toUpperCase().replace(/[_\s-]/g, '_') as any) : 'PER_MILE';
-            const payRate = parseFloat(String(getValue(row, ['Pay Rate', 'Pay Rate', 'pay_rate', 'PayRate', 'Rate', 'rate', 'Pay Per Mile', 'pay_per_mile', 'Mile Rate', 'mile_rate', 'Hourly Rate', 'hourly_rate']) || '0')) || 0;
-            
-            console.error(`[Drivers Import] Row data:`, {
-              email,
-              firstName,
-              lastName,
-              driverNumber,
-              licenseNumber,
-              licenseState,
-              phone,
-              licenseExpiry: defaultLicenseExpiry,
-              medicalCardExpiry: defaultMedicalExpiry,
-              payType,
-              payRate,
-            });
-          } catch (logError: any) {
-            console.error(`[Drivers Import] Could not extract row data for logging:`, logError);
-          }
           errors.push({
             row: i + 1,
             field: 'General',
-            error: error.message || error.toString() || 'Failed to create driver',
+            error: error.message || error.toString() || 'Failed to process driver',
           });
         }
       }
+
+      // Batch create drivers using transactions (User + Driver relationship)
+      for (let i = 0; i < driversToCreate.length; i += BATCH_SIZE) {
+        const batch = driversToCreate.slice(i, i + BATCH_SIZE);
+        try {
+          // Use transaction to create user + driver pairs in batch
+          const results = await prisma.$transaction(
+            batch.map((item) =>
+              prisma.user.create({
+                data: {
+                  ...item.userData,
+                  driver: {
+                    create: item.driverData,
+                  },
+                },
+                include: { driver: true },
+              })
+            )
+          );
+          created.push(...results.map(r => r.driver!));
+        } catch (error: any) {
+          // If batch fails, try individual creates
+          for (const item of batch) {
+            try {
+              const user = await prisma.user.create({
+                data: {
+                  ...item.userData,
+                  driver: {
+                    create: item.driverData,
+                  },
+                },
+                include: { driver: true },
+              });
+              created.push(user.driver!);
+            } catch (err: any) {
+              errors.push({
+                row: item.rowIndex,
+                field: 'General',
+                error: err.message || 'Failed to create driver',
+              });
+            }
+          }
+        }
+      }
       
-      console.log(`[Drivers Import] Completed: ${created.length} created, ${errors.length} errors`);
     } else if (entity === 'users' || entity === 'dispatchers' || entity === 'employees') {
       // Import users/dispatchers/employees
-      console.log(`[Users Import] Starting import for ${importResult.data.length} rows...`);
+      // Starting users import
       const bcrypt = await import('bcryptjs');
       
       for (let i = 0; i < importResult.data.length; i++) {
@@ -2787,9 +2996,8 @@ export async function POST(
           });
           
           created.push(user);
-          console.log(`[Users Import] Created user ${email} (${user.id}) with role ${role}`);
         } catch (error: any) {
-          console.error(`[Users Import] Error creating user at row ${i + 1}:`, error);
+          // Error creating user
           errors.push({
             row: i + 1,
             field: 'General',
@@ -2798,7 +3006,6 @@ export async function POST(
         }
       }
       
-      console.log(`[Users Import] Completed: ${created.length} created, ${errors.length} errors`);
     } else {
       // For other entity types, return parsed data for frontend processing
       return NextResponse.json({

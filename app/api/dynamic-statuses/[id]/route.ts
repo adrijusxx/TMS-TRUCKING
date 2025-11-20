@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { EntityType } from '@prisma/client';
 
@@ -27,11 +28,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
     const status = await prisma.dynamicStatus.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -68,10 +70,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateStatusSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.dynamicStatus.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -86,7 +89,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (validatedData.name && validatedData.name !== existing.name) {
       const duplicate = await prisma.dynamicStatus.findFirst({
         where: {
-          companyId: session.user.companyId,
+          ...mcWhere,
           entityType: existing.entityType,
           name: validatedData.name,
           id: { not: id },
@@ -105,7 +108,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (validatedData.isDefault === true) {
       await prisma.dynamicStatus.updateMany({
         where: {
-          companyId: session.user.companyId,
+          ...mcWhere,
           entityType: existing.entityType,
           isDefault: true,
           id: { not: id },
@@ -148,10 +151,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params;
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.dynamicStatus.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });

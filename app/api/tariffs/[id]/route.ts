@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { TariffType } from '@prisma/client';
 
@@ -33,10 +34,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const tariff = await prisma.tariff.findFirst({
       where: {
         id: id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
       include: { tariffRules: true },
@@ -74,10 +76,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateTariffSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.tariff.findFirst({
       where: {
         id: id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -92,7 +95,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (validatedData.isDefault === true) {
       await prisma.tariff.updateMany({
         where: {
-          companyId: session.user.companyId,
+          ...mcWhere,
           isDefault: true,
           id: { not: id },
           deletedAt: null,
@@ -143,10 +146,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       );
     }
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.tariff.findFirst({
       where: {
         id: id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });

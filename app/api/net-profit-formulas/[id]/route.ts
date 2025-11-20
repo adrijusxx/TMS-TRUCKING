@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const updateFormulaSchema = z.object({
@@ -23,11 +24,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
     const formula = await prisma.netProfitFormula.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -64,10 +66,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const validatedData = updateFormulaSchema.parse(body);
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.netProfitFormula.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });
@@ -82,7 +85,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (validatedData.isDefault === true) {
       await prisma.netProfitFormula.updateMany({
         where: {
-          companyId: session.user.companyId,
+          ...mcWhere,
           isDefault: true,
           id: { not: id },
           deletedAt: null,
@@ -129,10 +132,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params;
 
+    const mcWhere = await buildMcNumberIdWhereClause(session, request);
     const existing = await prisma.netProfitFormula.findFirst({
       where: {
         id,
-        companyId: session.user.companyId,
+        ...mcWhere,
         deletedAt: null,
       },
     });

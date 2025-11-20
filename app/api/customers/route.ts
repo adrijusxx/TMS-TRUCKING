@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const isAdmin = session.user?.role === 'ADMIN';
 
     // Build base filter with MC number if applicable
-    let baseFilter = await buildMcNumberWhereClause(session, request);
+    let baseFilter: any = await buildMcNumberWhereClause(session, request);
     
     // Admin-only: Override MC filter based on view mode
     if (isAdmin && mcViewMode === 'all') {
@@ -40,9 +40,11 @@ export async function GET(request: NextRequest) {
       }
     } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
       // Filter by specific MC number ID (admin selecting specific MC)
+      // Handle both "mc:ID" format and plain ID format
+      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
       const mcNumberRecord = await prisma.mcNumber.findUnique({
-        where: { id: mcViewMode },
-        select: { number: true, companyId: true },
+        where: { id: mcId },
+        select: { number: true, companyId: true, companyName: true },
       });
       if (mcNumberRecord) {
         const user = await prisma.user.findUnique({
@@ -55,10 +57,32 @@ export async function GET(request: NextRequest) {
         ].filter(Boolean) as string[];
         
         if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
-          baseFilter = {
-            ...baseFilter,
-            mcNumber: mcNumberRecord.number,
-          };
+          const trimmedMcNumber = mcNumberRecord.number?.trim();
+          const trimmedCompanyName = mcNumberRecord.companyName?.trim();
+          
+          // Build OR conditions to match both MC number value AND company name
+          const orConditions: any[] = [];
+          
+          if (trimmedMcNumber) {
+            orConditions.push({ mcNumber: trimmedMcNumber });
+          }
+          
+          if (trimmedCompanyName) {
+            orConditions.push({ mcNumber: { contains: trimmedCompanyName, mode: 'insensitive' } });
+          }
+          
+          if (orConditions.length > 1) {
+            baseFilter = {
+              ...baseFilter,
+              OR: orConditions,
+            };
+            delete baseFilter.mcNumber;
+          } else if (orConditions.length === 1) {
+            baseFilter = {
+              ...baseFilter,
+              ...orConditions[0],
+            };
+          }
         }
       }
     }

@@ -49,13 +49,29 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
         pathname.startsWith('/dashboard/customers') ||
         pathname.startsWith('/dashboard/vendors') ||
         pathname.startsWith('/dashboard/locations') ||
-        pathname.startsWith('/dashboard/analytics')) {
+        pathname.startsWith('/dashboard/analytics') ||
+        pathname.startsWith('/dashboard/automation') ||
+        pathname.startsWith('/dashboard/accounting')) {
       return <AccountingNav />;
     }
 
     // Safety pages
-    if (pathname.startsWith('/dashboard/safety')) {
+    if (pathname.startsWith('/dashboard/safety') ||
+        pathname.startsWith('/dashboard/documents')) {
       return <SafetyNav />;
+    }
+    
+    // Reports pages
+    if (pathname.startsWith('/dashboard/reports')) {
+      return null; // Reports uses its own layout
+    }
+
+    // Settings pages
+    if (pathname.startsWith('/dashboard/settings') ||
+        pathname.startsWith('/dashboard/edi') ||
+        pathname.startsWith('/dashboard/mc-numbers') ||
+        pathname.startsWith('/dashboard/apps')) {
+      return <SettingsNav />;
     }
 
     // Fleet Management pages
@@ -75,15 +91,6 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       return <HRManagementNav />;
     }
 
-    // Settings pages
-    if (pathname.startsWith('/dashboard/settings') ||
-        pathname.startsWith('/dashboard/automation') ||
-        pathname.startsWith('/dashboard/edi') ||
-        pathname.startsWith('/dashboard/mc-numbers') ||
-        pathname.startsWith('/dashboard/apps') ||
-        pathname.startsWith('/dashboard/documents')) {
-      return <SettingsNav />;
-    }
 
     // Dashboard - no side nav
     return null;

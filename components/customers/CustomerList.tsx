@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Building2, Plus, Search, Upload } from 'lucide-react';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -71,6 +72,8 @@ async function fetchCustomers(params: {
 
 export default function CustomerList() {
   const { can } = usePermissions();
+  const searchParams = useSearchParams();
+  const mcParam = searchParams?.get('mc');
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
@@ -79,12 +82,13 @@ export default function CustomerList() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['customers', page, searchQuery, advancedFilters],
+    queryKey: ['customers', page, searchQuery, advancedFilters, mcParam],
     queryFn: () =>
       fetchCustomers({
         page,
         limit: 20,
         search: searchQuery || undefined,
+        mc: mcParam || undefined,
         ...advancedFilters,
       }),
   });
@@ -125,7 +129,7 @@ export default function CustomerList() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog entityType="customers" onImportComplete={() => refetch()} />
+          <ImportButton entityType="customers" />
           <ExportDialog entityType="customers" />
           {can('customers.create') && (
             <Link href="/dashboard/customers/new">
