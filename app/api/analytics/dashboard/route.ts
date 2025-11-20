@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,6 +32,9 @@ export async function GET(request: NextRequest) {
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
     lastMonthEnd.setHours(23, 59, 59, 999);
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Revenue calculations
     const [
       todayRevenue,
@@ -51,7 +55,7 @@ export async function GET(request: NextRequest) {
       // Today's revenue - include ALL loads, use pickupDate or deliveryDate
       prisma.load.aggregate({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           deletedAt: null,
           OR: [
             { pickupDate: { gte: todayStart, lte: todayEnd } },
@@ -64,7 +68,7 @@ export async function GET(request: NextRequest) {
       // This week's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           deletedAt: null,
           OR: [
             { pickupDate: { gte: weekStart } },
@@ -77,7 +81,7 @@ export async function GET(request: NextRequest) {
       // This month's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           deletedAt: null,
           OR: [
             { pickupDate: { gte: monthStart } },
@@ -90,7 +94,7 @@ export async function GET(request: NextRequest) {
       // Last month's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           deletedAt: null,
           OR: [
             { 
@@ -118,7 +122,7 @@ export async function GET(request: NextRequest) {
       // Active loads
       prisma.load.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: {
             in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
           },
@@ -128,7 +132,7 @@ export async function GET(request: NextRequest) {
       // Pending loads
       prisma.load.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: 'PENDING',
           deletedAt: null,
         },
@@ -136,7 +140,7 @@ export async function GET(request: NextRequest) {
       // Completed loads
       prisma.load.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
           deletedAt: null,
         },
@@ -144,7 +148,7 @@ export async function GET(request: NextRequest) {
       // Cancelled loads
       prisma.load.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: 'CANCELLED',
           deletedAt: null,
         },
@@ -152,7 +156,7 @@ export async function GET(request: NextRequest) {
       // Trucks in use
       prisma.truck.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: 'IN_USE',
           isActive: true,
           deletedAt: null,
@@ -161,7 +165,7 @@ export async function GET(request: NextRequest) {
       // Available trucks
       prisma.truck.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: 'AVAILABLE',
           isActive: true,
           deletedAt: null,
@@ -170,7 +174,7 @@ export async function GET(request: NextRequest) {
       // Trucks in maintenance
       prisma.truck.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: 'MAINTENANCE',
           isActive: true,
           deletedAt: null,
@@ -179,7 +183,7 @@ export async function GET(request: NextRequest) {
       // Active drivers
       prisma.driver.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: { in: ['ON_DUTY', 'DRIVING'] },
           isActive: true,
           deletedAt: null,
@@ -188,7 +192,7 @@ export async function GET(request: NextRequest) {
       // Available drivers
       prisma.driver.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: 'AVAILABLE',
           isActive: true,
           deletedAt: null,
@@ -197,7 +201,7 @@ export async function GET(request: NextRequest) {
       // Drivers on leave
       prisma.driver.count({
         where: {
-          companyId: session.user.companyId,
+          ...baseFilter,
           status: 'ON_LEAVE',
           isActive: true,
           deletedAt: null,

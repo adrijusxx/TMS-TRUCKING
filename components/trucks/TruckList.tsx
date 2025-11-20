@@ -58,11 +58,11 @@ interface TruckData {
 }
 
 const statusColors: Record<TruckStatus, string> = {
-  AVAILABLE: 'bg-green-100 text-green-800 border-green-200',
-  IN_USE: 'bg-blue-100 text-blue-800 border-blue-200',
-  MAINTENANCE: 'bg-orange-100 text-orange-800 border-orange-200',
-  OUT_OF_SERVICE: 'bg-red-100 text-red-800 border-red-200',
-  INACTIVE: 'bg-gray-100 text-gray-800 border-gray-200',
+  AVAILABLE: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800',
+  IN_USE: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+  MAINTENANCE: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800',
+  OUT_OF_SERVICE: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
+  INACTIVE: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
 };
 
 function formatStatus(status: TruckStatus): string {
@@ -146,12 +146,12 @@ export default function TruckList() {
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Trucks</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-bold">Trucks</h1>
+          <p className="text-sm text-muted-foreground">
             Manage your truck fleet
           </p>
         </div>
@@ -172,7 +172,7 @@ export default function TruckList() {
       <TruckListStats filters={{ ...advancedFilters, status: statusFilter, search: searchQuery }} />
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

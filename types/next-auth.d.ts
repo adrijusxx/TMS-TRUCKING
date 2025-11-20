@@ -7,14 +7,23 @@ declare module 'next-auth' {
       id: string;
       email: string;
       name: string;
+      firstName?: string;
+      lastName?: string;
       role: UserRole;
       companyId: string;
+      currentCompanyId?: string;
+      mcNumberId?: string;
+      mcNumber?: string;
     };
   }
 
   interface User {
     role: UserRole;
     companyId: string;
+    firstName?: string;
+    lastName?: string;
+    mcNumberId?: string;
+    mcNumber?: string;
   }
 }
 
@@ -23,6 +32,11 @@ declare module 'next-auth/jwt' {
     id: string;
     role: UserRole;
     companyId: string;
+    currentCompanyId?: string;
+    mcNumberId?: string;
+    mcNumber?: string;
+    firstName?: string;
+    lastName?: string;
   }
 }
 

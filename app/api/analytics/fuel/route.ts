@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,9 +24,12 @@ export async function GET(request: NextRequest) {
       : new Date();
     const truckId = searchParams.get('truckId');
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     const where: any = {
       truck: {
-        companyId: session.user.companyId,
+        ...baseFilter,
       },
       date: {
         gte: startDate,
@@ -70,7 +74,7 @@ export async function GET(request: NextRequest) {
     // Get loads for the period to calculate fuel efficiency - include ALL loads
     const loads = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: startDate, lte: endDate } },

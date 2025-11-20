@@ -55,12 +55,41 @@ export const authOptions: NextAuthConfig = {
     })
   ],
   callbacks: {
-    async jwt({ token, user }: { token: any; user?: any }) {
+    async jwt({ token, user, trigger, session: sessionData, request }: { token: any; user?: any; trigger?: string; session?: any; request?: any }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.companyId = user.companyId;
       }
+      
+      // Read MC number from cookies if available (for persistence across requests)
+      if (request) {
+        const cookies = request.cookies;
+        const mcNumberId = cookies.get('currentMcNumberId')?.value;
+        const mcNumber = cookies.get('currentMcNumber')?.value;
+        if (mcNumberId && mcNumber) {
+          token.mcNumberId = mcNumberId;
+          token.mcNumber = mcNumber;
+        } else if (!mcNumberId && !mcNumber) {
+          // Clear MC number if cookies are not set
+          delete token.mcNumberId;
+          delete token.mcNumber;
+        }
+      }
+      
+      // Update token when session is updated (e.g., when switching company/MC number)
+      if (trigger === 'update' && sessionData) {
+        if (sessionData.user?.currentCompanyId) {
+          token.currentCompanyId = sessionData.user.currentCompanyId;
+        }
+        if (sessionData.user?.mcNumberId !== undefined) {
+          token.mcNumberId = sessionData.user.mcNumberId;
+        }
+        if (sessionData.user?.mcNumber !== undefined) {
+          token.mcNumber = sessionData.user.mcNumber;
+        }
+      }
+      
       return token;
     },
     async session({ session, token }: { session: any; token: any }) {
@@ -68,6 +97,15 @@ export const authOptions: NextAuthConfig = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.companyId = token.companyId as string;
+        if (token.currentCompanyId) {
+          session.user.currentCompanyId = token.currentCompanyId as string;
+        }
+        if (token.mcNumberId) {
+          session.user.mcNumberId = token.mcNumberId as string;
+        }
+        if (token.mcNumber) {
+          session.user.mcNumber = token.mcNumber as string;
+        }
       }
       return session;
     },

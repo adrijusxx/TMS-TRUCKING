@@ -11,6 +11,7 @@ const updateUserSchema = z.object({
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER']).optional(),
   password: z.string().min(8).optional(),
   isActive: z.boolean().optional(),
+  mcNumberId: z.string().nullable().optional(),
 });
 
 export async function PATCH(
@@ -69,13 +70,53 @@ export async function PATCH(
       );
     }
 
-    // Non-admins can't change role or active status
+    // Non-admins can't change role, active status, or MC number
     if (!isAdmin) {
       delete validated.role;
       delete validated.isActive;
+      delete validated.mcNumberId;
     }
 
     const updateData: any = { ...validated };
+
+    // Handle mcNumberId - if null, set to null; if undefined, don't change
+    if (validated.mcNumberId === null) {
+      updateData.mcNumberId = null;
+    } else if (validated.mcNumberId === undefined) {
+      delete updateData.mcNumberId;
+    }
+
+    // If user is a driver and mcNumberId is being set, also update driver.mcNumber
+    if (validated.mcNumberId !== undefined && existingUser.role === 'DRIVER') {
+      // Get the user's driver record
+      const driver = await prisma.driver.findFirst({
+        where: { userId: existingUser.id },
+      });
+      
+      if (driver) {
+        if (validated.mcNumberId) {
+          // Get the MC number value
+          const mcNumber = await prisma.mcNumber.findUnique({
+            where: { id: validated.mcNumberId },
+            select: { number: true },
+          });
+          
+          if (mcNumber) {
+            // Update driver's mcNumber
+            await prisma.driver.update({
+              where: { id: driver.id },
+              data: { mcNumber: mcNumber.number },
+            });
+          }
+        } else {
+          // Clear driver's mcNumber if mcNumberId is null
+          await prisma.driver.update({
+            where: { id: driver.id },
+            data: { mcNumber: null },
+          });
+        }
+      }
+    }
 
     // Hash password if provided
     if (validated.password) {
@@ -95,6 +136,14 @@ export async function PATCH(
         isActive: true,
         lastLogin: true,
         updatedAt: true,
+        mcNumberId: true,
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
       },
     });
 

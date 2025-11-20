@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,10 +19,13 @@ export async function GET(request: NextRequest) {
     const dateParam = searchParams.get('date');
     const targetDate = dateParam ? new Date(dateParam) : new Date();
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Get unassigned loads
     const unassignedLoads = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: 'PENDING',
         deletedAt: null,
         pickupDate: {
@@ -44,7 +48,7 @@ export async function GET(request: NextRequest) {
     // Get assigned loads
     const assignedLoads = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: {
           in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
         },
@@ -86,7 +90,7 @@ export async function GET(request: NextRequest) {
     // Get available drivers
     const availableDrivers = await prisma.driver.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,
@@ -112,7 +116,7 @@ export async function GET(request: NextRequest) {
     // Get available trucks
     const availableTrucks = await prisma.truck.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,

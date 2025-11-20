@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * Get upcoming deadlines for the dashboard
@@ -30,10 +31,13 @@ export async function GET(request: NextRequest) {
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Upcoming load pickups (next 7 days)
     const upcomingPickups = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         pickupDate: {
           gte: now,
           lte: sevenDaysFromNow,
@@ -80,7 +84,7 @@ export async function GET(request: NextRequest) {
     // Upcoming load deliveries (next 7 days)
     const upcomingDeliveries = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deliveryDate: {
           gte: now,
           lte: sevenDaysFromNow,
@@ -125,11 +129,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Overdue and upcoming invoice due dates (next 7 days)
+    // Filter customers by MC number first
+    const customerFilter = baseFilter.mcNumber 
+      ? { ...baseFilter, isActive: true }
+      : { companyId: session.user.companyId, isActive: true };
+    
+    const companyCustomers = await prisma.customer.findMany({
+      where: customerFilter,
+      select: { id: true },
+    });
+    const customerIds = companyCustomers.map((c) => c.id);
+
     const upcomingInvoices = await prisma.invoice.findMany({
       where: {
-        customer: {
-          companyId: session.user.companyId,
-        },
+        customerId: { in: customerIds },
+        ...(baseFilter.mcNumber ? { mcNumber: baseFilter.mcNumber } : {}),
         dueDate: {
           lte: sevenDaysFromNow,
         },
@@ -172,7 +186,7 @@ export async function GET(request: NextRequest) {
     // Expiring documents (next 30 days)
     const expiringDrivers = await prisma.driver.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         isActive: true,
         deletedAt: null,
         OR: [

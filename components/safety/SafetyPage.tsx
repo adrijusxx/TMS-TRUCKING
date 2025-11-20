@@ -120,27 +120,27 @@ function formatType(type: string): string {
 
 function getSeverityColor(severity: string): string {
   const colors: Record<string, string> = {
-    MINOR: 'bg-gray-100 text-gray-800',
-    MODERATE: 'bg-yellow-100 text-yellow-800',
-    MAJOR: 'bg-orange-100 text-orange-800',
-    CRITICAL: 'bg-red-100 text-red-800',
-    FATAL: 'bg-red-200 text-red-900',
+    MINOR: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+    MODERATE: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    MAJOR: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+    CRITICAL: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    FATAL: 'bg-red-200 text-red-900 dark:bg-red-900/40 dark:text-red-200',
   };
   return colors[severity] || 'bg-gray-100 text-gray-800';
 }
 
 function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    REPORTED: 'bg-yellow-100 text-yellow-800',
-    UNDER_INVESTIGATION: 'bg-blue-100 text-blue-800',
-    INVESTIGATION_COMPLETE: 'bg-green-100 text-green-800',
-    RESOLVED: 'bg-green-100 text-green-800',
-    CLOSED: 'bg-gray-100 text-gray-800',
-    SCHEDULED: 'bg-blue-100 text-blue-800',
-    IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
-    COMPLETED: 'bg-green-100 text-green-800',
-    EXPIRED: 'bg-red-100 text-red-800',
-    CANCELLED: 'bg-gray-100 text-gray-800',
+    REPORTED: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    UNDER_INVESTIGATION: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    INVESTIGATION_COMPLETE: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    RESOLVED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    CLOSED: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+    SCHEDULED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    IN_PROGRESS: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    COMPLETED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    EXPIRED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    CANCELLED: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
   };
   return colors[status] || 'bg-gray-100 text-gray-800';
 }
@@ -197,17 +197,17 @@ export default function SafetyPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Safety</h1>
-          <p className="text-muted-foreground">Manage safety records and compliance</p>
+          <h1 className="text-2xl font-bold">Safety</h1>
+          <p className="text-sm text-muted-foreground">Manage safety records and compliance</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="incidents" className="space-y-4">
+      <Tabs defaultValue="incidents" className="space-y-3">
         <TabsList>
           <TabsTrigger value="incidents">
             <AlertTriangle className="h-4 w-4 mr-2" />
@@ -220,8 +220,8 @@ export default function SafetyPage() {
         </TabsList>
 
         {/* Incidents Tab */}
-        <TabsContent value="incidents" className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <TabsContent value="incidents" className="space-y-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-2">
               <ImportDialog entityType="safety-incidents" onImportComplete={() => refetchIncidents()} />
               <ExportDialog entityType="safety-incidents" />
@@ -235,7 +235,7 @@ export default function SafetyPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Select value={incidentTypeFilter} onValueChange={(value) => { setIncidentTypeFilter(value); setIncidentPage(1); }}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <Filter className="h-4 w-4 mr-2" />
@@ -442,8 +442,8 @@ export default function SafetyPage() {
         </TabsContent>
 
         {/* Trainings Tab */}
-        <TabsContent value="trainings" className="space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <TabsContent value="trainings" className="space-y-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-2">
               <ImportDialog entityType="safety-trainings" onImportComplete={() => refetchTrainings()} />
               <ExportDialog entityType="safety-trainings" />
@@ -457,7 +457,7 @@ export default function SafetyPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Select value={trainingTypeFilter} onValueChange={(value) => { setTrainingTypeFilter(value); setTrainingPage(1); }}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <Filter className="h-4 w-4 mr-2" />

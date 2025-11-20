@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * GET /api/trailers
@@ -22,9 +23,12 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Build where clause
     const where: any = {
-      companyId: session.user.companyId,
+      ...baseFilter,
       deletedAt: null,
     };
 

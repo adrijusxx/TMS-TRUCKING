@@ -64,6 +64,15 @@ export async function POST(request: NextRequest) {
       updateData.payType = payType;
     }
 
+    // Calculate and update driver tariff
+    const { calculateDriverTariff } = await import('@/lib/utils/driverTariff');
+    const tariff = calculateDriverTariff({
+      payType: (payType as PayType) || PayType.PER_MILE,
+      payRate,
+      loads: [], // Base tariff, not from loads
+    });
+    updateData.driverTariff = tariff;
+
     // Update all matching drivers
     const result = await prisma.driver.updateMany({
       where,

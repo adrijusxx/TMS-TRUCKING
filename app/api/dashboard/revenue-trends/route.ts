@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * Get revenue trends for the last 6 months
@@ -20,10 +21,13 @@ export async function GET(request: NextRequest) {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Get loads grouped by month - include ALL loads, use pickupDate or deliveryDate
     const loads = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: sixMonthsAgo, lte: now } },

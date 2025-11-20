@@ -79,28 +79,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate gross pay based on driver's pay type
+    // Use current driver payRate for calculations (not stored load.driverPay)
     let grossPay = 0;
     let totalMiles = 0;
 
     for (const load of loads) {
-      if (driver.payType === 'PER_MILE') {
-        // Calculate miles (simplified - would use actual route distance)
-        const estimatedMiles = 500; // Placeholder
-        totalMiles += estimatedMiles;
-        grossPay += estimatedMiles * driver.payRate;
-      } else if (driver.payType === 'PER_LOAD') {
-        grossPay += driver.payRate;
-      } else if (driver.payType === 'PERCENTAGE') {
-        grossPay += load.revenue * (driver.payRate / 100);
-      } else if (driver.payType === 'HOURLY') {
-        // Would need actual hours worked
-        const estimatedHours = 10; // Placeholder
-        grossPay += estimatedHours * driver.payRate;
-      }
-
-      // Add driver pay if specified on load
-      if (load.driverPay) {
+      // Use load.driverPay if it's manually set, otherwise calculate from current driver payRate
+      if (load.driverPay && load.driverPay > 0) {
+        // Load has manually set driver pay, use it
         grossPay += load.driverPay;
+      } else {
+        // Calculate from current driver pay rate
+        if (driver.payType === 'PER_MILE') {
+          // Use actual miles from load if available
+          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+          if (miles > 0) {
+            totalMiles += miles;
+            grossPay += miles * driver.payRate;
+          }
+        } else if (driver.payType === 'PER_LOAD') {
+          grossPay += driver.payRate;
+        } else if (driver.payType === 'PERCENTAGE') {
+          grossPay += (load.revenue || 0) * (driver.payRate / 100);
+        } else if (driver.payType === 'HOURLY') {
+          // Estimate hours based on miles (rough estimate: 50 mph average)
+          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+          const estimatedHours = miles > 0 ? miles / 50 : 10; // Default 10 hours if no miles
+          grossPay += estimatedHours * driver.payRate;
+        }
       }
     }
 

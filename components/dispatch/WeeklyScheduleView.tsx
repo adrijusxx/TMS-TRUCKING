@@ -88,7 +88,8 @@ const statusColors: Record<string, string> = {
   REST: 'bg-purple-500 text-white',
 };
 
-function formatStatus(status: string): string {
+function formatStatus(status: string | null | undefined): string {
+  if (!status) return 'Unknown';
   return status.replace(/_/g, ' ');
 }
 
@@ -353,8 +354,8 @@ export default function WeeklyScheduleView() {
                                 'p-2 rounded text-xs cursor-pointer hover:opacity-80',
                                 load.status === 'DELIVERED' ||
                                   load.status === 'COMPLETED'
-                                  ? 'bg-green-100 border border-green-300'
-                                  : 'bg-blue-100 border border-blue-300'
+                                  ? 'bg-green-100 border border-green-300 dark:bg-green-900/30 dark:border-green-800'
+                                  : 'bg-blue-100 border border-blue-300 dark:bg-blue-900/30 dark:border-blue-800'
                               )}
                               title={`${load.customerName} - ${load.pickupCity}, ${load.pickupState} → ${load.deliveryCity}, ${load.deliveryState}`}
                             >

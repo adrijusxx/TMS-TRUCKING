@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * GET /api/fleet-board
@@ -16,10 +17,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Get all trucks with their current loads
     const trucks = await prisma.truck.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         isActive: true,
         deletedAt: null,
       },
@@ -38,6 +42,7 @@ export async function GET(request: NextRequest) {
         },
         loads: {
           where: {
+            ...(baseFilter.mcNumber ? { mcNumber: baseFilter.mcNumber } : {}),
             status: {
               in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
             },

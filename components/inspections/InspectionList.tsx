@@ -134,12 +134,12 @@ export default function InspectionList() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Inspections</h1>
-          <p className="text-muted-foreground">Manage vehicle inspections and compliance</p>
+          <h1 className="text-2xl font-bold">Inspections</h1>
+          <p className="text-sm text-muted-foreground">Manage vehicle inspections and compliance</p>
         </div>
         <div className="flex items-center gap-2">
           <ImportDialog entityType="inspections" onImportComplete={() => refetch()} />
@@ -154,7 +154,7 @@ export default function InspectionList() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Select value={typeFilter} onValueChange={(value) => { setTypeFilter(value); setPage(1); }}>
           <SelectTrigger className="w-full sm:w-[180px]">
             <Filter className="h-4 w-4 mr-2" />

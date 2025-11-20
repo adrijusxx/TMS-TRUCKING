@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,10 +32,13 @@ export async function GET(request: NextRequest) {
 
     const searchTerm = `%${query}%`;
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Search loads
     const loads = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
         OR: [
           { loadNumber: { contains: query, mode: 'insensitive' } },
@@ -58,7 +62,7 @@ export async function GET(request: NextRequest) {
     // Search drivers
     const drivers = await prisma.driver.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
         OR: [
           { driverNumber: { contains: query, mode: 'insensitive' } },
@@ -82,7 +86,7 @@ export async function GET(request: NextRequest) {
     // Search trucks
     const trucks = await prisma.truck.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
         OR: [
           { truckNumber: { contains: query, mode: 'insensitive' } },
@@ -102,7 +106,7 @@ export async function GET(request: NextRequest) {
     // Search customers
     const customers = await prisma.customer.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
         OR: [
           { name: { contains: query, mode: 'insensitive' } },

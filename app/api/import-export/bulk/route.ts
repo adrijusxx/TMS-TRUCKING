@@ -353,7 +353,7 @@ async function importEntityData(
               insuranceExpiry: parseDate(
                 getValue(row, ['Insurance expiry date', 'Insurance Expiry Date'])
               ),
-              tags: parseTags(getValue(row, ['Tags', 'tags'])),
+              legacyTags: parseTags(getValue(row, ['Tags', 'tags'])),
             },
           });
 

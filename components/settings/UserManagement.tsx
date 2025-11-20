@@ -58,6 +58,7 @@ const userSchema = z.object({
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER']),
   isActive: z.boolean().optional(),
+  mcNumberId: z.string().nullable().optional(),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -68,6 +69,12 @@ async function fetchUsers(roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | n
     : '/api/settings/users';
   const response = await fetch(apiUrl(url));
   if (!response.ok) throw new Error('Failed to fetch users');
+  return response.json();
+}
+
+async function fetchMcNumbers() {
+  const response = await fetch(apiUrl('/api/mc-numbers?limit=1000'));
+  if (!response.ok) throw new Error('Failed to fetch MC numbers');
   return response.json();
 }
 
@@ -119,11 +126,11 @@ async function deleteUser(userId: string) {
 }
 
 const roleColors: Record<string, string> = {
-  ADMIN: 'bg-red-100 text-red-800 border-red-200',
-  DISPATCHER: 'bg-blue-100 text-blue-800 border-blue-200',
-  ACCOUNTANT: 'bg-green-100 text-green-800 border-green-200',
-  DRIVER: 'bg-gray-100 text-gray-800 border-gray-200',
-  CUSTOMER: 'bg-purple-100 text-purple-800 border-purple-200',
+  ADMIN: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
+  DISPATCHER: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+  ACCOUNTANT: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800',
+  DRIVER: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+  CUSTOMER: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
 };
 
 interface UserManagementProps {
@@ -149,6 +156,13 @@ export default function UserManagement({
     queryKey: ['users', roleFilter],
     queryFn: () => fetchUsers(roleFilter),
   });
+
+  const { data: mcNumbersData } = useQuery({
+    queryKey: ['mc-numbers'],
+    queryFn: fetchMcNumbers,
+  });
+
+  const mcNumbers = mcNumbersData?.data || [];
 
   // Create form
   const createForm = useForm<UserFormData>({
@@ -236,6 +250,7 @@ export default function UserManagement({
       role: user.role,
       isActive: user.isActive,
       password: '',
+      mcNumberId: user.mcNumberId || null,
     });
     setIsEditDialogOpen(true);
   };
@@ -363,6 +378,33 @@ export default function UserManagement({
                     )}
                   </div>
 
+                  {(selectedRole === 'DISPATCHER' || selectedRole === 'ACCOUNTANT' || selectedRole === 'ADMIN' || selectedRole === 'DRIVER') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="mcNumberId">MC Number</Label>
+                      <Select
+                        value={createForm.watch('mcNumberId') || ''}
+                        onValueChange={(value) => createForm.setValue('mcNumberId', value || null)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select MC Number (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {mcNumbers.map((mc: any) => (
+                            <SelectItem key={mc.id} value={mc.id}>
+                              {mc.companyName} (MC {mc.number})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {createForm.formState.errors.mcNumberId && (
+                        <p className="text-sm text-destructive">
+                          {createForm.formState.errors.mcNumberId.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-2">
                     <Button
                       type="button"
@@ -401,6 +443,7 @@ export default function UserManagement({
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>MC Number</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last Login</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -420,6 +463,19 @@ export default function UserManagement({
                       >
                         {user.role}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.mcNumber ? (
+                        <Badge variant="outline">
+                          {user.mcNumber.companyName} (MC {user.mcNumber.number})
+                        </Badge>
+                      ) : user.driver?.mcNumber ? (
+                        <Badge variant="outline">
+                          MC {user.driver.mcNumber}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -550,6 +606,33 @@ export default function UserManagement({
                 </p>
               )}
             </div>
+
+            {(editSelectedRole === 'DISPATCHER' || editSelectedRole === 'ACCOUNTANT' || editSelectedRole === 'ADMIN' || editSelectedRole === 'DRIVER') && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-mcNumberId">MC Number</Label>
+                <Select
+                  value={editForm.watch('mcNumberId') || ''}
+                  onValueChange={(value) => editForm.setValue('mcNumberId', value || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select MC Number (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {mcNumbers.map((mc: any) => (
+                      <SelectItem key={mc.id} value={mc.id}>
+                        {mc.companyName} (MC {mc.number})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editForm.formState.errors.mcNumberId && (
+                  <p className="text-sm text-destructive">
+                    {editForm.formState.errors.mcNumberId.message}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center space-x-2">
               <Checkbox

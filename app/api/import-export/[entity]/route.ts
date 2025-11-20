@@ -379,6 +379,10 @@ export async function POST(
       );
     }
 
+    // Get currently selected MC number to use as fallback when importing
+    const { getCurrentMcNumber } = await import('@/lib/mc-number-filter');
+    const { mcNumber: currentMcNumber } = await getCurrentMcNumber(session, request);
+
     const { entity } = await params;
 
     // Check permission - allow multiple permissions per entity
@@ -831,7 +835,7 @@ export async function POST(
               customerNumber,
               name,
               type: customerType,
-              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']),
+              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || undefined,
               location: getValue(row, ['Location', 'location']),
               website: getValue(row, ['Website', 'website']),
               referenceNumber: getValue(row, ['Reference number', 'Reference Number', 'reference_number']),
@@ -933,7 +937,7 @@ export async function POST(
               year: parseInt(String(getValue(row, ['Year', 'year']) || new Date().getFullYear())) || new Date().getFullYear(),
               licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']) || '',
               state: getValue(row, ['State', 'state']) || '',
-              mcNumber: getValue(row, ['MC number', 'MC Number', 'mc_number']),
+              mcNumber: getValue(row, ['MC number', 'MC Number', 'mc_number']) || currentMcNumber || undefined,
               equipmentType: 'DRY_VAN',
               capacity: 45000,
               status: truckStatus,
@@ -946,7 +950,7 @@ export async function POST(
               inspectionExpiry,
               tollTagNumber: getValue(row, ['Toll tag number', 'Toll Tag Number', 'toll_tag_number']),
               fuelCard: getValue(row, ['Fuel card', 'Fuel Card', 'fuel_card']),
-              tags: parseTags(getValue(row, ['Tags', 'tags'])),
+              // Note: tags are handled via TruckTag relation, not directly on Truck model
               notes: getValue(row, ['Notes', 'notes']),
               warnings: getValue(row, ['Warnings', 'warnings']),
             },
@@ -1008,11 +1012,11 @@ export async function POST(
               year: parseInt(String(getValue(row, ['year', 'Year']) || '0')) || null,
               licensePlate: getValue(row, ['plate_number', 'Plate number', 'Plate Number', 'license_plate']) || null,
               state: getValue(row, ['state', 'State']) || null,
-              mcNumber: getValue(row, ['mc_number', 'MC Number', 'MC Number']) || null,
+              mcNumber: getValue(row, ['mc_number', 'MC Number', 'MC Number']) || currentMcNumber || null,
               type: getValue(row, ['type', 'Type']) || null,
               ownership: getValue(row, ['ownership', 'Ownership']) || null,
               ownerName: getValue(row, ['owner_name', 'Owner name', 'Owner Name']) || null,
-              assignedTruckId,
+              ...(assignedTruckId ? { assignedTruckId } : {}),
               status: getValue(row, ['status', 'Status']) || null,
               fleetStatus: getValue(row, ['fleet_status', 'Fleet Status', 'Fleet Status']) || null,
               registrationExpiry: parseDate(
@@ -1024,7 +1028,7 @@ export async function POST(
               insuranceExpiry: parseDate(
                 getValue(row, ['insurance_expiry', 'Insurance expiry date', 'Insurance Expiry Date'])
               ),
-              tags: parseTags(getValue(row, ['tags', 'Tags'])),
+              // Note: tags are handled via TrailerTag relation, not directly on Trailer model
             },
           });
 
@@ -1687,7 +1691,8 @@ export async function POST(
           const deliveryCompany = getValue(row, ['Delivery company', 'Delivery Company', 'delivery_company', 'Delivery Company Name', 'delivery_company_name']);
 
           // Get MC Number (can be from truck, trailer, or load level)
-          const mcNumber = getValue(row, ['MC Number', 'MC number', 'mc_number', 'MC#']);
+          // Use value from file if present, otherwise fall back to currently selected MC number
+          const mcNumber = getValue(row, ['MC Number', 'MC number', 'mc_number', 'MC#']) || currentMcNumber || undefined;
           
           // Get Trip ID
           const tripId = getValue(row, ['Trip ID', 'Trip Id', 'trip_id', 'Trip Number', 'trip_number']);
@@ -2384,6 +2389,31 @@ export async function POST(
       console.log(`[Drivers Import] Starting import for ${importResult.data.length} rows...`);
       const bcrypt = await import('bcryptjs');
       
+      // Pre-fetch all trucks for efficient lookup (like loads import)
+      const allTrucks = await prisma.truck.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { id: true, truckNumber: true },
+      });
+      
+      // Create truck lookup map
+      const truckMap = new Map<string, string>(); // truckNumber -> id
+      allTrucks.forEach((t) => {
+        const normalized = t.truckNumber.toLowerCase().trim();
+        truckMap.set(normalized, t.id);
+        // Also store without leading zeros for flexible matching
+        const noZeros = normalized.replace(/^0+/, '');
+        if (noZeros !== normalized) {
+          truckMap.set(noZeros, t.id);
+        }
+        // Also store original case
+        truckMap.set(t.truckNumber.trim(), t.id);
+      });
+      
+      console.log(`[Drivers Import] Pre-fetched ${allTrucks.length} trucks for assignment`);
+      
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
         console.log(`[Drivers Import] Processing row ${i + 1}...`);
@@ -2501,6 +2531,100 @@ export async function POST(
           const payType = payTypeValue ? (payTypeValue.toString().toUpperCase().replace(/[_\s-]/g, '_') as any) : 'PER_MILE';
           const payRate = parseFloat(String(getValue(row, ['Pay Rate', 'Pay Rate', 'pay_rate', 'PayRate', 'Rate', 'rate', 'Pay Per Mile', 'pay_per_mile', 'Mile Rate', 'mile_rate', 'Hourly Rate', 'hourly_rate']) || '0')) || 0;
           
+          // Get driver tariff (display string like "$0.65 per mile + 30 per stop")
+          const driverTariff = getValue(row, ['Driver Tariff', 'Driver tariff', 'driver_tariff', 'DriverTariff', 'Tariff', 'tariff', 'Pay Structure', 'pay_structure', 'Compensation', 'compensation']) || null;
+          
+          // Get pay to (who to pay to)
+          const payTo = getValue(row, ['Pay to', 'Pay To', 'pay_to', 'PayTo', 'Pay To', 'Pay To Company', 'pay_to_company', 'Payee', 'payee']) || null;
+          
+          // Get driver type (map to enum: COMPANY_DRIVER, LEASE, OWNER_OPERATOR)
+          const driverTypeValue = getValue(row, ['Driver Type', 'Driver type', 'driver_type', 'DriverType', 'Type', 'type', 'Employee Type', 'employee_type']);
+          let driverType: 'COMPANY_DRIVER' | 'LEASE' | 'OWNER_OPERATOR' = 'COMPANY_DRIVER';
+          if (driverTypeValue) {
+            const normalizedType = driverTypeValue.toString().toLowerCase().replace(/[_\s-]/g, '_');
+            if (normalizedType.includes('owner') || normalizedType.includes('company_owner')) {
+              driverType = 'OWNER_OPERATOR';
+            } else if (normalizedType.includes('lease')) {
+              driverType = 'LEASE';
+            } else {
+              driverType = 'COMPANY_DRIVER';
+            }
+          }
+          
+          // Get truck number and find truck from pre-fetched map
+          const truckNumber = getValue(row, ['Truck', 'truck', 'Truck Number', 'truck_number', 'Truck#', 'truck#', 'Truck Number', 'Unit number', 'Unit Number', 'Unit']) || null;
+          let currentTruckId: string | null = null;
+          
+          if (truckNumber) {
+            // Find truck from pre-fetched map (fast lookup)
+            const normalizedTruckNumber = String(truckNumber).trim().toLowerCase();
+            const truckId = truckMap.get(normalizedTruckNumber) || 
+                           truckMap.get(String(truckNumber).trim()) || 
+                           truckMap.get(normalizedTruckNumber.replace(/^0+/, ''));
+            
+            if (truckId) {
+              currentTruckId = truckId;
+              console.log(`[Drivers Import] Row ${i + 1}: Found truck ${truckNumber} (ID: ${truckId})`);
+            } else {
+              console.log(`[Drivers Import] Row ${i + 1}: Truck ${truckNumber} not found in database`);
+            }
+          }
+          
+          // Get assignment status and dispatch status
+          const assignmentStatusValue = getValue(row, ['Assign status', 'Assign Status', 'assignment_status', 'Assignment Status', 'Assignment', 'assignment']) || 'READY_TO_GO';
+          let assignmentStatus: 'READY_TO_GO' | 'NOT_READY' | 'TERMINATED' = 'READY_TO_GO';
+          if (assignmentStatusValue) {
+            const normalized = assignmentStatusValue.toString().toLowerCase().replace(/[_\s-]/g, '_');
+            if (normalized.includes('not_ready') || normalized.includes('not ready')) {
+              assignmentStatus = 'NOT_READY';
+            } else if (normalized.includes('terminated')) {
+              assignmentStatus = 'TERMINATED';
+            } else {
+              assignmentStatus = 'READY_TO_GO';
+            }
+          }
+          
+          const dispatchStatusValue = getValue(row, ['Dispatch status', 'Dispatch Status', 'dispatch_status', 'DispatchStatus', 'Dispatch', 'dispatch', 'Note', 'note']) || null;
+          let dispatchStatus: 'DISPATCHED' | 'ENROUTE' | 'TERMINATION' | 'REST' | 'AVAILABLE' | null = null;
+          if (dispatchStatusValue) {
+            const normalized = dispatchStatusValue.toString().toLowerCase().replace(/[_\s-]/g, '_');
+            if (normalized.includes('dispatched')) {
+              dispatchStatus = 'DISPATCHED';
+            } else if (normalized.includes('enroute') || normalized.includes('en route')) {
+              dispatchStatus = 'ENROUTE';
+            } else if (normalized.includes('rest') || normalized.includes('restruck')) {
+              dispatchStatus = 'REST';
+            } else if (normalized.includes('available')) {
+              dispatchStatus = 'AVAILABLE';
+            }
+          }
+          
+          // Get driver status
+          const driverStatusValue = getValue(row, ['Driver status', 'Driver Status', 'driver_status', 'DriverStatus', 'Status', 'status']) || 'AVAILABLE';
+          let driverStatus: 'AVAILABLE' | 'ON_DUTY' | 'DRIVING' | 'OFF_DUTY' | 'SLEEPER_BERTH' | 'ON_LEAVE' | 'INACTIVE' | 'IN_TRANSIT' | 'DISPATCHED' = 'AVAILABLE';
+          if (driverStatusValue) {
+            const normalized = driverStatusValue.toString().toLowerCase().replace(/[_\s-]/g, '_');
+            if (normalized.includes('in_transit') || normalized.includes('in transit')) {
+              driverStatus = 'IN_TRANSIT';
+            } else if (normalized.includes('dispatched')) {
+              driverStatus = 'DISPATCHED';
+            } else if (normalized.includes('on_duty') || normalized.includes('on duty')) {
+              driverStatus = 'ON_DUTY';
+            } else if (normalized.includes('driving')) {
+              driverStatus = 'DRIVING';
+            } else if (normalized.includes('off_duty') || normalized.includes('off duty')) {
+              driverStatus = 'OFF_DUTY';
+            } else if (normalized.includes('sleeper') || normalized.includes('berth')) {
+              driverStatus = 'SLEEPER_BERTH';
+            } else if (normalized.includes('leave') || normalized.includes('vacation')) {
+              driverStatus = 'ON_LEAVE';
+            } else if (normalized.includes('rest')) {
+              driverStatus = 'OFF_DUTY';
+            } else {
+              driverStatus = 'AVAILABLE';
+            }
+          }
+          
           // Generate default password (user can change it later)
           const defaultPassword = await bcrypt.hash('Driver123!', 10);
           
@@ -2518,6 +2642,9 @@ export async function POST(
           });
           
           // Create driver
+          // Use MC number from file if present, otherwise use currently selected MC number
+          const driverMcNumber = mcNumber || currentMcNumber || null;
+          
           const driver = await prisma.driver.create({
             data: {
               userId: user.id,
@@ -2531,9 +2658,17 @@ export async function POST(
               backgroundCheck: backgroundCheck || null,
               payType: payType === 'PER_MILE' || payType === 'PER_LOAD' || payType === 'PERCENTAGE' || payType === 'HOURLY' ? payType : 'PER_MILE',
               payRate: payRate || 0,
+              driverTariff: driverTariff || null,
+              payTo: payTo || null,
+              driverType,
+              status: driverStatus,
+              assignmentStatus,
+              dispatchStatus,
               homeTerminal: getValue(row, ['Home Terminal', 'Home Terminal', 'home_terminal', 'HomeTerminal', 'Terminal', 'terminal', 'Base Terminal', 'base_terminal', 'Home Base', 'home_base']) || null,
               emergencyContact: getValue(row, ['Emergency Contact', 'Emergency Contact', 'emergency_contact', 'EmergencyContact', 'Emergency Contact Name', 'emergency_contact_name', 'EC Name', 'ec_name']) || null,
               emergencyPhone: getValue(row, ['Emergency Phone', 'Emergency Phone', 'emergency_phone', 'EmergencyPhone', 'Emergency Contact Phone', 'emergency_contact_phone', 'EC Phone', 'ec_phone', 'Emergency #', 'emergency #']) || null,
+              mcNumber: driverMcNumber,
+              currentTruckId: currentTruckId || null,
             },
           });
           

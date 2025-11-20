@@ -149,12 +149,12 @@ export default function TrailerList() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Trailers</h1>
-          <p className="text-muted-foreground">Manage trailer fleet and assignments</p>
+          <h1 className="text-2xl font-bold">Trailers</h1>
+          <p className="text-sm text-muted-foreground">Manage trailer fleet and assignments</p>
         </div>
         <div className="flex items-center gap-2">
           {can('trucks.create') && (

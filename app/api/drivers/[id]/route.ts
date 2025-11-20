@@ -172,6 +172,37 @@ export async function PATCH(
       }
     });
 
+    // Recalculate driver tariff if payType or payRate changed
+    if (updateData.payType !== undefined || updateData.payRate !== undefined) {
+      const { calculateDriverTariff } = await import('@/lib/utils/driverTariff');
+      const finalPayType = updateData.payType || existingDriver.payType;
+      const finalPayRate = updateData.payRate || existingDriver.payRate;
+      
+      // Get driver's loads for tariff calculation
+      const driverLoads = await prisma.load.findMany({
+        where: {
+          driverId: id,
+          deletedAt: null,
+        },
+        select: {
+          revenue: true,
+          driverPay: true,
+          totalMiles: true,
+          loadedMiles: true,
+          emptyMiles: true,
+          serviceFee: true,
+        },
+        take: 100,
+      });
+
+      const tariff = calculateDriverTariff({
+        payType: finalPayType,
+        payRate: finalPayRate,
+        loads: driverLoads,
+      });
+      updateData.driverTariff = tariff;
+    }
+
     // Update user if needed
     if (validated.firstName || validated.lastName || validated.phone) {
       await prisma.user.update({

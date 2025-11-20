@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { getCurrentMcNumber } from '@/lib/mc-number-filter';
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -12,6 +13,7 @@ const createUserSchema = z.object({
   lastName: z.string().min(1),
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER']),
+  mcNumberId: z.string().nullable().optional(),
 });
 
 const updateUserSchema = z.object({
@@ -37,6 +39,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const roleFilter = searchParams.get('role');
 
+    // Check if MC number is selected
+    const { mcNumberId, mcNumber } = await getCurrentMcNumber(session, request);
+
     const where: any = {
       companyId: session.user.companyId,
       deletedAt: null,
@@ -45,11 +50,33 @@ export async function GET(request: NextRequest) {
     // Filter by role if specified
     if (roleFilter === 'DISPATCHER') {
       where.role = 'DISPATCHER';
+      // If MC number is selected, filter dispatchers by their mcNumberId
+      if (mcNumberId) {
+        where.mcNumberId = mcNumberId;
+      }
     } else if (roleFilter === 'EMPLOYEES') {
       // Employees = ADMIN, ACCOUNTANT (not DISPATCHER, not DRIVER)
       where.role = { in: ['ADMIN', 'ACCOUNTANT'] };
+      // If MC number is selected, filter employees by their mcNumberId
+      if (mcNumberId) {
+        where.mcNumberId = mcNumberId;
+      }
     } else if (roleFilter === 'DRIVER') {
       where.role = 'DRIVER';
+      // If MC number is selected, filter drivers by their driver.mcNumber
+      if (mcNumber) {
+        where.driver = {
+          mcNumber: mcNumber,
+        };
+      }
+    } else {
+      // For all users, if MC number is selected, filter by mcNumberId (for dispatchers/employees) or driver.mcNumber (for drivers)
+      if (mcNumberId) {
+        where.OR = [
+          { mcNumberId: mcNumberId },
+          { driver: { mcNumber: mcNumber } },
+        ];
+      }
     }
 
     const users = await prisma.user.findMany({
@@ -64,6 +91,19 @@ export async function GET(request: NextRequest) {
         isActive: true,
         lastLogin: true,
         createdAt: true,
+        mcNumberId: true,
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
+        driver: {
+          select: {
+            mcNumber: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -133,12 +173,20 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
+    // Prepare user data
+    const userData: any = {
+      ...validated,
+      password: hashedPassword,
+      companyId: session.user.companyId,
+    };
+    
+    // Remove mcNumberId from userData if it's null/empty (let it be undefined)
+    if (!userData.mcNumberId) {
+      delete userData.mcNumberId;
+    }
+
     const user = await prisma.user.create({
-      data: {
-        ...validated,
-        password: hashedPassword,
-        companyId: session.user.companyId,
-      },
+      data: userData,
       select: {
         id: true,
         email: true,
@@ -148,6 +196,14 @@ export async function POST(request: NextRequest) {
         role: true,
         isActive: true,
         createdAt: true,
+        mcNumberId: true,
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
       },
     });
 

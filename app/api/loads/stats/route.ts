@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { LoadStatus } from '@prisma/client';
 
 /**
  * Get load statistics
@@ -19,16 +21,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Build where clause from filters
     const where: any = {
-      companyId: session.user.companyId,
+      ...baseFilter,
       deletedAt: null,
     };
 
     // Apply filters
     const status = searchParams.get('status');
     if (status && status !== 'all') {
-      where.status = status;
+      // Handle IN_TRANSIT special case - map to multiple statuses
+      if (status === 'IN_TRANSIT') {
+        where.status = {
+          in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
+        };
+      } else {
+        where.status = status;
+      }
     }
 
     const search = searchParams.get('search');
@@ -41,6 +53,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Get stats
+    // For active loads, we want all active statuses regardless of any status filter
+    const activeLoadsWhere = {
+      ...baseFilter,
+      deletedAt: null,
+      status: {
+        in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'] as LoadStatus[],
+      },
+    };
+    
     const [totalLoads, totalRevenue, activeLoads] = await Promise.all([
       prisma.load.count({ where }),
       prisma.load.aggregate({
@@ -50,12 +71,7 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.load.count({
-        where: {
-          ...where,
-          status: {
-            in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
-          },
-        },
+        where: activeLoadsWhere,
       }),
     ]);
 

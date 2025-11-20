@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,10 +21,47 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
     const driverId = searchParams.get('driverId');
     const status = searchParams.get('status');
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
+    const isAdmin = session.user?.role === 'ADMIN';
+
+    // Build base filter with MC number if applicable
+    let baseFilter = await buildMcNumberWhereClause(session, request);
+    
+    // Admin-only: Override MC filter based on view mode
+    if (isAdmin && mcViewMode === 'all') {
+      // Remove MC number filter to show all MCs (admin only)
+      if (baseFilter.mcNumber) {
+        delete baseFilter.mcNumber;
+      }
+    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
+      // Filter by specific MC number ID (admin selecting specific MC)
+      const mcNumberRecord = await prisma.mcNumber.findUnique({
+        where: { id: mcViewMode },
+        select: { number: true, companyId: true },
+      });
+      if (mcNumberRecord) {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { companyId: true, userCompanies: { select: { companyId: true } } },
+        });
+        const accessibleCompanyIds = [
+          user?.companyId,
+          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
+        ].filter(Boolean) as string[];
+        
+        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
+          baseFilter = {
+            ...baseFilter,
+            mcNumber: mcNumberRecord.number,
+          };
+        }
+      }
+    }
+    // Non-admin users: always use baseFilter (their assigned MC)
 
     const where: any = {
       driver: {
-        companyId: session.user.companyId,
+        ...baseFilter,
       },
     };
 

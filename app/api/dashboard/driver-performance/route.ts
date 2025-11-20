@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * Get driver performance summary
@@ -16,10 +17,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Get all active drivers
     const drivers = await prisma.driver.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         isActive: true,
         deletedAt: null,
       },
@@ -32,6 +36,7 @@ export async function GET(request: NextRequest) {
         },
         loads: {
           where: {
+            ...(baseFilter.mcNumber ? { mcNumber: baseFilter.mcNumber } : {}),
             deletedAt: null,
           },
           select: {

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { hasPermission } from '@/lib/permissions';
 import { calculateDriverTariff } from '@/lib/utils/driverTariff';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +29,11 @@ export async function GET(request: NextRequest) {
     const licenseState = searchParams.get('licenseState');
     const homeTerminal = searchParams.get('homeTerminal');
     const minRating = searchParams.get('minRating');
+    const mcViewMode = searchParams.get('mc'); // 'all' or specific MC ID
 
+    // Build base where clause - drivers use companyId only (they don't have direct MC number association)
+    // When "All MC Numbers" is selected (mc=all), show all drivers from user's company
+    // Otherwise, show drivers from the user's company (MC number filtering doesn't apply to drivers)
     const where: any = {
       companyId: session.user.companyId,
       deletedAt: null,

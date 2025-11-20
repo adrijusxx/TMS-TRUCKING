@@ -29,7 +29,13 @@ export async function GET(request: NextRequest) {
         isActive: true,
         deletedAt: null,
       },
-      include: {
+      select: {
+        id: true,
+        driverNumber: true,
+        payType: true,
+        payRate: true,
+        status: true,
+        homeTerminal: true,
         user: {
           select: {
             id: true,
@@ -94,10 +100,14 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             driverNumber: true,
+            status: true,
+            homeTerminal: true,
+            payRate: true,
             user: {
               select: {
                 firstName: true,
                 lastName: true,
+                phone: true,
               },
             },
           },
@@ -165,6 +175,23 @@ export async function GET(request: NextRequest) {
         const dayDate = new Date(day);
         if (dayDate >= loadStart && dayDate <= loadEnd) {
           const dayKey = format(day, 'yyyy-MM-dd');
+          // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
+          const driver = drivers.find(d => d.id === load.driverId);
+          let calculatedDriverPay = load.driverPay || 0;
+          if (!calculatedDriverPay && driver) {
+            const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+            if (driver.payType === 'PER_MILE' && miles > 0) {
+              calculatedDriverPay = miles * driver.payRate;
+            } else if (driver.payType === 'PER_LOAD') {
+              calculatedDriverPay = driver.payRate;
+            } else if (driver.payType === 'PERCENTAGE') {
+              calculatedDriverPay = (load.revenue || 0) * (driver.payRate / 100);
+            } else if (driver.payType === 'HOURLY') {
+              const estimatedHours = miles > 0 ? miles / 50 : 10;
+              calculatedDriverPay = estimatedHours * driver.payRate;
+            }
+          }
+
           driverSchedule.loadsByDate[dayKey].push({
             id: load.id,
             loadNumber: load.loadNumber,
@@ -173,7 +200,7 @@ export async function GET(request: NextRequest) {
             deliveryCity: load.deliveryCity,
             deliveryState: load.deliveryState,
             revenue: load.revenue || 0,
-            driverPay: load.driverPay || 0,
+            driverPay: calculatedDriverPay,
             serviceFee: load.serviceFee || 0,
             loadedMiles: load.loadedMiles || 0,
             emptyMiles: load.emptyMiles || 0,
@@ -185,12 +212,34 @@ export async function GET(request: NextRequest) {
         }
       });
 
+      // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
+      let calculatedDriverPay = 0;
+      if (load.driverPay && load.driverPay > 0) {
+        calculatedDriverPay = load.driverPay;
+      } else {
+        // Calculate from current driver pay rate
+        const driver = drivers.find(d => d.id === load.driverId);
+        if (driver) {
+          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+          if (driver.payType === 'PER_MILE' && miles > 0) {
+            calculatedDriverPay = miles * driver.payRate;
+          } else if (driver.payType === 'PER_LOAD') {
+            calculatedDriverPay = driver.payRate;
+          } else if (driver.payType === 'PERCENTAGE') {
+            calculatedDriverPay = (load.revenue || 0) * (driver.payRate / 100);
+          } else if (driver.payType === 'HOURLY') {
+            const estimatedHours = miles > 0 ? miles / 50 : 10;
+            calculatedDriverPay = estimatedHours * driver.payRate;
+          }
+        }
+      }
+
       // Update summary
       driverSchedule.summary.trips += 1;
       driverSchedule.summary.totalMiles += load.totalMiles || 0;
       driverSchedule.summary.loadedMiles += load.loadedMiles || 0;
       driverSchedule.summary.emptyMiles += load.emptyMiles || 0;
-      driverSchedule.summary.totalDriverGross += load.driverPay || 0;
+      driverSchedule.summary.totalDriverGross += calculatedDriverPay;
       driverSchedule.summary.totalGross += load.revenue || 0;
       driverSchedule.summary.serviceFees += load.serviceFee || 0;
     });

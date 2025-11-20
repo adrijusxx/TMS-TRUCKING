@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -143,17 +144,17 @@ interface LoadStats {
 }
 
 const statusColors: Record<LoadStatus, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  ASSIGNED: 'bg-blue-100 text-blue-800 border-blue-200',
-  EN_ROUTE_PICKUP: 'bg-purple-100 text-purple-800 border-purple-200',
-  AT_PICKUP: 'bg-orange-100 text-orange-800 border-orange-200',
-  LOADED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  EN_ROUTE_DELIVERY: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-  AT_DELIVERY: 'bg-pink-100 text-pink-800 border-pink-200',
-  DELIVERED: 'bg-green-100 text-green-800 border-green-200',
-  INVOICED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  PAID: 'bg-teal-100 text-teal-800 border-teal-200',
-  CANCELLED: 'bg-red-100 text-red-800 border-red-200',
+  PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800',
+  ASSIGNED: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+  EN_ROUTE_PICKUP: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
+  AT_PICKUP: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800',
+  LOADED: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800',
+  EN_ROUTE_DELIVERY: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800',
+  AT_DELIVERY: 'bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800',
+  DELIVERED: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800',
+  INVOICED: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
+  PAID: 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800',
+  CANCELLED: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
 };
 
 function formatStatus(status: LoadStatus): string {
@@ -165,12 +166,15 @@ async function fetchLoads(params: {
   limit?: number;
   status?: string;
   search?: string;
+  my?: string;
+  [key: string]: any;
 }) {
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.set('page', params.page.toString());
   if (params.limit) queryParams.set('limit', params.limit.toString());
   if (params.status) queryParams.set('status', params.status);
   if (params.search) queryParams.set('search', params.search);
+  if (params.my) queryParams.set('my', params.my);
 
   const response = await fetch(apiUrl(`/api/loads?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch loads');
@@ -249,17 +253,38 @@ async function fetchAllLoadIds(
 
 export default function LoadList() {
   const { can } = usePermissions();
+  const searchParams = useSearchParams();
+  const view = searchParams?.get('view') || 'all';
+  
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50); // Default to 50 loads per page
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(view === 'live' ? 'EN_ROUTE_DELIVERY' : 'all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>(
+    view === 'my' ? { my: true } : {}
+  );
+  
+  // Update filters when view changes
+  useEffect(() => {
+    if (view === 'live') {
+      // Live loads: active/in-transit loads
+      setStatusFilter('IN_TRANSIT');
+      setAdvancedFilters({});
+    } else if (view === 'my') {
+      setStatusFilter('all');
+      setAdvancedFilters({ my: true });
+    } else {
+      setStatusFilter('all');
+      setAdvancedFilters({});
+    }
+    setPage(1); // Reset to first page when view changes
+  }, [view]);
   const [selectedLoadIds, setSelectedLoadIds] = useState<string[]>([]);
   const [selectAllPages, setSelectAllPages] = useState(false);
   const [allLoadIds, setAllLoadIds] = useState<string[]>([]);
   const [isFetchingAllIds, setIsFetchingAllIds] = useState(false);
   const [quickViewLoadId, setQuickViewLoadId] = useState<string | null>(null);
-  const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [deleteLoadId, setDeleteLoadId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   
@@ -288,15 +313,22 @@ export default function LoadList() {
   });
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters],
+    queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters, view],
     queryFn: async () => {
-      const result = await fetchLoads({
+      const params: any = {
         page,
         limit: pageSize,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
         ...advancedFilters,
-      });
+      };
+      
+      // Add "my" parameter if view is "my"
+      if (view === 'my') {
+        params.my = 'true';
+      }
+      
+      const result = await fetchLoads(params);
       console.log('[LoadList] Fetched loads:', { 
         count: result.data?.length || 0, 
         total: result.meta?.total || 0,
@@ -403,7 +435,7 @@ export default function LoadList() {
     {
       ...commonShortcuts.search,
       action: () => {
-        searchInputRef?.focus();
+        searchInputRef.current?.focus();
       },
     },
     {
@@ -415,12 +447,12 @@ export default function LoadList() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Breadcrumb items={[{ label: 'Loads', href: '/dashboard/loads' }]} />
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Loads</h1>
+          <h1 className="text-2xl font-bold">Loads</h1>
           <p className="text-muted-foreground">
             Manage and track all your loads
           </p>
@@ -705,7 +737,7 @@ export default function LoadList() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            ref={setSearchInputRef}
+            ref={searchInputRef}
             placeholder="Search by load number or commodity... (Ctrl+K)"
             value={searchQuery}
             onChange={(e) => {

@@ -79,24 +79,24 @@ function formatStatus(status: string): string {
 
 function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    REPORTED: 'bg-yellow-100 text-yellow-800',
-    DISPATCHED: 'bg-blue-100 text-blue-800',
-    IN_PROGRESS: 'bg-orange-100 text-orange-800',
-    COMPLETED: 'bg-green-100 text-green-800',
-    RESOLVED: 'bg-green-100 text-green-800',
-    CANCELLED: 'bg-gray-100 text-gray-800',
+    REPORTED: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    DISPATCHED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    IN_PROGRESS: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+    COMPLETED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    RESOLVED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    CANCELLED: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
   };
-  return colors[status] || 'bg-gray-100 text-gray-800';
+  return colors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
 }
 
 function getPriorityColor(priority: string): string {
   const colors: Record<string, string> = {
-    LOW: 'bg-gray-100 text-gray-800',
-    MEDIUM: 'bg-yellow-100 text-yellow-800',
-    HIGH: 'bg-orange-100 text-orange-800',
-    CRITICAL: 'bg-red-100 text-red-800',
+    LOW: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+    MEDIUM: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    HIGH: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+    CRITICAL: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   };
-  return colors[priority] || 'bg-gray-100 text-gray-800';
+  return colors[priority] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
 }
 
 export default function BreakdownList() {
@@ -145,12 +145,12 @@ export default function BreakdownList() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Breakdowns</h1>
-          <p className="text-muted-foreground">Track and manage truck breakdowns and repairs</p>
+          <h1 className="text-2xl font-bold">Breakdowns</h1>
+          <p className="text-sm text-muted-foreground">Track and manage truck breakdowns and repairs</p>
         </div>
         <div className="flex items-center gap-2">
           <ImportDialog entityType="breakdowns" onImportComplete={() => refetch()} />
@@ -165,7 +165,7 @@ export default function BreakdownList() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value); setPage(1); }}>
           <SelectTrigger className="w-full sm:w-[180px]">
             <Filter className="h-4 w-4 mr-2" />

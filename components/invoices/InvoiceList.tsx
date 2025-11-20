@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
@@ -83,6 +84,7 @@ async function fetchInvoices(params: {
   limit?: number;
   status?: string;
   search?: string;
+  mc?: string;
   [key: string]: any;
 }) {
   const queryParams = new URLSearchParams();
@@ -90,10 +92,11 @@ async function fetchInvoices(params: {
   if (params.limit) queryParams.set('limit', params.limit.toString());
   if (params.status) queryParams.set('status', params.status);
   if (params.search) queryParams.set('search', params.search);
+  if (params.mc) queryParams.set('mc', params.mc); // Pass MC view mode
   
   // Add advanced filters
   Object.keys(params).forEach((key) => {
-    if (!['page', 'limit', 'status', 'search'].includes(key) && params[key]) {
+    if (!['page', 'limit', 'status', 'search', 'mc'].includes(key) && params[key]) {
       queryParams.set(key, params[key].toString());
     }
   });
@@ -111,6 +114,10 @@ export default function InvoiceList() {
   const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
   const [quickViewInvoiceId, setQuickViewInvoiceId] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  
+  // Get MC view mode from URL (set by CompanySwitcher)
+  const searchParamsObj = useSearchParams();
+  const mcViewMode = searchParamsObj?.get('mc') || null;
   
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState({
@@ -133,13 +140,14 @@ export default function InvoiceList() {
   });
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['invoices', page, statusFilter, searchQuery, advancedFilters],
+    queryKey: ['invoices', page, statusFilter, searchQuery, advancedFilters, mcViewMode],
     queryFn: () =>
       fetchInvoices({
         page,
         limit: 20,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
+        mc: mcViewMode || undefined, // Pass MC view mode to API (from CompanySwitcher)
         ...advancedFilters,
       }),
   });
@@ -170,11 +178,11 @@ export default function InvoiceList() {
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Invoices</h1>
+          <h1 className="text-2xl font-bold">Invoices</h1>
           <p className="text-muted-foreground">
             Manage invoices and payments
           </p>
@@ -362,7 +370,7 @@ export default function InvoiceList() {
       <InvoiceListStats filters={{ ...advancedFilters, status: statusFilter, search: searchQuery }} />
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

@@ -21,9 +21,6 @@ import {
   Search,
   RefreshCw,
   MapPin,
-  ChevronDown,
-  ChevronRight,
-  Lock,
   Shield,
   Wrench,
   Warehouse,
@@ -33,18 +30,30 @@ import {
   CreditCard,
   Store,
   Navigation,
+  Hash,
+  Grid,
+  Tag,
+  Palette,
+  Sliders,
+  Layers,
+  FileCheck,
+  ChartBar,
+  Network,
+  Calculator,
+  Box,
+  FolderTree,
+  Plug,
+  ShoppingBag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import GlobalSearch from '@/components/search/GlobalSearch';
+import CompanySwitcher from '@/components/layout/CompanySwitcher';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { Permission } from '@/lib/permissions';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+import { useSession } from 'next-auth/react';
 
 interface NavigationItem {
   name: string;
@@ -54,113 +63,43 @@ interface NavigationItem {
   badge?: string; // For "NEW" badges
 }
 
-interface NavigationGroup {
-  name: string;
-  icon: React.ComponentType<{ className?: string }>;
-  permission?: Permission;
-  items: NavigationItem[];
-}
-
-const navigationGroups: NavigationGroup[] = [
-  {
-    name: 'Load Management',
-    icon: Package,
-    permission: 'loads.view',
-    items: [
-      { name: 'All Loads', href: '/dashboard/loads', icon: Package, permission: 'loads.view' },
-      { name: 'Live Loads', href: '/dashboard/loads?status=in_transit', icon: TrendingUp, permission: 'loads.view' },
-      { name: 'My Loads', href: '/dashboard/loads?my=true', icon: FileText, permission: 'loads.view' },
-      { name: 'Loadboard', href: '/dashboard/loadboard', icon: Search, permission: 'loads.view', badge: 'NEW' },
-    ],
-  },
-  {
-    name: 'Planning Calendar',
-    icon: Calendar,
-    permission: 'loads.view',
-    items: [
-      { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, permission: 'loads.view' },
-    ],
-  },
-  {
-    name: 'MAP',
-    icon: MapPin,
-    permission: 'loads.view',
-    items: [
-      { name: 'Live Map', href: '/dashboard/map', icon: Navigation, permission: 'loads.view' },
-    ],
-  },
-  {
-    name: 'Accounting',
-    icon: DollarSign,
-    permission: 'invoices.view',
-    items: [
-      { name: 'Invoice', href: '/dashboard/invoices', icon: FileText, permission: 'invoices.view' },
-      { name: 'Settlements', href: '/dashboard/settlements', icon: DollarSign, permission: 'settlements.view' },
-      { name: 'Salary', href: '/dashboard/salary', icon: CreditCard, permission: 'settlements.view' },
-      { name: 'Bill', href: '/dashboard/bills', icon: DollarSign, permission: 'invoices.view' },
-    ],
-  },
-  {
-    name: 'Customer Management',
-    icon: Building2,
-    permission: 'customers.view',
-    items: [
-      { name: 'Customers', href: '/dashboard/customers', icon: Building2, permission: 'customers.view' },
-      { name: 'Vendors', href: '/dashboard/vendors', icon: Store, permission: 'customers.view' },
-      { name: 'Locations', href: '/dashboard/locations', icon: MapPin, permission: 'customers.view' },
-    ],
-  },
-  {
-    name: 'Safety',
-    icon: Shield,
-    permission: undefined,
-    items: [
-      { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: undefined },
-    ],
-  },
-  {
-    name: 'Fleet Management',
-    icon: Truck,
-    permission: 'trucks.view',
-    items: [
-      { name: 'Trucks', href: '/dashboard/trucks', icon: Truck, permission: 'trucks.view' },
-      { name: 'Trailers', href: '/dashboard/trailers', icon: Truck, permission: 'trucks.view' },
-      { name: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench, permission: 'trucks.view' },
-      { name: 'Breakdowns', href: '/dashboard/breakdowns', icon: AlertTriangle, permission: 'trucks.view' },
-      { name: 'Inspections', href: '/dashboard/inspections', icon: ClipboardCheck, permission: 'trucks.view' },
-      { name: 'Fleet Board', href: '/dashboard/fleet-board', icon: BarChart3, permission: 'trucks.view' },
-      { name: 'Inventory', href: '/dashboard/inventory', icon: Warehouse, permission: 'trucks.view' },
-    ],
-  },
-  {
-    name: 'HR Management',
-    icon: Users,
-    permission: 'drivers.view',
-    items: [
-      { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'drivers.view' },
-      { name: 'Drivers', href: '/dashboard/drivers', icon: Users, permission: 'drivers.view' },
-    ],
-  },
-];
-
-// Standalone navigation items (no submenu)
-const standaloneNavigation: NavigationItem[] = [
+// Main navigation items (no submenus)
+const mainNavigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: undefined },
-  { name: 'Dispatch', href: '/dashboard/dispatch', icon: Calendar, permission: 'loads.assign' },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, permission: 'analytics.view' },
+  { name: 'Load Management', href: '/dashboard/loads', icon: Package, permission: 'loads.view' },
+  { name: 'Accounting', href: '/dashboard/invoices', icon: DollarSign, permission: 'invoices.view' },
+  { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: undefined },
+  { name: 'Fleet Management', href: '/dashboard/trucks', icon: Truck, permission: 'trucks.view' },
+  { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'drivers.view' },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'settings.view' },
 ];
 
-// Settings group (at the end)
-const settingsGroup: NavigationGroup = {
-  name: 'Settings',
-  icon: Settings,
-  permission: 'settings.view',
-  items: [
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'settings.view' },
-    { name: 'Automation', href: '/dashboard/automation', icon: RefreshCw, permission: 'settings.view' },
-    { name: 'EDI', href: '/dashboard/edi', icon: FileText, permission: 'settings.view' },
-  ],
-};
+function UserProfileSection() {
+  const { data: session } = useSession();
+
+  if (!session?.user) {
+    return null;
+  }
+
+  const userName = session.user.name || `${session.user.firstName || ''} ${session.user.lastName || ''}`.trim() || 'User';
+  const userEmail = session.user.email || '';
+
+  return (
+    <div className="flex items-center space-x-3 px-2 py-2">
+      <div className="rounded-full bg-primary/20 p-2">
+        <Users className="h-4 w-4 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-slate-200 dark:text-foreground truncate">
+          {userName}
+        </div>
+        <div className="text-xs text-slate-400 dark:text-muted-foreground truncate">
+          {userEmail}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -169,57 +108,16 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const { can } = usePermissions();
 
-  const toggleGroup = (groupName: string) => {
-    const newOpenGroups = new Set(openGroups);
-    if (newOpenGroups.has(groupName)) {
-      newOpenGroups.delete(groupName);
-    } else {
-      newOpenGroups.add(groupName);
-    }
-    setOpenGroups(newOpenGroups);
-  };
-
-  // Filter navigation groups and items based on permissions
-  let visibleGroups = navigationGroups.filter((group) => {
-    if (!group.permission) return true;
-    return can(group.permission);
-  }).map((group) => ({
-    ...group,
-    items: group.items.filter((item) => {
-      if (!item.permission) return true;
-      return can(item.permission);
-    }),
-  })).filter((group) => group.items.length > 0);
-
-  // Add Settings group at the end if user has permission
-  if (settingsGroup.permission === undefined || can(settingsGroup.permission)) {
-    const settingsItems = settingsGroup.items.filter((item) => {
-      if (!item.permission) return true;
-      return can(item.permission);
-    });
-    if (settingsItems.length > 0) {
-      visibleGroups = [...visibleGroups, { ...settingsGroup, items: settingsItems }];
-    }
-  }
-
-  const visibleStandalone = standaloneNavigation.filter((item) => {
+  // Filter navigation items based on permissions
+  const visibleNavigation = mainNavigation.filter((item) => {
     if (!item.permission) return true;
     return can(item.permission);
   });
 
-  // Auto-expand groups that contain the current page
-  const activeGroup = visibleGroups.find((group) =>
-    group.items.some((item) => pathname === item.href || pathname?.startsWith(item.href + '/'))
-  );
-  if (activeGroup && !openGroups.has(activeGroup.name)) {
-    setOpenGroups(new Set([...openGroups, activeGroup.name]));
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-background">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -231,23 +129,23 @@ export default function DashboardLayout({
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-full w-64 bg-slate-900 text-slate-100 transform transition-transform duration-300 ease-in-out lg:translate-x-0',
+          'fixed top-0 left-0 z-50 h-full w-64 bg-slate-900 dark:bg-secondary text-slate-100 dark:text-foreground transform transition-transform duration-300 ease-in-out lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-800">
+          <div className="flex items-center justify-between p-4 border-b border-slate-800 dark:border-border">
             <div className="flex items-center space-x-2">
               <div className="rounded-lg bg-primary p-2">
                 <Truck className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg">TMS</span>
+              <span className="font-bold text-lg dark:text-foreground">TMS</span>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden text-slate-300 hover:text-white hover:bg-slate-800"
+              className="lg:hidden text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-5 w-5" />
@@ -256,9 +154,12 @@ export default function DashboardLayout({
 
           {/* Navigation */}
           <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-            {/* Standalone items */}
-            {visibleStandalone.map((item) => {
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+            {visibleNavigation.map((item) => {
+              // Dashboard should only be active when exactly on /dashboard, not sub-routes
+              // Other items can be active when on the exact route or sub-routes
+              const isActive = item.href === '/dashboard' 
+                ? pathname === '/dashboard'
+                : pathname === item.href || pathname?.startsWith(item.href + '/');
               return (
                 <Link
                   key={item.name}
@@ -266,8 +167,8 @@ export default function DashboardLayout({
                   className={cn(
                     'flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-primary text-primary-foreground dark:bg-accent dark:text-accent-foreground'
+                      : 'text-slate-300 dark:text-foreground/70 hover:bg-slate-800 dark:hover:bg-accent hover:text-white dark:hover:text-foreground'
                   )}
                   onClick={() => setSidebarOpen(false)}
                 >
@@ -276,80 +177,36 @@ export default function DashboardLayout({
                 </Link>
               );
             })}
-
-            {/* Groups with submenus */}
-            {visibleGroups.map((group) => {
-              const isGroupActive = group.items.some(
-                (item) => pathname === item.href || pathname?.startsWith(item.href + '/')
-              );
-              const isOpen = openGroups.has(group.name);
-
-              return (
-                <Collapsible
-                  key={group.name}
-                  open={isOpen}
-                  onOpenChange={() => toggleGroup(group.name)}
-                >
-                  <CollapsibleTrigger
-                    className={cn(
-                      'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                      isGroupActive
-                        ? 'bg-slate-800 text-white'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                    )}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <group.icon className="h-4 w-4 flex-shrink-0" />
-                      <span>{group.name}</span>
-                    </div>
-                    {isOpen ? (
-                      <ChevronDown className="h-4 w-4 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 flex-shrink-0" />
-                    )}
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-1 ml-4 space-y-1">
-                    {group.items.map((item) => {
-                      const isActive =
-                        pathname === item.href || pathname?.startsWith(item.href + '/');
-                      return (
-                        <Link
-                          key={item.name}
-                          href={item.href}
-                          className={cn(
-                            'flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors',
-                            isActive
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                          )}
-                          onClick={() => setSidebarOpen(false)}
-                        >
-                          <div className="flex items-center space-x-2">
-                            {item.href.includes('loadboard') && (
-                              <Lock className="h-3 w-3" />
-                            )}
-                            <span>{item.name}</span>
-                          </div>
-                          {item.badge && (
-                            <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
-                              {item.badge}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            })}
           </nav>
 
-          {/* Logout */}
-          <div className="p-4 border-t border-slate-800">
+          {/* Company Switcher */}
+          <CompanySwitcher />
+
+          {/* User Profile & Logout */}
+          <div className="p-4 border-t border-slate-800 dark:border-border space-y-2">
+            {/* User Profile */}
+            <UserProfileSection />
+            
+            {/* Logout */}
             <Button
               variant="ghost"
-              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800"
-              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="w-full justify-start text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent"
+              onClick={async () => {
+                // Get basePath from current location
+                const basePath = typeof window !== 'undefined' 
+                  ? (window.location.pathname.startsWith('/tms') ? '/tms' 
+                      : window.location.pathname.startsWith('/crm') ? '/crm' 
+                      : '')
+                  : '';
+                const loginPath = `${basePath}/login`;
+                // Use redirect: false and handle redirect manually to ensure it works
+                await signOut({ 
+                  redirect: false,
+                  callbackUrl: loginPath 
+                });
+                // Manually redirect to ensure it works
+                window.location.href = loginPath;
+              }}
             >
               <LogOut className="h-4 w-4 mr-3" />
               Sign Out
@@ -361,7 +218,7 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="lg:pl-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
+        <header className="sticky top-0 z-30 bg-background border-b border-border dark:bg-card">
           <div className="flex items-center justify-between px-4 py-3">
             <Button
               variant="ghost"
@@ -374,13 +231,14 @@ export default function DashboardLayout({
             <div className="flex-1" />
             <div className="flex items-center gap-2">
               <GlobalSearch />
+              <ThemeToggle />
               <NotificationBell />
             </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-8">{children}</main>
+        <main className="p-3 lg:p-4">{children}</main>
       </div>
     </div>
   );

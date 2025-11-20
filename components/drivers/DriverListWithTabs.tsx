@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +23,14 @@ import {
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkUpdatePayDialog from './BulkUpdatePayDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type DriverTab = 'active' | 'unassigned' | 'all' | 'terminated' | 'vacation';
 
@@ -83,6 +91,45 @@ export default function DriverListWithTabs() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDriverIds, setSelectedDriverIds] = useState<string[]>([]);
   const [rowsPerPage, setRowsPerPage] = useState(500);
+  
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState({
+    checkbox: true,
+    driverNumber: true,
+    name: true,
+    email: true,
+    phone: true,
+    status: true,
+    employeeStatus: true,
+    assignmentStatus: true,
+    dispatchStatus: true,
+    driverType: true,
+    mcNumber: true,
+    teamDriver: true,
+    truck: true,
+    trailer: true,
+    payTo: true,
+    driverTariff: true,
+    warnings: true,
+    tags: true,
+    actions: true,
+  });
+
+  // Load saved view settings from localStorage
+  useEffect(() => {
+    const savedView = localStorage.getItem('driverListView');
+    if (savedView) {
+      try {
+        const viewSettings = JSON.parse(savedView);
+        if (viewSettings.activeTab) setActiveTab(viewSettings.activeTab);
+        if (viewSettings.visibleColumns) setVisibleColumns(viewSettings.visibleColumns);
+        if (viewSettings.rowsPerPage) setRowsPerPage(viewSettings.rowsPerPage);
+        if (viewSettings.searchQuery) setSearchQuery(viewSettings.searchQuery);
+      } catch (e) {
+        console.error('Failed to load saved view settings', e);
+      }
+    }
+  }, []);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['drivers', activeTab, page, rowsPerPage, searchQuery],
@@ -162,18 +209,194 @@ export default function DriverListWithTabs() {
               </Button>
             }
           />
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline" size="sm">
+          <ExportDialog entityType="drivers" filename="drivers-export">
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          </ExportDialog>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Save current view settings to localStorage
+              const viewSettings = {
+                activeTab,
+                visibleColumns,
+                rowsPerPage,
+                searchQuery,
+              };
+              localStorage.setItem('driverListView', JSON.stringify(viewSettings));
+              toast.success('View settings saved');
+            }}
+          >
             <Save className="h-4 w-4 mr-2" />
             Save view
           </Button>
-          <Button variant="outline" size="sm">
-            <Columns className="h-4 w-4 mr-2" />
-            Columns
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Columns className="h-4 w-4 mr-2" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.checkbox}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, checkbox: checked })
+                }
+              >
+                Checkbox
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.driverNumber}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, driverNumber: checked })
+                }
+              >
+                Driver Number
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.name}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, name: checked })
+                }
+              >
+                Name
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.email}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, email: checked })
+                }
+              >
+                Email
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.phone}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, phone: checked })
+                }
+              >
+                Phone
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.status}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, status: checked })
+                }
+              >
+                Status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.employeeStatus}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, employeeStatus: checked })
+                }
+              >
+                Employee Status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.assignmentStatus}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, assignmentStatus: checked })
+                }
+              >
+                Assignment Status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.dispatchStatus}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, dispatchStatus: checked })
+                }
+              >
+                Dispatch Status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.driverType}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, driverType: checked })
+                }
+              >
+                Driver Type
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.mcNumber}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, mcNumber: checked })
+                }
+              >
+                MC Number
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.teamDriver}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, teamDriver: checked })
+                }
+              >
+                Team Driver
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.truck}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, truck: checked })
+                }
+              >
+                Truck
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.trailer}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, trailer: checked })
+                }
+              >
+                Trailer
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.payTo}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, payTo: checked })
+                }
+              >
+                Pay To
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.driverTariff}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, driverTariff: checked })
+                }
+              >
+                Driver Tariff
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.warnings}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, warnings: checked })
+                }
+              >
+                Warnings
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.tags}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, tags: checked })
+                }
+              >
+                Tags
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.actions}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, actions: checked })
+                }
+              >
+                Actions
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -228,6 +451,7 @@ export default function DriverListWithTabs() {
             someSelected={someSelected}
             canEdit={can('drivers.edit')}
             canDelete={can('drivers.delete')}
+            visibleColumns={visibleColumns}
           />
 
           {/* Pagination */}

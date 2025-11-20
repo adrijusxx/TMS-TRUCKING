@@ -14,6 +14,8 @@ import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSumm
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { LoadStatus } from '@prisma/client';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { cookies } from 'next/headers';
 
 // Mark this page as dynamic since it uses auth() which internally uses headers()
 export const dynamic = 'force-dynamic';
@@ -27,6 +29,13 @@ export default async function DashboardPage() {
       return <div>Loading...</div>;
     }
 
+  // Build base filter with MC number if applicable
+  const cookieStore = await cookies();
+  const requestCookies = {
+    get: (name: string) => cookieStore.get(name) || null,
+  } as any;
+  const baseFilter = await buildMcNumberWhereClause(session, requestCookies);
+
   // Fetch dashboard stats
   const [
     totalLoads,
@@ -39,13 +48,13 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     prisma.load.count({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
       },
     }),
     prisma.load.count({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: {
           in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
         },
@@ -54,14 +63,14 @@ export default async function DashboardPage() {
     }),
     prisma.driver.count({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         isActive: true,
         deletedAt: null,
       },
     }),
     prisma.driver.count({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,
@@ -69,14 +78,14 @@ export default async function DashboardPage() {
     }),
     prisma.truck.count({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         isActive: true,
         deletedAt: null,
       },
     }),
     prisma.truck.count({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,
@@ -84,7 +93,7 @@ export default async function DashboardPage() {
     }),
     prisma.load.aggregate({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         status: {
           in: ['DELIVERED', 'INVOICED', 'PAID'],
         },
@@ -139,47 +148,101 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                <Icon className={`h-4 w-4 ${stat.color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground">{stat.description}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* Overview Statistics Section */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Overview</h2>
+          <p className="text-sm text-muted-foreground">Key metrics at a glance</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={stat.title}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                  <Icon className={`h-4 w-4 ${stat.color}`} />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <p className="text-xs text-muted-foreground">{stat.description}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <ActivityFeed filters={{ limit: 10 }} />
-        <QuickActions />
-      </div>
+      {/* Quick Actions Section */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Quick Actions</h2>
+          <p className="text-sm text-muted-foreground">Common tasks and shortcuts</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-1">
+          <QuickActions />
+        </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <RecentLoads />
-        <UpcomingDeadlines />
-      </div>
+      {/* Loads & Operations Section */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Loads & Operations</h2>
+          <p className="text-sm text-muted-foreground">Current loads and operational status</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <RecentLoads />
+          <UpcomingDeadlines />
+        </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <RevenueTrends />
-        <LoadStatusDistribution />
-      </div>
+      {/* Financial Performance Section */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Financial Performance</h2>
+          <p className="text-sm text-muted-foreground">Revenue trends and financial metrics</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <RevenueTrends />
+          <LoadStatusDistribution />
+        </div>
+      </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <DriverPerformanceSummary />
-        <TruckPerformanceSummary />
-      </div>
+      {/* Fleet & Personnel Performance Section */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Fleet & Personnel Performance</h2>
+          <p className="text-sm text-muted-foreground">Driver and truck performance metrics</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <DriverPerformanceSummary />
+          <TruckPerformanceSummary />
+        </div>
+      </section>
 
-      <div className="grid gap-4">
-        <CustomerPerformanceMetrics />
-      </div>
+      {/* Customer Performance Section */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-1">Customer Performance</h2>
+          <p className="text-sm text-muted-foreground">Customer metrics and relationship insights</p>
+        </div>
+        <div className="grid gap-4">
+          <CustomerPerformanceMetrics />
+        </div>
+      </section>
+
+      {/* Activity Feed Section - Admin Only */}
+      {session.user?.role === 'ADMIN' && (
+        <section className="space-y-4 mt-8 border-t pt-6">
+          <div>
+            <h2 className="text-xl font-semibold mb-1">Activity Feed</h2>
+            <p className="text-sm text-muted-foreground">Recent system activity and user actions</p>
+          </div>
+          <div className="grid gap-4">
+            <ActivityFeed filters={{ limit: 20 }} />
+          </div>
+        </section>
+      )}
     </div>
   );
   } catch (error) {

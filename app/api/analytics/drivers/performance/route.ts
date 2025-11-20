@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,8 +24,11 @@ export async function GET(request: NextRequest) {
       ? new Date(searchParams.get('endDate')!)
       : new Date();
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     const where: any = {
-      companyId: session.user.companyId,
+      ...baseFilter,
       deletedAt: null,
     };
 
@@ -82,8 +86,32 @@ export async function GET(request: NextRequest) {
       });
 
       // Calculate revenue and pay from all loads
+      // Use current driver payRate for calculations (reflects updated pay rates)
       const totalRevenue = allLoads.reduce((sum, load) => sum + (load.revenue || 0), 0);
-      const totalDriverPay = allLoads.reduce((sum, load) => sum + (load.driverPay || 0), 0);
+      
+      // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
+      const totalDriverPay = allLoads.reduce((sum, load) => {
+        if (load.driverPay && load.driverPay > 0) {
+          // Load has manually set driver pay
+          return sum + load.driverPay;
+        } else {
+          // Calculate from current driver pay rate
+          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+          if (driver.payType === 'PER_MILE' && miles > 0) {
+            return sum + (miles * driver.payRate);
+          } else if (driver.payType === 'PER_LOAD') {
+            return sum + driver.payRate;
+          } else if (driver.payType === 'PERCENTAGE') {
+            return sum + ((load.revenue || 0) * (driver.payRate / 100));
+          } else if (driver.payType === 'HOURLY') {
+            // Estimate hours (50 mph average)
+            const estimatedHours = miles > 0 ? miles / 50 : 10;
+            return sum + (estimatedHours * driver.payRate);
+          }
+          return sum;
+        }
+      }, 0);
+      
       const totalMiles = allLoads.reduce((sum, load) => {
         // Use totalMiles if available, otherwise estimate
         return sum + (load.totalMiles || load.loadedMiles || load.emptyMiles || 0);

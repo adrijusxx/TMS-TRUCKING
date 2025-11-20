@@ -365,7 +365,7 @@ async function main() {
     where: { dotNumber: '1234567' },
     update: {},
     create: {
-      name: 'Demo Trucking LLC',
+      name: 'Your Company Name',
       dotNumber: '1234567',
       mcNumber: 'MC-123456',
       address: '123 Main St',
@@ -373,7 +373,7 @@ async function main() {
       state: 'TX',
       zip: '75001',
       phone: '555-0100',
-      email: 'office@demotrucking.com'
+      email: 'office@yourcompany.com'
     }
   });
 
@@ -382,10 +382,10 @@ async function main() {
   // Create admin user
   const hashedPassword = await bcrypt.hash('admin123', 10);
   await prisma.user.upsert({
-    where: { email: 'admin@demo.com' },
+    where: { email: 'admin@yourcompany.com' },
     update: {},
     create: {
-      email: 'admin@demo.com',
+      email: 'admin@yourcompany.com',
       password: hashedPassword,
       firstName: 'Admin',
       lastName: 'User',
@@ -395,7 +395,7 @@ async function main() {
     }
   });
 
-  console.log('✅ Admin user created - Email: admin@demo.com, Password: admin123');
+  console.log('✅ Admin user created - Email: admin@yourcompany.com, Password: admin123');
 
   // Create sample customer
   await prisma.customer.create({

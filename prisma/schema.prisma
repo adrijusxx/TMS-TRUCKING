@@ -19,8 +19,10 @@ model User {
   lastName  String
   phone     String?
   role      UserRole
-  companyId String
+  companyId String // Primary/default company
   company   Company   @relation(fields: [companyId], references: [id])
+  mcNumberId String? // MC Number assignment for dispatchers/employees
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
   isActive  Boolean   @default(true)
   lastLogin DateTime?
   createdAt DateTime  @default(now())
@@ -41,9 +43,32 @@ model User {
   hrManagedDrivers         Driver[]           @relation("DriverHRManager")
   safetyManagedDrivers     Driver[]            @relation("DriverSafetyManager")
   driverComments           DriverComment[]     @relation("DriverCommentCreator")
+  userCompanies            UserCompany[]       // Multi-company access
+  createdProjects          Project[] @relation("ProjectCreator")
+  assignedProjects         Project[] @relation("ProjectAssignee")
+  createdTasks             Task[] @relation("TaskCreator")
+  assignedTasks            Task[] @relation("TaskAssignee")
 
   @@index([companyId])
   @@index([email])
+  @@index([mcNumberId])
+}
+
+// Multi-company support - Users can access multiple companies
+model UserCompany {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role      UserRole // User's role in this specific company
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
 }
 
 enum UserRole {
@@ -71,6 +96,7 @@ model Company {
 
   // Relations
   users                 User[]
+  userCompanies         UserCompany[]
   loads                 Load[]
   drivers               Driver[]
   trucks                Truck[]
@@ -88,6 +114,23 @@ model Company {
   safetyIncidents       SafetyIncident[]
   safetyTrainings       SafetyTraining[]
   invoiceBatches        InvoiceBatch[]
+  mcNumbers             McNumber[]
+  tags                  Tag[]
+  expenseCategories     ExpenseCategory[]
+  expenseTypes          ExpenseType[]
+  tariffs               Tariff[]
+  paymentConfigurations PaymentConfiguration[]
+  orderPaymentTypes     OrderPaymentType[]
+  dynamicStatuses       DynamicStatus[]
+  documentTemplates     DocumentTemplate[]
+  defaultConfigurations DefaultConfiguration[]
+  workOrderTypes        WorkOrderType[]
+  safetyConfigurations  SafetyConfiguration[]
+  reportTemplates       ReportTemplate[]
+  reportConstructors    ReportConstructor[]
+  projects              Project[]
+  netProfitFormulas     NetProfitFormula[]
+  classifications       Classification[]
 }
 
 // ============================================
@@ -208,6 +251,7 @@ model Load {
   safetyIncidents SafetyIncident[]
   trailerId       String?
   trailer         Trailer?            @relation(fields: [trailerId], references: [id])
+  tags            LoadTag[]
 
   @@index([companyId])
   @@index([customerId])
@@ -486,6 +530,7 @@ model Driver {
   truckHistory    DriverTruckHistory[]
   trailerHistory  DriverTrailerHistory[]
   comments        DriverComment[]
+  tags            DriverTag[]
 
   @@index([companyId])
   @@index([status])
@@ -699,7 +744,7 @@ model Truck {
   fuelCard      String? // Fuel card from Excel
 
   // Additional Fields from Excel
-  tags     Json? // Tags as JSON array
+  legacyTags Json? // Tags as JSON array (legacy, use tags relation instead)
   notes    String? // Notes field
   warnings String? // Warnings field
 
@@ -717,6 +762,7 @@ model Truck {
   safetyIncidents    SafetyIncident[]
   assignedTrailers   Trailer[]           @relation("TruckTrailer")
   driverTruckHistory DriverTruckHistory[]
+  tags                TruckTag[]
 
   fuelEntries FuelEntry[]
 
@@ -765,7 +811,7 @@ model Trailer {
   inspectionExpiry   DateTime?
 
   // Additional Fields from Excel
-  tags Json? // Tags as JSON array
+  legacyTags Json? // Tags as JSON array (legacy)
 
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
@@ -1024,7 +1070,7 @@ model Customer {
   // Additional Fields from Excel
   rateConfirmationRequired Boolean @default(false)
   status                   String? // Status field from Excel
-  tags                     Json? // Tags as JSON array
+  legacyTags               Json? // Tags as JSON array (legacy, use tags relation instead)
   warning                  String? // Warning field from Excel
   riskLevel                String? // Risk level from Excel
   comments                 String? // Comments field (note: Excel has typo "Commnets")
@@ -1054,6 +1100,7 @@ model Customer {
   loads    Load[]
   invoices Invoice[]
   contacts CustomerContact[]
+  tags     CustomerTag[]
 
   @@index([companyId])
   @@index([customerNumber])
@@ -1226,6 +1273,7 @@ model Invoice {
   payments        Payment[]
   batchItems      InvoiceBatchItem[]
   reconciliations Reconciliation[]
+  tags            InvoiceTag[]
 
   @@index([customerId])
   @@index([status])
@@ -2025,3 +2073,637 @@ enum SafetyTrainingStatus {
   EXPIRED
   CANCELLED
 }
+
+// ============================================
+// MC NUMBERS
+// ============================================
+
+model McNumber {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id])
+  companyName  String       // Company name associated with this MC number
+  type         McNumberType @default(CARRIER)
+  companyPhone String?
+  owner        String?      // Owner name
+  isDefault    Boolean      @default(false) // Only one default per company
+  usdot        String?      // USDOT number
+  notes        String?
+  number       String       // MC number value
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  users User[] // Users assigned to this MC number
+
+  @@unique([companyId, number]) // MC number must be unique per company
+  @@index([companyId])
+  @@index([number])
+  @@index([isDefault])
+  @@index([companyId, isDefault]) // For finding default MC number per company
+}
+
+enum McNumberType {
+  CARRIER
+  BROKER
+}
+
+// ============================================
+// TAGS MANAGEMENT
+// ============================================
+
+model Tag {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  color     String?  // Hex color code
+  category  String?  // Category for grouping tags
+  description String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loadTags       LoadTag[]
+  driverTags     DriverTag[]
+  truckTags      TruckTag[]
+  customerTags   CustomerTag[]
+  invoiceTags    InvoiceTag[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([category])
+  @@index([name])
+}
+
+model LoadTag {
+  id     String @id @default(cuid())
+  loadId String
+  load   Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([loadId, tagId])
+  @@index([loadId])
+  @@index([tagId])
+}
+
+model DriverTag {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  tagId    String
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([driverId, tagId])
+  @@index([driverId])
+  @@index([tagId])
+}
+
+model TruckTag {
+  id      String @id @default(cuid())
+  truckId String
+  truck   Truck  @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  tagId   String
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([truckId, tagId])
+  @@index([truckId])
+  @@index([tagId])
+}
+
+model CustomerTag {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([customerId, tagId])
+  @@index([customerId])
+  @@index([tagId])
+}
+
+model InvoiceTag {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([invoiceId, tagId])
+  @@index([invoiceId])
+  @@index([tagId])
+}
+
+// ============================================
+// EXPENSE CATEGORIES
+// ============================================
+
+model ExpenseCategory {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  name      String
+  code      String? // Category code
+  description String?
+  parentId  String? // For hierarchical categories
+  parent    ExpenseCategory? @relation("CategoryParent", fields: [parentId], references: [id])
+  children  ExpenseCategory[] @relation("CategoryParent")
+  expenseTypes ExpenseType[] // Relation to expense types
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([parentId])
+}
+
+model ExpenseType {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  categoryId  String?
+  category    ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  name        String
+  code        String?
+  description String?
+  defaultAmount Float?
+  isReimbursable Boolean @default(true)
+  requiresReceipt Boolean @default(false)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([categoryId])
+}
+
+// ============================================
+// TARIFFS & PAYMENTS
+// ============================================
+
+model Tariff {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  code        String?
+  description String?
+  type        TariffType @default(RATE_PER_MILE)
+  rate        Float
+  minimumRate Float?
+  perStop     Float?
+  perPound    Float?
+  perMile     Float?
+  fuelSurcharge Float? // Percentage or fixed amount
+  effectiveDate DateTime?
+  expiryDate  DateTime?
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  tariffRules TariffRule[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([type])
+  @@index([isDefault])
+}
+
+enum TariffType {
+  RATE_PER_MILE
+  RATE_PER_LOAD
+  RATE_PER_POUND
+  FLAT_RATE
+  PERCENTAGE
+  FUEL_SURCHARGE
+}
+
+model TariffRule {
+  id        String  @id @default(cuid())
+  tariffId  String
+  tariff    Tariff  @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  condition String // e.g., "distance > 500", "weight > 45000"
+  rate      Float
+  priority  Int @default(0) // Higher priority rules applied first
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tariffId])
+  @@index([priority])
+}
+
+model PaymentConfiguration {
+  id                String  @id @default(cuid())
+  companyId         String
+  company           Company @relation(fields: [companyId], references: [id])
+  paymentType       String // e.g., "DRIVER_SETTLEMENT", "CUSTOMER_INVOICE"
+  defaultMethod     PaymentMethod?
+  defaultTerms      Int? // days
+  autoApprove       Boolean @default(false)
+  approvalThreshold Float? // Amount above which approval required
+  requiresPO        Boolean @default(false)
+  isActive          Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([companyId, paymentType])
+  @@index([companyId])
+}
+
+// ============================================
+// ORDER PAYMENT TYPES
+// ============================================
+
+model OrderPaymentType {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  code        String?
+  description String?
+  terms       Int? // Payment terms in days
+  requiresPO  Boolean @default(false)
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+// ============================================
+// DYNAMIC STATUSES
+// ============================================
+
+model DynamicStatus {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  entityType  EntityType // LOAD, DRIVER, TRUCK, INVOICE, etc.
+  name        String
+  code        String?
+  color       String? // Hex color code
+  icon        String?
+  description String?
+  order       Int @default(0) // Display order
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  workflowRules Json? // Workflow configuration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, entityType, name])
+  @@index([companyId])
+  @@index([entityType])
+  @@index([order])
+}
+
+enum EntityType {
+  LOAD
+  DRIVER
+  TRUCK
+  TRAILER
+  INVOICE
+  CUSTOMER
+  VENDOR
+  SETTLEMENT
+  BREAKDOWN
+  INSPECTION
+  SAFETY_INCIDENT
+}
+
+// ============================================
+// TEMPLATES
+// ============================================
+
+model DocumentTemplate {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  type        DocumentType
+  description String?
+  content     String // Template content (HTML/XML/Markdown)
+  variables   Json? // Available variables
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([type])
+}
+
+// ============================================
+// DEFAULT CONFIGURATIONS
+// ============================================
+
+model DefaultConfiguration {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  category    String // e.g., "LOAD", "DRIVER", "INVOICE"
+  key         String // Configuration key
+  value       Json // Configuration value (can be any type)
+  description String?
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, category, key])
+  @@index([companyId])
+  @@index([category])
+}
+
+// ============================================
+// WORK ORDER & SAFETY
+// ============================================
+
+model WorkOrderType {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  code        String?
+  description String?
+  category    String? // e.g., "MAINTENANCE", "REPAIR", "INSPECTION"
+  defaultPriority WorkOrderPriority @default(MEDIUM)
+  estimatedHours Float?
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([category])
+}
+
+enum WorkOrderPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model SafetyConfiguration {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  category    String // e.g., "TRAINING", "COMPLIANCE", "INCIDENT"
+  key         String
+  value       Json
+  description String?
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, category, key])
+  @@index([companyId])
+  @@index([category])
+}
+
+// ============================================
+// REPORTS CUSTOMIZATION
+// ============================================
+
+model ReportTemplate {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  type        ReportType
+  description String?
+  format      ReportFormat @default(PDF)
+  template    Json // Report template configuration
+  fields      Json? // Available fields
+  filters     Json? // Default filters
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([type])
+}
+
+enum ReportType {
+  LOADS
+  DRIVERS
+  FINANCIAL
+  SAFETY
+  MAINTENANCE
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  EXCEL
+  CSV
+  HTML
+}
+
+model ReportConstructor {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  entityType  EntityType
+  layout      Json // Drag-and-drop layout configuration
+  fields      Json // Selected fields and configurations
+  filters     Json? // Filter configurations
+  grouping    Json? // Grouping configuration
+  sorting     Json? // Sorting configuration
+  format      ReportFormat @default(PDF)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([entityType])
+}
+
+// ============================================
+// TASK MANAGEMENT PROJECTS
+// ============================================
+
+model Project {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  endDate     DateTime?
+  assignedToId String?
+  assignedTo User? @relation("ProjectAssignee", fields: [assignedToId], references: [id])
+  createdById String
+  createdBy  User   @relation("ProjectCreator", fields: [createdById], references: [id])
+  priority   ProjectPriority @default(MEDIUM)
+  isActive   Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  tasks       Task[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([status])
+  @@index([assignedToId])
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Task {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      TaskStatus @default(PENDING)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  assignedToId String?
+  assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdById String
+  createdBy  User   @relation("TaskCreator", fields: [createdById], references: [id])
+  completedAt DateTime?
+  estimatedHours Float?
+  actualHours Float?
+  isActive   Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([projectId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([dueDate])
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ============================================
+// NET PROFIT CALCULATION
+// ============================================
+
+model NetProfitFormula {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  formula     String // Formula expression
+  variables   Json? // Formula variables and their sources
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+// ============================================
+// CLASSIFICATIONS
+// ============================================
+
+model Classification {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  name        String
+  code        String?
+  type        ClassificationType
+  description String?
+  parentId    String? // For hierarchical classifications
+  parent      Classification? @relation("ClassificationParent", fields: [parentId], references: [id])
+  children    Classification[] @relation("ClassificationParent")
+  order       Int @default(0)
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, type, name])
+  @@index([companyId])
+  @@index([type])
+  @@index([parentId])
+  @@index([order])
+}
+
+enum ClassificationType {
+  EQUIPMENT
+  COMMODITY
+  SERVICE_TYPE
+  CUSTOMER_SEGMENT
+  COST_CENTER
+  CUSTOM
+}
+

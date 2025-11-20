@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { createTruckSchema } from '@/lib/validations/truck';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,8 +28,10 @@ export async function GET(request: NextRequest) {
     const equipmentType = searchParams.get('equipmentType');
     const licenseState = searchParams.get('licenseState');
 
+    // Build base where clause with MC number filtering if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
     const where: any = {
-      companyId: session.user.companyId,
+      ...baseFilter,
       isActive: true,
       deletedAt: null,
     };

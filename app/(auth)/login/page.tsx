@@ -152,7 +152,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@demo.com"
+                placeholder="your@email.com"
                 {...register('email')}
                 disabled={isLoading}
               />

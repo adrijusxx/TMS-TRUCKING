@@ -9,7 +9,7 @@ export default function DispatchPage() {
   const [activeTab, setActiveTab] = useState('schedule');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="schedule">Weekly Schedule</TabsTrigger>

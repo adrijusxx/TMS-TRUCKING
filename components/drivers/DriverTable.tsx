@@ -57,6 +57,27 @@ interface DriverTableProps {
   someSelected: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  visibleColumns?: {
+    checkbox?: boolean;
+    driverNumber?: boolean;
+    name?: boolean;
+    email?: boolean;
+    phone?: boolean;
+    status?: boolean;
+    employeeStatus?: boolean;
+    assignmentStatus?: boolean;
+    dispatchStatus?: boolean;
+    driverType?: boolean;
+    mcNumber?: boolean;
+    teamDriver?: boolean;
+    truck?: boolean;
+    trailer?: boolean;
+    payTo?: boolean;
+    driverTariff?: boolean;
+    warnings?: boolean;
+    tags?: boolean;
+    actions?: boolean;
+  };
 }
 
 const getAssignmentStatusIcon = (status: AssignmentStatus) => {
@@ -146,7 +167,31 @@ export default function DriverTable({
   someSelected,
   canEdit,
   canDelete,
+  visibleColumns = {},
 }: DriverTableProps) {
+  // Default all columns to visible if not specified
+  const cols = {
+    checkbox: true,
+    driverNumber: true,
+    name: true,
+    email: true,
+    phone: true,
+    status: true,
+    employeeStatus: true,
+    assignmentStatus: true,
+    dispatchStatus: true,
+    driverType: true,
+    mcNumber: true,
+    teamDriver: true,
+    truck: true,
+    trailer: true,
+    payTo: true,
+    driverTariff: true,
+    warnings: true,
+    tags: true,
+    actions: true,
+    ...visibleColumns,
+  };
   return (
     <div className="border rounded-lg overflow-x-auto">
       <Table>
@@ -186,7 +231,7 @@ export default function DriverTable({
         <TableBody>
           {drivers.map((driver) => (
             <TableRow key={driver.id}>
-              {(canEdit || canDelete) && (
+              {(canEdit || canDelete) && cols.checkbox && (
                 <TableCell>
                   <Checkbox
                     checked={selectedDriverIds.includes(driver.id)}
@@ -197,69 +242,85 @@ export default function DriverTable({
                   />
                 </TableCell>
               )}
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  {getAssignmentStatusIcon(driver.assignmentStatus)}
-                  <span className="text-sm">
-                    {getAssignmentStatusText(driver.assignmentStatus)}
-                  </span>
-                </div>
-              </TableCell>
-              <TableCell>
-                {getEmployeeStatusBadge(driver.employeeStatus)}
-              </TableCell>
-              <TableCell className="font-medium">{driver.firstName}</TableCell>
-              <TableCell className="font-medium">{driver.lastName}</TableCell>
-              <TableCell>{formatDriverType(driver.driverType)}</TableCell>
-              <TableCell>{driver.mcNumber || '-'}</TableCell>
-              <TableCell>{driver.phone || '-'}</TableCell>
-              <TableCell className="max-w-[200px] truncate">
-                {driver.email}
-              </TableCell>
-              <TableCell>
-                {getDriverStatusBadge(driver.status)}
-              </TableCell>
-              <TableCell>
-                {driver.truck ? driver.truck.truckNumber : '-'}
-              </TableCell>
-              <TableCell>
-                {driver.trailer ? driver.trailer.trailerNumber : '-'}
-              </TableCell>
-              <TableCell>{driver.teamDriver ? 'Yes' : 'No'}</TableCell>
-              <TableCell>{driver.payTo || '-'}</TableCell>
-              <TableCell className="max-w-[200px] truncate">
-                {driver.driverTariff || '-'}
-              </TableCell>
-              <TableCell>
-                <Select
-                  value={driver.dispatchStatus || ''}
-                  onValueChange={(value) => {
-                    // Handle dispatch status change
-                    console.log('Change dispatch status', driver.id, value);
-                  }}
-                >
-                  <SelectTrigger className="w-[120px] h-8">
-                    <SelectValue>
-                      {driver.dispatchStatus ? (
-                        getDispatchStatusBadge(driver.dispatchStatus)
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DISPATCHED">DISPATCHED</SelectItem>
-                    <SelectItem value="ENROUTE">ENROUTE</SelectItem>
-                    <SelectItem value="TERMINATION">TERMINATION</SelectItem>
-                    <SelectItem value="REST">REST</SelectItem>
-                    <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
-                  </SelectContent>
-                </Select>
-              </TableCell>
+              {cols.assignmentStatus && (
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {getAssignmentStatusIcon(driver.assignmentStatus)}
+                    <span className="text-sm">
+                      {getAssignmentStatusText(driver.assignmentStatus)}
+                    </span>
+                  </div>
+                </TableCell>
+              )}
+              {cols.employeeStatus && (
+                <TableCell>
+                  {getEmployeeStatusBadge(driver.employeeStatus)}
+                </TableCell>
+              )}
+              {cols.name && <TableCell className="font-medium">{driver.firstName}</TableCell>}
+              {cols.name && <TableCell className="font-medium">{driver.lastName}</TableCell>}
+              {cols.driverType && <TableCell>{formatDriverType(driver.driverType)}</TableCell>}
+              {cols.mcNumber && <TableCell>{driver.mcNumber || '-'}</TableCell>}
+              {cols.phone && <TableCell>{driver.phone || '-'}</TableCell>}
+              {cols.email && (
+                <TableCell className="max-w-[200px] truncate">
+                  {driver.email}
+                </TableCell>
+              )}
+              {cols.status && (
+                <TableCell>
+                  {getDriverStatusBadge(driver.status)}
+                </TableCell>
+              )}
+              {cols.truck && (
+                <TableCell>
+                  {driver.truck ? driver.truck.truckNumber : '-'}
+                </TableCell>
+              )}
+              {cols.trailer && (
+                <TableCell>
+                  {driver.trailer ? driver.trailer.trailerNumber : '-'}
+                </TableCell>
+              )}
+              {cols.teamDriver && <TableCell>{driver.teamDriver ? 'Yes' : 'No'}</TableCell>}
+              {cols.payTo && <TableCell>{driver.payTo || '-'}</TableCell>}
+              {cols.driverTariff && (
+                <TableCell className="max-w-[200px] truncate">
+                  {driver.driverTariff || '-'}
+                </TableCell>
+              )}
+              {cols.dispatchStatus && (
+                <TableCell>
+                  <Select
+                    value={driver.dispatchStatus || ''}
+                    onValueChange={(value) => {
+                      // Handle dispatch status change
+                      console.log('Change dispatch status', driver.id, value);
+                    }}
+                  >
+                    <SelectTrigger className="w-[120px] h-8">
+                      <SelectValue>
+                        {driver.dispatchStatus ? (
+                          getDispatchStatusBadge(driver.dispatchStatus)
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DISPATCHED">DISPATCHED</SelectItem>
+                      <SelectItem value="ENROUTE">ENROUTE</SelectItem>
+                      <SelectItem value="TERMINATION">TERMINATION</SelectItem>
+                      <SelectItem value="REST">REST</SelectItem>
+                      <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+              )}
               <TableCell className="max-w-[200px] truncate">
                 {driver.notes || '-'}
               </TableCell>
-              <TableCell>{driver.warnings || '-'}</TableCell>
+              {cols.warnings && <TableCell>{driver.warnings || '-'}</TableCell>}
               <TableCell>
                 {driver.hireDate ? formatDate(driver.hireDate) : '-'}
               </TableCell>
@@ -268,15 +329,17 @@ export default function DriverTable({
                   ? formatDate(driver.terminationDate)
                   : '-'}
               </TableCell>
-              <TableCell className="text-right">
-                {canEdit && (
-                  <Link href={`/dashboard/drivers/${driver.id}/edit`}>
-                    <Button variant="ghost" size="sm">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                )}
-              </TableCell>
+              {cols.actions && (
+                <TableCell className="text-right">
+                  {canEdit && (
+                    <Link href={`/dashboard/drivers/${driver.id}/edit`}>
+                      <Button variant="ghost" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  )}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,10 +24,13 @@ export async function GET(request: NextRequest) {
       : new Date();
     const groupBy = searchParams.get('groupBy') || 'customer'; // customer, lane
 
+    // Build base filter with MC number if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
+
     // Get all loads in date range - include ALL loads, not just completed ones
     const loads = await prisma.load.findMany({
       where: {
-        companyId: session.user.companyId,
+        ...baseFilter,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: startDate, lte: endDate } },
@@ -39,6 +43,13 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
+          },
+        },
+        driver: {
+          select: {
+            id: true,
+            payType: true,
+            payRate: true,
           },
         },
       },
@@ -63,12 +74,28 @@ export async function GET(request: NextRequest) {
           };
         }
 
+        // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
+        let calculatedDriverPay = load.driverPay || 0;
+        if (!calculatedDriverPay && load.driver) {
+          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+          if (load.driver.payType === 'PER_MILE' && miles > 0) {
+            calculatedDriverPay = miles * load.driver.payRate;
+          } else if (load.driver.payType === 'PER_LOAD') {
+            calculatedDriverPay = load.driver.payRate;
+          } else if (load.driver.payType === 'PERCENTAGE') {
+            calculatedDriverPay = (load.revenue || 0) * (load.driver.payRate / 100);
+          } else if (load.driver.payType === 'HOURLY') {
+            const estimatedHours = miles > 0 ? miles / 50 : 10;
+            calculatedDriverPay = estimatedHours * load.driver.payRate;
+          }
+        }
+
         acc[customerId].totalLoads += 1;
         acc[customerId].totalRevenue += load.revenue;
-        acc[customerId].totalDriverPay += load.driverPay || 0;
+        acc[customerId].totalDriverPay += calculatedDriverPay;
         acc[customerId].totalExpenses += load.expenses || 0;
         acc[customerId].totalProfit +=
-          load.revenue - (load.driverPay || 0) - (load.expenses || 0);
+          load.revenue - calculatedDriverPay - (load.expenses || 0);
         
         return acc;
       }, {} as Record<string, any>);
@@ -122,12 +149,28 @@ export async function GET(request: NextRequest) {
           };
         }
 
+        // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
+        let calculatedDriverPay = load.driverPay || 0;
+        if (!calculatedDriverPay && load.driver) {
+          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+          if (load.driver.payType === 'PER_MILE' && miles > 0) {
+            calculatedDriverPay = miles * load.driver.payRate;
+          } else if (load.driver.payType === 'PER_LOAD') {
+            calculatedDriverPay = load.driver.payRate;
+          } else if (load.driver.payType === 'PERCENTAGE') {
+            calculatedDriverPay = (load.revenue || 0) * (load.driver.payRate / 100);
+          } else if (load.driver.payType === 'HOURLY') {
+            const estimatedHours = miles > 0 ? miles / 50 : 10;
+            calculatedDriverPay = estimatedHours * load.driver.payRate;
+          }
+        }
+
         acc[lane].totalLoads += 1;
         acc[lane].totalRevenue += load.revenue;
-        acc[lane].totalDriverPay += load.driverPay || 0;
+        acc[lane].totalDriverPay += calculatedDriverPay;
         acc[lane].totalExpenses += load.expenses || 0;
         acc[lane].totalProfit +=
-          load.revenue - (load.driverPay || 0) - (load.expenses || 0);
+          load.revenue - calculatedDriverPay - (load.expenses || 0);
         
         return acc;
       }, {} as Record<string, any>);

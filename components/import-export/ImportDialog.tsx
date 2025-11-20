@@ -130,31 +130,46 @@ export default function ImportDialog({
         body: formData,
       });
 
-      // Note: The actual processing happens on the server, so we update progress optimistically
-      // The server will process in batches, but we show progress based on time
+      // Enhanced progress tracking with more frequent updates and better messages
       let progressInterval: NodeJS.Timeout | null = null;
+      let progressStep = 25; // Start at 25% after upload
+      let messageIndex = 0;
+      const progressMessages = [
+        'Validating file structure...',
+        'Parsing data rows...',
+        'Matching customers and vendors...',
+        'Matching drivers and dispatchers...',
+        'Matching trucks and trailers...',
+        'Validating load data...',
+        'Calculating distances...',
+        'Creating database records...',
+        'Finalizing import...',
+      ];
       
       if (response.ok) {
-        // Start progress updates while waiting for response
+        // Start progress updates while waiting for response - faster updates for better UX
         progressInterval = setInterval(() => {
           setImportProgress((prev) => {
-            if (prev.status === 'processing' && prev.progress < 90) {
-              const newProgress = Math.min(prev.progress + 3, 90);
+            if (prev.status === 'processing' && prev.progress < 95) {
+              // Increment progress more gradually but smoothly
+              const increment = prev.progress < 50 ? 2 : 1.5; // Faster at start, slower near end
+              const newProgress = Math.min(prev.progress + increment, 95);
+              
+              // Update message based on progress
+              const messageStep = Math.floor((newProgress - 25) / 8); // 25-95 range divided into steps
+              const message = messageStep < progressMessages.length 
+                ? progressMessages[messageStep] 
+                : progressMessages[progressMessages.length - 1];
+              
               return {
                 ...prev,
                 progress: newProgress,
-                message: newProgress < 40 
-                  ? 'Parsing file and validating data...'
-                  : newProgress < 60 
-                  ? 'Matching customers, drivers, and trucks...'
-                  : newProgress < 80
-                  ? 'Calculating distances and deadhead miles...'
-                  : 'Creating load records...',
+                message,
               };
             }
             return prev;
           });
-        }, 1500); // Update every 1.5 seconds
+        }, 800); // Update every 800ms for smoother progress
       }
 
       if (!response.ok) {
@@ -346,17 +361,44 @@ export default function ImportDialog({
             </p>
           </div>
 
-          {/* Column Mapping Button */}
+          {/* Column Mapping Section - More Prominent */}
           {importResult && importResult.data.length > 0 && (
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                onClick={() => setShowColumnMapping(true)}
-                className="gap-2"
-              >
-                <Settings2 className="h-4 w-4" />
-                Map Columns
-              </Button>
+            <div className="border rounded-lg p-4 space-y-3 bg-blue-50 dark:bg-blue-950/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Settings2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <div>
+                    <h4 className="font-medium text-sm">Column Mapping</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Map your Excel/CSV columns to system fields for accurate import
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowColumnMapping(true)}
+                  className="gap-2 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  {Object.keys(columnMapping).length > 0 ? `${Object.keys(columnMapping).length} Mapped` : 'Map Columns'}
+                </Button>
+              </div>
+              {Object.keys(columnMapping).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(columnMapping).slice(0, 5).map(([excelCol, systemField]) => (
+                    <div key={excelCol} className="text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded flex items-center gap-1">
+                      <span className="font-medium">{excelCol}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="font-medium">{systemField}</span>
+                    </div>
+                  ))}
+                  {Object.keys(columnMapping).length > 5 && (
+                    <span className="text-xs text-muted-foreground">
+                      +{Object.keys(columnMapping).length - 5} more
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { createLoadSchema } from '@/lib/validations/load';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,9 +31,12 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const revenue = searchParams.get('revenue');
+    const my = searchParams.get('my'); // Filter for "My Loads"
 
+    // Build base where clause with MC number filtering if applicable
+    const baseFilter = await buildMcNumberWhereClause(session, request);
     const where: any = {
-      companyId: session.user.companyId,
+      ...baseFilter,
       deletedAt: null,
     };
 
@@ -112,6 +116,11 @@ export async function GET(request: NextRequest) {
 
     if (revenue) {
       where.revenue = { gte: parseFloat(revenue) };
+    }
+
+    // Filter for "My Loads" - loads assigned to current user as dispatcher
+    if (my === 'true') {
+      where.assignedDispatcherId = session.user.id;
     }
 
     if (search) {

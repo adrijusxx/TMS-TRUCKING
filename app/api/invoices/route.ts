@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,11 +25,56 @@ export async function GET(request: NextRequest) {
     const dueDate = searchParams.get('dueDate');
     const minTotal = searchParams.get('minTotal');
     const mcNumber = searchParams.get('mcNumber');
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID (from CompanySwitcher)
     const reconciliationStatus = searchParams.get('reconciliationStatus');
+    const isAdmin = session.user?.role === 'ADMIN';
 
-    // Get customer IDs for this company
+    // Build base filter with MC number if applicable
+    let baseFilter = await buildMcNumberWhereClause(session, request);
+    
+    // Admin-only: Override MC filter based on view mode
+    let customerFilter: any = { ...baseFilter };
+    
+    if (isAdmin && mcViewMode) {
+      if (mcViewMode === 'all') {
+        // Show all MCs - only filter by company, not by MC number
+        customerFilter = {
+          companyId: session.user.companyId,
+        };
+        // Explicitly remove mcNumber if it exists
+        delete customerFilter.mcNumber;
+      } else if (mcViewMode !== 'current' && mcViewMode !== null) {
+        // Filter by specific MC number ID (admin selecting specific MC)
+        const mcNumberRecord = await prisma.mcNumber.findUnique({
+          where: { id: mcViewMode },
+          select: { number: true, companyId: true },
+        });
+        if (mcNumberRecord) {
+          // Verify MC number belongs to user's accessible company
+          const user = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { companyId: true, userCompanies: { select: { companyId: true } } },
+          });
+          const accessibleCompanyIds = [
+            user?.companyId,
+            ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
+          ].filter(Boolean) as string[];
+          
+          if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
+            customerFilter = {
+              ...baseFilter,
+              mcNumber: mcNumberRecord.number,
+            };
+          }
+        }
+      }
+      // If mcViewMode is 'current' or null, use baseFilter as-is (current MC from session)
+    }
+    // Non-admin users: always use baseFilter (their assigned MC)
+
+    // Get customer IDs for this company (filtered by MC number if applicable)
     const companyCustomers = await prisma.customer.findMany({
-      where: { companyId: session.user.companyId, isActive: true },
+      where: { ...customerFilter, isActive: true },
       select: { id: true },
     });
     const customerIds = companyCustomers.map((c) => c.id);
@@ -69,7 +115,10 @@ export async function GET(request: NextRequest) {
       where.total = { gte: parseFloat(minTotal) };
     }
 
-    if (mcNumber) {
+    // MC number filtering is already handled above via mcViewMode and baseFilter
+    // The baseFilter is applied to the customer query, which filters invoices
+    // Legacy support for mcNumber query param (if not already filtered by baseFilter)
+    if (mcNumber && !baseFilter.mcNumber) {
       where.mcNumber = { contains: mcNumber, mode: 'insensitive' };
     }
 
