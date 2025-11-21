@@ -193,13 +193,13 @@ export default function DashboardLayout({
               variant="ghost"
               className="w-full justify-start text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent"
               onClick={async () => {
-                // Get basePath from current location
-                const basePath = typeof window !== 'undefined' 
-                  ? (window.location.pathname.startsWith('/tms') ? '/tms' 
-                      : window.location.pathname.startsWith('/crm') ? '/crm' 
-                      : '')
+                // Get basePath from environment (for subdirectory deployment)
+                // For subdomain deployment (tms.vaidera.eu), basePath should be empty
+                // Don't detect from URL path as it may already include the basePath
+                const basePath = typeof window !== 'undefined'
+                  ? (process.env.NEXT_PUBLIC_BASE_PATH || '')
                   : '';
-                const loginPath = `${basePath}/login`;
+                const loginPath = basePath ? `${basePath}/login` : '/login';
                 // Use redirect: false and handle redirect manually to ensure it works
                 await signOut({ 
                   redirect: false,

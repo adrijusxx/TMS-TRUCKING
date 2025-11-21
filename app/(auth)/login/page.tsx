@@ -48,11 +48,11 @@ export default function LoginPage() {
       const params = new URLSearchParams(window.location.search);
       const callbackUrl = params.get('callbackUrl') || '/dashboard';
       
-      // Extract basePath from current URL (e.g., /tms or /crm)
-      const currentPath = window.location.pathname;
-      const basePath = currentPath.startsWith('/tms') ? '/tms' 
-        : currentPath.startsWith('/crm') ? '/crm' 
-        : process.env.NEXT_PUBLIC_BASE_PATH || '';
+      // Get basePath from environment variable (not from URL path)
+      // For subdomain deployment (tms.vaidera.eu), basePath should be empty
+      // For subdirectory deployment (domain.com/tms), basePath should be '/tms'
+      // Don't detect from URL as it may already have basePath appended
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
       
       // Ensure callbackUrl includes basePath
       const fullCallbackUrl = basePath && !callbackUrl.startsWith(basePath)
@@ -114,7 +114,7 @@ export default function LoginPage() {
         // Use the callbackUrl we already calculated above
         // Debug logging (remove in production)
         if (process.env.NODE_ENV === 'development') {
-          console.log('Login redirect:', { callbackUrl: fullCallbackUrl, basePath, currentPath });
+          console.log('Login redirect:', { callbackUrl: fullCallbackUrl, basePath });
         }
         
         // Use window.location for a hard redirect to ensure session is set
