@@ -3,27 +3,23 @@
 import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react';
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  // Get basePath from environment or detect from window.location
-  const getBasePath = () => {
-    // Client-side: detect from current URL
-    if (typeof window !== 'undefined') {
-      const pathname = window.location.pathname;
-      if (pathname.startsWith('/tms')) return '/tms';
-      if (pathname.startsWith('/crm')) return '/crm';
-    }
-    // Fallback to env var (for SSR)
-    return process.env.NEXT_PUBLIC_BASE_PATH || '/tms';
-  };
-
-  const basePath = getBasePath();
+  // Get basePath from environment variable only (not from URL path)
+  // For subdomain deployment (tms.vaidera.eu): basePath should be empty
+  // For subdirectory deployment (domain.com/tms): basePath should be '/tms'
+  // Don't detect from URL as it may already have basePath appended
+  const basePath = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_BASE_PATH || '')
+    : (process.env.NEXT_PUBLIC_BASE_PATH || '');
   
   // NextAuth v5 client-side needs basePath to construct correct API URLs
-  // The basePath should be the app's basePath (e.g., '/tms'), not '/tms/api/auth'
+  // The basePath should be the app's basePath (e.g., '/tms' or ''), not '/tms/api/auth'
   // NextAuth will append '/api/auth' automatically
-  // This fixes the "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" error
-  // which happens when NextAuth calls /api/auth/session instead of /tms/api/auth/session
+  // For subdomain: basePath is '', so NextAuth path is '/api/auth'
+  // For subdirectory: basePath is '/tms', so NextAuth path is '/tms/api/auth'
+  const nextAuthBasePath = basePath ? `${basePath}/api/auth` : '/api/auth';
+  
   return (
-    <NextAuthSessionProvider basePath={`${basePath}/api/auth`}>
+    <NextAuthSessionProvider basePath={nextAuthBasePath}>
       {children}
     </NextAuthSessionProvider>
   );

@@ -32,18 +32,13 @@ export function formatDateTime(date: Date | string): string {
 
 /**
  * Get the basePath for API calls
- * In browser, extracts from window.location.pathname
- * On server, uses NEXT_PUBLIC_BASE_PATH env var
+ * Uses NEXT_PUBLIC_BASE_PATH environment variable only (not URL detection)
+ * For subdomain deployment (tms.vaidera.eu): returns empty string
+ * For subdirectory deployment (domain.com/tms): returns '/tms'
+ * Don't detect from URL as it may already have basePath appended
  */
 export function getBasePath(): string {
-  if (typeof window !== 'undefined') {
-    // Client-side: extract from current URL
-    const pathname = window.location.pathname;
-    if (pathname.startsWith('/tms')) return '/tms';
-    if (pathname.startsWith('/crm')) return '/crm';
-  }
-  // Server-side or fallback: use env var
-  return process.env.NEXT_PUBLIC_BASE_PATH || '/tms';
+  return process.env.NEXT_PUBLIC_BASE_PATH || '';
 }
 
 /**
