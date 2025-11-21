@@ -15,14 +15,13 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
   
-  // Configure basePath for /tms subdirectory when running behind nginx
-  // IMPORTANT: When using this, REMOVE the rewrite rule from nginx config
-  // Hardcoded fallback to '/tms' ensures basePath is set even if env var isn't read during build
-  // This matches the CRM configuration that works correctly
-  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',
+  // Configure basePath for subdirectory deployment (e.g., /tms) or empty for subdomain deployment
+  // For subdomain deployment (tms.vaidera.eu): set NEXT_PUBLIC_BASE_PATH='' or don't set it
+  // For subdirectory deployment (domain.com/tms): set NEXT_PUBLIC_BASE_PATH='/tms'
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
   
   // Ensure assetPrefix matches basePath for proper static asset serving
-  assetPrefix: process.env.NEXT_PUBLIC_BASE_PATH || '/tms',
+  assetPrefix: process.env.NEXT_PUBLIC_BASE_PATH || '',
 }
 
 module.exports = nextConfig
