@@ -41,7 +41,7 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       return <LoadManagementNav />;
     }
 
-    // Accounting pages
+    // Accounting pages (including batches)
     if (pathname.startsWith('/dashboard/invoices') ||
         pathname.startsWith('/dashboard/settlements') ||
         pathname.startsWith('/dashboard/salary') ||
@@ -51,7 +51,8 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
         pathname.startsWith('/dashboard/locations') ||
         pathname.startsWith('/dashboard/analytics') ||
         pathname.startsWith('/dashboard/automation') ||
-        pathname.startsWith('/dashboard/accounting')) {
+        pathname.startsWith('/dashboard/accounting') ||
+        pathname.startsWith('/dashboard/batches')) {
       return <AccountingNav />;
     }
 

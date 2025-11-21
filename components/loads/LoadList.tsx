@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/export';
-import { Package, Plus, Search, Filter, Download, FileText, Edit, MapPin, Trash2, Upload, Settings2 } from 'lucide-react';
+import { Package, Plus, Search, Filter, Download, FileText, Edit, MapPin, Trash2, Upload, Settings2, Users } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -261,9 +261,8 @@ export default function LoadList() {
   const [pageSize, setPageSize] = useState(50); // Default to 50 loads per page
   const [statusFilter, setStatusFilter] = useState<string>(view === 'live' ? 'EN_ROUTE_DELIVERY' : 'all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>(
-    view === 'my' ? { my: true } : {}
-  );
+  const [dispatcherFilter, setDispatcherFilter] = useState<string>('all');
+  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   
   // Update filters when view changes
   useEffect(() => {
@@ -271,12 +270,11 @@ export default function LoadList() {
       // Live loads: active/in-transit loads
       setStatusFilter('IN_TRANSIT');
       setAdvancedFilters({});
-    } else if (view === 'my') {
-      setStatusFilter('all');
-      setAdvancedFilters({ my: true });
+      setDispatcherFilter('all');
     } else {
       setStatusFilter('all');
       setAdvancedFilters({});
+      setDispatcherFilter('all');
     }
     setPage(1); // Reset to first page when view changes
   }, [view]);
@@ -314,8 +312,18 @@ export default function LoadList() {
   });
 
   const mcParam = searchParams?.get('mc');
+  const { data: dispatchersData } = useQuery({
+    queryKey: ['dispatchers'],
+    queryFn: async () => {
+      const response = await fetch(apiUrl('/api/settings/users?role=DISPATCHER'));
+      if (!response.ok) throw new Error('Failed to fetch dispatchers');
+      return response.json();
+    },
+  });
+  const dispatchers = dispatchersData?.data || [];
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters, view, mcParam],
+    queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters, view, mcParam, dispatcherFilter],
     queryFn: async () => {
       const mcParam = searchParams?.get('mc');
       const params: any = {
@@ -324,13 +332,9 @@ export default function LoadList() {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
         mc: mcParam || undefined,
+        dispatcherId: dispatcherFilter !== 'all' ? dispatcherFilter : undefined,
         ...advancedFilters,
       };
-      
-      // Add "my" parameter if view is "my"
-      if (view === 'my') {
-        params.my = 'true';
-      }
       
       const result = await fetchLoads(params);
       console.log('[LoadList] Fetched loads:', { 
@@ -738,6 +742,26 @@ export default function LoadList() {
             {Object.keys(statusColors).map((status) => (
               <SelectItem key={status} value={status}>
                 {formatStatus(status as LoadStatus)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={dispatcherFilter}
+          onValueChange={(value) => {
+            setDispatcherFilter(value);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <Users className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Filter by dispatcher" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Dispatchers</SelectItem>
+            {dispatchers.map((dispatcher: any) => (
+              <SelectItem key={dispatcher.id} value={dispatcher.id}>
+                {dispatcher.firstName} {dispatcher.lastName}
               </SelectItem>
             ))}
           </SelectContent>

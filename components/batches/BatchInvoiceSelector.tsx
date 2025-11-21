@@ -36,9 +36,46 @@ interface BatchInvoiceSelectorProps {
 }
 
 async function fetchAvailableInvoices() {
-  const response = await fetch(apiUrl('/api/invoices?limit=1000&status=INVOICED,SENT'));
+  // Fetch all invoices
+  const response = await fetch(apiUrl('/api/invoices?limit=1000'));
   if (!response.ok) throw new Error('Failed to fetch invoices');
-  return response.json();
+  const invoiceData = await response.json();
+  
+  // Fetch all batches to get invoice IDs that are already in batches
+  const batchesResponse = await fetch(apiUrl('/api/batches?limit=1000'));
+  const invoiceIdsInBatches = new Set<string>();
+  
+  if (batchesResponse.ok) {
+    const batchesData = await batchesResponse.json();
+    if (batchesData.success && batchesData.data) {
+      // Extract invoice IDs from all batches
+      for (const batch of batchesData.data) {
+        if (batch.items && Array.isArray(batch.items)) {
+          for (const item of batch.items) {
+            if (item.invoiceId) {
+              invoiceIdsInBatches.add(item.invoiceId);
+            }
+            if (item.invoice && item.invoice.id) {
+              invoiceIdsInBatches.add(item.invoice.id);
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Filter invoices: exclude PAID invoices and those already in batches
+  if (invoiceData.success && invoiceData.data) {
+    invoiceData.data = invoiceData.data.filter((inv: Invoice) => {
+      // Exclude PAID invoices
+      if (inv.status === 'PAID') return false;
+      // Exclude invoices already in batches
+      if (invoiceIdsInBatches.has(inv.id)) return false;
+      return true;
+    });
+  }
+  
+  return invoiceData;
 }
 
 export default function BatchInvoiceSelector({
@@ -92,8 +129,8 @@ export default function BatchInvoiceSelector({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
+    <div className="space-y-4 h-full flex flex-col min-h-0">
+      <div className="space-y-2 flex-shrink-0">
         <Label>Search Invoices</Label>
         <Input
           placeholder="Search by invoice number, customer, or MC number..."
@@ -102,10 +139,11 @@ export default function BatchInvoiceSelector({
         />
       </div>
 
-      <div className="border rounded-lg max-h-96 overflow-y-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
+      <div className="border rounded-lg flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
               <TableHead className="w-12">
                 <Checkbox
                   checked={
@@ -157,11 +195,12 @@ export default function BatchInvoiceSelector({
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {selectedInvoiceIds.length > 0 && (
-        <div className="text-sm text-muted-foreground">
-          {selectedInvoiceIds.length} invoice(s) selected
+        <div className="text-sm text-muted-foreground flex-shrink-0 pt-2 border-t">
+          <strong>{selectedInvoiceIds.length}</strong> invoice(s) selected
         </div>
       )}
     </div>

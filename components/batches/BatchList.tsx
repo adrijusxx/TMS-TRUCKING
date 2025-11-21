@@ -3,7 +3,18 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Table,
   TableBody,
@@ -13,6 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -21,9 +33,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FileText, Plus, Search, Filter, Download, Send } from 'lucide-react';
+import { FileText, Plus, Search, Filter, Download, Send, Trash2 } from 'lucide-react';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { BatchPostStatus } from '@prisma/client';
+import CreateBatchForm from './CreateBatchForm';
 
 interface Batch {
   id: string;
@@ -72,6 +85,10 @@ export default function BatchList() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [createBatchDialogOpen, setCreateBatchDialogOpen] = useState(false);
+  const [deleteBatchId, setDeleteBatchId] = useState<string | null>(null);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['batches', page, statusFilter, searchQuery],
@@ -82,6 +99,29 @@ export default function BatchList() {
         postStatus: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
       }),
+  });
+
+  const deleteBatchMutation = useMutation({
+    mutationFn: async (batchId: string) => {
+      const response = await fetch(apiUrl(`/api/batches/${batchId}`), {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to delete batch');
+      }
+      return response.json();
+    },
+                onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+      setDeleteBatchId(null);
+      setSelectedBatchIds([]); // Clear selection after delete
+      toast.success('Batch deleted successfully');
+      refetch();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete batch');
+    },
   });
 
   const batches: Batch[] = data?.data || [];
@@ -98,6 +138,22 @@ export default function BatchList() {
           </p>
         </div>
         <div className="flex gap-2">
+          {selectedBatchIds.length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={() => {
+                // For now, delete first selected batch (can enhance to bulk delete later)
+                if (selectedBatchIds.length === 1) {
+                  setDeleteBatchId(selectedBatchIds[0]);
+                } else {
+                  toast.error('Please delete batches one at a time');
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete ({selectedBatchIds.length})
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => {
@@ -118,12 +174,10 @@ export default function BatchList() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Link href="/dashboard/batches/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create new batch
-            </Button>
-          </Link>
+          <Button onClick={() => setCreateBatchDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create new batch
+          </Button>
         </div>
       </div>
 
@@ -180,7 +234,7 @@ export default function BatchList() {
               : 'Create your first batch to group invoices together'}
           </p>
           {!searchQuery && statusFilter === 'all' && (
-            <Link href="/dashboard/batches/new">
+            <Link href="/dashboard/accounting/batches/new">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
                 Create new batch
@@ -195,7 +249,16 @@ export default function BatchList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>
-                    <input type="checkbox" className="rounded" />
+                    <Checkbox
+                      checked={batches.length > 0 && batches.every((b) => selectedBatchIds.includes(b.id))}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedBatchIds(batches.map((b) => b.id));
+                        } else {
+                          setSelectedBatchIds([]);
+                        }
+                      }}
+                    />
                   </TableHead>
                   <TableHead>Batch ID</TableHead>
                   <TableHead>Post status</TableHead>
@@ -212,11 +275,21 @@ export default function BatchList() {
                 {batches.map((batch) => (
                   <TableRow key={batch.id}>
                     <TableCell>
-                      <input type="checkbox" className="rounded" />
+                      <Checkbox
+                        checked={selectedBatchIds.includes(batch.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedBatchIds([...selectedBatchIds, batch.id]);
+                          } else {
+                            setSelectedBatchIds(selectedBatchIds.filter((id) => id !== batch.id));
+                          }
+                        }}
+                        disabled={batch.postStatus !== 'UNPOSTED'} // Only allow selecting UNPOSTED batches for deletion
+                      />
                     </TableCell>
                     <TableCell className="font-medium">
                       <Link
-                        href={`/dashboard/batches/${batch.id}`}
+                        href={`/dashboard/accounting/batches/${batch.id}`}
                         className="text-primary hover:underline"
                       >
                         {batch.batchNumber}
@@ -245,27 +318,38 @@ export default function BatchList() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         {batch.postStatus === 'UNPOSTED' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={async () => {
-                              const response = await fetch(
-                                apiUrl(`/api/batches/${batch.id}/send`),
-                                {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({}),
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const response = await fetch(
+                                  apiUrl(`/api/batches/${batch.id}/send`),
+                                  {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({}),
+                                  }
+                                );
+                                if (response.ok) {
+                                  refetch();
+                                  toast.success('Batch sent to factoring');
                                 }
-                              );
-                              if (response.ok) {
-                                refetch();
-                              }
-                            }}
-                          >
-                            <Send className="h-4 w-4" />
-                          </Button>
+                              }}
+                            >
+                              <Send className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteBatchId(batch.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
-                        <Link href={`/dashboard/batches/${batch.id}`}>
+                        <Link href={`/dashboard/accounting/batches/${batch.id}`}>
                           <Button variant="ghost" size="sm">
                             View
                           </Button>
@@ -307,6 +391,37 @@ export default function BatchList() {
           )}
         </>
       )}
+
+      <CreateBatchForm
+        open={createBatchDialogOpen}
+        onOpenChange={setCreateBatchDialogOpen}
+      />
+
+      <AlertDialog open={!!deleteBatchId} onOpenChange={(open) => !open && setDeleteBatchId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this batch? This action cannot be undone.
+              Only UNPOSTED batches can be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteBatchId) {
+                  deleteBatchMutation.mutate(deleteBatchId);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteBatchMutation.isPending}
+            >
+              {deleteBatchMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

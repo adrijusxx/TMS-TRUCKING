@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,14 +21,22 @@ import BatchInvoiceSelector from './BatchInvoiceSelector';
 interface CreateBatchFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  preselectedInvoiceIds?: string[];
 }
 
-export default function CreateBatchForm({ open, onOpenChange }: CreateBatchFormProps) {
+export default function CreateBatchForm({ open, onOpenChange, preselectedInvoiceIds = [] }: CreateBatchFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>(preselectedInvoiceIds);
   const [mcNumber, setMcNumber] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Update selected invoices when preselectedInvoiceIds changes
+  useEffect(() => {
+    if (preselectedInvoiceIds.length > 0) {
+      setSelectedInvoiceIds(preselectedInvoiceIds);
+    }
+  }, [preselectedInvoiceIds]);
 
   const createBatchMutation = useMutation({
     mutationFn: async (data: {
@@ -50,7 +58,7 @@ export default function CreateBatchForm({ open, onOpenChange }: CreateBatchFormP
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['batches'] });
       onOpenChange(false);
-      router.push(`/dashboard/batches/${data.data.id}`);
+      router.push(`/dashboard/accounting/batches/${data.data.id}`);
     },
   });
 
@@ -70,14 +78,14 @@ export default function CreateBatchForm({ open, onOpenChange }: CreateBatchFormP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Create New Batch</DialogTitle>
           <DialogDescription>
             Select invoices to group into a batch
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 flex flex-col flex-1 min-h-0">
           <div className="space-y-2">
             <Label htmlFor="mcNumber">MC Number (Optional)</Label>
             <Input
@@ -88,12 +96,22 @@ export default function CreateBatchForm({ open, onOpenChange }: CreateBatchFormP
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Select Invoices</Label>
-            <BatchInvoiceSelector
-              selectedInvoiceIds={selectedInvoiceIds}
-              onSelectionChange={setSelectedInvoiceIds}
-            />
+          <div className="space-y-2 flex-1 min-h-0 flex flex-col">
+            <div className="flex items-center justify-between">
+              <Label>Select Invoices</Label>
+              {preselectedInvoiceIds.length > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {preselectedInvoiceIds.length} invoice(s) preselected from invoice list
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <BatchInvoiceSelector
+                selectedInvoiceIds={selectedInvoiceIds}
+                onSelectionChange={setSelectedInvoiceIds}
+                excludeInvoiceIds={[]}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

@@ -25,10 +25,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { name: 'All Loads', href: '/dashboard/loads', icon: Package },
   { name: 'Live Loads', href: '/dashboard/loads', icon: TrendingUp, query: 'view=live' },
-  { name: 'My Loads', href: '/dashboard/loads', icon: FileText, query: 'view=my' },
   { name: 'Loadboard', href: '/dashboard/loadboard', icon: Search, badge: 'NEW' },
   { name: 'Dispatch', href: '/dashboard/dispatch', icon: Calendar },
-  { name: 'Planning Calendar', href: '/dashboard/calendar', icon: Calendar },
   { name: 'Live Map', href: '/dashboard/map', icon: Navigation },
 ];
 

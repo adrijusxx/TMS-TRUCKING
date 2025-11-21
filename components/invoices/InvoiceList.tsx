@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { FileText, Plus, Search, Filter, Download, Upload, Settings2 } from 'lucide-react';
+import { FileText, Plus, Search, Filter, Download, Upload, Settings2, Package } from 'lucide-react';
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/export';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { InvoiceStatus } from '@prisma/client';
@@ -32,6 +32,8 @@ import SavedFilters from '@/components/filters/SavedFilters';
 import InvoiceListStats from '@/components/invoices/InvoiceListStats';
 import InvoiceQuickView from '@/components/invoices/InvoiceQuickView';
 import InvoiceImportDialog from '@/components/invoices/InvoiceImportDialog';
+import CreateBatchForm from '@/components/batches/CreateBatchForm';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import {
   DropdownMenu,
@@ -114,6 +116,8 @@ export default function InvoiceList() {
   const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
   const [quickViewInvoiceId, setQuickViewInvoiceId] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+  const [createBatchDialogOpen, setCreateBatchDialogOpen] = useState(false);
   
   // Get MC view mode from URL (set by CompanySwitcher)
   const searchParamsObj = useSearchParams();
@@ -188,6 +192,15 @@ export default function InvoiceList() {
           </p>
         </div>
       <div className="flex gap-2">
+        {selectedInvoiceIds.length > 0 && (
+          <Button
+            variant="default"
+            onClick={() => setCreateBatchDialogOpen(true)}
+          >
+            <Package className="h-4 w-4 mr-2" />
+            Create Batch ({selectedInvoiceIds.length})
+          </Button>
+        )}
         <Button
           variant="outline"
           onClick={() => setImportDialogOpen(true)}
@@ -468,7 +481,22 @@ export default function InvoiceList() {
                 <TableRow>
                   {visibleColumns.checkbox && (
                     <TableHead>
-                      <input type="checkbox" className="rounded" />
+                      <Checkbox
+                        checked={invoices.length > 0 && invoices.every((inv) => selectedInvoiceIds.includes(inv.id))}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            // Select all non-PAID invoices on current page
+                            const selectableIds = invoices
+                              .filter((inv) => inv.status !== 'PAID')
+                              .map((inv) => inv.id);
+                            setSelectedInvoiceIds([...selectedInvoiceIds, ...selectableIds.filter((id) => !selectedInvoiceIds.includes(id))]);
+                          } else {
+                            // Deselect all invoices on current page
+                            const currentPageIds = invoices.map((inv) => inv.id);
+                            setSelectedInvoiceIds(selectedInvoiceIds.filter((id) => !currentPageIds.includes(id)));
+                          }
+                        }}
+                      />
                     </TableHead>
                   )}
                   {visibleColumns.invoiceId && <TableHead>Invoice ID</TableHead>}
@@ -500,7 +528,17 @@ export default function InvoiceList() {
                     <TableRow key={invoice.id}>
                       {visibleColumns.checkbox && (
                         <TableCell>
-                          <input type="checkbox" className="rounded" />
+                          <Checkbox
+                            checked={selectedInvoiceIds.includes(invoice.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedInvoiceIds([...selectedInvoiceIds, invoice.id]);
+                              } else {
+                                setSelectedInvoiceIds(selectedInvoiceIds.filter((id) => id !== invoice.id));
+                              }
+                            }}
+                            disabled={invoice.status === 'PAID'} // Can't batch PAID invoices
+                          />
                         </TableCell>
                       )}
                       {visibleColumns.invoiceId && (
@@ -637,6 +675,17 @@ export default function InvoiceList() {
       <InvoiceImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
+      />
+
+      <CreateBatchForm
+        open={createBatchDialogOpen}
+        onOpenChange={(open) => {
+          setCreateBatchDialogOpen(open);
+          if (!open) {
+            setSelectedInvoiceIds([]); // Clear selection when dialog closes
+          }
+        }}
+        preselectedInvoiceIds={selectedInvoiceIds}
       />
     </div>
   );

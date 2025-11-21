@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const revenue = searchParams.get('revenue');
-    const my = searchParams.get('my'); // Filter for "My Loads"
+    const dispatcherId = searchParams.get('dispatcherId'); // Filter by dispatcher ID
     const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
     const isAdmin = session.user?.role === 'ADMIN';
 
@@ -177,9 +177,9 @@ export async function GET(request: NextRequest) {
       where.revenue = { gte: parseFloat(revenue) };
     }
 
-    // Filter for "My Loads" - loads assigned to current user as dispatcher
-    if (my === 'true') {
-      where.assignedDispatcherId = session.user.id;
+    // Filter by dispatcher ID if specified
+    if (dispatcherId) {
+      where.assignedDispatcherId = dispatcherId;
     }
 
     if (search) {

@@ -23,6 +23,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { name: 'Batches', href: '/dashboard/accounting/batches', icon: FileText },
   { name: 'Invoice', href: '/dashboard/invoices', icon: FileText },
   { name: 'Settlements', href: '/dashboard/settlements', icon: DollarSign },
   { name: 'Salary', href: '/dashboard/salary', icon: CreditCard },

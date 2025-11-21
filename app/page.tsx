@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
+import LandingPage from '@/components/landing/LandingPage';
 
 export default function Home() {
-  // Next.js redirect() automatically prepends basePath from next.config.js
-  redirect('/login');
+  return <LandingPage />;
 }
 
