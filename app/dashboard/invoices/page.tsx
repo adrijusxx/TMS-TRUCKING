@@ -1,3 +1,5 @@
+'use client';
+
 import InvoiceList from '@/components/invoices/InvoiceList';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 

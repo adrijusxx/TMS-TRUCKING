@@ -54,6 +54,12 @@ export async function GET(request: NextRequest) {
       if (mcNumberId) {
         where.mcNumberId = mcNumberId;
       }
+    } else if (roleFilter === 'ACCOUNTANT') {
+      where.role = 'ACCOUNTANT';
+      // If MC number is selected, filter accountants by their mcNumberId
+      if (mcNumberId) {
+        where.mcNumberId = mcNumberId;
+      }
     } else if (roleFilter === 'EMPLOYEES') {
       // Employees = ADMIN, ACCOUNTANT (not DISPATCHER, not DRIVER)
       where.role = { in: ['ADMIN', 'ACCOUNTANT'] };
@@ -69,6 +75,16 @@ export async function GET(request: NextRequest) {
           mcNumber: mcNumber,
         };
       }
+    } else if (roleFilter === 'SAFETY') {
+      // Safety Department: Users who are safety managers (have safetyManagedDrivers)
+      where.safetyManagedDrivers = {
+        some: {},
+      };
+    } else if (roleFilter === 'HR') {
+      // HR Department: Users who are HR managers (have hrManagedDrivers)
+      where.hrManagedDrivers = {
+        some: {},
+      };
     } else {
       // For all users, if MC number is selected, filter by mcNumberId (for dispatchers/employees) or driver.mcNumber (for drivers)
       if (mcNumberId) {

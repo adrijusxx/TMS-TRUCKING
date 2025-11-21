@@ -30,6 +30,13 @@ export async function GET(
       },
       include: {
         customer: true,
+        factoringCompany: {
+          select: {
+            id: true,
+            name: true,
+            accountNumber: true,
+          },
+        },
         payments: {
           include: {
             createdBy: {
@@ -124,7 +131,21 @@ export async function PATCH(
       reconciliationStatus, 
       invoiceNote, 
       paymentNote, 
-      loadId 
+      loadId,
+      // New fields
+      paymentMethod,
+      factoringStatus,
+      factoringCompanyId,
+      shortPayAmount,
+      shortPayReasonCode,
+      shortPayReason,
+      expectedPaymentDate,
+      amountPaid,
+      balance,
+      disputedAt,
+      disputedReason,
+      writtenOffAt,
+      writtenOffReason,
     } = body;
 
     const existingInvoice = await prisma.invoice.findFirst({
@@ -164,6 +185,16 @@ export async function PATCH(
     const updateData: any = {};
     const wasPaid = existingInvoice.status !== 'PAID' && status === 'PAID';
     
+    // If marking as paid, update amountPaid and balance
+    if (status === 'PAID') {
+      updateData.amountPaid = existingInvoice.total;
+      updateData.balance = 0;
+      updateData.paidDate = new Date();
+      if (!updateData.subStatus) {
+        updateData.subStatus = 'PAID';
+      }
+    }
+    
     if (status && Object.values(InvoiceStatus).includes(status)) {
       updateData.status = status;
     }
@@ -188,6 +219,46 @@ export async function PATCH(
     if (loadId !== undefined) {
       updateData.loadId = loadId;
     }
+    // New fields
+    if (paymentMethod !== undefined) {
+      updateData.paymentMethod = paymentMethod;
+    }
+    if (factoringStatus !== undefined) {
+      updateData.factoringStatus = factoringStatus;
+    }
+    if (factoringCompanyId !== undefined) {
+      updateData.factoringCompanyId = factoringCompanyId;
+    }
+    if (shortPayAmount !== undefined) {
+      updateData.shortPayAmount = shortPayAmount;
+    }
+    if (shortPayReasonCode !== undefined) {
+      updateData.shortPayReasonCode = shortPayReasonCode;
+    }
+    if (shortPayReason !== undefined) {
+      updateData.shortPayReason = shortPayReason;
+    }
+    if (expectedPaymentDate !== undefined) {
+      updateData.expectedPaymentDate = expectedPaymentDate ? new Date(expectedPaymentDate) : null;
+    }
+    if (amountPaid !== undefined) {
+      updateData.amountPaid = amountPaid;
+    }
+    if (balance !== undefined) {
+      updateData.balance = balance;
+    }
+    if (disputedAt !== undefined) {
+      updateData.disputedAt = disputedAt ? new Date(disputedAt) : null;
+    }
+    if (disputedReason !== undefined) {
+      updateData.disputedReason = disputedReason;
+    }
+    if (writtenOffAt !== undefined) {
+      updateData.writtenOffAt = writtenOffAt ? new Date(writtenOffAt) : null;
+    }
+    if (writtenOffReason !== undefined) {
+      updateData.writtenOffReason = writtenOffReason;
+    }
 
     const invoice = await prisma.invoice.update({
       where: { id: resolvedParams.id },
@@ -198,6 +269,12 @@ export async function PATCH(
             id: true,
             name: true,
             customerNumber: true,
+          },
+        },
+        factoringCompany: {
+          select: {
+            id: true,
+            name: true,
           },
         },
       },

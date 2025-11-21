@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { generateBreakdownCaseNumber } from '@/lib/utils/breakdown-numbering';
 import { z } from 'zod';
 
 const createBreakdownSchema = z.object({
@@ -55,8 +56,13 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const status = searchParams.get('status');
+    const priority = searchParams.get('priority');
     const truckId = searchParams.get('truckId');
+    const driverId = searchParams.get('driverId');
     const breakdownType = searchParams.get('breakdownType');
+    const search = searchParams.get('search');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     const where: any = {
       companyId: session.user.companyId,
@@ -66,11 +72,36 @@ export async function GET(request: NextRequest) {
     if (status) {
       where.status = status;
     }
+    if (priority) {
+      where.priority = priority;
+    }
     if (truckId) {
       where.truckId = truckId;
     }
+    if (driverId) {
+      where.driverId = driverId;
+    }
     if (breakdownType) {
       where.breakdownType = breakdownType;
+    }
+    if (startDate || endDate) {
+      where.reportedAt = {};
+      if (startDate) {
+        where.reportedAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.reportedAt.lte = new Date(endDate);
+      }
+    }
+    if (search) {
+      where.OR = [
+        { breakdownNumber: { contains: search, mode: 'insensitive' } },
+        { location: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { truck: { truckNumber: { contains: search, mode: 'insensitive' } } },
+        { driver: { user: { firstName: { contains: search, mode: 'insensitive' } } } },
+        { driver: { user: { lastName: { contains: search, mode: 'insensitive' } } } },
+      ];
     }
 
     const [breakdowns, total] = await Promise.all([
@@ -163,17 +194,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createBreakdownSchema.parse(body);
 
-    // Generate breakdown number
-    const year = new Date().getFullYear();
-    const count = await prisma.breakdown.count({
-      where: {
-        companyId: session.user.companyId,
-        breakdownNumber: {
-          startsWith: `BD${year}`,
-        },
-      },
-    });
-    const breakdownNumber = `BD${year}${String(count + 1).padStart(6, '0')}`;
+    // Generate breakdown case number in BD-YYYY-XXXX format
+    const breakdownNumber = await generateBreakdownCaseNumber(session.user.companyId);
 
     const breakdownData: any = {
       truckId: validatedData.truckId,

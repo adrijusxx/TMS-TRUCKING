@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Package, Truck, Clock, MapPin, DollarSign, Menu, X } from 'lucide-react';
+import { Package, Truck, Clock, MapPin, DollarSign, Menu, X, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { DriverStatus } from '@prisma/client';
 import Link from 'next/link';
@@ -236,6 +236,28 @@ export default function DriverMobileDashboard({ driver }: DriverMobileDashboardP
             </CardContent>
           </Card>
         )}
+
+        {/* Breakdown Reporting */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Breakdowns
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Link href="/mobile/driver/breakdowns">
+              <Button variant="outline" className="w-full">
+                Report Breakdown
+              </Button>
+            </Link>
+            <Link href="/mobile/driver/breakdowns">
+              <Button variant="ghost" className="w-full text-sm">
+                View My Breakdown Cases
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

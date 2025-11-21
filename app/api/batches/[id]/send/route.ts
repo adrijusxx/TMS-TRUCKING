@@ -69,7 +69,7 @@ export async function POST(
       data: {
         postStatus: 'POSTED',
         sentToFactoringAt: new Date(),
-        factoringCompany: validated.factoringCompany || null,
+        factoringCompanyId: validated.factoringCompany || null,
         notes: validated.notes || batch.notes,
       },
       include: {
@@ -101,7 +101,7 @@ export async function POST(
       success: true,
       data: {
         ...updated,
-        invoiceCount: updated.items.length,
+        invoiceCount: updated.items?.length || 0,
       },
       message: 'Batch sent successfully',
     });

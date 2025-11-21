@@ -55,6 +55,9 @@ export async function GET(request: NextRequest) {
     const driverId = searchParams.get('driverId');
     const inspectionType = searchParams.get('inspectionType');
     const status = searchParams.get('status');
+    const search = searchParams.get('search');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     const where: any = {
       companyId: session.user.companyId,
@@ -65,6 +68,25 @@ export async function GET(request: NextRequest) {
     if (driverId) where.driverId = driverId;
     if (inspectionType) where.inspectionType = inspectionType;
     if (status) where.status = status;
+    if (startDate || endDate) {
+      where.inspectionDate = {};
+      if (startDate) {
+        where.inspectionDate.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.inspectionDate.lte = new Date(endDate);
+      }
+    }
+    if (search) {
+      where.OR = [
+        { inspectionNumber: { contains: search, mode: 'insensitive' } },
+        { location: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } },
+        { truck: { truckNumber: { contains: search, mode: 'insensitive' } } },
+        { driver: { user: { firstName: { contains: search, mode: 'insensitive' } } } },
+        { driver: { user: { lastName: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
 
     const [inspections, total] = await Promise.all([
       prisma.inspection.findMany({

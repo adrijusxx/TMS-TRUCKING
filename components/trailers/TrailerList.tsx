@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Truck, Search, Download, Upload, Plus, Edit, Trash2 } from 'lucide-react';
+import { Truck, Search, Download, Upload, Plus, Edit, Trash2, AlertTriangle, TrendingUp } from 'lucide-react';
 import { formatDate, apiUrl } from '@/lib/utils';
 import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
@@ -133,6 +133,18 @@ export default function TrailerList() {
   const trailers: Trailer[] = data?.data || [];
   const meta = data?.meta;
 
+  // Fetch breakdown stats for trailers
+  const { data: breakdownStatsData } = useQuery({
+    queryKey: ['trailerBreakdownStats'],
+    queryFn: async () => {
+      const response = await fetch(apiUrl('/api/fleet/trailers/breakdown-stats'));
+      if (!response.ok) throw new Error('Failed to fetch breakdown stats');
+      return response.json();
+    },
+  });
+
+  const breakdownStats = breakdownStatsData?.data || {};
+
   const handleDeleteClick = (trailer: Trailer) => {
     setTrailerToDelete(trailer);
     setDeleteDialogOpen(true);
@@ -220,6 +232,7 @@ export default function TrailerList() {
                   <TableHead>Assigned Truck</TableHead>
                   <TableHead>Total Loads</TableHead>
                   <TableHead>Active Loads</TableHead>
+                  <TableHead>Breakdowns</TableHead>
                   <TableHead>Last Used</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -281,6 +294,38 @@ export default function TrailerList() {
                         </Badge>
                       ) : (
                         <Badge variant="outline">Available</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {breakdownStats[trailer.id] ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            {breakdownStats[trailer.id].highRisk && (
+                              <div title="High Risk Trailer">
+                                <AlertTriangle className="h-4 w-4 text-red-500" />
+                              </div>
+                            )}
+                            <Link
+                              href={`/dashboard/fleet/breakdowns/history?truckId=${trailer.assignedTruck?.id || ''}`}
+                              className="text-sm font-medium hover:underline"
+                            >
+                              {breakdownStats[trailer.id].totalBreakdowns} total
+                            </Link>
+                          </div>
+                          {breakdownStats[trailer.id].lastBreakdownDate && (
+                            <div className="text-xs text-muted-foreground">
+                              Last: {formatDate(breakdownStats[trailer.id].lastBreakdownDate)}
+                            </div>
+                          )}
+                          {breakdownStats[trailer.id].breakdownFrequency > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <TrendingUp className="h-3 w-3" />
+                              {breakdownStats[trailer.id].breakdownFrequency.toFixed(1)}/month
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No breakdowns</span>
                       )}
                     </TableCell>
                     <TableCell>

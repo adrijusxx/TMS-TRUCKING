@@ -64,7 +64,24 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      where.status = status;
+      // Validate status is a valid DriverStatus enum value
+      const validStatuses = ['AVAILABLE', 'ON_DUTY', 'DRIVING', 'OFF_DUTY', 'SLEEPER_BERTH', 'ON_LEAVE', 'INACTIVE', 'IN_TRANSIT', 'DISPATCHED'];
+      if (validStatuses.includes(status)) {
+        where.status = status as any;
+      } else if (status === 'ACTIVE') {
+        // ACTIVE is not a DriverStatus, use employeeStatus instead
+        where.employeeStatus = 'ACTIVE';
+        where.isActive = true;
+        // Explicitly do NOT set where.status to prevent Prisma errors
+        delete where.status;
+      }
+    }
+
+    // Final safeguard: ensure status is never 'ACTIVE' in the where clause
+    if (where.status === 'ACTIVE') {
+      delete where.status;
+      where.employeeStatus = 'ACTIVE';
+      where.isActive = true;
     }
 
     if (licenseState) {

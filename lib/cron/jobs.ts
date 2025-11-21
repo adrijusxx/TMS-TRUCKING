@@ -9,6 +9,8 @@ import { prisma } from '../prisma';
 import { autoUpdateLoadStatuses } from '../automation/load-status';
 import { checkAllDocumentExpiries } from '../automation/document-expiry';
 import { LoadStatus } from '@prisma/client';
+import { dailyExpirationCheck } from '../../scripts/cron/jobs/daily-expiration-check';
+import { dailyHOSViolationCheck } from '../../scripts/cron/jobs/daily-hos-violation-check';
 
 /**
  * Run all daily automation tasks
@@ -48,6 +50,23 @@ export async function runDailyAutomationTasks() {
         results.loadStatusUpdates.errors.push(errorMsg);
         results.documentExpiryChecks.errors.push(errorMsg);
       }
+    }
+
+    // Run safety expiration checks
+    try {
+      const safetyExpirationResult = await dailyExpirationCheck();
+      results.documentExpiryChecks.checked += safetyExpirationResult.alertsCreated || 0;
+    } catch (error) {
+      const errorMsg = `Error in safety expiration check: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      results.documentExpiryChecks.errors.push(errorMsg);
+    }
+
+    // Run HOS violation checks
+    try {
+      await dailyHOSViolationCheck();
+    } catch (error) {
+      const errorMsg = `Error in HOS violation check: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      results.documentExpiryChecks.errors.push(errorMsg);
     }
 
     return {

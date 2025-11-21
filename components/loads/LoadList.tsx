@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
@@ -255,7 +255,9 @@ async function fetchAllLoadIds(
 export default function LoadList() {
   const { can } = usePermissions();
   const searchParams = useSearchParams();
-  const view = searchParams?.get('view') || 'all';
+  const view = useMemo(() => {
+    return searchParams?.get('view') || 'all';
+  }, [searchParams?.toString()]);
   
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50); // Default to 50 loads per page
@@ -311,7 +313,10 @@ export default function LoadList() {
     actions: true,
   });
 
-  const mcParam = searchParams?.get('mc');
+  const mcParam = useMemo(() => {
+    return searchParams?.get('mc') || null;
+  }, [searchParams?.toString()]);
+  
   const { data: dispatchersData } = useQuery({
     queryKey: ['dispatchers'],
     queryFn: async () => {
@@ -322,10 +327,14 @@ export default function LoadList() {
   });
   const dispatchers = dispatchersData?.data || [];
 
+  const queryKey = useMemo(
+    () => ['loads', page, pageSize, statusFilter, searchQuery, JSON.stringify(advancedFilters), view, mcParam, dispatcherFilter],
+    [page, pageSize, statusFilter, searchQuery, advancedFilters, view, mcParam, dispatcherFilter]
+  );
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['loads', page, pageSize, statusFilter, searchQuery, advancedFilters, view, mcParam, dispatcherFilter],
+    queryKey,
     queryFn: async () => {
-      const mcParam = searchParams?.get('mc');
       const params: any = {
         page,
         limit: pageSize,

@@ -27,6 +27,8 @@ export async function GET(request: NextRequest) {
     const mcNumber = searchParams.get('mcNumber');
     const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID (from CompanySwitcher)
     const reconciliationStatus = searchParams.get('reconciliationStatus');
+    const factoringStatus = searchParams.get('factoringStatus');
+    const paymentMethod = searchParams.get('paymentMethod');
     const isAdmin = session.user?.role === 'ADMIN';
 
     // Build base filter with MC number if applicable
@@ -128,6 +130,14 @@ export async function GET(request: NextRequest) {
       where.reconciliationStatus = reconciliationStatus;
     }
 
+    if (factoringStatus) {
+      where.factoringStatus = factoringStatus;
+    }
+
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
+
     if (search) {
       where.OR = [
         { invoiceNumber: { contains: search, mode: 'insensitive' } },
@@ -146,6 +156,12 @@ export async function GET(request: NextRequest) {
               id: true,
               name: true,
               customerNumber: true,
+            },
+          },
+          factoringCompany: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },

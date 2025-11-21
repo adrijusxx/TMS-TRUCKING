@@ -50,18 +50,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Protect /mobile routes
+  // Protect /mobile routes - let the layout handle auth check
+  // The layout will redirect to /login if not authenticated
   if (pathname.startsWith('/mobile')) {
-    const sessionToken = request.cookies.get('authjs.session-token') || 
-                        request.cookies.get('__Secure-authjs.session-token') ||
-                        request.cookies.get('next-auth.session-token') ||
-                        request.cookies.get('__Secure-next-auth.session-token');
-    
-    if (!sessionToken) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('callbackUrl', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
+    // Optional: Check for session token for extra security, but don't block
+    // Let the server-side layout handle authentication
+    // This allows the layout to show helpful messages if user is not a driver
+    return NextResponse.next();
   }
 
   // API routes protection (except public endpoints)

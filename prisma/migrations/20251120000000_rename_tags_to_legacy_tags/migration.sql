@@ -3,3 +3,4 @@ ALTER TABLE "Truck" RENAME COLUMN "tags" TO "legacyTags";
 ALTER TABLE "Trailer" RENAME COLUMN "tags" TO "legacyTags";
 ALTER TABLE "Customer" RENAME COLUMN "tags" TO "legacyTags";
 
+

@@ -67,9 +67,9 @@ interface NavigationItem {
 const mainNavigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: undefined },
   { name: 'Load Management', href: '/dashboard/loads', icon: Package, permission: 'loads.view' },
-  { name: 'Accounting', href: '/dashboard/invoices', icon: DollarSign, permission: 'invoices.view' },
-  { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: undefined },
-  { name: 'Fleet Management', href: '/dashboard/trucks', icon: Truck, permission: 'trucks.view' },
+  { name: 'Fleet Department', href: '/dashboard/trucks', icon: Truck, permission: undefined },
+  { name: 'Accounting Department', href: '/dashboard/invoices', icon: DollarSign, permission: 'invoices.view' },
+  { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: undefined },
   { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'drivers.view' },
   { name: 'Reports', href: '/dashboard/reports', icon: ChartBar, permission: undefined },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'settings.view' },
@@ -104,14 +104,25 @@ function UserProfileSection() {
 
 export default function DashboardLayout({
   children,
+  hideMainNav = false,
 }: {
   children: React.ReactNode;
+  hideMainNav?: boolean;
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { can } = usePermissions();
 
+  // Only hide main nav if explicitly requested via hideMainNav prop
+  const shouldHideMainNav = hideMainNav;
+
+  // Check if we're in Fleet Department section (has its own sidebar)
+  const isFleetSection = pathname?.startsWith('/dashboard/fleet');
+  // Check if we're in Safety section (has its own sidebar)
+  const isSafetySection = pathname?.startsWith('/dashboard/safety');
+
   // Filter navigation items based on permissions
+  // Keep all items visible - they can have their own sidebars but main nav should stay visible
   const visibleNavigation = mainNavigation.filter((item) => {
     if (!item.permission) return true;
     return can(item.permission);
@@ -127,7 +138,8 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Hide when hideMainNav is true or in safety section */}
+      {!shouldHideMainNav && (
       <aside
         className={cn(
           'fixed top-0 left-0 z-50 h-full w-64 bg-slate-900 dark:bg-secondary text-slate-100 dark:text-foreground transform transition-transform duration-300 ease-in-out lg:translate-x-0',
@@ -215,9 +227,10 @@ export default function DashboardLayout({
           </div>
         </div>
       </aside>
+      )}
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className={cn(!shouldHideMainNav && 'lg:pl-64')}>
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-background border-b border-border dark:bg-card">
           <div className="flex items-center justify-between px-4 py-3">

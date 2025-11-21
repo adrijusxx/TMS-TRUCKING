@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import {
   Package,
   TrendingUp,
@@ -11,8 +12,10 @@ import {
   Calendar,
   Navigation,
   ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useSidebarToggle } from '@/hooks/useSidebarToggle';
 
 interface NavItem {
   name: string;
@@ -34,6 +37,7 @@ export default function LoadManagementNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { isOpen, toggle } = useSidebarToggle('loadManagementNavOpen', true);
   
   const currentView = searchParams.get('view') || 'all';
 
@@ -62,12 +66,37 @@ export default function LoadManagementNav() {
     }
   };
 
+  if (!isOpen) {
+    return (
+      <div className="w-12 border-r bg-card p-2 flex flex-col items-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={toggle}
+          title="Show sidebar"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-56 border-r bg-card p-2">
-      <div className="mb-2">
+      <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
           Load Management
         </h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={toggle}
+          title="Hide sidebar"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
       </div>
       <nav className="space-y-0.5">
         {navItems.map((item) => {

@@ -42,6 +42,12 @@ async function markAllAsRead() {
 export default function NotificationBell() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Only render after mount to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
@@ -76,6 +82,15 @@ export default function NotificationBell() {
       window.location.href = `/dashboard/loads/${notification.relatedLoadId}`;
     }
   };
+
+  if (!mounted) {
+    // Return a placeholder with the same dimensions to prevent layout shift
+    return (
+      <Button variant="ghost" size="icon" className="relative" disabled>
+        <Bell className="h-5 w-5" />
+      </Button>
+    );
+  }
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>

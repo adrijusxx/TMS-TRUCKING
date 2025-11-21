@@ -63,7 +63,7 @@ const userSchema = z.object({
 
 type UserFormData = z.infer<typeof userSchema>;
 
-async function fetchUsers(roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | null) {
+async function fetchUsers(roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | 'ACCOUNTANT' | 'SAFETY' | 'HR' | null) {
   const url = roleFilter 
     ? `/api/settings/users?role=${roleFilter === 'EMPLOYEES' ? 'EMPLOYEES' : roleFilter}`
     : '/api/settings/users';
@@ -134,7 +134,7 @@ const roleColors: Record<string, string> = {
 };
 
 interface UserManagementProps {
-  roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | null;
+  roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | 'ACCOUNTANT' | 'SAFETY' | 'HR' | null;
   title?: string;
   description?: string;
 }
@@ -168,7 +168,13 @@ export default function UserManagement({
   const createForm = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      role: roleFilter === 'DISPATCHER' ? 'DISPATCHER' : roleFilter === 'EMPLOYEES' ? 'ACCOUNTANT' : roleFilter === 'DRIVER' ? 'DRIVER' : 'DISPATCHER',
+      role: roleFilter === 'DISPATCHER' ? 'DISPATCHER' 
+        : roleFilter === 'ACCOUNTANT' ? 'ACCOUNTANT'
+        : roleFilter === 'DRIVER' ? 'DRIVER'
+        : roleFilter === 'SAFETY' ? 'ADMIN'
+        : roleFilter === 'HR' ? 'ADMIN'
+        : roleFilter === 'EMPLOYEES' ? 'ACCOUNTANT' 
+        : 'DISPATCHER',
       isActive: true,
     },
   });
@@ -281,8 +287,24 @@ export default function UserManagement({
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <ImportDialog entityType={roleFilter === 'DISPATCHER' ? 'dispatchers' : roleFilter === 'EMPLOYEES' ? 'employees' : roleFilter === 'DRIVER' ? 'drivers' : 'users'} />
-            <ExportDialog entityType={roleFilter === 'DISPATCHER' ? 'dispatchers' : roleFilter === 'EMPLOYEES' ? 'employees' : roleFilter === 'DRIVER' ? 'drivers' : 'users'} />
+            <ImportDialog entityType={
+              roleFilter === 'DISPATCHER' ? 'dispatchers' 
+              : roleFilter === 'ACCOUNTANT' ? 'employees'
+              : roleFilter === 'DRIVER' ? 'drivers'
+              : roleFilter === 'SAFETY' ? 'employees'
+              : roleFilter === 'HR' ? 'employees'
+              : roleFilter === 'EMPLOYEES' ? 'employees' 
+              : 'users'
+            } />
+            <ExportDialog entityType={
+              roleFilter === 'DISPATCHER' ? 'dispatchers'
+              : roleFilter === 'ACCOUNTANT' ? 'employees'
+              : roleFilter === 'DRIVER' ? 'drivers'
+              : roleFilter === 'SAFETY' ? 'employees'
+              : roleFilter === 'HR' ? 'employees'
+              : roleFilter === 'EMPLOYEES' ? 'employees'
+              : 'users'
+            } />
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -382,14 +404,14 @@ export default function UserManagement({
                     <div className="space-y-2">
                       <Label htmlFor="mcNumberId">MC Number</Label>
                       <Select
-                        value={createForm.watch('mcNumberId') || ''}
-                        onValueChange={(value) => createForm.setValue('mcNumberId', value || null)}
+                        value={createForm.watch('mcNumberId') || 'none'}
+                        onValueChange={(value) => createForm.setValue('mcNumberId', value === 'none' ? null : value)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select MC Number (optional)" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {mcNumbers.map((mc: any) => (
                             <SelectItem key={mc.id} value={mc.id}>
                               {mc.companyName} (MC {mc.number})
@@ -611,14 +633,14 @@ export default function UserManagement({
               <div className="space-y-2">
                 <Label htmlFor="edit-mcNumberId">MC Number</Label>
                 <Select
-                  value={editForm.watch('mcNumberId') || ''}
-                  onValueChange={(value) => editForm.setValue('mcNumberId', value || null)}
+                  value={editForm.watch('mcNumberId') || 'none'}
+                  onValueChange={(value) => editForm.setValue('mcNumberId', value === 'none' ? null : value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select MC Number (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {mcNumbers.map((mc: any) => (
                       <SelectItem key={mc.id} value={mc.id}>
                         {mc.companyName} (MC {mc.number})

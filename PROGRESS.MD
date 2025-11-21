@@ -1,9 +1,19 @@
 ```markdown
 # TMS Project Progress Tracker
 
-**Last Updated:** November 13, 2024
+**Last Updated:** December 2024
 **Current Phase:** Phase 1 - Core MVP
 **Overall Completion:** 100%
+
+## 📚 Documentation
+
+### Fleet Management System
+- **Main Documentation:** `docs/FLEET_MANAGEMENT.md` - Complete feature overview
+- **Breakdown Management:** `docs/FLEET_BREAKDOWNS.md` - Detailed breakdown features
+- **Communication Hub:** `docs/FLEET_COMMUNICATION.md` - Communication integration
+- **Progress Tracker:** `FLEET_MANAGEMENT_PROGRESS.md` - Implementation status
+
+**Status:** Planning Phase - Ready for implementation
 
 ---
 

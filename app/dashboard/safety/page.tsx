@@ -1,10 +1,9 @@
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import SafetyPage from '@/components/safety/SafetyPage';
+import SafetyDashboard from '@/components/safety/dashboard/SafetyDashboard';
 
 export default function SafetyPageRoute() {
   return (
-    <DashboardLayout>
-      <SafetyPage />
-    </DashboardLayout>
+    <div className="p-6">
+      <SafetyDashboard />
+    </div>
   );
 }

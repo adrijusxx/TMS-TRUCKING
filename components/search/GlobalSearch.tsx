@@ -26,7 +26,13 @@ async function search(query: string) {
 export default function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  // Only render after mount to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['global-search', query],
@@ -58,6 +64,24 @@ export default function GlobalSearch() {
     setQuery('');
     router.push(`/dashboard/${type}/${id}`);
   };
+
+  if (!mounted) {
+    // Return a placeholder with the same dimensions to prevent layout shift
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className="relative h-9 w-9 sm:w-64 sm:justify-start"
+      >
+        <Search className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline-flex">Search...</span>
+        <kbd className="pointer-events-none absolute right-1.5 top-1.5 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+          <span className="text-xs">⌘</span>K
+        </kbd>
+      </Button>
+    );
+  }
 
   return (
     <>

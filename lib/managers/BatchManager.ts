@@ -110,7 +110,7 @@ export class BatchManager {
       data: {
         postStatus: 'POSTED',
         sentToFactoringAt: new Date(),
-        factoringCompany: data.factoringCompany || null,
+        factoringCompanyId: data.factoringCompany || null,
         notes: data.notes || batch.notes,
       },
     });

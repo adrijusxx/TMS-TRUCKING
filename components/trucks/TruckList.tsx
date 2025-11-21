@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Truck, Plus, Search, Filter } from 'lucide-react';
+import { Truck, Plus, Search, Filter, AlertTriangle, TrendingUp } from 'lucide-react';
 import { TruckStatus } from '@prisma/client';
 import AdvancedFilters from '@/components/filters/AdvancedFilters';
 import SavedFilters from '@/components/filters/SavedFilters';
@@ -34,7 +34,7 @@ import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { apiUrl } from '@/lib/utils';
+import { apiUrl, formatDate } from '@/lib/utils';
 
 interface TruckData {
   id: string;
@@ -102,7 +102,9 @@ async function fetchTrucks(params: {
 export default function TruckList() {
   const { can } = usePermissions();
   const searchParams = useSearchParams();
-  const mcParam = searchParams?.get('mc');
+  const mcParam = useMemo(() => {
+    return searchParams?.get('mc') || null;
+  }, [searchParams?.toString()]);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,8 +113,13 @@ export default function TruckList() {
   const [quickViewTruckId, setQuickViewTruckId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  const queryKey = useMemo(
+    () => ['trucks', page, statusFilter, searchQuery, JSON.stringify(advancedFilters), mcParam],
+    [page, statusFilter, searchQuery, advancedFilters, mcParam]
+  );
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['trucks', page, statusFilter, searchQuery, advancedFilters, mcParam],
+    queryKey,
     queryFn: () =>
       fetchTrucks({
         page,
@@ -122,10 +129,24 @@ export default function TruckList() {
         mc: mcParam || undefined,
         ...advancedFilters,
       }),
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const trucks: TruckData[] = data?.data || [];
   const meta = data?.meta;
+
+  // Fetch breakdown stats for trucks
+  const { data: breakdownStatsData } = useQuery({
+    queryKey: ['truckBreakdownStats'],
+    queryFn: async () => {
+      const response = await fetch(apiUrl('/api/fleet/trucks/breakdown-stats'));
+      if (!response.ok) throw new Error('Failed to fetch breakdown stats');
+      return response.json();
+    },
+  });
+
+  const breakdownStats = breakdownStatsData?.data || {};
 
   // Keyboard shortcuts
   useKeyboardShortcuts([
@@ -278,6 +299,7 @@ export default function TruckList() {
                   <TableHead>Equipment</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Driver</TableHead>
+                  <TableHead>Breakdowns</TableHead>
                   <TableHead>Odometer</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -332,6 +354,36 @@ export default function TruckList() {
                         </div>
                       ) : (
                         <span className="text-muted-foreground">Unassigned</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {breakdownStats[truck.id] ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            {breakdownStats[truck.id].highRisk && (
+                              <AlertTriangle className="h-4 w-4 text-red-500" aria-label="High Risk Vehicle" />
+                            )}
+                            <Link
+                              href={`/dashboard/fleet/breakdowns/history?truckId=${truck.id}`}
+                              className="text-sm font-medium hover:underline"
+                            >
+                              {breakdownStats[truck.id].totalBreakdowns} total
+                            </Link>
+                          </div>
+                          {breakdownStats[truck.id].lastBreakdownDate && (
+                            <div className="text-xs text-muted-foreground">
+                              Last: {formatDate(breakdownStats[truck.id].lastBreakdownDate)}
+                            </div>
+                          )}
+                          {breakdownStats[truck.id].breakdownFrequency > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <TrendingUp className="h-3 w-3" />
+                              {breakdownStats[truck.id].breakdownFrequency.toFixed(1)}/month
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No breakdowns</span>
                       )}
                     </TableCell>
                     <TableCell>

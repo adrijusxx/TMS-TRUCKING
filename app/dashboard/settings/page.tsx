@@ -203,7 +203,55 @@ export default function SettingsPage() {
                 Manage users and team members
               </p>
             </div>
-            <UserManagement />
+            <Tabs defaultValue="drivers" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="drivers">Drivers</TabsTrigger>
+                <TabsTrigger value="dispatch">Dispatch Department</TabsTrigger>
+                <TabsTrigger value="accounting">Accounting Department</TabsTrigger>
+                <TabsTrigger value="safety">Safety Department</TabsTrigger>
+                <TabsTrigger value="hr">HR Department</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="drivers">
+                <UserManagement 
+                  roleFilter="DRIVER" 
+                  title="Drivers" 
+                  description="Manage drivers in your organization" 
+                />
+              </TabsContent>
+
+              <TabsContent value="dispatch">
+                <UserManagement 
+                  roleFilter="DISPATCHER" 
+                  title="Dispatch Department" 
+                  description="Manage dispatchers in your organization" 
+                />
+              </TabsContent>
+
+              <TabsContent value="accounting">
+                <UserManagement 
+                  roleFilter="ACCOUNTANT" 
+                  title="Accounting Department" 
+                  description="Manage accountants and accounting staff" 
+                />
+              </TabsContent>
+
+              <TabsContent value="safety">
+                <UserManagement 
+                  roleFilter="SAFETY" 
+                  title="Safety Department" 
+                  description="Manage safety department staff (Admins with safety access)" 
+                />
+              </TabsContent>
+
+              <TabsContent value="hr">
+                <UserManagement 
+                  roleFilter="HR" 
+                  title="HR Department" 
+                  description="Manage HR department staff (Admins with HR access)" 
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         </TabsContent>
 
