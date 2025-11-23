@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:quiet": "node scripts/filter-dev-logs.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -33,7 +34,11 @@
     "db:list-users": "tsx scripts/list-users.ts",
     "db:fix-admin": "tsx scripts/fix-admin-user.ts",
     "db:verify-users": "tsx scripts/verify-and-fix-users.ts",
-    "cache:cleanup": "tsx scripts/cleanup-api-cache.ts"
+    "cache:cleanup": "tsx scripts/cleanup-api-cache.ts",
+    "audit:schema": "tsx scripts/extract-schema-reference.ts",
+    "audit:mappings": "tsx scripts/audit-database-mappings.ts",
+    "audit:validate": "tsx scripts/validate-database-mappings.ts",
+    "audit:imports": "tsx scripts/audit-import-mappings.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -61,7 +66,6 @@
     "@react-pdf/renderer": "^4.3.1",
     "@tanstack/react-query": "^5.90.8",
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^24.10.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.2.4",
     "@types/react-dom": "^19.2.3",
@@ -87,8 +91,10 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@types/node": "^24.10.1",
     "@types/xlsx": "^0.0.35",
     "autoprefixer": "^10.4.22",
+    "glob": "^13.0.0",
     "postcss": "^8.5.6",
     "prisma": "^6.19.0",
     "tailwindcss": "^3.4.18",

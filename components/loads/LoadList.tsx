@@ -1383,11 +1383,11 @@ function LoadStatsSummary({ stats, filters }: { stats?: LoadStats; filters?: Rec
     }
 
     if (type === 'miles') {
-      return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      return typeof value === 'number' ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
     }
 
     if (type === 'number') {
-      return value.toLocaleString();
+      return typeof value === 'number' ? value.toLocaleString() : '-';
     }
 
     return `$${value.toFixed(2)}`;

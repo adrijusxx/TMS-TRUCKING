@@ -370,20 +370,33 @@ export class LiveMapService {
   }
 
   private async getSamsaraVehiclesWithTelemetry(): Promise<SamsaraVehicleWithLocation[]> {
-    // Get vehicles first, then diagnostics (which may need vehicle IDs)
-    const vehiclesPromise = getSamsaraVehicles();
-    const locationsPromise = getSamsaraVehicleLocations();
+    // Get vehicles first (we need their IDs for the new location-and-speed endpoint)
+    const vehiclesPromise = getSamsaraVehicles(this.companyId);
+    
+    // Get vehicles first, then use their IDs for location call
+    const vehicles = await vehiclesPromise;
+    const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
+    
+    // Get locations - pass vehicle IDs if available (enables new endpoint)
+    const locationsPromise = getSamsaraVehicleLocations(vehicleIds, this.companyId);
 
-    const [vehicles, locations] = await Promise.all([vehiclesPromise, locationsPromise]);
+    const locations = await locationsPromise;
+
+    // Check if API key is working - if both vehicles and locations are null, API key might be invalid
+    if (!vehicles && !locations) {
+      console.warn('[Samsara] No vehicles or locations returned - API key may be invalid or missing');
+      console.warn('[Samsara] Verify SAMSARA_API_KEY is set correctly in .env.local and server was restarted');
+      return [];
+    }
 
     // Try diagnostics with vehicle IDs if available
     const diagnosticsPromise = (async () => {
       try {
         const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
         if (vehicleIds && vehicleIds.length > 0) {
-          return await getSamsaraVehicleDiagnostics(vehicleIds);
+          return await getSamsaraVehicleDiagnostics(vehicleIds, this.companyId);
         }
-        return await getSamsaraVehicleDiagnostics();
+        return await getSamsaraVehicleDiagnostics(undefined, this.companyId);
       } catch (error) {
         // Diagnostics are optional - fail silently
         return null;
@@ -392,17 +405,28 @@ export class LiveMapService {
 
     const diagnostics = await diagnosticsPromise;
 
-    const statsPromise = getSamsaraVehicleStats().catch((error) => {
+    const statsPromise = getSamsaraVehicleStats(this.companyId).catch((error) => {
       console.info('[Samsara] Stats unavailable:', error instanceof Error ? error.message : error);
       return null;
     });
 
-    const tripsPromise = getSamsaraTrips().catch((error) => {
-      console.info('[Samsara] Trips unavailable:', error instanceof Error ? error.message : error);
-      return null;
-    });
+    // Trips endpoint requires vehicleIds or driverIds filter
+    // Pass vehicle IDs if available
+    const tripsPromise = (async () => {
+      try {
+        const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
+        if (vehicleIds && vehicleIds.length > 0) {
+          return await getSamsaraTrips(vehicleIds, undefined, this.companyId);
+        }
+        // If no vehicle IDs, trips can't be fetched (endpoint requires filter)
+        return null;
+      } catch (error) {
+        console.info('[Samsara] Trips unavailable:', error instanceof Error ? error.message : error);
+        return null;
+      }
+    })();
 
-    const mediaPromise = getSamsaraCameraMedia().catch((error) => {
+    const mediaPromise = getSamsaraCameraMedia(this.companyId).catch((error) => {
       console.info(
         '[Samsara] Camera media unavailable:',
         error instanceof Error ? error.message : error
@@ -450,19 +474,72 @@ export class LiveMapService {
     });
 
     const statsById = new Map<string, TruckSensors>();
-    stats?.forEach((entry) => {
-      if (!entry?.vehicleId) return;
-      statsById.set(entry.vehicleId, {
-        speed:
-          entry.currentSpeed !== undefined || entry.speedLimit !== undefined
-            ? { value: entry.currentSpeed, limit: entry.speedLimit }
-            : undefined,
-        fuelPercent: entry.fuelPercent,
-        odometerMiles: entry.odometerMiles,
-        engineHours: entry.engineHours,
-        engineState: entry.engineState,
-        seatbeltStatus: entry.seatbeltStatus,
+    
+    // If stats endpoint provided data, use it
+    if (stats && stats.length > 0) {
+      stats.forEach((entry: any) => {
+        if (!entry?.vehicleId) return;
+        
+        // Handle valid Samsara stat types
+        // Valid types: ecuSpeedMph, fuelPercents, obdOdometerMeters, engineRpm, engineStates
+        const speed = entry.ecuSpeedMph ?? entry.gpsSpeed ?? entry.currentSpeed ?? entry.speed;
+        const speedLimit = entry.speedLimit;
+        // fuelPercents is an array, take the first value or average
+        const fuelPercent = Array.isArray(entry.fuelPercents) 
+          ? (entry.fuelPercents[0] ?? entry.fuelPercents.reduce((a: number, b: number) => a + b, 0) / entry.fuelPercents.length)
+          : (entry.fuelLevel ?? entry.fuelPercent ?? entry.fuel);
+        // obdOdometerMeters is in meters, convert to miles
+        const odometerMiles = entry.obdOdometerMeters 
+          ? entry.obdOdometerMeters * 0.000621371 // Convert meters to miles
+          : (entry.obdOdometerMiles ?? entry.odometerMiles ?? entry.odometer);
+        // engineStates is an object with state property
+        const engineState = entry.engineStates?.state ?? entry.engineState;
+        // engineHours might be in obdEngineSeconds or syntheticEngineSeconds (convert to hours)
+        const engineHours = entry.obdEngineSeconds 
+          ? entry.obdEngineSeconds / 3600 
+          : (entry.syntheticEngineSeconds ? entry.syntheticEngineSeconds / 3600 : entry.engineHours);
+        
+        statsById.set(entry.vehicleId, {
+          speed:
+            speed !== undefined || speedLimit !== undefined
+              ? { value: speed, limit: speedLimit }
+              : undefined,
+          fuelPercent: fuelPercent,
+          odometerMiles: odometerMiles,
+          engineHours: engineHours,
+          engineState: engineState,
+          seatbeltStatus: entry.seatbeltStatus,
+        });
       });
+    }
+    
+    // Extract speed from location data if stats endpoint didn't provide it
+    // Location data often includes speedMilesPerHour
+    locations?.forEach((entry: any) => {
+      if (!entry?.vehicleId || !entry?.location) return;
+      
+      const vehicleId = entry.vehicleId;
+      const location = entry.location;
+      
+      // If we don't have stats for this vehicle, create sensors from location data
+      if (!statsById.has(vehicleId) && location.speedMilesPerHour !== undefined) {
+        statsById.set(vehicleId, {
+          speed: {
+            value: location.speedMilesPerHour,
+            limit: undefined, // Speed limit not available from location
+          },
+          // Fuel and other stats not available from location data
+        });
+      } else if (statsById.has(vehicleId)) {
+        // If we have stats but no speed, try to get it from location
+        const existing = statsById.get(vehicleId)!;
+        if (!existing.speed?.value && location.speedMilesPerHour !== undefined) {
+          existing.speed = {
+            value: location.speedMilesPerHour,
+            limit: existing.speed?.limit,
+          };
+        }
+      }
     });
 
     const tripsByVehicle = new Map<string, TruckTrip[]>();

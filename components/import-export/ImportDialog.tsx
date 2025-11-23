@@ -12,6 +12,8 @@ import { csvFileToJSON, parseCSV, CSVImportResult } from '@/lib/import-export/cs
 import { excelFileToJSON, ExcelImportResult } from '@/lib/import-export/excel-import';
 import { apiUrl } from '@/lib/utils';
 import ColumnMappingDialog from './ColumnMappingDialog';
+import ImportFieldWarnings from './ImportFieldWarnings';
+import { validateImportData, getModelNameFromEntityType } from '@/lib/validations/import-field-validator';
 
 interface ImportDialogProps {
   entityType: string;
@@ -35,6 +37,10 @@ export default function ImportDialog({
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [importErrors, setImportErrors] = useState<Array<{ row?: number; field?: string; error: string }>>([]);
+  const [fieldValidation, setFieldValidation] = useState<{
+    missingRequiredFields: any[];
+    missingOptionalFields: any[];
+  } | null>(null);
   const [importProgress, setImportProgress] = useState<{
     status: 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
     message: string;
@@ -72,6 +78,27 @@ export default function ImportDialog({
       }
       
       setImportResult(result);
+      
+      // Validate fields against schema
+      if (result.success && result.data && result.data.length > 0) {
+        const csvHeaders = Object.keys(result.data[0] || {});
+        const modelName = getModelNameFromEntityType(entityType);
+        const validation = validateImportData(modelName, csvHeaders, result.data[0]);
+        setFieldValidation({
+          missingRequiredFields: validation.missingRequiredFields,
+          missingOptionalFields: validation.missingOptionalFields,
+        });
+        
+        // Show warning if critical fields are missing
+        if (validation.missingRequiredFields.filter(f => f.severity === 'error').length > 0) {
+          toast.warning(
+            `Missing ${validation.missingRequiredFields.filter(f => f.severity === 'error').length} required field(s). Import may fail.`,
+            { duration: 6000 }
+          );
+        }
+      } else {
+        setFieldValidation(null);
+      }
       
       if (!result.success) {
         toast.error(`Found ${result.errors.length} validation errors`);
@@ -276,6 +303,22 @@ export default function ImportDialog({
       toast.error('Please fix validation errors before importing');
       return;
     }
+    
+    // Warn if critical fields are missing
+    if (fieldValidation) {
+      const criticalMissing = fieldValidation.missingRequiredFields.filter(f => f.severity === 'error');
+      if (criticalMissing.length > 0) {
+        const proceed = confirm(
+          `Warning: ${criticalMissing.length} required field(s) are missing. Import will likely fail.\n\n` +
+          `Missing fields: ${criticalMissing.map(f => f.fieldName).join(', ')}\n\n` +
+          `Do you want to proceed anyway?`
+        );
+        if (!proceed) {
+          return;
+        }
+      }
+    }
+    
     importMutation.mutate();
   };
 
@@ -361,9 +404,28 @@ export default function ImportDialog({
             </p>
           </div>
 
+          {/* Field Validation Warnings */}
+          {importResult && importResult.data.length > 0 && fieldValidation && (
+            <div id="field-warnings-section" className="space-y-3">
+              <ImportFieldWarnings
+                missingRequiredFields={fieldValidation.missingRequiredFields}
+                missingOptionalFields={fieldValidation.missingOptionalFields}
+                csvHeaders={Object.keys(importResult.data[0] || {})}
+                onFieldMapping={(fieldName, csvHeader) => {
+                  // Update column mapping
+                  setColumnMapping(prev => ({
+                    ...prev,
+                    [csvHeader]: fieldName,
+                  }));
+                  toast.success(`Mapped "${csvHeader}" to "${fieldName}"`);
+                }}
+              />
+            </div>
+          )}
+
           {/* Column Mapping Section - More Prominent */}
           {importResult && importResult.data.length > 0 && (
-            <div className="border rounded-lg p-4 space-y-3 bg-blue-50 dark:bg-blue-950/20">
+            <div id="column-mapping-section" className="border rounded-lg p-4 space-y-3 bg-blue-50 dark:bg-blue-950/20">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Settings2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -632,6 +694,7 @@ export default function ImportDialog({
             <Button
               onClick={handleImport}
               disabled={!importResult || importResult.errors.length > 0 || isProcessing || importMutation.isPending || importProgress.status === 'uploading' || importProgress.status === 'processing'}
+              variant={fieldValidation && fieldValidation.missingRequiredFields.filter(f => f.severity === 'error').length > 0 ? 'destructive' : 'default'}
             >
               {importMutation.isPending ? (
                 <>

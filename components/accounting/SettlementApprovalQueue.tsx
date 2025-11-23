@@ -188,13 +188,13 @@ export function SettlementApprovalQueue() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    ${settlement.grossPay.toLocaleString()}
+                    ${(settlement.grossPay ?? 0).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right text-red-600">
-                    -${settlement.totalDeductions.toLocaleString()}
+                    -${(settlement.totalDeductions ?? 0).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right font-bold text-green-600">
-                    ${settlement.netPay.toLocaleString()}
+                    ${(settlement.netPay ?? 0).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(settlement.createdAt), { addSuffix: true })}

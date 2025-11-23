@@ -199,7 +199,7 @@ export function AdvanceApprovalQueue() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-bold">
-                      ${advance.amount.toLocaleString()}
+                      ${(advance.amount ?? 0).toLocaleString()}
                     </TableCell>
                     <TableCell>
                       {advance.load ? (
@@ -251,7 +251,7 @@ export function AdvanceApprovalQueue() {
           <DialogHeader>
             <DialogTitle>Approve Advance Request</DialogTitle>
             <DialogDescription>
-              Approve ${approvalDialog.advance?.amount.toLocaleString()} advance for{' '}
+              Approve ${(approvalDialog.advance?.amount ?? 0).toLocaleString()} advance for{' '}
               {approvalDialog.advance?.driver.user.firstName}{' '}
               {approvalDialog.advance?.driver.user.lastName}
             </DialogDescription>

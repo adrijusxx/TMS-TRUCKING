@@ -140,19 +140,23 @@ export default function LoginPage() {
             Enter your credentials to access your account
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} autoComplete="off">
           <CardContent className="space-y-4">
             {error && (
               <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md border border-destructive/20">
                 {error}
               </div>
             )}
+            <div className="p-3 text-xs text-muted-foreground bg-muted/50 rounded-md border">
+              <strong>Demo Credentials:</strong> All passwords are <code className="text-xs bg-background px-1 py-0.5 rounded">password123</code>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="your@email.com"
+                autoComplete="username"
                 {...register('email')}
                 disabled={isLoading}
               />
@@ -166,6 +170,7 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="Enter your password"
+                autoComplete="current-password"
                 {...register('password')}
                 disabled={isLoading}
               />

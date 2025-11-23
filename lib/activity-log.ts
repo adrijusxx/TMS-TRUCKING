@@ -20,7 +20,11 @@ export type ActivityAction =
   | 'INVOICE_GENERATED'
   | 'SEND'
   | 'APPROVE'
-  | 'REJECT';
+  | 'REJECT'
+  | 'AI_SUGGESTION_CREATED'
+  | 'AI_SUGGESTION_APPROVED'
+  | 'AI_SUGGESTION_REJECTED'
+  | 'AI_SUGGESTION_APPLIED';
 
 export type EntityType =
   | 'Load'
@@ -32,7 +36,8 @@ export type EntityType =
   | 'Settlement'
   | 'Document'
   | 'User'
-  | 'Company';
+  | 'Company'
+  | 'AISuggestion';
 
 interface CreateActivityLogParams {
   companyId: string;

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const integrations: any[] = [];
 
     // Check Samsara
-    const samsaraConfig = getSamsaraConfig();
+    const samsaraConfig = await getSamsaraConfig(session.user.companyId);
     const samsaraIntegration = await prisma.integration.findUnique({
       where: {
         companyId_provider: {

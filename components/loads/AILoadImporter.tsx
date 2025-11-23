@@ -54,36 +54,57 @@ export default function AILoadImporter({ onDataExtracted, onClose }: AILoadImpor
       setProgress(0);
       setImportStatus('Uploading PDF...');
       
-      // Simulate progress for better UX
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) return prev; // Don't go to 100% until done
-          return prev + Math.random() * 15; // Increment by 0-15%
-        });
-      }, 300);
+      let progressInterval: NodeJS.Timeout | null = null;
       
       try {
+        // Phase 1: Upload preparation (0-10%)
+        setProgress(5);
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        setProgress(10);
         setImportStatus('Processing PDF with AI...');
-        setProgress(30);
         
-        // Small delay to show progress
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setProgress(50);
-        setImportStatus('Extracting data from PDF...');
+        // Phase 2: Simulate slow, realistic progress during API call
+        // Reserve 10-75% for the actual API processing (which can take 30+ seconds)
+        let simulatedProgress = 10;
+        progressInterval = setInterval(() => {
+          setProgress((prev) => {
+            // Only increment if we're below 75% (reserve last 25% for completion)
+            if (prev >= 75) return prev;
+            // Slow, gradual increment: 0.5-2% per second
+            return Math.min(prev + Math.random() * 1.5 + 0.5, 75);
+          });
+        }, 1000); // Update every second instead of every 300ms
         
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setProgress(70);
-        setImportStatus('Analyzing load details...');
+        setProgress(15);
+        setImportStatus('Extracting text from PDF...');
         
+        // Phase 3: Actual API call (this is where most time is spent)
         const result = await importPDF(file);
         
-        clearInterval(progressInterval);
+        // Clear the interval once API call completes
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+        
+        // Phase 4: Final processing and completion (75-100%)
+        setProgress(80);
+        setImportStatus('Processing extracted data...');
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        setProgress(90);
+        setImportStatus('Finalizing...');
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
         setProgress(100);
         setImportStatus('Complete!');
         
         return result;
       } catch (error) {
-        clearInterval(progressInterval);
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
         setProgress(0);
         throw error;
       }

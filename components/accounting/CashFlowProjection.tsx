@@ -84,20 +84,20 @@ export function CashFlowProjection() {
               <h3 className="font-semibold">Upcoming Payments</h3>
             </div>
             <span className="text-2xl font-bold text-red-600">
-              -${cashFlow?.upcomingPayments.total.toLocaleString()}
+              -${(cashFlow?.upcomingPayments?.total ?? 0).toLocaleString()}
             </span>
           </div>
           <div className="grid gap-2 pl-7">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Pending Settlements</span>
               <span className="font-medium">
-                ${cashFlow?.upcomingPayments.settlements.toLocaleString()}
+                ${(cashFlow?.upcomingPayments?.settlements ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Approved Advances</span>
               <span className="font-medium">
-                ${cashFlow?.upcomingPayments.advances.toLocaleString()}
+                ${(cashFlow?.upcomingPayments?.advances ?? 0).toLocaleString()}
               </span>
             </div>
           </div>
@@ -113,20 +113,20 @@ export function CashFlowProjection() {
               <h3 className="font-semibold">Expected Revenue</h3>
             </div>
             <span className="text-2xl font-bold text-green-600">
-              +${cashFlow?.expectedRevenue.total.toLocaleString()}
+              +${(cashFlow?.expectedRevenue?.total ?? 0).toLocaleString()}
             </span>
           </div>
           <div className="grid gap-2 pl-7">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Invoiced (Unpaid)</span>
               <span className="font-medium">
-                ${cashFlow?.expectedRevenue.invoiced.toLocaleString()}
+                ${(cashFlow?.expectedRevenue?.invoiced ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Delivered (Not Invoiced)</span>
               <span className="font-medium">
-                ${cashFlow?.expectedRevenue.delivered.toLocaleString()}
+                ${(cashFlow?.expectedRevenue?.delivered ?? 0).toLocaleString()}
               </span>
             </div>
           </div>
@@ -147,7 +147,7 @@ export function CashFlowProjection() {
               }`}
             >
               {(cashFlow?.netCashFlow || 0) >= 0 ? '+' : ''}$
-              {cashFlow?.netCashFlow.toLocaleString()}
+              {(cashFlow?.netCashFlow ?? 0).toLocaleString()}
             </span>
           </div>
           <p className="text-xs text-muted-foreground pl-7">

@@ -103,9 +103,7 @@ export default function CompanySwitcher() {
     mutationFn: switchCompany,
     onSuccess: async (response, companyId) => {
       try {
-        console.log('[CompanySwitcher] switchMutation onSuccess:', { response, companyId });
         const { companyId: actualCompanyId, mcNumberId, mcNumber, isMcNumber } = response.data || {};
-        console.log('[CompanySwitcher] Extracted from response:', { actualCompanyId, mcNumberId, mcNumber, isMcNumber });
         
         // Update session with new company and MC number (single source of truth)
         await updateSession({
@@ -125,7 +123,6 @@ export default function CompanySwitcher() {
           // Switching to a specific MC - set the MC ID in URL (remove 'all' if it was set)
           const mcParam = `mc:${mcNumberId}`;
           params.set('mc', mcParam);
-          console.log('[CompanySwitcher] Setting mcViewMode to:', mcParam);
           setMcViewMode(mcParam);
           setIsInitialized(true); // Mark as initialized so selection persists
           // Set cookie for API routes
@@ -138,14 +135,12 @@ export default function CompanySwitcher() {
           const currentMcParam = searchParams.get('mc');
           if (currentMcParam === 'all' && isAdmin) {
             params.set('mc', 'all');
-            console.log('[CompanySwitcher] Setting mcViewMode to: all');
             setMcViewMode('all');
             document.cookie = `mcViewMode=all; path=/; max-age=${60 * 60 * 24 * 30}`;
             document.cookie = `currentMcNumberId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
             document.cookie = `currentMcNumber=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
           } else {
             params.set('mc', 'all');
-            console.log('[CompanySwitcher] Setting mcViewMode to: all (fallback)');
             setMcViewMode('all');
           }
         }
@@ -159,32 +154,27 @@ export default function CompanySwitcher() {
         toast.success(isMcNumber ? `Switched to MC ${mcNumber}` : 'Company switched successfully');
         setOpen(false);
       } catch (error) {
-        console.error('[CompanySwitcher] Error updating session:', error);
         toast.error('Failed to update session. Please refresh the page.');
       } finally {
         setIsSwitching(false);
       }
     },
     onError: (err: Error) => {
-      console.error('[CompanySwitcher] MC switch error:', err);
       toast.error(err.message || 'Failed to switch MC number');
       setIsSwitching(false);
     },
-    onMutate: (companyId) => {
-      console.log('[CompanySwitcher] switchMutation onMutate:', { companyId });
+    onMutate: () => {
       setIsSwitching(true);
     },
   });
 
   // Handle MC view mode change (admin only - for "All MCs" toggle)
   const handleMcViewModeChange = useCallback((mode: string) => {
-    console.log('[CompanySwitcher] handleMcViewModeChange called:', { mode, isSwitching });
     if (isSwitching) return; // Prevent multiple simultaneous switches
     
     const params = new URLSearchParams(searchParams.toString());
     
     if (mode === 'all') {
-      console.log('[CompanySwitcher] Switching to "all" mode');
       params.set('mc', 'all');
       setMcViewMode('all');
       setIsInitialized(true); // Mark as initialized
@@ -198,16 +188,13 @@ export default function CompanySwitcher() {
       debouncedInvalidate();
     } else {
       // Specific MC selected - switch to that MC and remove 'all' state
-      console.log('[CompanySwitcher] Switching to specific MC:', { mode });
       params.set('mc', mode);
       setMcViewMode(mode);
       setIsInitialized(true); // Mark as initialized so we preserve this selection
-      console.log('[CompanySwitcher] Set mcViewMode to:', mode);
       // Clear "all" mode cookie
       document.cookie = `mcViewMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
       // Switch to the MC number (updates session)
-      console.log('[CompanySwitcher] Calling switchMutation with:', mode);
       switchMutation.mutate(mode);
       return;
     }
@@ -227,17 +214,8 @@ export default function CompanySwitcher() {
 
   // Determine the currently selected/active MC
   const currentCompany = useMemo(() => {
-    console.log('[CompanySwitcher] Computing currentCompany:', {
-      mcViewMode,
-      currentCompanyId,
-      currentMcNumberId,
-      mcNumbersCount: mcNumbers.length,
-      mcNumbers: mcNumbers.map(mc => ({ id: mc.id, mcNumberId: mc.mcNumberId, name: mc.name }))
-    });
-    
     // If in multi-select mode, don't show a single "current" MC
     if (mcViewMode === 'multi' || mcViewMode === 'all') {
-      console.log('[CompanySwitcher] Multi/All mode - returning null');
       return null;
     }
     
@@ -245,26 +223,16 @@ export default function CompanySwitcher() {
     if (mcViewMode && mcViewMode !== 'current' && mcViewMode.startsWith('mc:')) {
       const mcId = mcViewMode.replace('mc:', '');
       const found = mcNumbers.find((c) => c.id === mcViewMode || c.mcNumberId === mcId);
-      console.log('[CompanySwitcher] Found MC by mcViewMode:', { mcViewMode, mcId, found: found ? found.name : 'NOT FOUND' });
       return found;
     }
     
     // Fall back to session/cookie MC
     const fallback = mcNumbers.find((c) => c.id === currentCompanyId || (currentMcNumberId && c.mcNumberId === currentMcNumberId));
-    console.log('[CompanySwitcher] Using fallback (session/cookie):', { currentCompanyId, currentMcNumberId, found: fallback ? fallback.name : 'NOT FOUND' });
     return fallback;
   }, [mcNumbers, currentCompanyId, currentMcNumberId, mcViewMode]);
 
   // Get display text for button
   const buttonDisplayText = useMemo(() => {
-    console.log('[CompanySwitcher] Computing buttonDisplayText:', {
-      isSwitching,
-      isAdmin,
-      mcViewMode,
-      selectedMcIdsLength: selectedMcIds.length,
-      currentCompany: currentCompany ? currentCompany.name : 'null'
-    });
-    
     if (isSwitching) return 'Switching...';
     if (isAdmin && mcViewMode === 'all') return 'All MC Numbers';
     if (isAdmin && mcViewMode === 'multi' && selectedMcIds.length > 0) {
@@ -275,14 +243,10 @@ export default function CompanySwitcher() {
       const mcNumberMatch = currentCompany.name.match(/\(MC\s+([^)]+)\)/);
       if (mcNumberMatch) {
         const companyName = currentCompany.name.replace(/\s*\(MC\s+[^)]+\)\s*$/, '').trim();
-        const displayText = `${companyName} (MC ${mcNumberMatch[1]})`;
-        console.log('[CompanySwitcher] Button display text:', displayText);
-        return displayText;
+        return `${companyName} (MC ${mcNumberMatch[1]})`;
       }
-      console.log('[CompanySwitcher] Button display text (no MC match):', currentCompany.name);
       return currentCompany.name;
     }
-    console.log('[CompanySwitcher] Button display text: Select MC Number');
     return 'Select MC Number';
   }, [isSwitching, isAdmin, mcViewMode, selectedMcIds.length, currentCompany]);
 
@@ -336,18 +300,16 @@ export default function CompanySwitcher() {
             : 'Switched to single MC view'
         );
       } catch (error) {
-        console.error('Error updating multi-select:', error);
+        // Error handled by onError callback
       } finally {
         setIsSwitching(false);
       }
     },
     onError: (err: Error) => {
-      console.error('Multi-MC switch error:', err);
       toast.error(err.message || 'Failed to switch to multi-MC view');
       setIsSwitching(false);
     },
-    onMutate: (companyId) => {
-      console.log('[CompanySwitcher] switchMutation onMutate:', { companyId });
+    onMutate: () => {
       setIsSwitching(true);
     },
   });
@@ -372,12 +334,10 @@ export default function CompanySwitcher() {
 
   // Handle single MC click (switch to that MC, clear multi-select)
   const handleMcClick = useCallback((mcSwitchId: string) => {
-    console.log('[CompanySwitcher] handleMcClick called:', { mcSwitchId });
     // Clear multi-select first
     setSelectedMcIds([]);
     // mcSwitchId should already have 'mc:' prefix from API
     // Switch to single MC
-    console.log('[CompanySwitcher] Calling handleMcViewModeChange with:', mcSwitchId);
     handleMcViewModeChange(mcSwitchId);
   }, [handleMcViewModeChange]);
 
@@ -403,25 +363,21 @@ export default function CompanySwitcher() {
   useEffect(() => {
     if (isAdmin) {
       const mcParam = searchParams.get('mc');
-      console.log('[CompanySwitcher] URL param check (admin):', { mcParam, currentMcViewMode: mcViewMode, isInitialized });
       
       // If URL has mc param, use it
       if (mcParam === 'all') {
         if (mcViewMode !== 'all') {
-          console.log('[CompanySwitcher] Setting mcViewMode to: all (from URL)');
           setMcViewMode('all');
           setIsInitialized(true);
         }
       } else if (mcParam === 'multi') {
         if (mcViewMode !== 'multi') {
-          console.log('[CompanySwitcher] Setting mcViewMode to: multi (from URL)');
           setMcViewMode('multi');
           setIsInitialized(true);
         }
       } else if (mcParam && mcParam.startsWith('mc:')) {
         // It's an MC ID with prefix
         if (mcViewMode !== mcParam) {
-          console.log('[CompanySwitcher] Setting mcViewMode to:', mcParam, '(from URL)');
           setMcViewMode(mcParam);
           setIsInitialized(true);
         }
@@ -429,14 +385,11 @@ export default function CompanySwitcher() {
         // It's an MC ID (CUID starts with 'c') - add prefix
         const mcParamWithPrefix = `mc:${mcParam}`;
         if (mcViewMode !== mcParamWithPrefix) {
-          console.log('[CompanySwitcher] Setting mcViewMode to:', mcParamWithPrefix, '(from URL)');
           setMcViewMode(mcParamWithPrefix);
           setIsInitialized(true);
         }
       } else if (!mcParam && isInitialized && mcViewMode && mcViewMode !== 'all' && mcViewMode !== 'multi' && mcViewMode.startsWith('mc:')) {
         // No URL param but we have a selected MC - preserve it and update URL
-        console.log('[CompanySwitcher] No mc param in URL, preserving current mcViewMode and updating URL:', mcViewMode);
-        // Update URL to reflect current selection
         const params = new URLSearchParams(searchParams.toString());
         params.set('mc', mcViewMode);
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -449,7 +402,6 @@ export default function CompanySwitcher() {
         
         if (cookieMcId) {
           const mcParamFromCookie = `mc:${cookieMcId}`;
-          console.log('[CompanySwitcher] First load, using from cookie:', mcParamFromCookie);
           setMcViewMode(mcParamFromCookie);
           setIsInitialized(true);
           // Update URL to reflect cookie value
@@ -458,7 +410,6 @@ export default function CompanySwitcher() {
           router.replace(`${pathname}?${params.toString()}`, { scroll: false });
         } else {
           // Last resort - default to all
-          console.log('[CompanySwitcher] First load, no cookie, defaulting to: all');
           setMcViewMode('all');
           setIsInitialized(true);
         }
@@ -466,29 +417,21 @@ export default function CompanySwitcher() {
     } else {
       // Non-admin users use current MC from session
       const mcParam = searchParams.get('mc');
-      console.log('[CompanySwitcher] URL param check (non-admin):', { mcParam, currentMcViewMode: mcViewMode });
       if (mcParam && mcParam.startsWith('mc:')) {
         if (mcViewMode !== mcParam) {
-          console.log('[CompanySwitcher] Setting mcViewMode to:', mcParam);
           setMcViewMode(mcParam);
         }
       } else if (!mcParam && mcViewMode && mcViewMode.startsWith('mc:')) {
         // Preserve current selection and update URL
-        console.log('[CompanySwitcher] No mc param, preserving current mcViewMode and updating URL:', mcViewMode);
         const params = new URLSearchParams(searchParams.toString());
         params.set('mc', mcViewMode);
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       } else if (!mcParam && (!mcViewMode || mcViewMode === 'current')) {
-        console.log('[CompanySwitcher] No mc param, using current from session');
         setMcViewMode('current');
       }
     }
-  }, [searchParams, isAdmin, pathname, router]);
+  }, [searchParams, isAdmin, pathname, router, mcViewMode, isInitialized]);
 
-  // Debug: Log mcViewMode changes
-  useEffect(() => {
-    console.log('[CompanySwitcher] mcViewMode changed to:', mcViewMode);
-  }, [mcViewMode]);
 
   return (
     <div className="p-4 border-t border-slate-800 dark:border-border">
@@ -672,13 +615,6 @@ export default function CompanySwitcher() {
                           <div 
                             className="flex-1 min-w-0 cursor-pointer"
                             onClick={() => {
-                              console.log('[CompanySwitcher] MC name/div clicked:', { 
-                                mcSwitchId, 
-                                mcNumberId, 
-                                mcName: mc.name,
-                                isAdmin,
-                                currentMcViewMode: mcViewMode
-                              });
                               if (isAdmin) {
                                 handleMcClick(mcSwitchId);
                               } else {

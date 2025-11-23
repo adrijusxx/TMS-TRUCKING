@@ -13,6 +13,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
 import { Upload, Loader2, FileSpreadsheet } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 
 interface InvoiceImportDialogProps {
   open: boolean;
@@ -48,13 +49,37 @@ export default function InvoiceImportDialog({
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       setFile(null);
       setProgress(0);
-      onOpenChange(false);
-      alert(
-        `Import completed!\nCreated: ${data.data.created}\nUpdated: ${data.data.updated}\nErrors: ${data.data.errorCount}`
-      );
+      
+      const created = data.data?.created || 0;
+      const updated = data.data?.updated || 0;
+      const errorCount = data.data?.errorCount || 0;
+      
+      // Show success toast with details
+      if (errorCount === 0) {
+        toast.success(
+          `Successfully imported invoices! Created: ${created}, Updated: ${updated}`,
+          {
+            duration: 5000,
+          }
+        );
+      } else {
+        toast.warning(
+          `Import completed with ${errorCount} error(s). Created: ${created}, Updated: ${updated}`,
+          {
+            duration: 7000,
+          }
+        );
+      }
+      
+      // Close dialog after a short delay to show the toast
+      setTimeout(() => {
+        onOpenChange(false);
+      }, 1000);
     },
     onError: (error: any) => {
-      alert(`Import failed: ${error.message}`);
+      toast.error(`Import failed: ${error.message || 'Unknown error occurred'}`, {
+        duration: 5000,
+      });
     },
   });
 
@@ -67,7 +92,9 @@ export default function InvoiceImportDialog({
 
   const handleImport = () => {
     if (!file) {
-      alert('Please select a file');
+      toast.error('Please select a file to import', {
+        duration: 3000,
+      });
       return;
     }
 

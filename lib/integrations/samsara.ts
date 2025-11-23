@@ -11,6 +11,9 @@
  * API Documentation: https://developers.samsara.com/
  */
 
+// Cache for unavailable endpoints to reduce log noise
+const unavailableEndpoints = new Set<string>();
+
 interface SamsaraConfig {
   apiKey: string;
   baseUrl: string;
@@ -153,13 +156,41 @@ interface SamsaraCameraMedia {
 }
 
 /**
- * Get Samsara configuration from environment variables
+ * Get Samsara configuration from database (company-specific) or environment variables
+ * @param companyId Optional company ID to check database first
  */
-export function getSamsaraConfig(): SamsaraConfig | null {
+export async function getSamsaraConfig(companyId?: string): Promise<SamsaraConfig | null> {
+  // First, try to get from database if companyId is provided
+  if (companyId) {
+    try {
+      const { prisma } = await import('@/lib/prisma');
+      const integration = await prisma.integration.findUnique({
+        where: {
+          companyId_provider: {
+            companyId,
+            provider: 'SAMSARA',
+          },
+        },
+      });
+
+      if (integration?.apiKey && integration.isActive) {
+        return {
+          apiKey: integration.apiKey,
+          baseUrl: 'https://api.samsara.com',
+          webhookSecret: integration.apiSecret || process.env.SAMSARA_WEBHOOK_SECRET,
+        };
+      }
+    } catch (error) {
+      console.debug('[Samsara] Could not fetch API key from database:', error);
+      // Fall through to environment variable check
+    }
+  }
+
+  // Fall back to environment variable
   const apiKey = process.env.SAMSARA_API_KEY;
 
   if (!apiKey) {
-    console.warn('Samsara API key not configured');
+    console.warn('Samsara API key not configured (checked database and environment variables)');
     return null;
   }
 
@@ -172,13 +203,20 @@ export function getSamsaraConfig(): SamsaraConfig | null {
 
 /**
  * Make authenticated request to Samsara API
+ * @param endpoint API endpoint (e.g., '/fleet/vehicles')
+ * @param options Request options
+ * @param companyId Optional company ID to check database for API key first
  */
 async function samsaraRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  companyId?: string
 ): Promise<T | null> {
-  const config = getSamsaraConfig();
-  if (!config) return null;
+  const config = await getSamsaraConfig(companyId);
+  if (!config) {
+    console.warn('[Samsara] API key not configured - check database Integration table or SAMSARA_API_KEY in .env.local');
+    return null;
+  }
 
   try {
     const response = await fetch(`${config.baseUrl}${endpoint}`, {
@@ -191,23 +229,84 @@ async function samsaraRequest<T>(
     });
 
     if (!response.ok) {
+      // Handle 401 (Unauthorized) - API key might be invalid
+      if (response.status === 401) {
+        console.error(`[Samsara] Authentication failed for endpoint: ${endpoint}`);
+        console.error('[Samsara] Check if API key is valid and not expired');
+        console.error('[Samsara] Verify token in Settings → API Tokens in Samsara dashboard');
+        return null;
+      }
+      
+      // Handle 403 (Forbidden) - API key might not have required permissions/scopes
+      if (response.status === 403) {
+        console.error(`[Samsara] Access forbidden for endpoint: ${endpoint}`);
+        console.error('[Samsara] API token may not have required scope/permission');
+        console.error('[Samsara] Go to Settings → API Tokens and add missing scope');
+        console.error('[Samsara] For Live Map, ensure "Vehicles - Read" scope is enabled');
+        return null;
+      }
+      
+      // Handle 404 (Not Found) gracefully - endpoint may not be available for this account
+      if (response.status === 404) {
+        // Only log once per endpoint to reduce noise
+        if (!unavailableEndpoints.has(endpoint)) {
+          unavailableEndpoints.add(endpoint);
+          console.debug(`[Samsara] Endpoint not found: ${endpoint} (may not be available for this account)`);
+        }
+        return null;
+      }
+      
       const error = await response.json().catch(() => ({ message: response.statusText }));
+      const errorMessage = error.message || response.statusText;
+      
+      // Handle "invalid id" errors gracefully - these are common when vehicle IDs don't match
+      // Only log once per endpoint to reduce noise
+      if (errorMessage.includes('invalid id') || errorMessage.includes('invalid')) {
+        const errorKey = `${endpoint}:invalid_id`;
+        if (!unavailableEndpoints.has(errorKey)) {
+          unavailableEndpoints.add(errorKey);
+          console.debug(`[Samsara] Invalid ID error for endpoint: ${endpoint} (vehicle IDs may not match)`);
+        }
+        return null;
+      }
+      
       throw new Error(`Samsara API error: ${JSON.stringify(error)}`);
     }
 
     return await response.json();
   } catch (error) {
-    console.error('Samsara API request error:', error);
+    // Only log as error if it's not a handled case (404, invalid id, etc.)
+    if (error instanceof Error) {
+      const isHandledError = 
+        error.message.includes('404') ||
+        error.message.includes('invalid id') ||
+        error.message.includes('Invalid stat type') ||
+        error.message.includes('Not Found');
+      
+      if (!isHandledError) {
+        console.error('Samsara API request error:', error);
+      } else {
+        // Log handled errors at debug level only
+        console.debug(`[Samsara] Handled error: ${error.message}`);
+      }
+    } else {
+      console.error('Samsara API request error:', error);
+    }
     return null;
   }
 }
 
 /**
  * Get all vehicles in the fleet
+ * @param companyId Optional company ID to check database for API key first
  */
-export async function getSamsaraVehicles(): Promise<SamsaraVehicle[] | null> {
+export async function getSamsaraVehicles(companyId?: string): Promise<SamsaraVehicle[] | null> {
+  // Use correct endpoint: /fleet/vehicles (not /vehicles)
+  // The /vehicles endpoint doesn't exist - must use /fleet/vehicles
   const result = await samsaraRequest<SamsaraVehicle[] | { data?: SamsaraVehicle[] }>(
-    '/fleet/vehicles'
+    '/fleet/vehicles',
+    {},
+    companyId
   );
 
   if (!result) return null;
@@ -229,9 +328,12 @@ export async function getSamsaraVehicle(vehicleId: string): Promise<SamsaraVehic
 /**
  * Get all drivers
  */
-export async function getSamsaraDrivers(): Promise<SamsaraDriver[] | null> {
+export async function getSamsaraDrivers(companyId?: string): Promise<SamsaraDriver[] | null> {
+  // Use the correct endpoint: /fleet/drivers (per Samsara API docs)
   const result = await samsaraRequest<SamsaraDriver[] | { data?: SamsaraDriver[] }>(
-    '/fleet/drivers'
+    '/fleet/drivers',
+    {},
+    companyId
   );
 
   if (!result) return null;
@@ -244,8 +346,8 @@ export async function getSamsaraDrivers(): Promise<SamsaraDriver[] | null> {
 /**
  * Get driver by ID
  */
-export async function getSamsaraDriver(driverId: string): Promise<SamsaraDriver | null> {
-  const drivers = await getSamsaraDrivers();
+export async function getSamsaraDriver(driverId: string, companyId?: string): Promise<SamsaraDriver | null> {
+  const drivers = await getSamsaraDrivers(companyId);
   if (!drivers) return null;
   return drivers.find((d) => d.id === driverId) || null;
 }
@@ -292,49 +394,263 @@ export async function getSamsaraHOSLogs(
 }
 
 /**
+ * Get asset location and speed data using the stream endpoint
+ * This endpoint returns location AND speed together, more efficient than separate calls
+ * Reference: https://developers.samsara.com/reference/getassetslocationandspeedstream
+ * 
+ * NOTE: This endpoint REQUIRES asset IDs and has a limit of 50 IDs per request
+ */
+async function getSamsaraAssetLocationAndSpeed(
+  vehicleIds?: string[],
+  companyId?: string
+): Promise<Array<{ vehicleId: string; location: SamsaraVehicle['location'] }> | null> {
+  // This endpoint requires asset IDs - skip if not provided
+  if (!vehicleIds || vehicleIds.length === 0) {
+    return null;
+  }
+  
+  // API limit: maximum 50 asset IDs per request
+  const MAX_IDS_PER_REQUEST = 50;
+  
+  // If we have more than 50 IDs, we need to batch the requests
+  if (vehicleIds.length > MAX_IDS_PER_REQUEST) {
+    const allResults: Array<{ vehicleId: string; location: SamsaraVehicle['location'] }> = [];
+    
+    // Process in batches of 50
+    for (let i = 0; i < vehicleIds.length; i += MAX_IDS_PER_REQUEST) {
+      const batch = vehicleIds.slice(i, i + MAX_IDS_PER_REQUEST);
+      const batchResult = await getSamsaraAssetLocationAndSpeed(batch, companyId);
+      if (batchResult) {
+        allResults.push(...batchResult);
+      }
+    }
+    
+    return allResults.length > 0 ? allResults : null;
+  }
+  
+  try {
+    const params = new URLSearchParams();
+    
+    // Set time range (last 5 minutes for real-time data)
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - 5 * 60 * 1000); // 5 minutes ago
+    params.append('startTime', startTime.toISOString());
+    params.append('endTime', endTime.toISOString());
+    
+    // Include speed and reverse geocoding
+    params.append('includeSpeed', 'true');
+    params.append('includeReverseGeo', 'true');
+    
+    // REQUIRED: Filter by vehicle IDs (endpoint requires this, max 50)
+    params.append('ids', vehicleIds.join(','));
+    
+    // Set limit (max 512)
+    params.append('limit', '512');
+    
+    const result = await samsaraRequest<{
+      data?: Array<{
+        id: string;
+        location: {
+          latitude: number;
+          longitude: number;
+          speed?: { value: number; unit: string };
+          heading?: number;
+          address?: string;
+        };
+        time: string;
+      }>;
+      pagination?: { endCursor?: string };
+    }>(
+      `/assets/location-and-speed/stream?${params.toString()}`,
+      {},
+      companyId
+    );
+    
+    if (!result || !result.data || result.data.length === 0) {
+      return null;
+    }
+    
+    // Convert to our format, taking the most recent location for each vehicle
+    const locationMap = new Map<string, { vehicleId: string; location: SamsaraVehicle['location'] }>();
+    
+    result.data.forEach((entry) => {
+      if (!entry.id || !entry.location) return;
+      
+      const speedMph = entry.location.speed?.value 
+        ? (entry.location.speed.unit === 'mph' 
+            ? entry.location.speed.value 
+            : entry.location.speed.value * 0.621371) // Convert km/h to mph
+        : undefined;
+      
+      locationMap.set(entry.id, {
+        vehicleId: entry.id,
+        location: {
+          latitude: entry.location.latitude,
+          longitude: entry.location.longitude,
+          speedMilesPerHour: speedMph,
+          heading: entry.location.heading,
+          address: entry.location.address,
+        },
+      });
+    });
+    
+    return Array.from(locationMap.values());
+  } catch (error) {
+    console.debug('[Samsara] Asset location-and-speed stream endpoint not available, falling back to legacy endpoint');
+    return null;
+  }
+}
+
+/**
  * Get vehicle locations in real-time
+ * Tries the new location-and-speed stream endpoint first (if vehicle IDs provided), then falls back to legacy endpoints
+ * Reference: 
+ * - New: https://developers.samsara.com/reference/getassetslocationandspeedstream
+ * - Legacy: https://developers.samsara.com/reference/getfleetvehicleslocations
  */
 export async function getSamsaraVehicleLocations(
-  vehicleIds?: string[]
+  vehicleIds?: string[],
+  companyId?: string
 ): Promise<Array<{ vehicleId: string; location: SamsaraVehicle['location'] }> | null> {
+  // Try the new location-and-speed stream endpoint first (only if vehicle IDs are provided)
+  // This endpoint requires IDs, so we can only use it when we have them
+  if (vehicleIds && vehicleIds.length > 0) {
+    const streamResult = await getSamsaraAssetLocationAndSpeed(vehicleIds, companyId);
+    if (streamResult && streamResult.length > 0) {
+      return streamResult;
+    }
+  }
+  
+  // Fallback to correct endpoints (these work without IDs or with batched IDs)
+  // Use the correct endpoint: /fleet/vehicles/locations (per Samsara API docs)
+  // Note: /fleet/locations doesn't exist - use /fleet/vehicles/locations instead
+  
+  // Batch vehicle IDs if we have more than 50
+  const MAX_IDS_PER_REQUEST = 50;
+  let allResults: Array<{ vehicleId: string; location: SamsaraVehicle['location'] }> = [];
+  
+  if (vehicleIds && vehicleIds.length > MAX_IDS_PER_REQUEST) {
+    // Process in batches of 50
+    for (let i = 0; i < vehicleIds.length; i += MAX_IDS_PER_REQUEST) {
+      const batch = vehicleIds.slice(i, i + MAX_IDS_PER_REQUEST);
+      const batchResult = await getSamsaraVehicleLocations(batch, companyId);
+      if (batchResult) {
+        allResults.push(...batchResult);
+      }
+    }
+    return allResults.length > 0 ? allResults : null;
+  }
+  
+  // Use correct endpoint: /fleet/vehicles/locations
   const params = new URLSearchParams();
   if (vehicleIds && vehicleIds.length > 0) {
     params.append('vehicleIds', vehicleIds.join(','));
   }
-
-  const result = await samsaraRequest<{ data: SamsaraVehicle[] }>(
-    `/fleet/vehicles/locations${params.toString() ? `?${params.toString()}` : ''}`
+  // Add types parameter for current location
+  params.append('types', 'currentLocation');
+  
+  // Try the correct endpoint: /fleet/vehicles/locations
+  let result = await samsaraRequest<{ data: SamsaraVehicle[] }>(
+    `/fleet/vehicles/locations?${params.toString()}`,
+    {},
+    companyId
   );
+  
+  // If that fails, try without types parameter
+  if (!result || !result.data) {
+    const simpleParams = new URLSearchParams();
+    if (vehicleIds && vehicleIds.length > 0) {
+      simpleParams.append('vehicleIds', vehicleIds.join(','));
+    }
+    result = await samsaraRequest<{ data: SamsaraVehicle[] }>(
+      `/fleet/vehicles/locations${simpleParams.toString() ? `?${simpleParams.toString()}` : ''}`,
+      {},
+      companyId
+    );
+  }
   
   if (!result || !result.data) return null;
   
-  return result.data.map((vehicle) => ({
-    vehicleId: vehicle.id,
-    location: vehicle.location || vehicle.gps,
-  }));
+  // Handle different response formats
+  if (Array.isArray(result.data)) {
+    // Check if it's the new format (array of location objects with vehicleId)
+    if (result.data.length > 0 && 'vehicleId' in result.data[0]) {
+      return result.data.map((entry: any) => ({
+        vehicleId: entry.vehicleId,
+        location: entry.location,
+      }));
+    }
+    // Legacy format: array of vehicles
+    return result.data.map((vehicle: any) => ({
+      vehicleId: vehicle.id,
+      location: vehicle.location || vehicle.gps,
+    }));
+  }
+  
+  return [];
 }
 
 /**
  * Get diagnostics / fault codes for vehicles
  * Note: Some Samsara API configurations may require vehicleIds parameter
  */
-export async function getSamsaraVehicleDiagnostics(vehicleIds?: string[]): Promise<SamsaraVehicleDiagnostic[] | null> {
+export async function getSamsaraVehicleDiagnostics(
+  vehicleIds?: string[],
+  companyId?: string
+): Promise<SamsaraVehicleDiagnostic[] | null> {
   try {
-    let endpoint = '/fleet/vehicles/diagnostics';
+    // Batch vehicle IDs if we have more than 50 (API limit)
+    const MAX_IDS_PER_REQUEST = 50;
+    
+    if (vehicleIds && vehicleIds.length > MAX_IDS_PER_REQUEST) {
+      const allResults: SamsaraVehicleDiagnostic[] = [];
+      
+      // Process in batches of 50
+      for (let i = 0; i < vehicleIds.length; i += MAX_IDS_PER_REQUEST) {
+        const batch = vehicleIds.slice(i, i + MAX_IDS_PER_REQUEST);
+        const batchResult = await getSamsaraVehicleDiagnostics(batch, companyId);
+        if (batchResult) {
+          allResults.push(...batchResult);
+        }
+      }
+      
+      return allResults.length > 0 ? allResults : null;
+    }
+    
+    // Try /fleet/vehicles/stats first (more reliable than diagnostics)
+    // Use faultCodes stat type (checkEngineLightOn doesn't exist)
+    // faultCodes includes milStatus field which indicates check engine light
+    let endpoint = '/fleet/vehicles/stats';
     if (vehicleIds && vehicleIds.length > 0) {
       const params = new URLSearchParams();
       params.append('vehicleIds', vehicleIds.join(','));
+      // Use valid stat types: faultCodes (includes milStatus for check engine light)
+      params.append('types', 'faultCodes');
       endpoint = `${endpoint}?${params.toString()}`;
     }
-
-    const result = await samsaraRequest<
-      SamsaraVehicleDiagnostic[] | { data?: SamsaraVehicleDiagnostic[] }
-    >(endpoint);
-
-    if (!result) return null;
-    if (Array.isArray(result)) return result;
-    if (Array.isArray(result.data)) return result.data;
-
+    
+    const statsResult = await samsaraRequest<any>(endpoint, {}, companyId);
+    
+    // If stats endpoint works, convert to diagnostics format
+    if (statsResult && Array.isArray(statsResult)) {
+      return statsResult.map((entry: any) => {
+        // faultCodes response includes milStatus (Malfunction Indicator Lamp)
+        // milStatus indicates if check engine light is on
+        const faultCodes = entry.faultCodes || [];
+        const milStatus = entry.milStatus || entry.faultCodes?.milStatus;
+        const checkEngineLightOn = milStatus === 'On' || milStatus === true || (faultCodes.length > 0 && faultCodes.some((f: any) => f.milStatus === 'On'));
+        
+        return {
+          vehicleId: entry.vehicleId,
+          checkEngineLightOn: checkEngineLightOn || false,
+          faults: Array.isArray(faultCodes) ? faultCodes : [],
+          lastUpdatedTime: entry.time || new Date().toISOString(),
+        };
+      });
+    }
+    
+    // Diagnostics endpoint doesn't exist - use stats with faultCodes instead
+    // No fallback needed - stats endpoint is the correct way to get diagnostics
     return null;
   } catch (error: any) {
     // Suppress "invalid id" errors - diagnostics might not be available for all configurations
@@ -348,72 +664,310 @@ export async function getSamsaraVehicleDiagnostics(vehicleIds?: string[]): Promi
 
 /**
  * Get vehicle stats (speed, fuel, odometer, etc.)
+ * Uses the Stats endpoint per Samsara API documentation
+ * Reference: https://developers.samsara.com/reference/getfleetvehiclesstats
+ * 
+ * Note: The stats endpoint may not be available for all Samsara accounts/plans.
+ * If unavailable, speed data can still be obtained from vehicle locations.
  */
-export async function getSamsaraVehicleStats(): Promise<SamsaraVehicleStats[] | null> {
-  if (process.env.SAMSARA_STATS_ENABLED !== 'true') {
+export async function getSamsaraVehicleStats(companyId?: string): Promise<SamsaraVehicleStats[] | null> {
+  // Only skip if explicitly disabled (not just missing)
+  // This allows the feature to work by default
+  if (process.env.SAMSARA_STATS_ENABLED === 'false') {
+    console.debug('[Samsara] Stats disabled by SAMSARA_STATS_ENABLED=false');
     return null;
   }
 
-  const types = [
-    'currentSpeed',
-    'speedLimit',
-    'fuelPercent',
-    'odometerMiles',
-    'engineHours',
-    'engineState',
-    'seatbeltStatus',
-  ].join(',');
+  // Samsara API limit: Maximum 3 stat types per request (or 1 type + 2 decorations = 4 total)
+  // We need to make multiple requests to get all the data we need
+  
+  try {
+    // Request 1: Speed and engine data (most critical)
+    const request1Types = ['ecuSpeedMph', 'engineStates', 'engineRpm'];
+    const params1 = new URLSearchParams();
+    params1.append('types', request1Types.join(','));
+    
+    const result1 = await samsaraRequest<SamsaraVehicleStats[] | { data?: SamsaraVehicleStats[] }>(
+      `/fleet/vehicles/stats?${params1.toString()}`,
+      {},
+      companyId
+    );
 
-  const result = await samsaraRequest<SamsaraVehicleStats[] | { data?: SamsaraVehicleStats[] }>(
-    `/fleet/vehicles/stats?types=${encodeURIComponent(types)}`
-  );
+    // Request 2: Fuel and odometer data
+    const request2Types = ['fuelPercents', 'obdOdometerMeters'];
+    const params2 = new URLSearchParams();
+    params2.append('types', request2Types.join(','));
+    
+    const result2 = await samsaraRequest<SamsaraVehicleStats[] | { data?: SamsaraVehicleStats[] }>(
+      `/fleet/vehicles/stats?${params2.toString()}`,
+      {},
+      companyId
+    );
 
-  if (!result) return null;
-  if (Array.isArray(result)) return result;
-  if (Array.isArray(result.data)) return result.data;
-
+    // Combine results from both requests
+    const stats1 = Array.isArray(result1) ? result1 : (result1?.data || []);
+    const stats2 = Array.isArray(result2) ? result2 : (result2?.data || []);
+    
+    // Merge stats by vehicleId
+    const statsMap = new Map<string, any>();
+    
+    // Add stats from first request
+    stats1.forEach((entry: any) => {
+      if (entry?.vehicleId) {
+        statsMap.set(entry.vehicleId, { ...entry });
+      }
+    });
+    
+    // Merge stats from second request
+    stats2.forEach((entry: any) => {
+      if (entry?.vehicleId) {
+        const existing = statsMap.get(entry.vehicleId) || {};
+        statsMap.set(entry.vehicleId, {
+          ...existing,
+          ...entry,
+          // Merge fuelPercents and obdOdometerMeters
+          fuelPercents: entry.fuelPercents ?? existing.fuelPercents,
+          obdOdometerMeters: entry.obdOdometerMeters ?? existing.obdOdometerMeters,
+        });
+      }
+    });
+    
+    const combinedStats = Array.from(statsMap.values());
+    
+    if (combinedStats.length > 0) {
+      return combinedStats;
+    }
+  } catch (error: any) {
+    if (error?.message?.includes('Invalid stat type') || 
+        error?.message?.includes('invalid') ||
+        error?.message?.includes('Must provide') ||
+        error?.message?.includes('restricted to 4 types')) {
+      console.debug('[Samsara] Stats endpoint not available or stat types not supported');
+      console.debug('[Samsara] Speed data will be obtained from vehicle locations instead');
+      return null;
+    }
+    console.debug('[Samsara] Stats endpoint error:', error instanceof Error ? error.message : error);
+  }
+  
+  // Return null gracefully - speed can come from location data
   return null;
 }
 
 /**
  * Get recent trips for vehicles
+ * @param vehicleIds Optional array of vehicle IDs to filter trips (required for /trips endpoint)
+ * @param driverIds Optional array of driver IDs to filter trips (alternative to vehicleIds)
+ * @param companyId Optional company ID to check database for API key first
  */
-export async function getSamsaraTrips(): Promise<SamsaraTrip[] | null> {
-  if (process.env.SAMSARA_TRIPS_ENABLED !== 'true') {
+export async function getSamsaraTrips(
+  vehicleIds?: string[],
+  driverIds?: string[],
+  companyId?: string
+): Promise<SamsaraTrip[] | null> {
+  // Only skip if explicitly disabled (not just missing)
+  // This allows the feature to work by default
+  if (process.env.SAMSARA_TRIPS_ENABLED === 'false') {
+    console.debug('[Samsara] Trips disabled by SAMSARA_TRIPS_ENABLED=false');
     return null;
   }
 
-  const limit = parseInt(process.env.SAMSARA_TRIPS_LIMIT || '3', 10);
-  const result = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
-    `/fleet/trips/recent?limit=${Number.isFinite(limit) ? limit : 3}`
-  );
+  // The /trips endpoint requires at least one filter: vehicleIds OR driverIds
+  // If neither is provided, we can't make the request
+  if ((!vehicleIds || vehicleIds.length === 0) && (!driverIds || driverIds.length === 0)) {
+    console.debug('[Samsara] Trips endpoint requires vehicleIds or driverIds filter - skipping');
+    return null;
+  }
 
-  if (!result) return null;
-  if (Array.isArray(result)) return result;
-  if (Array.isArray(result.data)) return result.data;
+  // Use correct endpoint: /trips (requires enablement) or /v1/fleet/trips (legacy)
+  // Note: /fleet/trips doesn't exist in current API
+  const limit = parseInt(process.env.SAMSARA_TRIPS_LIMIT || '3', 10);
+  const params = new URLSearchParams();
+  
+  // Add required filter: vehicleIds or driverIds
+  if (vehicleIds && vehicleIds.length > 0) {
+    // Batch vehicle IDs if more than 50 (API limit)
+    const batches: string[][] = [];
+    for (let i = 0; i < vehicleIds.length; i += 50) {
+      batches.push(vehicleIds.slice(i, i + 50));
+    }
+    
+    // Make requests for each batch and combine results
+    const allTrips: SamsaraTrip[] = [];
+    
+    for (const batch of batches) {
+      const batchParams = new URLSearchParams();
+      batchParams.append('vehicleIds', batch.join(','));
+      
+      // Set time range (last 24 hours)
+      const endTime = new Date();
+      const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+      batchParams.append('startTime', startTime.toISOString());
+      batchParams.append('endTime', endTime.toISOString());
+      batchParams.append('limit', String(limit));
+      
+      // Try new endpoint first: /trips (requires enablement)
+      const result = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
+        `/trips?${batchParams.toString()}`,
+        {},
+        companyId
+      );
+      
+      if (result) {
+        const trips = Array.isArray(result) ? result : (result.data || []);
+        allTrips.push(...trips);
+      }
+    }
+    
+    if (allTrips.length > 0) {
+      return allTrips;
+    }
+  } else if (driverIds && driverIds.length > 0) {
+    // Filter by driver IDs
+    params.append('driverIds', driverIds.join(','));
+    
+    // Set time range (last 24 hours)
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+    params.append('startTime', startTime.toISOString());
+    params.append('endTime', endTime.toISOString());
+    params.append('limit', String(limit));
+    
+    // Try new endpoint first: /trips (requires enablement)
+    const result = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
+      `/trips?${params.toString()}`,
+      {},
+      companyId
+    );
+    
+    if (result) {
+      if (Array.isArray(result)) return result;
+      if (Array.isArray(result.data)) return result.data;
+    }
+  }
+  
+  // Fallback to legacy endpoint if new one doesn't work
+  // Legacy endpoint also requires vehicleIds or driverIds
+  if (vehicleIds && vehicleIds.length > 0) {
+    try {
+      const endTime = new Date();
+      const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
+      
+      const legacyResult = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
+        '/v1/fleet/trips',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            vehicleIds: vehicleIds.slice(0, 50), // Legacy may also have limits
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            limit,
+          }),
+        },
+        companyId
+      );
+      if (legacyResult) {
+        if (Array.isArray(legacyResult)) return legacyResult;
+        if (Array.isArray(legacyResult.data)) return legacyResult.data;
+      }
+    } catch (error) {
+      // Legacy endpoint also failed - trips not available
+      // Only log once to reduce noise
+      if (!unavailableEndpoints.has('/trips')) {
+        unavailableEndpoints.add('/trips');
+        console.debug('[Samsara] Trips endpoint not available (requires enablement)');
+      }
+    }
+  }
 
   return null;
 }
 
 /**
  * Get latest camera media (stills) for vehicles
+ * 
+ * Note: Camera media endpoints vary by Samsara account type and may require:
+ * - Safety license
+ * - Specific API permissions
+ * - Camera hardware installed on vehicles
+ * 
+ * This function tries multiple endpoints and gracefully handles failures
  */
-export async function getSamsaraCameraMedia(): Promise<SamsaraCameraMedia[] | null> {
-  if (process.env.SAMSARA_CAMERA_MEDIA_ENABLED !== 'true') {
+export async function getSamsaraCameraMedia(companyId?: string): Promise<SamsaraCameraMedia[] | null> {
+  // Only skip if explicitly disabled (not just missing)
+  // This allows the feature to work by default
+  if (process.env.SAMSARA_CAMERA_MEDIA_ENABLED === 'false') {
+    console.debug('[Samsara] Camera media disabled by SAMSARA_CAMERA_MEDIA_ENABLED=false');
     return null;
   }
 
   const requestedTypes =
     process.env.SAMSARA_CAMERA_MEDIA_TYPES || ['forwardFacing', 'driverFacing'].join(',');
 
-  const result = await samsaraRequest<SamsaraCameraMedia[] | { data?: SamsaraCameraMedia[] }>(
-    `/fleet/cameras/media?types=${encodeURIComponent(requestedTypes)}`
-  );
+  // Check if camera features are unavailable (cached to reduce log noise)
+  if (unavailableEndpoints.has('/fleet/cameras/media') && unavailableEndpoints.has('/safety/media')) {
+    return null;
+  }
 
-  if (!result) return null;
-  if (Array.isArray(result)) return result;
-  if (Array.isArray(result.data)) return result.data;
+  // Try the legacy cameras/media endpoint first (most common)
+  try {
+    const mediaResult = await samsaraRequest<SamsaraCameraMedia[] | { data?: SamsaraCameraMedia[] }>(
+      `/fleet/cameras/media?types=${encodeURIComponent(requestedTypes)}`,
+      {},
+      companyId
+    );
+    
+    if (mediaResult) {
+      // Normalize the response to always have data property
+      let result: { data?: SamsaraCameraMedia[] } | null = null;
+      if (Array.isArray(mediaResult)) {
+        result = { data: mediaResult };
+      } else if (mediaResult && typeof mediaResult === 'object' && 'data' in mediaResult) {
+        result = mediaResult;
+      }
+      
+      if (result?.data) {
+        return result.data;
+      }
+    }
+  } catch (error: any) {
+    // Endpoint not found or not available - mark as unavailable and try alternatives
+    if (!unavailableEndpoints.has('/fleet/cameras/media')) {
+      unavailableEndpoints.add('/fleet/cameras/media');
+      console.debug('[Samsara] Camera media endpoint /fleet/cameras/media not available, trying alternatives');
+    }
+  }
 
+  // Try Safety Media endpoint (requires Safety license)
+  // Skip if already marked as unavailable
+  if (unavailableEndpoints.has('/safety/media')) {
+    return null;
+  }
+
+  try {
+    const endTime = new Date().toISOString();
+    const startTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    const result = await samsaraRequest<{ data?: SamsaraCameraMedia[] }>(
+      `/safety/media?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      {},
+      companyId
+    );
+
+    if (result?.data) {
+      return result.data;
+    }
+  } catch (error: any) {
+    // Safety endpoint not available - mark as unavailable and only log once
+    if (!unavailableEndpoints.has('/safety/media')) {
+      unavailableEndpoints.add('/safety/media');
+      console.debug('[Samsara] Safety media endpoint not available - camera media may require Safety license');
+    }
+  }
+
+  // No camera media available - this is normal if:
+  // - Account doesn't have Safety license
+  // - No cameras installed on vehicles
+  // - API token doesn't have required permissions
   return null;
 }
 

@@ -987,6 +987,74 @@ export async function POST(
         if (t.vin) existingTrucks.add(t.vin);
       });
 
+      // Helper function to resolve MC number string to McNumber ID
+      const resolveMcNumberId = async (mcValue: string | null | undefined): Promise<string | undefined> => {
+        if (!mcValue) {
+          // If no value, try to find default MC number for the company
+          const defaultMcNumber = await prisma.mcNumber.findFirst({
+            where: {
+              companyId: session.user.companyId,
+              deletedAt: null,
+              isDefault: true,
+            },
+            select: { id: true },
+          });
+          return defaultMcNumber?.id;
+        }
+        
+        const mcStr = String(mcValue).trim();
+        if (!mcStr) return undefined;
+
+        // First, check if it's already an ID (cuid format)
+        if (mcStr.length === 25 && mcStr.startsWith('cm')) {
+          const mcNumber = await prisma.mcNumber.findFirst({
+            where: {
+              id: mcStr,
+              companyId: session.user.companyId,
+              deletedAt: null,
+            },
+            select: { id: true },
+          });
+          if (mcNumber) return mcNumber.id;
+        }
+
+        // Try to find by MC number first
+        let mcNumber = await prisma.mcNumber.findFirst({
+          where: {
+            companyId: session.user.companyId,
+            deletedAt: null,
+            number: { equals: mcStr, mode: 'insensitive' },
+          },
+          select: { id: true },
+        });
+
+        // If not found by number, try by company name
+        if (!mcNumber) {
+          mcNumber = await prisma.mcNumber.findFirst({
+            where: {
+              companyId: session.user.companyId,
+              deletedAt: null,
+              companyName: { equals: mcStr, mode: 'insensitive' },
+            },
+            select: { id: true },
+          });
+        }
+
+        // If still not found, try to find default MC number for the company
+        if (!mcNumber) {
+          mcNumber = await prisma.mcNumber.findFirst({
+            where: {
+              companyId: session.user.companyId,
+              deletedAt: null,
+              isDefault: true,
+            },
+            select: { id: true },
+          });
+        }
+
+        return mcNumber?.id;
+      };
+
       // Map Excel status values to TruckStatus enum
       const mapTruckStatus = (statusValue: any): 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'INACTIVE' => {
         if (!statusValue) return 'AVAILABLE';
@@ -1039,8 +1107,28 @@ export async function POST(
           const rawStatus = getValue(row, ['Status', 'status']);
           const truckStatus = mapTruckStatus(rawStatus);
 
+          // Resolve MC number to ID
+          const mcValue = (() => {
+            const csvMcValue = getValue(row, ['MC number', 'MC Number', 'mc_number']);
+            if (csvMcValue) {
+              const csvStr = csvMcValue.toString().trim();
+              // Handle multiple values - split by comma, semicolon, pipe, or slash
+              const values = csvStr.split(/[,;|/]/).map((v: string) => v.trim()).filter((v: string) => v);
+              return values.length > 0 ? values[0] : undefined;
+            }
+            return currentMcNumber || undefined;
+          })();
+
+          const mcNumberId = await resolveMcNumberId(mcValue);
+
+          if (!mcNumberId) {
+            errors.push({ row: i + 1, error: `MC number not found: ${mcValue || 'N/A'}. Please ensure the MC number exists in the system.` });
+            continue;
+          }
+
           trucksToCreate.push({
             companyId: session.user.companyId,
+            mcNumberId,
             truckNumber,
             vin,
             make: getValue(row, ['Make', 'make']) || '',
@@ -1048,19 +1136,6 @@ export async function POST(
             year: parseInt(String(getValue(row, ['Year', 'year']) || new Date().getFullYear())) || new Date().getFullYear(),
             licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']) || '',
             state: getValue(row, ['State', 'state']) || '',
-            // Accepts both numeric MC numbers (e.g., "160847") and string values (e.g., company names) from CSV
-            // If multiple values in CSV cell (e.g., "160847, 1090857"), uses FIRST value only
-            // Priority: CSV column > Form MC selection > undefined
-            mcNumber: (() => {
-              const csvMcValue = getValue(row, ['MC number', 'MC Number', 'mc_number']);
-              if (csvMcValue) {
-                const csvStr = csvMcValue.toString().trim();
-                // Handle multiple values - split by comma, semicolon, pipe, or slash
-                const values = csvStr.split(/[,;|/]/).map((v: string) => v.trim()).filter((v: string) => v);
-                return values.length > 0 ? values[0] : undefined;
-              }
-              return currentMcNumber || undefined;
-            })(),
             equipmentType: 'DRY_VAN',
             capacity: 45000,
             status: truckStatus,

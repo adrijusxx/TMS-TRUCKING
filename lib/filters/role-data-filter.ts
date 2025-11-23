@@ -296,19 +296,21 @@ export async function getInvoiceFilter(context: RoleFilterContext): Promise<any>
  * Get settlement filter based on role
  * ACCOUNTANT: All settlements (filtered by MC number if applicable)
  * Others: Based on driver access
+ * 
+ * Note: Settlement model doesn't have a direct companyId field.
+ * Company filtering is done through driver.companyId relation.
  */
 export async function getSettlementFilter(context: RoleFilterContext): Promise<any> {
-  const { userId, role, companyId } = context;
+  const { userId, role } = context;
 
-  const baseFilter: any = {
-    companyId,
-    deletedAt: null,
-  };
+  const baseFilter: any = {};
 
   // Note: MC number filtering for settlements is handled separately
   // Settlements are linked to drivers, which use mcNumberId (relation)
+  // Company filtering is done through driver.companyId in the driverFilter
+  // Settlement model doesn't have deletedAt field, so we don't filter by it
 
-  // Accountants see all settlements
+  // Accountants see all settlements (company filtering via driver relation)
   if (role === 'ACCOUNTANT' || role === 'ADMIN') {
     return baseFilter;
   }

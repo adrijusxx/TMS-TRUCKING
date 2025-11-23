@@ -14,13 +14,6 @@ import {
   AlertTriangle,
   MapPin,
   Route as RouteIcon,
-  Gauge,
-  Fuel,
-  Clock3,
-  Activity,
-  Camera,
-  Share2,
-  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,10 +21,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { apiUrl } from '@/lib/utils';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { loadGoogleMapsApi } from '@/lib/maps/google-loader';
 import type {
-  LoadMapEntry,
   MapLocation,
   TruckDiagnostics,
   TruckMapEntry,
@@ -39,14 +32,21 @@ import type {
   TruckMedia,
   TruckTrip,
 } from '@/lib/maps/live-map-service';
-
-interface LiveMapResponse {
-  success: boolean;
-  data: {
-    loads: LoadMapEntry[];
-    trucks: TruckMapEntry[];
-  };
-}
+import { useLiveMap } from '@/hooks/useLiveMap';
+import {
+  buildTruckMarkerIcon,
+  buildBadgeIcon,
+  formatBadgeLabel,
+  getTruckMarkerColor,
+  createTruckStatus,
+  getMarkerSizeForZoom,
+} from '@/lib/maps/marker-utils';
+import { MAP_COLORS, DEFAULT_MAP_CONFIG, ROUTE_STYLES } from '@/lib/maps/map-config';
+import { CustomInfoWindow, type InfoWindowData } from '@/components/map/CustomInfoWindow';
+import { MarkerClusterManager } from '@/components/map/marker-cluster-manager';
+import { MapControls } from '@/components/map/MapControls';
+import { TruckDetailsPanel } from '@/components/map/TruckDetailsPanel';
+import { PathTrailManager } from '@/lib/maps/path-trail-manager';
 
 interface SelectedTruckDetail {
   truckId: string;
@@ -63,38 +63,39 @@ interface SelectedTruckDetail {
   recentTrips?: TruckTrip[];
 }
 
-async function fetchLiveMapData(): Promise<LiveMapResponse['data']> {
-  const response = await fetch(apiUrl('/api/maps/live'));
-  if (!response.ok) throw new Error('Failed to fetch live map data');
-  const payload: LiveMapResponse = await response.json();
-  return payload.data;
-}
-
 export default function LiveMap() {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
+  const [mapZoom, setMapZoom] = useState(DEFAULT_MAP_CONFIG.defaultZoom);
   const loadMarkersRef = useRef<any[]>([]);
   const truckMarkersRef = useRef<any[]>([]);
   const routePolylinesRef = useRef<any[]>([]);
+  const clusterManagerRef = useRef<MarkerClusterManager | null>(null);
+  const infoWindowRef = useRef<CustomInfoWindow | null>(null);
+  const trailManagerRef = useRef<PathTrailManager | null>(null);
+  const previousDataRef = useRef<{ loads: any[]; trucks: any[] } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFaultyOnly, setShowFaultyOnly] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<SelectedTruckDetail | null>(null);
   const [detailTab, setDetailTab] = useState('overview');
   const [showLayers, setShowLayers] = useState({
     trucks: true,
-    trailers: true,
+    trailers: false,
     pickups: false,
     deliveries: false,
   });
+  const [showTrails, setShowTrails] = useState(false);
+  const [showStatistics, setShowStatistics] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
+  const [showTrackedTrucks, setShowTrackedTrucks] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['live-map'],
-    queryFn: fetchLiveMapData,
-    refetchInterval: 30000,
-  });
+  const { loads, trucks, isLoading, error, refetch } = useLiveMap();
 
-  const loads = data?.loads || [];
-  const trucks = data?.trucks || [];
+  // Prevent hydration mismatch by only rendering collapsibles after mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const hasQuery = normalizedQuery.length > 0;
@@ -147,59 +148,27 @@ export default function LiveMap() {
     }
   }, [selectedTruck?.truckId]);
 
+  // Update trail manager when showTrails changes
+  useEffect(() => {
+    if (trailManagerRef.current) {
+      trailManagerRef.current.setEnabled(showTrails);
+      if (!showTrails) {
+        trailManagerRef.current.clearAllTrails();
+      }
+    }
+  }, [showTrails]);
+
   const legendItems = [
-    { label: 'Truck', color: '#16a34a', icon: Truck },
-    { label: 'Trailer', color: '#8b5cf6', icon: TrailerGlyph },
-    { label: 'Pickup', color: '#2563eb', icon: MapPin },
-    { label: 'Delivery', color: '#f97316', icon: RouteIcon },
+    { label: 'Truck (Healthy)', color: MAP_COLORS.healthy, icon: Truck },
+    { label: 'Truck (Faulty)', color: MAP_COLORS.faulty, icon: Truck },
+    { label: 'Truck (Assigned)', color: MAP_COLORS.assigned, icon: Truck },
+    { label: 'Trailer', color: MAP_COLORS.trailer, icon: TrailerGlyph },
+    { label: 'Pickup', color: MAP_COLORS.pickup, icon: MapPin },
+    { label: 'Delivery', color: MAP_COLORS.delivery, icon: RouteIcon },
   ];
 
   const { trucks: showTrucks, trailers: showTrailers, pickups: showPickups, deliveries: showDeliveries } =
     showLayers;
-
-const badgeIconCache = new Map<string, google.maps.Icon>();
-
-const formatBadgeLabel = (value: string | number | undefined, fallback: string, maxChars = 4) => {
-  if (!value) return fallback;
-  const text = String(value);
-  if (text.length <= maxChars) return text;
-  return text.slice(-maxChars);
-};
-
-const buildBadgeIcon = ({
-  label,
-  fill,
-  size,
-  labelColor = '#0f172a',
-}: {
-  label: string;
-  fill: string;
-  size: number;
-  labelColor?: string;
-}): google.maps.Icon => {
-  const cacheKey = `${fill}-${size}-${label}-${labelColor}`;
-  if (badgeIconCache.has(cacheKey)) {
-    return badgeIconCache.get(cacheKey)!;
-  }
-
-  const labelSize = label.length > 4 ? 8 : label.length > 2 ? 9 : 11;
-  const svg = `
-    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="${fill}" />
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 2}" fill="white" />
-      <text x="50%" y="55%" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="${labelSize}" font-weight="600" fill="${labelColor}">${label}</text>
-    </svg>
-  `;
-
-  const icon: google.maps.Icon = {
-    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new google.maps.Size(size, size),
-    anchor: new google.maps.Point(size / 2, size / 2),
-  };
-
-  badgeIconCache.set(cacheKey, icon);
-  return icon;
-};
 
   useEffect(() => {
     let isMounted = true;
@@ -211,12 +180,25 @@ const buildBadgeIcon = ({
 
         const google = window.google;
         const mapInstance = new google.maps.Map(mapRef.current, {
-          zoom: 5,
-          center: { lat: 39.8283, lng: -98.5795 },
+          zoom: DEFAULT_MAP_CONFIG.defaultZoom,
+          center: DEFAULT_MAP_CONFIG.defaultCenter,
           mapTypeControl: true,
           streetViewControl: false,
           fullscreenControl: true,
+          minZoom: DEFAULT_MAP_CONFIG.minZoom,
+          maxZoom: DEFAULT_MAP_CONFIG.maxZoom,
         });
+
+        // Track zoom level
+        mapInstance.addListener('zoom_changed', () => {
+          setMapZoom(mapInstance.getZoom() || DEFAULT_MAP_CONFIG.defaultZoom);
+        });
+
+        // Initialize managers
+        clusterManagerRef.current = new MarkerClusterManager(mapInstance);
+        infoWindowRef.current = new CustomInfoWindow(mapInstance);
+        trailManagerRef.current = new PathTrailManager(mapInstance);
+        trailManagerRef.current.setEnabled(showTrails);
 
         setMap(mapInstance);
       } catch (error) {
@@ -234,9 +216,27 @@ const buildBadgeIcon = ({
   useEffect(() => {
     if (!map || !window.google) return;
 
-    loadMarkersRef.current.forEach((marker) => marker.setMap(null));
-    truckMarkersRef.current.forEach((marker) => marker.setMap(null));
-    routePolylinesRef.current.forEach((polyline) => polyline.setMap(null));
+    // Only clear and recreate if data has actually changed
+    const currentData = { loads: filteredLoads, trucks: filteredTrucks };
+    const previousData = previousDataRef.current;
+
+    // Simple comparison - in production, you'd want a deeper comparison
+    const dataChanged =
+      !previousData ||
+      previousData.loads.length !== currentData.loads.length ||
+      previousData.trucks.length !== currentData.trucks.length ||
+      JSON.stringify(previousData.loads.map((l) => l.id)) !==
+        JSON.stringify(currentData.loads.map((l) => l.id)) ||
+      JSON.stringify(previousData.trucks.map((t) => t.id)) !==
+        JSON.stringify(currentData.trucks.map((t) => t.id));
+
+    if (dataChanged) {
+      loadMarkersRef.current.forEach((marker) => marker.setMap(null));
+      truckMarkersRef.current.forEach((marker) => marker.setMap(null));
+      routePolylinesRef.current.forEach((polyline) => polyline.setMap(null));
+    }
+
+    previousDataRef.current = currentData;
 
     const google = window.google;
     const newLoadMarkers: any[] = [];
@@ -269,11 +269,17 @@ const buildBadgeIcon = ({
     const trackedTruckIds = new Set<string>();
 
     filteredLoads.forEach((load) => {
+      // Use the load's truck telemetry data (truckSensors, truckMedia) which comes from the service
+      // matchedTruck is kept for fallback but load.truckSensors/truckMedia should be preferred
       const matchedTruck = load.truck?.id ? truckMapById.get(load.truck.id) : undefined;
       if (showPickups && load.pickup) {
         const pickupLabel = formatBadgeLabel(load.loadNumber, 'P');
         const marker = addMarker(load.pickup, {
-          icon: buildBadgeIcon({ label: pickupLabel, fill: '#1d4ed8', size: 24 }),
+          icon: buildBadgeIcon({
+            label: pickupLabel,
+            fill: MAP_COLORS.pickup,
+            size: 24,
+          }),
           title: `Load ${load.loadNumber} pickup`,
         });
         if (marker) newLoadMarkers.push(marker);
@@ -282,48 +288,91 @@ const buildBadgeIcon = ({
       if (showDeliveries && load.delivery) {
         const deliveryLabel = formatBadgeLabel(load.loadNumber, 'D');
         const marker = addMarker(load.delivery, {
-          icon: buildBadgeIcon({ label: deliveryLabel, fill: '#f97316', size: 24 }),
+          icon: buildBadgeIcon({
+            label: deliveryLabel,
+            fill: MAP_COLORS.delivery,
+            size: 24,
+          }),
           title: `Load ${load.loadNumber} delivery`,
         });
         if (marker) newLoadMarkers.push(marker);
       }
 
+      // Enhanced route visualization with gradient
       if (load.routeWaypoints && load.routeWaypoints.length > 1) {
+        const path = load.routeWaypoints.map((point) => ({ lat: point.lat, lng: point.lng }));
+        
+        // Create main route polyline
         const polyline = new google.maps.Polyline({
-          path: load.routeWaypoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-          strokeColor: '#0ea5e9',
-          strokeWeight: 3,
-          strokeOpacity: 0.7,
+          path,
+          strokeColor: ROUTE_STYLES.strokeColor,
+          strokeWeight: ROUTE_STYLES.strokeWeight,
+          strokeOpacity: ROUTE_STYLES.strokeOpacity,
+          zIndex: ROUTE_STYLES.zIndex,
           map,
         });
         newPolylines.push(polyline);
+
+        // Add route label at midpoint
+        if (path.length >= 2) {
+          const midIndex = Math.floor(path.length / 2);
+          const midPoint = path[midIndex];
+          const routeLabel = new google.maps.Marker({
+            position: midPoint,
+            map,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 0,
+              fillOpacity: 0,
+              strokeOpacity: 0,
+            },
+            label: {
+              text: load.loadNumber,
+              color: '#ffffff',
+              fontSize: '10px',
+              fontWeight: 'bold',
+            },
+            zIndex: 1000,
+          });
+          newLoadMarkers.push(routeLabel);
+        }
       }
 
       if (showTrucks && load.truck && load.truckLocation) {
-        const infoWindow = new google.maps.InfoWindow({
-          content: [
-            '<div style="padding:8px;">',
-            `<strong>Truck ${load.truck.truckNumber}</strong><br/>`,
-            `Load: ${load.loadNumber}<br/>`,
-            `Status: ${load.status}<br/>`,
-            load.driver ? `Driver: ${load.driver.name}<br/>` : '',
-            load.truckLocation.address ? `${load.truckLocation.address}<br/>` : '',
-            load.truckLocation.lastUpdated
-              ? `Updated: ${new Date(load.truckLocation.lastUpdated).toLocaleString()}`
-              : '',
-            '</div>',
-          ].join(''),
-        });
-
+        const hasActiveFaults = (load.truckDiagnostics?.activeFaults ?? 0) > 0;
+        const truckStatus = createTruckStatus(hasActiveFaults, true);
+        const markerColor = getTruckMarkerColor(truckStatus);
+        const markerSize = getMarkerSizeForZoom(mapZoom);
         const truckLabel = formatBadgeLabel(load.truck.truckNumber, 'TRK');
+
         const marker = addMarker(
           load.truckLocation,
           {
-            icon: buildBadgeIcon({ label: truckLabel, fill: '#2563eb', size: 26 }),
+            icon: buildTruckMarkerIcon({
+              label: truckLabel,
+              fill: markerColor,
+              size: markerSize,
+              heading: load.truckLocation.heading,
+              showDirection: true,
+              pulse: hasActiveFaults,
+            }),
             title: `Truck ${load.truck.truckNumber} (Load ${load.loadNumber})`,
           },
           () => {
-            infoWindow.open(map, marker);
+            if (infoWindowRef.current) {
+              const infoData: InfoWindowData = {
+                title: `Truck ${load.truck!.truckNumber}`,
+                subtitle: `Load ${load.loadNumber}`,
+                location: load.truckLocation,
+                driverName: load.driver?.name,
+                loadNumber: load.loadNumber,
+                status: load.status,
+                speed: load.truckLocation?.speed,
+                diagnostics: load.truckDiagnostics,
+                sensors: matchedTruck?.sensors,
+              };
+              infoWindowRef.current.open(map, marker, infoData);
+            }
             handleTruckSelect({
               truckId: load.truck!.id,
               truckNumber: load.truck!.truckNumber,
@@ -334,9 +383,10 @@ const buildBadgeIcon = ({
               location: load.truckLocation,
               diagnostics: load.truckDiagnostics,
               matchSource: 'load-assignment',
-              sensors: matchedTruck?.sensors,
-              latestMedia: matchedTruck?.latestMedia,
-              recentTrips: matchedTruck?.recentTrips,
+              // Use load's truckSensors/truckMedia first, fallback to matchedTruck
+              sensors: load.truckSensors || matchedTruck?.sensors,
+              latestMedia: load.truckMedia || matchedTruck?.latestMedia,
+              recentTrips: load.truckTrips || matchedTruck?.recentTrips,
             });
           }
         );
@@ -344,34 +394,42 @@ const buildBadgeIcon = ({
         if (marker) {
           newTruckMarkers.push(marker);
           trackedTruckIds.add(load.truck.id);
+
+          // Add point to trail if enabled
+          if (trailManagerRef.current?.isEnabled() && load.truckLocation) {
+            trailManagerRef.current.addPoint(load.truck.id, {
+              lat: load.truckLocation.lat,
+              lng: load.truckLocation.lng,
+              timestamp: Date.now(),
+              heading: load.truckLocation.heading,
+            });
+          }
         }
       }
 
       if (showTrailers && load.trailer) {
         const trailerAnchor = load.truckLocation ?? load.delivery ?? load.pickup;
         if (trailerAnchor) {
-          const trailerInfo = new google.maps.InfoWindow({
-            content: [
-              '<div style="padding:8px;">',
-              `<strong>Trailer ${load.trailer.trailerNumber}</strong><br/>`,
-              load.truckLocation?.address
-                ? `${load.truckLocation.address}<br/>`
-                : 'Location pending<br/>',
-              load.truckLocation?.lastUpdated
-                ? `Updated: ${new Date(load.truckLocation.lastUpdated).toLocaleString()}`
-                : '',
-              '</div>',
-            ].join(''),
-          });
-
           const trailerLabel = formatBadgeLabel(load.trailer.trailerNumber, 'TRL');
           const trailerMarker = addMarker(
             trailerAnchor,
             {
-              icon: buildBadgeIcon({ label: trailerLabel, fill: '#0ea5e9', size: 24 }),
+              icon: buildBadgeIcon({
+                label: trailerLabel,
+                fill: MAP_COLORS.trailer,
+                size: 24,
+              }),
               title: `Trailer ${load.trailer.trailerNumber}`,
             },
-            () => trailerInfo.open(map, trailerMarker)
+            () => {
+              if (infoWindowRef.current) {
+                const infoData: InfoWindowData = {
+                  title: `Trailer ${load.trailer!.trailerNumber}`,
+                  location: trailerAnchor,
+                };
+                infoWindowRef.current.open(map, trailerMarker, infoData);
+              }
+            }
           );
 
           if (trailerMarker) {
@@ -387,31 +445,38 @@ const buildBadgeIcon = ({
       );
 
       standaloneTrucks.forEach((truck) => {
-        const infoWindow = new google.maps.InfoWindow({
-          content: [
-            '<div style="padding:8px;">',
-            `<strong>Truck ${truck.truckNumber}</strong><br/>`,
-            `Status: ${truck.status}<br/>`,
-            truck.location?.address ? `${truck.location.address}<br/>` : '',
-            truck.location?.lastUpdated
-              ? `Updated: ${new Date(truck.location.lastUpdated).toLocaleString()}<br/>`
-              : '',
-            truck.matchSource
-              ? `<div style="margin-top:4px;font-size:12px;">Source: ${truck.matchSource}</div>`
-              : '',
-            '</div>',
-          ].join(''),
-        });
-
+        const hasActiveFaults = (truck.diagnostics?.activeFaults ?? 0) > 0;
+        const truckStatus = createTruckStatus(hasActiveFaults, false);
+        const markerColor = getTruckMarkerColor(truckStatus);
+        const markerSize = getMarkerSizeForZoom(mapZoom);
         const truckLabel = formatBadgeLabel(truck.truckNumber, 'TRK');
+
         const marker = addMarker(
           truck.location as MapLocation,
           {
-            icon: buildBadgeIcon({ label: truckLabel, fill: '#f97316', size: 26 }),
+            icon: buildTruckMarkerIcon({
+              label: truckLabel,
+              fill: markerColor,
+              size: markerSize,
+              heading: truck.location?.heading,
+              showDirection: true,
+              pulse: hasActiveFaults,
+            }),
             title: `Truck ${truck.truckNumber}`,
           },
           () => {
-            infoWindow.open(map, marker);
+            if (infoWindowRef.current) {
+              const infoData: InfoWindowData = {
+                title: `Truck ${truck.truckNumber}`,
+                subtitle: truck.status,
+                location: truck.location,
+                status: truck.status,
+                speed: truck.location?.speed,
+                diagnostics: truck.diagnostics,
+                sensors: truck.sensors,
+              };
+              infoWindowRef.current.open(map, marker, infoData);
+            }
             handleTruckSelect({
               truckId: truck.id,
               truckNumber: truck.truckNumber,
@@ -428,6 +493,16 @@ const buildBadgeIcon = ({
 
         if (marker) {
           newTruckMarkers.push(marker);
+
+          // Add point to trail if enabled
+          if (trailManagerRef.current?.isEnabled() && truck.location) {
+            trailManagerRef.current.addPoint(truck.id, {
+              lat: truck.location.lat,
+              lng: truck.location.lng,
+              timestamp: Date.now(),
+              heading: truck.location.heading,
+            });
+          }
         }
       });
     }
@@ -439,7 +514,12 @@ const buildBadgeIcon = ({
     loadMarkersRef.current = newLoadMarkers;
     truckMarkersRef.current = newTruckMarkers;
     routePolylinesRef.current = newPolylines;
-  }, [map, filteredLoads, filteredTrucks, truckMapById, showTrucks, showTrailers, showPickups, showDeliveries]);
+
+    // Update cluster manager if available
+    if (clusterManagerRef.current && newTruckMarkers.length > 0) {
+      clusterManagerRef.current.updateMarkers(newTruckMarkers);
+    }
+  }, [map, filteredLoads, filteredTrucks, truckMapById, showTrucks, showTrailers, showPickups, showDeliveries, mapZoom]);
 
   const activeLoadCount = loads.length;
   const trackedTruckCount = filteredTrucks.length;
@@ -448,457 +528,351 @@ const buildBadgeIcon = ({
     (truck) => (truck.diagnostics?.activeFaults ?? 0) > 0
   ).length;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  // Show error message if API key issue
+  if (error) {
+    return (
+      <div className="space-y-6">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Active Loads</CardTitle>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Navigation className="h-5 w-5" />
+              Live Map View
+            </CardTitle>
+            <CardDescription>Failed to load map data</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-blue-600" />
-              <span className="text-2xl font-bold">{activeLoadCount}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Tracked Trucks</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <Truck className="h-5 w-5 text-green-600" />
-              <span className="text-2xl font-bold">{trackedTruckCount}</span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Loads w/ Live Truck</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-purple-600" />
-              <span className="text-2xl font-bold">{loadsWithLiveTrucks}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Search trucks, loads, drivers, or isolate fault codes</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input
-            placeholder="Search trucks, loads, drivers, fault codes..."
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
-          <div className="flex items-center gap-3">
-            <Switch checked={showFaultyOnly} onCheckedChange={setShowFaultyOnly} id="faulty-only" />
-            <Label htmlFor="faulty-only" className="text-sm">
-              Show only trucks with active faults
-            </Label>
-            {faultyTruckCount > 0 && (
-              <Badge variant="destructive" className="ml-auto flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                {faultyTruckCount} truck{faultyTruckCount > 1 ? 's' : ''} affected
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Layers</CardTitle>
-          <CardDescription>Choose which assets appear on the map</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { key: 'trucks', label: 'Trucks' },
-            { key: 'trailers', label: 'Trailers' },
-            { key: 'pickups', label: 'Pickup points' },
-            { key: 'deliveries', label: 'Delivery points' },
-          ].map((layer) => (
-            <div key={layer.key} className="flex items-center justify-between rounded-md border px-3 py-2">
-              <span className="text-sm font-medium">{layer.label}</span>
-              <Switch
-                checked={showLayers[layer.key as keyof typeof showLayers]}
-                onCheckedChange={(value) =>
-                  setShowLayers((current) => ({ ...current, [layer.key]: value }))
-                }
-                id={`layer-${layer.key}`}
-              />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Navigation className="h-5 w-5" />
-            Live Map View
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <SatelliteDish className="h-3 w-3" />
-              Real-time
-            </Badge>
-          </CardTitle>
-          <CardDescription>Active loads, routes, and Samsara truck pins</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div ref={mapRef} className="w-full h-[600px] rounded-lg border" />
-          {isLoading && (
-            <div className="mt-4 text-sm text-muted-foreground">
-              Loading map data from Google Maps/Samsara...
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Legend</CardTitle>
-          <CardDescription>Marker styles used on the map</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-          {legendItems.map(({ label, color, icon: Icon }) => (
-            <div key={label} className="flex items-center gap-2">
-              <span
-                className="inline-flex items-center justify-center rounded-md border px-2 py-1"
-                style={{ borderColor: color, color }}
-              >
-                <Icon className="h-4 w-4" />
-              </span>
-              {label}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Tracked Trucks ({filteredTrucks.length})</CardTitle>
-          <CardDescription>Click to view diagnostics and telemetry</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {filteredTrucks.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No trucks match this filter.</div>
-          ) : (
-            <div className="max-h-72 overflow-auto divide-y rounded-lg border">
-              {filteredTrucks.map((truck) => (
-                <button
-                  key={truck.id}
-                  className="w-full text-left px-4 py-3 hover:bg-muted/70 flex items-center justify-between gap-4"
-                  onClick={() =>
-                    setSelectedTruck({
-                      truckId: truck.id,
-                      truckNumber: truck.truckNumber,
-                      status: truck.status,
-                      location: truck.location,
-                      diagnostics: truck.diagnostics,
-                      matchSource: truck.matchSource,
-                      sensors: truck.sensors,
-                      latestMedia: truck.latestMedia,
-                      recentTrips: truck.recentTrips,
-                    })
-                  }
-                >
-                  <div>
-                    <div className="font-medium">{truck.truckNumber}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Status: {truck.status}
-                      {truck.matchSource ? ` · Match: ${truck.matchSource}` : ''}
-                    </div>
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-semibold text-destructive mb-1">Error Loading Map Data</div>
+                  <div className="text-sm text-muted-foreground mb-3">
+                    {error instanceof Error ? error.message : 'Failed to fetch live map data'}
                   </div>
-                  {truck.diagnostics?.activeFaults ? (
-                    <Badge variant="destructive">
-                      {truck.diagnostics.activeFaults} active fault
-                      {truck.diagnostics.activeFaults > 1 ? 's' : ''}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">Healthy</Badge>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {selectedTruck && (
-        <Card>
-          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>Truck {selectedTruck.truckNumber}</CardTitle>
-              <CardDescription>
-                {selectedTruck.loadNumber
-                  ? `Assigned to load ${selectedTruck.loadNumber}`
-                  : 'Unassigned truck'}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
-                <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                Live Share
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedTruck(null)}>
-                Clear
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={detailTab} onValueChange={setDetailTab} className="w-full" key={selectedTruck.truckId}>
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
-                <TabsTrigger value="sensors" className="text-xs sm:text-sm">Sensors</TabsTrigger>
-                <TabsTrigger value="diagnostics" className="text-xs sm:text-sm">Diagnostics</TabsTrigger>
-                <TabsTrigger value="media" className="text-xs sm:text-sm">Media</TabsTrigger>
-                <TabsTrigger value="trips" className="text-xs sm:text-sm">Trips</TabsTrigger>
-              </TabsList>
-              <TabsContent value="overview" className="space-y-4 pt-4">
-                {selectedTruck.location ? (
-                  <div className="rounded-lg border p-4">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="text-xs uppercase text-muted-foreground">Location</div>
-                        <div className="text-sm font-semibold">
-                          {selectedTruck.location.address || 'Coordinates only'}
-                        </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Updated{' '}
-                        {selectedTruck.location.lastUpdated
-                          ? new Date(selectedTruck.location.lastUpdated).toLocaleString()
-                          : 'just now'}
-                      </div>
-                    </div>
-                    {selectedTruck.sensors?.speed && (
-                      <div className="mt-4 grid grid-cols-2 gap-4">
-                        <StatCard
-                          icon={<Gauge className="h-4 w-4 text-blue-600" />}
-                          label="Speed"
-                          value={
-                            selectedTruck.sensors.speed.value !== undefined
-                              ? `${Math.round(selectedTruck.sensors.speed.value)} mph`
-                              : '—'
-                          }
-                        />
-                        <StatCard
-                          icon={<Activity className="h-4 w-4 text-orange-500" />}
-                          label="Limit"
-                          value={
-                            selectedTruck.sensors.speed.limit !== undefined
-                              ? `${Math.round(selectedTruck.sensors.speed.limit)} mph`
-                              : '—'
-                          }
-                        />
-                      </div>
-                    )}
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>• Verify SAMSARA_API_KEY is set in .env.local</div>
+                    <div>• Restart dev server after updating API key</div>
+                    <div>• Check API key has "Read Vehicles" permission</div>
+                    <div>• Check server logs for detailed error messages</div>
                   </div>
-                ) : (
-                  <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                    No live location for this truck.
-                  </div>
-                )}
-                {selectedTruck.trailerNumber && (
-                  <div className="rounded-lg border p-4 text-sm">
-                    <div className="text-xs uppercase text-muted-foreground">Trailer</div>
-                    <div className="font-medium">#{selectedTruck.trailerNumber}</div>
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="sensors" className="pt-4">
-                {selectedTruck.sensors ? (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <StatCard
-                      icon={<SeatbeltIcon className="h-4 w-4 text-emerald-500" />}
-                      label="Seatbelt"
-                      value={selectedTruck.sensors.seatbeltStatus || 'Unknown'}
-                    />
-                    <StatCard
-                      icon={<Activity className="h-4 w-4 text-indigo-500" />}
-                      label="Engine"
-                      value={selectedTruck.sensors.engineState || 'Unknown'}
-                    />
-                    <StatCard
-                      icon={<Clock3 className="h-4 w-4 text-amber-500" />}
-                      label="Engine Hours"
-                      value={
-                        selectedTruck.sensors.engineHours !== undefined
-                          ? `${selectedTruck.sensors.engineHours.toLocaleString()} h`
-                          : '—'
-                      }
-                    />
-                    <StatCard
-                      icon={<Gauge className="h-4 w-4 text-sky-500" />}
-                      label="Odometer"
-                      value={
-                        selectedTruck.sensors.odometerMiles !== undefined
-                          ? `${selectedTruck.sensors.odometerMiles.toLocaleString()} mi`
-                          : '—'
-                      }
-                    />
-                    <StatCard
-                      icon={<Fuel className="h-4 w-4 text-lime-500" />}
-                      label="Fuel"
-                      value={
-                        selectedTruck.sensors.fuelPercent !== undefined
-                          ? `${selectedTruck.sensors.fuelPercent}%`
-                          : '—'
-                      }
-                    />
-                    <StatCard
-                      icon={<AlertTriangle className="h-4 w-4 text-red-500" />}
-                      label="Check Engine"
-                      value={selectedTruck.diagnostics?.checkEngineLightOn ? 'On' : 'Off'}
-                    />
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">No sensor data reported.</div>
-                )}
-              </TabsContent>
-              <TabsContent value="diagnostics" className="space-y-3 pt-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    {selectedTruck.diagnostics?.activeFaults || 0} active fault
-                    {(selectedTruck.diagnostics?.activeFaults || 0) === 1 ? '' : 's'}
-                  </div>
-                  <Button variant="link" size="sm">
-                    View history
+                  <Button onClick={() => refetch()} className="mt-4" variant="outline" size="sm">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry
                   </Button>
                 </div>
-                {selectedTruck.diagnostics?.faults.length ? (
-                  <div className="space-y-2">
-                    {selectedTruck.diagnostics.faults.map((fault, index) => (
-                      <div
-                        key={`${fault.code}-${index}`}
-                        className="rounded-md border p-3 text-xs leading-relaxed"
-                      >
-                        <div className="flex items-center justify-between font-semibold">
-                          <span>{fault.code || 'Unknown code'}</span>
-                          <Badge variant="outline">{fault.severity || 'N/A'}</Badge>
-                        </div>
-                        <div>{fault.description || 'No description provided'}</div>
-                        <div className="text-muted-foreground">
-                          State: {fault.active === false ? 'Resolved' : 'Active'}
-                          {fault.occurredAt
-                            ? ` · Since ${new Date(fault.occurredAt).toLocaleString()}`
-                            : ''}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">No fault codes reported.</div>
-                )}
-              </TabsContent>
-              <TabsContent value="media" className="pt-4">
-                {selectedTruck.latestMedia ? (
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground">
-                      {selectedTruck.latestMedia.cameraType || 'Camera'} ·{' '}
-                      {new Date(selectedTruck.latestMedia.capturedAt).toLocaleString()}
-                    </div>
-                    <div className="overflow-hidden rounded-lg border">
-                      <img
-                        src={selectedTruck.latestMedia.url}
-                        alt="Camera still"
-                        className="max-h-96 w-full object-cover"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-lg border p-6 text-sm text-muted-foreground">
-                    <Camera className="mb-2 h-6 w-6" />
-                    No camera media available.
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="trips" className="space-y-3 pt-4">
-                {selectedTruck.recentTrips?.length ? (
-                  selectedTruck.recentTrips.map((trip) => (
-                    <div key={trip.id} className="rounded-md border p-3 text-sm">
-                      <div className="font-medium flex items-center justify-between">
-                        <span>{trip.startAddress || 'Unknown origin'}</span>
-                        <History className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="text-muted-foreground">
-                        to {trip.endAddress || 'Unknown destination'}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {trip.distanceMiles ? `${trip.distanceMiles.toFixed(1)} mi · ` : ''}
-                        {trip.durationSeconds
-                          ? `${Math.round(trip.durationSeconds / 60)} min`
-                          : ''}
-                        {trip.startedAt
-                          ? ` · ${new Date(trip.startedAt).toLocaleString()}`
-                          : ''}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-muted-foreground">No recent trips recorded.</div>
-                )}
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Live Map View - At the Top */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Navigation className="h-5 w-5" />
+                Live Map View
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <SatelliteDish className="h-3 w-3" />
+                  Real-time
+                </Badge>
+              </CardTitle>
+              <CardDescription>Active loads, routes, and Samsara truck pins</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Search and Filters - Single Line */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <Input
+                placeholder="Search trucks, loads, drivers, fault codes..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch 
+                checked={showFaultyOnly} 
+                onCheckedChange={setShowFaultyOnly} 
+                id="faulty-only" 
+              />
+              <Label htmlFor="faulty-only" className="text-sm cursor-pointer whitespace-nowrap">
+                Show only faulty trucks
+              </Label>
+            </div>
+            {faultyTruckCount > 0 && (
+              <Badge variant="destructive" className="flex items-center gap-1 whitespace-nowrap">
+                <AlertTriangle className="h-3 w-3" />
+                {faultyTruckCount} fault{faultyTruckCount > 1 ? 's' : ''}
+              </Badge>
+            )}
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchQuery('')}
+                className="whitespace-nowrap"
+              >
+                Clear search
+              </Button>
+            )}
+            <div className="flex items-center gap-2 border-l pl-3">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Layers:</span>
+              {[
+                { key: 'trucks', label: 'Trucks' },
+                { key: 'trailers', label: 'Trailers' },
+                { key: 'pickups', label: 'Pickups' },
+                { key: 'deliveries', label: 'Deliveries' },
+                { key: 'trails', label: 'Trails', isTrail: true },
+              ].map((layer) => (
+                <div key={layer.key} className="flex items-center gap-1">
+                  <Switch
+                    checked={
+                      layer.isTrail 
+                        ? showTrails 
+                        : showLayers[layer.key as keyof typeof showLayers]
+                    }
+                    onCheckedChange={(value) =>
+                      layer.isTrail
+                        ? setShowTrails(value)
+                        : setShowLayers((current) => ({ ...current, [layer.key]: value }))
+                    }
+                    id={`layer-${layer.key}`}
+                    className="scale-75"
+                  />
+                  <Label 
+                    htmlFor={`layer-${layer.key}`} 
+                    className="text-xs cursor-pointer whitespace-nowrap"
+                  >
+                    {layer.label}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Map */}
+          <div className="relative">
+            <div ref={mapRef} className="w-full h-[600px] rounded-lg border" />
+            
+            {/* Map Controls */}
+            {map && (
+              <MapControls
+                map={map}
+                selectedTruck={selectedTruck}
+                onFitBounds={() => {
+                  const bounds = new google.maps.LatLngBounds();
+                  [...loadMarkersRef.current, ...truckMarkersRef.current].forEach((marker) => {
+                    const pos = marker.getPosition();
+                    if (pos) bounds.extend(pos);
+                  });
+                  if (bounds && Object.keys(bounds).length > 0) {
+                    map.fitBounds(bounds);
+                  }
+                }}
+                onCenterSelected={() => {
+                  if (selectedTruck?.location) {
+                    map.setCenter({
+                      lat: selectedTruck.location.lat,
+                      lng: selectedTruck.location.lng,
+                    });
+                    map.setZoom(15);
+                  }
+                }}
+              />
+            )}
+            {isLoading && (
+              <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg px-3 py-2 text-sm text-muted-foreground border shadow-lg">
+                Loading map data from Google Maps/Samsara...
+              </div>
+            )}
+          </div>
+
+          {/* Overview Section - Below Map in Same Card, Collapsible */}
+          {isMounted && (
+          <div className="space-y-2 pt-4 border-t">
+            {/* Statistics - Collapsible */}
+            <Collapsible open={showStatistics} onOpenChange={setShowStatistics}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded-md px-2 transition-colors">
+                <div className="flex items-center gap-2">
+                  {showStatistics ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">Statistics</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {activeLoadCount} loads, {trackedTruckCount} trucks
+                  </Badge>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 pb-4">
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <Package className="h-6 w-6 text-blue-600" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">Active Loads</div>
+                      <div className="text-xl font-bold">{activeLoadCount}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <Truck className="h-6 w-6 text-green-600" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">Tracked Trucks</div>
+                      <div className="text-xl font-bold">{trackedTruckCount}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <User className="h-6 w-6 text-purple-600" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">Loads w/ Live Truck</div>
+                      <div className="text-xl font-bold">{loadsWithLiveTrucks}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                    <AlertTriangle className="h-6 w-6 text-red-600" />
+                    <div>
+                      <div className="text-xs text-muted-foreground">Faulty Trucks</div>
+                      <div className="text-xl font-bold">{faultyTruckCount}</div>
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Legend - Collapsible */}
+            <Collapsible open={showLegend} onOpenChange={setShowLegend}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded-md px-2 transition-colors">
+                <div className="flex items-center gap-2">
+                  {showLegend ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">Map Legend</span>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pt-2 pb-4">
+                  {legendItems.map(({ label, color, icon: Icon }) => {
+                    const IconComponent = Icon as React.ComponentType<{ className?: string }>;
+                    return (
+                      <div key={label} className="flex items-center gap-2">
+                        <span
+                          className="inline-flex items-center justify-center rounded-md border px-2 py-1"
+                          style={{ borderColor: color, color }}
+                        >
+                          <IconComponent className="h-4 w-4" />
+                        </span>
+                        {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Tracked Trucks List - Collapsible */}
+            <Collapsible open={showTrackedTrucks} onOpenChange={setShowTrackedTrucks}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded-md px-2 transition-colors">
+                <div className="flex items-center gap-2">
+                  {showTrackedTrucks ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">Tracked Trucks</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {filteredTrucks.length}
+                  </Badge>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="pt-2 pb-4">
+                  {filteredTrucks.length === 0 ? (
+                    <div className="text-sm text-muted-foreground p-4 border rounded-lg">
+                      No trucks match this filter.
+                    </div>
+                  ) : (
+                    <div className="max-h-72 overflow-auto divide-y rounded-lg border">
+                      {filteredTrucks.map((truck) => (
+                        <button
+                          key={truck.id}
+                          className="w-full text-left px-4 py-3 hover:bg-muted/70 flex items-center justify-between gap-4 transition-colors"
+                          onClick={() =>
+                            setSelectedTruck({
+                              truckId: truck.id,
+                              truckNumber: truck.truckNumber,
+                              status: truck.status,
+                              location: truck.location,
+                              diagnostics: truck.diagnostics,
+                              matchSource: truck.matchSource,
+                              sensors: truck.sensors,
+                              latestMedia: truck.latestMedia,
+                              recentTrips: truck.recentTrips,
+                            })
+                          }
+                        >
+                          <div>
+                            <div className="font-medium">{truck.truckNumber}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Status: {truck.status}
+                              {truck.matchSource ? ` · Match: ${truck.matchSource}` : ''}
+                            </div>
+                          </div>
+                          {truck.diagnostics?.activeFaults ? (
+                            <Badge variant="destructive">
+                              {truck.diagnostics.activeFaults} active fault
+                              {truck.diagnostics.activeFaults > 1 ? 's' : ''}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">Healthy</Badge>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+      {selectedTruck && (
+        <TruckDetailsPanel
+          key={selectedTruck.truckId}
+          truck={selectedTruck}
+          onClose={() => setSelectedTruck(null)}
+          onCenterMap={() => {
+            if (map && selectedTruck.location) {
+              map.setCenter({
+                lat: selectedTruck.location.lat,
+                lng: selectedTruck.location.lng,
+              });
+              map.setZoom(15);
+            }
+          }}
+        />
       )}
     </div>
   );
 }
 
-interface StatCardProps {
-  icon: ReactNode;
-  label: string;
-  value: ReactNode;
-}
-
-function StatCard({ icon, label, value }: StatCardProps) {
-  return (
-    <div className="rounded-md border px-4 py-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        {icon}
-        {label}
-      </div>
-      <div className="text-lg font-semibold">{value ?? '—'}</div>
-    </div>
-  );
-}
-
-function SeatbeltIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <rect x="2" y="10" width="8" height="4" rx="1" />
-      <rect x="14" y="10" width="8" height="4" rx="1" />
-      <path d="M10 12h4" />
-    </svg>
-  );
-}
 
 function TrailerGlyph(props: SVGProps<SVGSVGElement>) {
   return (
