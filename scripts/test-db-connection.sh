@@ -15,7 +15,8 @@ echo ""
 
 if [ -n "$DATABASE_URL" ]; then
     echo "📡 Testing DATABASE_URL (application connection)..."
-    ERROR_OUTPUT=$(DATABASE_URL="$DATABASE_URL" npx prisma db execute --stdin <<< "SELECT 1;" 2>&1)
+    # Use --url flag because prisma.config.ts skips env var loading
+    ERROR_OUTPUT=$(npx prisma db execute --url "$DATABASE_URL" --stdin <<< "SELECT 1;" 2>&1)
     if [ $? -eq 0 ]; then
         echo "   ✅ DATABASE_URL connection successful"
     else
@@ -31,7 +32,8 @@ fi
 
 if [ -n "$DATABASE_URL_MIGRATE" ]; then
     echo "📡 Testing DATABASE_URL_MIGRATE (migration connection)..."
-    ERROR_OUTPUT=$(DATABASE_URL="$DATABASE_URL_MIGRATE" npx prisma db execute --stdin <<< "SELECT 1;" 2>&1)
+    # Use --url flag because prisma.config.ts skips env var loading
+    ERROR_OUTPUT=$(npx prisma db execute --url "$DATABASE_URL_MIGRATE" --stdin <<< "SELECT 1;" 2>&1)
     if [ $? -eq 0 ]; then
         echo "   ✅ DATABASE_URL_MIGRATE connection successful"
     else

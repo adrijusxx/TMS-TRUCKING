@@ -17,7 +17,7 @@ fi
 CONN1="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 echo "📡 Testing: ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech (no .c-3)"
-if DATABASE_URL="$CONN1" npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+if npx prisma db execute --url "$CONN1" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
     echo "   ✅ SUCCESS! This connection works."
     echo ""
     echo "   Add this to your .env file:"
@@ -33,7 +33,7 @@ echo ""
 CONN2="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 echo "📡 Testing: ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech (with .c-3)"
-if DATABASE_URL="$CONN2" npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+if npx prisma db execute --url "$CONN2" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
     echo "   ✅ SUCCESS! This connection works."
     echo ""
     echo "   Add this to your .env file:"

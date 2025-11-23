@@ -32,7 +32,7 @@ fi
 echo ""
 echo "2️⃣ Testing basic database connection..."
 if [ -n "$DATABASE_URL" ]; then
-    if DATABASE_URL="$DATABASE_URL" npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+    if npx prisma db execute --url "$DATABASE_URL" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
         echo "   ✅ DATABASE_URL connection works"
         DB_CONNECTION_OK=true
     else

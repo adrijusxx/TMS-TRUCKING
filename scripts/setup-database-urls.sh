@@ -47,7 +47,7 @@ echo "======================================"
 
 # Test direct connection 1
 echo "Testing: ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech"
-if DATABASE_URL="$DIRECT_URL1" npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+if npx prisma db execute --url "$DIRECT_URL1" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
     echo "   ✅ SUCCESS! This direct connection works."
     WORKING_DIRECT="$DIRECT_URL1"
 else
@@ -57,7 +57,7 @@ fi
 # Test direct connection 2
 if [ -z "$WORKING_DIRECT" ]; then
     echo "Testing: ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech"
-    if DATABASE_URL="$DIRECT_URL2" npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+    if npx prisma db execute --url "$DIRECT_URL2" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
         echo "   ✅ SUCCESS! This direct connection works."
         WORKING_DIRECT="$DIRECT_URL2"
     else

@@ -42,7 +42,8 @@ fi
 
 echo "🔗 Testing database connection..."
 # Test connection (skip if it fails, but warn)
-if DATABASE_URL="$MIGRATE_URL" npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+# Use --url flag because prisma.config.ts skips env var loading
+if npx prisma db execute --url "$MIGRATE_URL" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
     echo "✅ Connection test successful"
 else
     echo "⚠️  Connection test failed, but continuing anyway..."

@@ -74,16 +74,17 @@ echo "==================================================="
 
 if [ -n "$DATABASE_URL" ]; then
     echo "Testing DATABASE_URL..."
-    echo "Command: DATABASE_URL=\"...\" npx prisma db execute --stdin <<< \"SELECT 1;\""
+    echo "Command: npx prisma db execute --url \"...\" --stdin <<< \"SELECT 1;\""
     
+    # Use --url flag because prisma.config.ts skips env var loading
     # Try with full error output
-    if DATABASE_URL="$DATABASE_URL" npx prisma db execute --stdin <<< "SELECT 1;" 2>&1; then
+    if npx prisma db execute --url "$DATABASE_URL" --stdin <<< "SELECT 1;" 2>&1; then
         echo "   ✅ Connection successful!"
     else
         echo "   ❌ Connection failed"
         echo ""
         echo "   Full error output:"
-        DATABASE_URL="$DATABASE_URL" npx prisma db execute --stdin <<< "SELECT 1;" 2>&1 | head -20 || true
+        npx prisma db execute --url "$DATABASE_URL" --stdin <<< "SELECT 1;" 2>&1 | head -20 || true
     fi
 fi
 
