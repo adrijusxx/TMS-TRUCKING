@@ -23,9 +23,16 @@ if [ -n "$DATABASE_URL_MIGRATE" ]; then
     echo "✅ Using direct connection (DATABASE_URL_MIGRATE) for migrations..."
     echo "   This avoids timeout issues with connection poolers."
     MIGRATE_URL="$DATABASE_URL_MIGRATE"
+    
+    # Check if connection string looks correct (no -pooler)
+    if echo "$MIGRATE_URL" | grep -q "pooler"; then
+        echo "   ⚠️  WARNING: Connection string contains 'pooler'."
+        echo "   This may cause timeout issues. Use direct connection instead."
+    fi
 elif [ -n "$DATABASE_URL" ]; then
     echo "⚠️  DATABASE_URL_MIGRATE not set. Using DATABASE_URL (may timeout if using pooler)."
     echo "💡 Tip: Add DATABASE_URL_MIGRATE to .env with direct connection string (no -pooler) to avoid timeouts."
+    echo "   Get it from: Neon Dashboard → Connection Details → Direct connection"
     MIGRATE_URL="$DATABASE_URL"
 else
     echo "❌ Neither DATABASE_URL nor DATABASE_URL_MIGRATE is set."
