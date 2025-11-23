@@ -398,7 +398,8 @@ async function main() {
     const defaultMcNumber = mcNumbers.find(mc => mc.companyId === company.id && mc.isDefault);
 
     for (let i = 1; i <= 3; i++) {
-      const loadNumber = `LOAD-${company.dotNumber.slice(0, 3)}-${String(i).padStart(4, '0')}`;
+      // Generate unique load number: include company index to ensure uniqueness
+      const loadNumber = `LOAD-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i).padStart(4, '0')}`;
       const driver = companyDrivers[i - 1];
       const truck = companyTrucks[i - 1];
       const trailer = companyTrailers[i - 1];
@@ -409,44 +410,56 @@ async function main() {
       const deliveryDate = new Date(pickupDate);
       deliveryDate.setDate(deliveryDate.getDate() + 2);
 
-      const load = await prisma.load.create({
-        data: {
+      // Use upsert to handle existing loads
+      const loadData = {
+        companyId: company.id,
+        customerId: customer.id,
+        driverId: driver?.id,
+        truckId: truck?.id,
+        trailerId: trailer?.id,
+        dispatcherId: dispatcher?.id,
+        mcNumber: defaultMcNumber?.number,
+        status: (i === 1 ? 'ASSIGNED' : i === 2 ? 'EN_ROUTE_PICKUP' : 'LOADED') as any,
+        loadType: 'FTL' as any,
+        equipmentType: 'DRY_VAN' as any,
+        pickupLocation: `Pickup Location ${i}`,
+        pickupAddress: `${200 + i} Pickup Street`,
+        pickupCity: ['Dallas', 'Houston', 'San Antonio'][i - 1],
+        pickupState: 'TX',
+        pickupZip: `${75001 + i}`,
+        pickupDate,
+        pickupTimeStart: new Date(pickupDate.getTime() + 8 * 60 * 60 * 1000),
+        pickupTimeEnd: new Date(pickupDate.getTime() + 12 * 60 * 60 * 1000),
+        deliveryLocation: `Delivery Location ${i}`,
+        deliveryAddress: `${300 + i} Delivery Street`,
+        deliveryCity: ['Austin', 'Fort Worth', 'El Paso'][i - 1],
+        deliveryState: 'TX',
+        deliveryZip: `${78701 + i}`,
+        deliveryDate,
+        deliveryTimeStart: new Date(deliveryDate.getTime() + 14 * 60 * 60 * 1000),
+        deliveryTimeEnd: new Date(deliveryDate.getTime() + 18 * 60 * 60 * 1000),
+        weight: 40000 + (i * 1000),
+        pieces: 20 + i,
+        commodity: ['General Freight', 'Electronics', 'Food Products'][i - 1],
+        revenue: 1500 + (i * 200),
+        driverPay: 800 + (i * 100),
+        totalMiles: 500 + (i * 50),
+        loadedMiles: 450 + (i * 50),
+        emptyMiles: 50,
+      };
+
+      const load = await prisma.load.upsert({
+        where: { loadNumber },
+        update: loadData,
+        create: {
           loadNumber,
-          companyId: company.id,
-          customerId: customer.id,
-          driverId: driver?.id,
-          truckId: truck?.id,
-          trailerId: trailer?.id,
-          dispatcherId: dispatcher?.id,
-          mcNumber: defaultMcNumber?.number,
-          status: i === 1 ? 'ASSIGNED' : i === 2 ? 'EN_ROUTE_PICKUP' : 'LOADED',
-          loadType: 'FTL',
-          equipmentType: 'DRY_VAN',
-          pickupLocation: `Pickup Location ${i}`,
-          pickupAddress: `${200 + i} Pickup Street`,
-          pickupCity: ['Dallas', 'Houston', 'San Antonio'][i - 1],
-          pickupState: 'TX',
-          pickupZip: `${75001 + i}`,
-          pickupDate,
-          pickupTimeStart: new Date(pickupDate.setHours(8, 0, 0, 0)),
-          pickupTimeEnd: new Date(pickupDate.setHours(12, 0, 0, 0)),
-          deliveryLocation: `Delivery Location ${i}`,
-          deliveryAddress: `${300 + i} Delivery Street`,
-          deliveryCity: ['Austin', 'Fort Worth', 'El Paso'][i - 1],
-          deliveryState: 'TX',
-          deliveryZip: `${78701 + i}`,
-          deliveryDate,
-          deliveryTimeStart: new Date(deliveryDate.setHours(14, 0, 0, 0)),
-          deliveryTimeEnd: new Date(deliveryDate.setHours(18, 0, 0, 0)),
-          weight: 40000 + (i * 1000),
-          pieces: 20 + i,
-          commodity: ['General Freight', 'Electronics', 'Food Products'][i - 1],
-          revenue: 1500 + (i * 200),
-          driverPay: 800 + (i * 100),
-          totalMiles: 500 + (i * 50),
-          loadedMiles: 450 + (i * 50),
-          emptyMiles: 50,
+          ...loadData,
         },
+      });
+
+      // Delete existing stops for this load, then create new ones
+      await prisma.loadStop.deleteMany({
+        where: { loadId: load.id },
       });
 
       // Create stops for each load (2-3 stops)
