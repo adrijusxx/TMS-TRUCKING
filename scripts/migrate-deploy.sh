@@ -4,30 +4,66 @@
 
 set -e
 
+# Load environment variables from .env file if it exists
+# This handles quoted values properly
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 echo "🔍 Checking for running migrations..."
 if pgrep -f "prisma migrate" > /dev/null; then
     echo "⚠️  Another migration process detected. Please wait for it to finish."
     exit 1
 fi
 
-echo "🔗 Checking database connection..."
-if ! npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
-    echo "❌ Database connection failed. Check DATABASE_URL."
+# Determine which connection to use
+if [ -n "$DATABASE_URL_MIGRATE" ]; then
+    echo "✅ Using direct connection (DATABASE_URL_MIGRATE) for migrations..."
+    echo "   This avoids timeout issues with connection poolers."
+    MIGRATE_URL="$DATABASE_URL_MIGRATE"
+elif [ -n "$DATABASE_URL" ]; then
+    echo "⚠️  DATABASE_URL_MIGRATE not set. Using DATABASE_URL (may timeout if using pooler)."
+    echo "💡 Tip: Add DATABASE_URL_MIGRATE to .env with direct connection string (no -pooler) to avoid timeouts."
+    MIGRATE_URL="$DATABASE_URL"
+else
+    echo "❌ Neither DATABASE_URL nor DATABASE_URL_MIGRATE is set."
+    echo "   Please check your .env file."
     exit 1
 fi
 
-echo "📦 Running migrations..."
-
-# Check if DATABASE_URL_MIGRATE is set (direct connection for migrations)
-if [ -n "$DATABASE_URL_MIGRATE" ]; then
-    echo "✅ Using direct connection (DATABASE_URL_MIGRATE) for migrations..."
-    DATABASE_URL="$DATABASE_URL_MIGRATE" npx prisma migrate deploy
+echo "🔗 Testing database connection..."
+# Test connection (skip if it fails, but warn)
+if DATABASE_URL="$MIGRATE_URL" npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
+    echo "✅ Connection test successful"
 else
-    echo "⚠️  DATABASE_URL_MIGRATE not set."
-    echo "⚠️  Using DATABASE_URL (may timeout if using pooler)."
-    echo "💡 Tip: Set DATABASE_URL_MIGRATE to direct connection string to avoid timeouts."
-    npx prisma migrate deploy
+    echo "⚠️  Connection test failed, but continuing anyway..."
+    echo "   The migration might still work if this is a temporary network issue."
 fi
 
-echo "✅ Migrations completed successfully!"
+echo ""
+echo "📦 Running migrations with connection:"
+if [ -n "$DATABASE_URL_MIGRATE" ]; then
+    echo "   Using: DATABASE_URL_MIGRATE (direct connection)"
+else
+    echo "   Using: DATABASE_URL (pooler connection)"
+fi
+echo ""
+
+# Run migration with the appropriate connection
+if DATABASE_URL="$MIGRATE_URL" npx prisma migrate deploy; then
+    echo ""
+    echo "✅ Migrations completed successfully!"
+else
+    echo ""
+    echo "❌ Migration failed!"
+    if [ -z "$DATABASE_URL_MIGRATE" ]; then
+        echo ""
+        echo "💡 This might be due to using a connection pooler."
+        echo "   Try adding DATABASE_URL_MIGRATE to .env with a direct connection string."
+        echo "   Get it from Neon Dashboard → Connection Details → Direct connection"
+    fi
+    exit 1
+fi
 

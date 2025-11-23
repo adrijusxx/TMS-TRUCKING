@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "bash scripts/migrate-deploy.sh",
+    "db:test-connection": "bash scripts/test-db-connection.sh",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "tsx scripts/reset-database.ts",

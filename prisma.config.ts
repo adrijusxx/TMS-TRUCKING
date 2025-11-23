@@ -8,6 +8,7 @@ export default defineConfig({
   },
   engine: "classic",
   datasource: {
-    url: env("DATABASE_URL"),
+    // Use DATABASE_URL_MIGRATE if set (for migrations), otherwise DATABASE_URL
+    url: process.env.DATABASE_URL_MIGRATE || env("DATABASE_URL"),
   },
 });
