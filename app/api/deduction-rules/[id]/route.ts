@@ -70,7 +70,7 @@ export async function PATCH(
     const validated = updateRuleSchema.parse(body);
 
     // Verify rule exists and belongs to company
-    const rule = await prisma.deductionRule.findFirst({
+    const rule = await (prisma as any).deductionRule.findFirst({
       where: {
         id: ruleId,
         companyId: session.user.companyId,
@@ -88,7 +88,7 @@ export async function PATCH(
     }
 
     // Update rule
-    const updatedRule = await prisma.deductionRule.update({
+    const updatedRule = await (prisma as any).deductionRule.update({
       where: { id: ruleId },
       data: {
         name: validated.name,
@@ -172,7 +172,7 @@ export async function DELETE(
     const ruleId = resolvedParams.id;
 
     // Verify rule exists and belongs to company
-    const rule = await prisma.deductionRule.findFirst({
+    const rule = await (prisma as any).deductionRule.findFirst({
       where: {
         id: ruleId,
         companyId: session.user.companyId,
@@ -190,7 +190,7 @@ export async function DELETE(
     }
 
     // Delete rule
-    await prisma.deductionRule.delete({
+    await (prisma as any).deductionRule.delete({
       where: { id: ruleId },
     });
 

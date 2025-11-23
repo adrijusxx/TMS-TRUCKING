@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create deduction rule
-    const rule = await prisma.deductionRule.create({
+    const rule = await (prisma as any).deductionRule.create({
       data: {
         companyId: session.user.companyId,
         name: validated.name,
@@ -193,7 +193,7 @@ export async function GET(request: NextRequest) {
       where.isActive = isActive === 'true';
     }
 
-    const rules = await prisma.deductionRule.findMany({
+    const rules = await (prisma as any).deductionRule.findMany({
       where,
       orderBy: {
         createdAt: 'desc',
