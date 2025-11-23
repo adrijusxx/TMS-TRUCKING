@@ -16,6 +16,7 @@ async function main() {
   const user = await prisma.user.findUnique({
     where: { email: testEmail.toLowerCase().trim() },
     select: {
+      id: true,
       email: true,
       password: true,
       isActive: true,
