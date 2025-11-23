@@ -750,12 +750,12 @@ async function main() {
       const location = await prisma.location.create({
         data: {
           companyId: company.id,
-          name: `Location ${i} - ${['Warehouse', 'Distribution Center', 'Terminal'][i - 1]}`,
+          name: `Location ${i} - ${['Warehouse', 'Warehouse', 'Terminal'][i - 1]}`,
           address: `${700 + i} Location Street`,
           city: ['Dallas', 'Houston', 'San Antonio'][i - 1],
           state: 'TX',
           zip: `${75001 + i}`,
-          type: ['WAREHOUSE', 'TERMINAL', 'DISTRIBUTION_CENTER'][i - 1] as any,
+          type: (['WAREHOUSE', 'WAREHOUSE', 'TERMINAL'][i - 1]) as any,
           isActive: true,
         },
       });
@@ -775,20 +775,29 @@ async function main() {
     const company = companies[c];
 
     for (let i = 1; i <= 3; i++) {
-      const vendor = await prisma.vendor.create({
-        data: {
-          companyId: company.id,
-          vendorNumber: `VEND-${company.dotNumber.slice(0, 3)}-${String(i).padStart(3, '0')}`,
-          name: `${['Fuel Supplier', 'Parts Store', 'Service Center'][i - 1]} ${i}`,
-          type: ['FUEL_VENDOR', 'PARTS_VENDOR', 'REPAIR_SHOP'][i - 1] as any,
-          address: `${800 + i} Vendor Street`,
-          city: ['Dallas', 'Houston', 'San Antonio'][i - 1],
-          state: 'TX',
-          zip: `${75001 + i}`,
-          phone: `555-${3000 + i}`,
-          email: `contact@vendor${i}.com`,
-          paymentTerms: [15, 30, 45][i - 1],
-          isActive: true,
+      // Generate unique vendor number: include company index to ensure uniqueness
+      const vendorNumber = `VEND-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i).padStart(3, '0')}`;
+      
+      const vendorData = {
+        companyId: company.id,
+        name: `${['Fuel Supplier', 'Parts Store', 'Service Center'][i - 1]} ${i}`,
+        type: (['FUEL_VENDOR', 'PARTS_VENDOR', 'REPAIR_SHOP'][i - 1]) as any,
+        address: `${800 + i} Vendor Street`,
+        city: ['Dallas', 'Houston', 'San Antonio'][i - 1],
+        state: 'TX',
+        zip: `${75001 + i}`,
+        phone: `555-${3000 + i}`,
+        email: `contact@vendor${(c * 3) + i}.com`,
+        paymentTerms: [15, 30, 45][i - 1],
+        isActive: true,
+      };
+      
+      const vendor = await prisma.vendor.upsert({
+        where: { vendorNumber },
+        update: vendorData,
+        create: {
+          vendorNumber,
+          ...vendorData,
         },
       });
       vendors.push(vendor);
@@ -894,10 +903,10 @@ async function main() {
         data: {
           companyId: company.id,
           loadId: load.id,
-          chargeType: ['DETENTION', 'LAYOVER', 'FUEL_SURCHARGE'][i] as any,
+          chargeType: (['DETENTION', 'LAYOVER', 'FUEL_SURCHARGE'][i]) as any,
           description: `Accessorial charge ${i + 1} for ${load.loadNumber}`,
           amount: 50 + (i * 25),
-          status: i > 0 ? 'APPROVED' : 'PENDING',
+          status: (i > 0 ? 'APPROVED' : 'PENDING') as any,
           approvedById: i > 0 ? users.find(u => u.companyId === company.id && u.role === 'ACCOUNTANT')?.id : null,
           approvedAt: i > 0 ? new Date() : null,
         },
