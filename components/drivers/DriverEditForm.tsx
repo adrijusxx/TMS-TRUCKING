@@ -100,7 +100,6 @@ export default function DriverEditForm({
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold">Update Driver</h1>
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -27,38 +27,7 @@ async function createAdminUser() {
 
     console.log(`✅ Company created: ${company.name} (ID: ${company.id})`);
 
-    // Create admin user
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    const adminUser = await prisma.user.upsert({
-      where: { email: 'admin@fourways.com' },
-      update: {
-        companyId: company.id,
-        password: hashedPassword,
-        role: 'ADMIN',
-        isActive: true,
-      },
-      create: {
-        email: 'admin@fourways.com',
-        password: hashedPassword,
-        firstName: 'Admin',
-        lastName: 'User',
-        phone: '555-0101',
-        role: 'ADMIN',
-        companyId: company.id,
-        isActive: true,
-      },
-    });
-
-    console.log(`✅ Admin user created!`);
-    console.log('');
-    console.log('📧 Login Credentials:');
-    console.log(`   Email: ${adminUser.email}`);
-    console.log(`   Password: admin123`);
-    console.log('');
-    console.log('⚠️  IMPORTANT: Please change this password after first login!');
-    console.log('');
-
-    // Create MC number for the company
+    // Create MC number for the company (needed before creating user)
     const mcNumber = await prisma.mcNumber.upsert({
       where: {
         companyId_number: {
@@ -78,6 +47,38 @@ async function createAdminUser() {
     });
 
     console.log(`✅ MC Number created: ${mcNumber.companyName} (MC ${mcNumber.number})`);
+
+    // Create admin user
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const adminUser = await prisma.user.upsert({
+      where: { email: 'admin@fourways.com' },
+      update: {
+        companyId: company.id,
+        password: hashedPassword,
+        role: 'ADMIN',
+        isActive: true,
+        mcNumberId: mcNumber.id,
+      },
+      create: {
+        email: 'admin@fourways.com',
+        password: hashedPassword,
+        firstName: 'Admin',
+        lastName: 'User',
+        phone: '555-0101',
+        role: 'ADMIN',
+        companyId: company.id,
+        mcNumberId: mcNumber.id,
+        isActive: true,
+      },
+    });
+
+    console.log(`✅ Admin user created!`);
+    console.log('');
+    console.log('📧 Login Credentials:');
+    console.log(`   Email: ${adminUser.email}`);
+    console.log(`   Password: admin123`);
+    console.log('');
+    console.log('⚠️  IMPORTANT: Please change this password after first login!');
     console.log('');
     console.log('✅ Setup completed successfully!');
     

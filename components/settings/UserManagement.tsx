@@ -49,6 +49,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 
 const userSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -56,14 +57,14 @@ const userSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   phone: z.string().optional(),
-  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER']),
+  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY']),
   isActive: z.boolean().optional(),
-  mcNumberId: z.string().nullable().optional(),
+  mcNumberId: z.string().min(1, 'MC number is required'),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
 
-async function fetchUsers(roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | 'ACCOUNTANT' | 'SAFETY' | 'HR' | null) {
+async function fetchUsers(roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'ADMIN' | 'DRIVER' | 'ACCOUNTANT' | 'SAFETY' | 'HR' | 'FLEET' | null) {
   const url = roleFilter 
     ? `/api/settings/users?role=${roleFilter === 'EMPLOYEES' ? 'EMPLOYEES' : roleFilter}`
     : '/api/settings/users';
@@ -129,12 +130,15 @@ const roleColors: Record<string, string> = {
   ADMIN: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
   DISPATCHER: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
   ACCOUNTANT: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800',
+  HR: 'bg-pink-100 text-pink-800 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-800',
+  SAFETY: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800',
+  FLEET: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:border-cyan-800',
   DRIVER: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
   CUSTOMER: 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
 };
 
 interface UserManagementProps {
-  roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'DRIVER' | 'ACCOUNTANT' | 'SAFETY' | 'HR' | null;
+  roleFilter?: 'DISPATCHER' | 'EMPLOYEES' | 'ADMIN' | 'DRIVER' | 'ACCOUNTANT' | 'SAFETY' | 'HR' | 'FLEET' | null;
   title?: string;
   description?: string;
 }
@@ -171,6 +175,7 @@ export default function UserManagement({
       role: roleFilter === 'DISPATCHER' ? 'DISPATCHER' 
         : roleFilter === 'ACCOUNTANT' ? 'ACCOUNTANT'
         : roleFilter === 'DRIVER' ? 'DRIVER'
+        : roleFilter === 'ADMIN' ? 'ADMIN'
         : roleFilter === 'SAFETY' ? 'ADMIN'
         : roleFilter === 'HR' ? 'ADMIN'
         : roleFilter === 'EMPLOYEES' ? 'ACCOUNTANT' 
@@ -290,6 +295,8 @@ export default function UserManagement({
             <ImportDialog entityType={
               roleFilter === 'DISPATCHER' ? 'dispatchers' 
               : roleFilter === 'ACCOUNTANT' ? 'employees'
+              : roleFilter === 'ADMIN' ? 'employees'
+              : roleFilter === 'FLEET' ? 'employees'
               : roleFilter === 'DRIVER' ? 'drivers'
               : roleFilter === 'SAFETY' ? 'employees'
               : roleFilter === 'HR' ? 'employees'
@@ -299,6 +306,8 @@ export default function UserManagement({
             <ExportDialog entityType={
               roleFilter === 'DISPATCHER' ? 'dispatchers'
               : roleFilter === 'ACCOUNTANT' ? 'employees'
+              : roleFilter === 'ADMIN' ? 'employees'
+              : roleFilter === 'FLEET' ? 'employees'
               : roleFilter === 'DRIVER' ? 'drivers'
               : roleFilter === 'SAFETY' ? 'employees'
               : roleFilter === 'HR' ? 'employees'
@@ -389,6 +398,8 @@ export default function UserManagement({
                         <SelectItem value="ADMIN">Admin</SelectItem>
                         <SelectItem value="DISPATCHER">Dispatcher</SelectItem>
                         <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
+                        <SelectItem value="HR">HR</SelectItem>
+                        <SelectItem value="SAFETY">Safety</SelectItem>
                         <SelectItem value="DRIVER">Driver</SelectItem>
                         <SelectItem value="CUSTOMER">Customer</SelectItem>
                       </SelectContent>
@@ -400,31 +411,13 @@ export default function UserManagement({
                     )}
                   </div>
 
-                  {(selectedRole === 'DISPATCHER' || selectedRole === 'ACCOUNTANT' || selectedRole === 'ADMIN' || selectedRole === 'DRIVER') && (
-                    <div className="space-y-2">
-                      <Label htmlFor="mcNumberId">MC Number</Label>
-                      <Select
-                        value={createForm.watch('mcNumberId') || 'none'}
-                        onValueChange={(value) => createForm.setValue('mcNumberId', value === 'none' ? null : value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select MC Number (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {mcNumbers.map((mc: any) => (
-                            <SelectItem key={mc.id} value={mc.id}>
-                              {mc.companyName} (MC {mc.number})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {createForm.formState.errors.mcNumberId && (
-                        <p className="text-sm text-destructive">
-                          {createForm.formState.errors.mcNumberId.message}
-                        </p>
-                      )}
-                    </div>
+                  {(selectedRole === 'DISPATCHER' || selectedRole === 'ACCOUNTANT' || selectedRole === 'ADMIN' || selectedRole === 'DRIVER' || selectedRole === 'HR' || selectedRole === 'SAFETY') && (
+                    <McNumberSelector
+                      value={createForm.watch('mcNumberId')}
+                      onValueChange={(mcNumberId) => createForm.setValue('mcNumberId', mcNumberId, { shouldValidate: true })}
+                      required
+                      error={createForm.formState.errors.mcNumberId?.message}
+                    />
                   )}
 
                   <div className="flex justify-end gap-2">
@@ -493,7 +486,7 @@ export default function UserManagement({
                         </Badge>
                       ) : user.driver?.mcNumber ? (
                         <Badge variant="outline">
-                          MC {user.driver.mcNumber}
+                          MC {typeof user.driver.mcNumber === 'object' ? user.driver.mcNumber.number : user.driver.mcNumber}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
@@ -618,6 +611,8 @@ export default function UserManagement({
                   <SelectItem value="ADMIN">Admin</SelectItem>
                   <SelectItem value="DISPATCHER">Dispatcher</SelectItem>
                   <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
+                  <SelectItem value="HR">HR</SelectItem>
+                  <SelectItem value="SAFETY">Safety</SelectItem>
                   <SelectItem value="DRIVER">Driver</SelectItem>
                   <SelectItem value="CUSTOMER">Customer</SelectItem>
                 </SelectContent>
@@ -629,31 +624,13 @@ export default function UserManagement({
               )}
             </div>
 
-            {(editSelectedRole === 'DISPATCHER' || editSelectedRole === 'ACCOUNTANT' || editSelectedRole === 'ADMIN' || editSelectedRole === 'DRIVER') && (
-              <div className="space-y-2">
-                <Label htmlFor="edit-mcNumberId">MC Number</Label>
-                <Select
-                  value={editForm.watch('mcNumberId') || 'none'}
-                  onValueChange={(value) => editForm.setValue('mcNumberId', value === 'none' ? null : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select MC Number (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {mcNumbers.map((mc: any) => (
-                      <SelectItem key={mc.id} value={mc.id}>
-                        {mc.companyName} (MC {mc.number})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {editForm.formState.errors.mcNumberId && (
-                  <p className="text-sm text-destructive">
-                    {editForm.formState.errors.mcNumberId.message}
-                  </p>
-                )}
-              </div>
+            {(editSelectedRole === 'DISPATCHER' || editSelectedRole === 'ACCOUNTANT' || editSelectedRole === 'ADMIN' || editSelectedRole === 'DRIVER' || editSelectedRole === 'HR' || editSelectedRole === 'SAFETY') && (
+              <McNumberSelector
+                value={editForm.watch('mcNumberId')}
+                onValueChange={(mcNumberId) => editForm.setValue('mcNumberId', mcNumberId, { shouldValidate: true })}
+                required
+                error={editForm.formState.errors.mcNumberId?.message}
+              />
             )}
 
             <div className="flex items-center space-x-2">

@@ -1,6 +1,6 @@
 'use client';
 
-// Accounting layout - no duplicate navigation, just sidebar
+// Accounting layout - uses AccountingNav sidebar component
 // This ensures all accounting pages (batches, invoices, etc.) show the sidebar navigation
 export default function AccountingLayout({
   children,
@@ -9,4 +9,3 @@ export default function AccountingLayout({
 }) {
   return <>{children}</>;
 }
-

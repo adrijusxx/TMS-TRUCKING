@@ -21,6 +21,7 @@ import { PayType } from '@prisma/client';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl } from '@/lib/utils';
+import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 
 async function createDriver(data: CreateDriverInput) {
   const response = await fetch(apiUrl('/api/drivers'), {
@@ -45,12 +46,15 @@ export default function CreateDriverForm() {
     handleSubmit,
     formState: { errors, isSubmitting },
     setValue,
+    watch,
   } = useForm<CreateDriverInput>({
     resolver: zodResolver(createDriverSchema),
     defaultValues: {
       payType: 'PER_MILE',
     },
   });
+
+  const mcNumberId = watch('mcNumberId');
 
   const createMutation = useMutation({
     mutationFn: createDriver,
@@ -237,6 +241,13 @@ export default function CreateDriverForm() {
                 </p>
               )}
             </div>
+
+            <McNumberSelector
+              value={mcNumberId}
+              onValueChange={(mcNumberId) => setValue('mcNumberId', mcNumberId, { shouldValidate: true })}
+              required
+              error={errors.mcNumberId?.message}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

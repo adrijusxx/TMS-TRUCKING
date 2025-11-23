@@ -1,16 +1,20 @@
 'use client';
 
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function DefaultsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Default Configurations</h1>
-        <p className="text-muted-foreground">
-          Set default system configurations
-        </p>
-      </div>
+    <>
+      <Breadcrumb items={[
+        { label: 'Settings', href: '/dashboard/settings' },
+        { label: 'Customizations', href: '/dashboard/settings' },
+        { label: 'Defaults' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Default Configurations</h1>
+        </div>
       <GenericCRUDManager
         endpoint="/api/default-configurations"
         queryKey="default-configurations"
@@ -37,6 +41,7 @@ export default function DefaultsPage() {
           { key: 'description', label: 'Description' },
         ]}
       />
-    </div>
+      </div>
+    </>
   );
 }

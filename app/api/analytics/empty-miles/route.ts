@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,12 +26,14 @@ export async function GET(request: NextRequest) {
     const driverId = searchParams.get('driverId');
 
     // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Load uses mcNumber (string), Truck uses mcNumberId (relation)
+    const loadFilter = await buildMcNumberWhereClause(session, request);
+    const truckFilter = await buildMcNumberIdWhereClause(session, request);
 
     // Get all loads in the period - include ALL loads, use pickupDate or deliveryDate
     const loads = await prisma.load.findMany({
       where: {
-        ...baseFilter,
+        ...loadFilter,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: startDate, lte: endDate } },
@@ -176,9 +178,7 @@ export async function GET(request: NextRequest) {
     // Calculate cost of empty miles (using average fuel cost per mile)
     const fuelEntries = await prisma.fuelEntry.findMany({
       where: {
-        truck: {
-          ...baseFilter,
-        },
+        truck: truckFilter,
         date: {
           gte: startDate,
           lte: endDate,
@@ -212,9 +212,9 @@ export async function GET(request: NextRequest) {
     // Calculate average fuel cost per mile
     let totalFuelCost = 0;
     let totalFuelMiles = 0;
-    fuelEntries.forEach((entry) => {
-      const truckMiles = entry.truck.loads.reduce(
-        (sum, load) => sum + (load.route?.totalDistance || 0),
+    fuelEntries.forEach((entry: any) => {
+      const truckMiles = (entry.truck?.loads || []).reduce(
+        (sum: number, load: any) => sum + (load.route?.totalDistance || 0),
         0
       );
       totalFuelCost += entry.totalCost;

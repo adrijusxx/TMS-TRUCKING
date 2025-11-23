@@ -138,7 +138,6 @@ export default function InspectionList() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Inspections</h1>
           <p className="text-sm text-muted-foreground">Manage vehicle inspections and compliance</p>
         </div>
         <div className="flex items-center gap-2">

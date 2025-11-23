@@ -321,14 +321,14 @@ export default function RateConfirmationForm({
               <div className="space-y-2">
                 <Label htmlFor="paymentMethod">Payment Method</Label>
                 <Select
-                  value={formData.paymentMethod}
-                  onValueChange={(value) => setFormData({ ...formData, paymentMethod: value })}
+                  value={formData.paymentMethod || 'none'}
+                  onValueChange={(value) => setFormData({ ...formData, paymentMethod: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select payment method" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     <SelectItem value="FACTOR">Factor</SelectItem>
                     <SelectItem value="DIRECT">Direct</SelectItem>
                     <SelectItem value="QUICK_PAY">Quick Pay</SelectItem>

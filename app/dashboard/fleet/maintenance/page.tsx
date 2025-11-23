@@ -6,12 +6,16 @@ export default function PreventiveMaintenancePage() {
     <>
       <Breadcrumb
         items={[
-          { label: 'Home', href: '/dashboard' },
-          { label: 'Fleet Department', href: '/dashboard/fleet/breakdowns' },
-          { label: 'Preventive Maintenance', href: '/dashboard/fleet/maintenance' },
+          { label: 'Fleet Department', href: '/dashboard/fleet' },
+          { label: 'Preventive Maintenance' },
         ]}
       />
-      <PreventiveMaintenance />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Preventive Maintenance</h1>
+        </div>
+        <PreventiveMaintenance />
+      </div>
     </>
   );
 }

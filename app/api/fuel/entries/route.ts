@@ -7,6 +7,7 @@ import { z } from 'zod';
 const createFuelEntrySchema = z.object({
   truckId: z.string().cuid(),
   driverId: z.string().cuid().optional(),
+  mcNumberId: z.string().cuid().optional(),
   gallons: z.number().positive(),
   costPerGallon: z.number().positive(),
   totalCost: z.number().positive(),
@@ -74,6 +75,23 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
+        payments: {
+          select: {
+            id: true,
+            paymentNumber: true,
+            amount: true,
+            paymentDate: true,
+            paymentMethod: true,
+            type: true,
+          },
+        },
       },
       orderBy: { date: 'desc' },
       take: 100,
@@ -128,6 +146,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify MC number belongs to company if provided
+    if (validated.mcNumberId) {
+      const mcNumber = await prisma.mcNumber.findFirst({
+        where: {
+          id: validated.mcNumberId,
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+      });
+
+      if (!mcNumber) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'MC Number not found' },
+          },
+          { status: 404 }
+        );
+      }
+    }
+
     const date = validated.date
       ? validated.date instanceof Date
         ? validated.date
@@ -138,6 +177,7 @@ export async function POST(request: NextRequest) {
       data: {
         truckId: validated.truckId,
         driverId: validated.driverId,
+        mcNumberId: validated.mcNumberId,
         gallons: validated.gallons,
         costPerGallon: validated.costPerGallon,
         totalCost: validated.totalCost,
@@ -149,6 +189,25 @@ export async function POST(request: NextRequest) {
         receiptNumber: validated.receiptNumber,
         notes: validated.notes,
         date,
+      },
+      include: {
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
+        payments: {
+          select: {
+            id: true,
+            paymentNumber: true,
+            amount: true,
+            paymentDate: true,
+            paymentMethod: true,
+            type: true,
+          },
+        },
       },
     });
 

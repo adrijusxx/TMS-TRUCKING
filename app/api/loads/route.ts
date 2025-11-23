@@ -4,7 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { createLoadSchema } from '@/lib/validations/load';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { McStateManager } from '@/lib/managers/McStateManager';
+import { getLoadFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,11 +35,22 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const revenue = searchParams.get('revenue');
     const dispatcherId = searchParams.get('dispatcherId'); // Filter by dispatcher ID
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', 'multi', or specific MC ID
     const isAdmin = session.user?.role === 'ADMIN';
 
+    // Check if multi-MC mode is active
+    const mcState = await McStateManager.getMcState(session, request);
+    const isMultiMode = mcState.viewMode === 'multi' || mcViewMode === 'multi';
+
     // Build base where clause with MC number filtering if applicable
-    let baseFilter: any = await buildMcNumberWhereClause(session, request);
+    let baseFilter: any;
+    if (isMultiMode && mcState.mcNumberIds.length > 0) {
+      // Use multi-MC filtering
+      baseFilter = await buildMultiMcNumberWhereClause(session, request);
+    } else {
+      // Use single MC or all MCs filtering
+      baseFilter = await buildMcNumberWhereClause(session, request);
+    }
     
     // Admin-only: Override MC filter based on view mode
     if (isAdmin && mcViewMode === 'all') {
@@ -44,7 +58,7 @@ export async function GET(request: NextRequest) {
       if (baseFilter.mcNumber) {
         delete baseFilter.mcNumber;
       }
-    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
+    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== 'multi' && mcViewMode !== null) {
       // Filter by specific MC number ID (admin selecting specific MC)
       // Handle both "mc:ID" format and plain ID format
       const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
@@ -94,8 +108,20 @@ export async function GET(request: NextRequest) {
     }
     // Non-admin users: always use baseFilter (their assigned MC)
 
+    // Apply role-based filtering
+    const roleFilter = await getLoadFilter(
+      createFilterContext(
+        session.user.id,
+        session.user.role as any,
+        session.user.companyId
+      )
+    );
+
+    // Merge role filter with base filter
+    // Note: MC number filtering is already handled in baseFilter via buildMcNumberWhereClause
     const where: any = {
       ...baseFilter,
+      ...roleFilter,
       deletedAt: null,
     };
 
@@ -198,7 +224,7 @@ export async function GET(request: NextRequest) {
       where: JSON.stringify(where, null, 2),
     });
 
-    const [loads, total, sums] = await Promise.all([
+    const [loads, total, sums, allLoadsForStats] = await Promise.all([
       prisma.load.findMany({
         where,
         select: {
@@ -301,9 +327,17 @@ export async function GET(request: NextRequest) {
           revenue: true,
           driverPay: true,
           totalMiles: true,
-          loadedMiles: true,
           emptyMiles: true,
           serviceFee: true,
+        },
+      }),
+      // Fetch all loads matching filter (just miles fields) to calculate accurate loaded miles
+      prisma.load.findMany({
+        where,
+        select: {
+          totalMiles: true,
+          loadedMiles: true,
+          emptyMiles: true,
         },
       }),
     ]);
@@ -312,11 +346,29 @@ export async function GET(request: NextRequest) {
     const totalPaySum = Number(sums._sum.totalPay ?? 0);
     const driverPaySum = Number(sums._sum.driverPay ?? 0);
     const totalMilesSum = Number(sums._sum.totalMiles ?? 0);
-    const loadedMilesSum = Number(sums._sum.loadedMiles ?? 0);
     const emptyMilesSum = Number(sums._sum.emptyMiles ?? 0);
     const serviceFeeSum = Number(sums._sum.serviceFee ?? 0);
-    const derivedLoadedMiles =
-      loadedMilesSum > 0 ? loadedMilesSum : Math.max(totalMilesSum - emptyMilesSum, 0);
+    
+    // Calculate loaded miles per load when missing, then sum for accurate totals
+    // For each load: if loadedMiles is missing, calculate as totalMiles - emptyMiles
+    // This ensures RPM calculations are accurate
+    let calculatedLoadedMilesSum = 0;
+    for (const load of allLoadsForStats) {
+      const totalMiles = Number(load.totalMiles ?? 0);
+      const loadedMiles = Number(load.loadedMiles ?? 0);
+      const emptyMiles = Number(load.emptyMiles ?? 0);
+      
+      // If loadedMiles is missing or 0, calculate it from totalMiles - emptyMiles
+      const calculatedLoadedMiles = loadedMiles > 0 
+        ? loadedMiles 
+        : Math.max(totalMiles - emptyMiles, 0);
+      
+      calculatedLoadedMilesSum += calculatedLoadedMiles;
+    }
+    
+    const derivedLoadedMiles = calculatedLoadedMilesSum;
+    
+    // RPM calculations: only calculate if we have valid miles
     const rpmLoadedMiles =
       derivedLoadedMiles > 0 ? revenueSum / derivedLoadedMiles : null;
     const rpmTotalMiles = totalMilesSum > 0 ? revenueSum / totalMilesSum : null;
@@ -348,16 +400,22 @@ export async function GET(request: NextRequest) {
       stats,
     });
 
+    // Filter sensitive fields based on role
+    const filteredLoads = loads.map((load) =>
+      filterSensitiveFields(load, session.user.role as any)
+    );
+    const filteredStats = filterSensitiveFields(stats, session.user.role as any);
+
     return NextResponse.json({
       success: true,
-      data: loads,
+      data: filteredLoads,
       meta: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       },
-      stats,
+      stats: filteredStats,
     });
   } catch (error) {
     console.error('Load list error:', error);
@@ -543,6 +601,11 @@ export async function POST(request: NextRequest) {
       totalMiles: totalMiles ?? (loadedMiles != null && emptyMiles != null ? loadedMiles + emptyMiles : null),
       companyId: session.user.companyId,
       status: 'PENDING',
+      // Driver and equipment assignment
+      driverId: loadData.driverId || null,
+      truckId: loadData.truckId || null,
+      trailerId: loadData.trailerId || null,
+      mcNumber: loadData.mcNumber || null,
       // Ensure all numeric fields are properly set
       weight: loadData.weight || 0,
       revenue: loadData.revenue || 0,

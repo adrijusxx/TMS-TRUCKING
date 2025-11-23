@@ -248,20 +248,16 @@ async function migrateDemoToFourWays() {
     // Update driver MC numbers
     const drivers = await prisma.driver.findMany({
       where: { companyId: fourWaysCompany.id },
-      select: { id: true, mcNumber: true },
+      select: { id: true, mcNumberId: true, mcNumber: { select: { number: true } } },
     });
     for (const driver of drivers) {
-      if (driver.mcNumber) {
+      if (driver.mcNumberId) {
         for (const [demoMcId, fourWaysMcId] of mcNumberMap.entries()) {
-          const demoMc = await prisma.mcNumber.findUnique({ where: { id: demoMcId }, select: { number: true } });
-          if (demoMc && driver.mcNumber === demoMc.number) {
-            const fourWaysMc = await prisma.mcNumber.findUnique({ where: { id: fourWaysMcId }, select: { number: true } });
-            if (fourWaysMc) {
-              await prisma.driver.update({
-                where: { id: driver.id },
-                data: { mcNumber: fourWaysMc.number },
-              });
-            }
+          if (driver.mcNumberId === demoMcId) {
+            await prisma.driver.update({
+              where: { id: driver.id },
+              data: { mcNumberId: fourWaysMcId },
+            });
           }
         }
       }
@@ -278,20 +274,16 @@ async function migrateDemoToFourWays() {
     // Update truck MC numbers
     const trucks = await prisma.truck.findMany({
       where: { companyId: fourWaysCompany.id },
-      select: { id: true, mcNumber: true },
+      select: { id: true, mcNumberId: true },
     });
     for (const truck of trucks) {
-      if (truck.mcNumber) {
+      if (truck.mcNumberId) {
         for (const [demoMcId, fourWaysMcId] of mcNumberMap.entries()) {
-          const demoMc = await prisma.mcNumber.findUnique({ where: { id: demoMcId }, select: { number: true } });
-          if (demoMc && truck.mcNumber === demoMc.number) {
-            const fourWaysMc = await prisma.mcNumber.findUnique({ where: { id: fourWaysMcId }, select: { number: true } });
-            if (fourWaysMc) {
-              await prisma.truck.update({
-                where: { id: truck.id },
-                data: { mcNumber: fourWaysMc.number },
-              });
-            }
+          if (truck.mcNumberId === demoMcId) {
+            await prisma.truck.update({
+              where: { id: truck.id },
+              data: { mcNumberId: fourWaysMcId },
+            });
           }
         }
       }
@@ -308,20 +300,16 @@ async function migrateDemoToFourWays() {
     // Update trailer MC numbers
     const trailers = await prisma.trailer.findMany({
       where: { companyId: fourWaysCompany.id },
-      select: { id: true, mcNumber: true },
+      select: { id: true, mcNumberId: true },
     });
     for (const trailer of trailers) {
-      if (trailer.mcNumber) {
+      if (trailer.mcNumberId) {
         for (const [demoMcId, fourWaysMcId] of mcNumberMap.entries()) {
-          const demoMc = await prisma.mcNumber.findUnique({ where: { id: demoMcId }, select: { number: true } });
-          if (demoMc && trailer.mcNumber === demoMc.number) {
-            const fourWaysMc = await prisma.mcNumber.findUnique({ where: { id: fourWaysMcId }, select: { number: true } });
-            if (fourWaysMc) {
-              await prisma.trailer.update({
-                where: { id: trailer.id },
-                data: { mcNumber: fourWaysMc.number },
-              });
-            }
+          if (trailer.mcNumberId === demoMcId) {
+            await prisma.trailer.update({
+              where: { id: trailer.id },
+              data: { mcNumberId: fourWaysMcId },
+            });
           }
         }
       }

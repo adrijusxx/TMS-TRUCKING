@@ -452,8 +452,6 @@ const buildBadgeIcon = ({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Live Map</h1>
-          <p className="text-muted-foreground">Google Maps + Samsara truck telemetry</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => refetch()}>

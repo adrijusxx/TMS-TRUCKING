@@ -6,12 +6,16 @@ export default function BreakdownHotspotsPage() {
     <>
       <Breadcrumb
         items={[
-          { label: 'Home', href: '/dashboard' },
-          { label: 'Fleet Department', href: '/dashboard/fleet/breakdowns' },
-          { label: 'Breakdown Hotspots', href: '/dashboard/fleet/hotspots' },
+          { label: 'Fleet Department', href: '/dashboard/fleet' },
+          { label: 'Breakdown Hotspots' },
         ]}
       />
-      <BreakdownHotspots />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Breakdown Hotspots</h1>
+        </div>
+        <BreakdownHotspots />
+      </div>
     </>
   );
 }

@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  GeocodingCacheManager,
+  ApiCacheType,
+} from '@/lib/managers/GeocodingCacheManager';
 
 /**
  * GET /api/geocoding/reverse
@@ -17,6 +21,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+
+    if (isNaN(latNum) || isNaN(lonNum)) {
+      return NextResponse.json(
+        { error: 'Invalid latitude or longitude' },
+        { status: 400 }
+      );
+    }
+
+    // Check cache first
+    const cacheKey = GeocodingCacheManager.normalizeReverseGeocodeKey(
+      latNum,
+      lonNum
+    );
+    const cached = await GeocodingCacheManager.get<{ address: unknown }>(
+      cacheKey,
+      ApiCacheType.REVERSE_GEOCODE
+    );
+
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     // Call Nominatim API server-side to avoid CORS
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
@@ -32,7 +60,16 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    return NextResponse.json({ address: data.address || {} });
+    const result = { address: data.address || {} };
+
+    // Cache successful response
+    await GeocodingCacheManager.set(
+      cacheKey,
+      ApiCacheType.REVERSE_GEOCODE,
+      result
+    );
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Reverse geocoding error:', error);
     return NextResponse.json(

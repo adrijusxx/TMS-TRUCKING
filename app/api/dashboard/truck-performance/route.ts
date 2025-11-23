@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * Get truck performance summary
@@ -18,19 +18,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Truck uses mcNumberId (relation), Load uses mcNumber (string)
+    const truckFilter = await buildMcNumberIdWhereClause(session, request);
+    const loadFilter = await buildMcNumberWhereClause(session, request);
 
     // Get all active trucks
     const trucks = await prisma.truck.findMany({
       where: {
-        ...baseFilter,
+        ...truckFilter,
         isActive: true,
         deletedAt: null,
       },
       include: {
         loads: {
           where: {
-            ...(baseFilter.mcNumber ? { mcNumber: baseFilter.mcNumber } : {}),
+            ...loadFilter,
             deletedAt: null,
           },
           select: {
@@ -61,18 +63,18 @@ export async function GET(request: NextRequest) {
     const maintenanceTrucks = trucks.filter((t) => t.status === 'MAINTENANCE').length;
 
     // Calculate performance metrics for each truck
-    const truckPerformance = trucks.map((truck) => {
-      const allLoads = truck.loads;
-      const loadsCompleted = allLoads.filter((l) => 
+    const truckPerformance = trucks.map((truck: any) => {
+      const allLoads = truck.loads || [];
+      const loadsCompleted = allLoads.filter((l: any) => 
         ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status)
       ).length;
-      const totalRevenue = allLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+      const totalRevenue = allLoads.reduce((sum: number, l: any) => sum + (l.revenue || 0), 0);
 
       // Calculate utilization rate based on total loads (all statuses)
       // Count loads in last 30 days for better utilization metric
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentLoads = allLoads.filter((l) => {
+      const recentLoads = allLoads.filter((l: any) => {
         const pickupDate = l.pickupDate ? new Date(l.pickupDate) : null;
         return pickupDate && pickupDate >= thirtyDaysAgo;
       }).length;
@@ -88,7 +90,7 @@ export async function GET(request: NextRequest) {
         revenue: totalRevenue,
         loadsCompleted,
         utilizationRate,
-        needsMaintenance: truck.maintenanceRecords.length > 0,
+        needsMaintenance: (truck.maintenanceRecords || []).length > 0,
       };
     });
 
@@ -105,8 +107,8 @@ export async function GET(request: NextRequest) {
     // Get top performers (by revenue and utilization)
     const topPerformers = truckPerformance
       .filter((t) => {
-        const truck = trucks.find((tr) => tr.id === t.id);
-        return truck && truck.loads.length >= 1; // At least 1 load (any status)
+        const truck = trucks.find((tr: any) => tr.id === t.id);
+        return truck && (truck.loads || []).length >= 1; // At least 1 load (any status)
       })
       .sort((a, b) => {
         // Sort by revenue first, then utilization

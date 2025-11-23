@@ -8,7 +8,12 @@ export default function FuelAnalysisPage() {
         { label: 'Analytics & Reports', href: '/dashboard/analytics' },
         { label: 'Fuel Analysis' }
       ]} />
-      <FuelCostAnalysis />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Fuel Cost Analysis</h1>
+        </div>
+        <FuelCostAnalysis />
+      </div>
     </>
   );
 }

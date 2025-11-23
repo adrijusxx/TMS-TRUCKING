@@ -111,7 +111,6 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
           </Link>
           <div>
             <h1 className="text-3xl font-bold">{batch.batchNumber}</h1>
-            <p className="text-muted-foreground">Batch Details</p>
           </div>
         </div>
         <div className="flex gap-2">

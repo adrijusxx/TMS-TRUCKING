@@ -132,6 +132,33 @@ export async function GET(
             createdAt: true,
           },
         },
+        payments: {
+          select: {
+            id: true,
+            paymentNumber: true,
+            amount: true,
+            paymentDate: true,
+            paymentMethod: true,
+            type: true,
+            referenceNumber: true,
+            notes: true,
+            hasReceipt: true,
+            hasInvoice: true,
+            documentIds: true,
+            mcNumber: {
+              select: {
+                id: true,
+                number: true,
+              },
+            },
+          },
+        },
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+          },
+        },
       },
     });
 

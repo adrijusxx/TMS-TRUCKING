@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
+import { validateFileUpload, sanitizeFileName, getFileSizeLimit } from '@/lib/utils/file-upload-validation';
 
 const uploadSchema = z.object({
   loadId: z.string().cuid().optional(),
@@ -46,8 +47,37 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     
+    // Get file if provided (for validation)
+    const file = formData.get('file') as File | null;
+    const fileUrl = formData.get('fileUrl')?.toString();
+    
+    // If file is provided, validate it
+    if (file && file instanceof File) {
+      const maxSize = getFileSizeLimit(file.type);
+      const validation = validateFileUpload(file, {
+        maxSize,
+        requireExtension: true,
+      });
+
+      if (!validation.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: validation.error || 'File validation failed',
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Extract form data
-    const fileName = formData.get('fileName')?.toString();
+    const fileName = file 
+      ? sanitizeFileName(file.name) 
+      : sanitizeFileName(formData.get('fileName')?.toString() || '');
+    
     const body = {
       loadId: formData.get('loadId')?.toString(),
       driverId: formData.get('driverId')?.toString(),
@@ -55,9 +85,13 @@ export async function POST(request: NextRequest) {
       type: formData.get('type')?.toString(),
       fileName: fileName || '',
       title: formData.get('title')?.toString() || fileName || 'Untitled Document',
-      fileUrl: formData.get('fileUrl')?.toString(),
-      fileSize: formData.get('fileSize') ? parseInt(formData.get('fileSize')!.toString()) : undefined,
-      mimeType: formData.get('mimeType')?.toString(),
+      fileUrl: fileUrl || formData.get('fileUrl')?.toString(),
+      fileSize: file 
+        ? file.size 
+        : (formData.get('fileSize') ? parseInt(formData.get('fileSize')!.toString()) : undefined),
+      mimeType: file 
+        ? file.type 
+        : formData.get('mimeType')?.toString(),
       description: formData.get('description')?.toString(),
     };
 

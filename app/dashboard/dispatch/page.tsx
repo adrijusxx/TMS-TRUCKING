@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import DispatchBoard from '@/components/dispatch/DispatchBoard';
 import WeeklyScheduleView from '@/components/dispatch/WeeklyScheduleView';
 import LoadCalendar from '@/components/calendar/LoadCalendar';
@@ -10,14 +11,13 @@ export default function DispatchPage() {
   const [activeTab, setActiveTab] = useState('schedule');
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold">Dispatch</h1>
-        <p className="text-muted-foreground">
-          Manage load assignments, scheduling, and planning
-        </p>
-      </div>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <>
+      <Breadcrumb items={[{ label: 'Dispatch', href: '/dashboard/dispatch' }]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Dispatch</h1>
+        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="schedule">Weekly Schedule</TabsTrigger>
           <TabsTrigger value="board">Dispatch Board</TabsTrigger>
@@ -32,8 +32,9 @@ export default function DispatchPage() {
         <TabsContent value="calendar" className="mt-4">
           <LoadCalendar />
         </TabsContent>
-      </Tabs>
-    </div>
+        </Tabs>
+      </div>
+    </>
   );
 }
 

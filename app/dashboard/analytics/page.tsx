@@ -7,7 +7,12 @@ export default function AnalyticsPage() {
       <Breadcrumb items={[
         { label: 'Analytics & Reports', href: '/dashboard/analytics' }
       ]} />
-      <AnalyticsDashboard />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Analytics & Reports</h1>
+        </div>
+        <AnalyticsDashboard />
+      </div>
     </>
   );
 }

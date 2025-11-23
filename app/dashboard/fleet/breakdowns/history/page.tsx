@@ -6,12 +6,17 @@ export default function BreakdownHistoryPage() {
     <>
       <Breadcrumb
         items={[
-          { label: 'Home', href: '/dashboard' },
-          { label: 'Fleet Department', href: '/dashboard/fleet/breakdowns' },
-          { label: 'Breakdown History', href: '/dashboard/fleet/breakdowns/history' },
+          { label: 'Fleet Department', href: '/dashboard/fleet' },
+          { label: 'Breakdowns', href: '/dashboard/fleet/breakdowns' },
+          { label: 'History' },
         ]}
       />
-      <BreakdownHistory />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Breakdown History</h1>
+        </div>
+        <BreakdownHistory />
+      </div>
     </>
   );
 }

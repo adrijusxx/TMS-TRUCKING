@@ -73,13 +73,6 @@ export default function RevenueForecast() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Revenue Forecasting</h1>
-        <p className="text-muted-foreground">
-          Predict future revenue based on historical trends
-        </p>
-      </div>
-
       {/* Filters */}
       <Card>
         <CardHeader>

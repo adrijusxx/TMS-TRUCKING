@@ -57,13 +57,6 @@ export default function EmptyMilesAnalysis() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Empty Miles Analysis</h1>
-        <p className="text-muted-foreground">
-          Track and optimize empty miles to reduce costs
-        </p>
-      </div>
-
       {/* Filters */}
       <Card>
         <CardHeader>

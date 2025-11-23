@@ -16,6 +16,58 @@ const createMcNumberSchema = z.object({
 
 const updateMcNumberSchema = createMcNumberSchema.partial();
 
+/**
+ * Helper function to create an MC number for a specific company
+ */
+async function createMcNumberForCompany(
+  validatedData: z.infer<typeof createMcNumberSchema>,
+  companyId: string
+) {
+  // Normalize the MC number (trim whitespace) before checking for duplicates
+  const normalizedNumber = validatedData.number.trim();
+  
+  // Get all MC numbers for this company to check for duplicates (normalize for comparison)
+  const allMcNumbers = await prisma.mcNumber.findMany({
+    where: {
+      companyId,
+      deletedAt: null,
+    },
+    select: { number: true },
+  });
+  
+  // Check if any existing MC number matches the normalized number
+  const duplicateExists = allMcNumbers.some(
+    (mc) => mc.number.trim() === normalizedNumber
+  );
+  
+  if (duplicateExists) {
+    throw new Error('MC number already exists for this company');
+  }
+  
+  // If setting as default, unset other defaults
+  if (validatedData.isDefault) {
+    await prisma.mcNumber.updateMany({
+      where: {
+        companyId,
+        isDefault: true,
+        deletedAt: null,
+      },
+      data: {
+        isDefault: false,
+      },
+    });
+  }
+
+  return await prisma.mcNumber.create({
+    data: {
+      ...validatedData,
+      number: normalizedNumber,
+      companyId,
+      isDefault: validatedData.isDefault ?? false,
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -105,12 +157,121 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createMcNumberSchema.parse(body);
 
-    // Verify the company exists
+    // Verify the company exists and is active
     const company = await prisma.company.findUnique({
       where: { id: session.user.companyId },
     });
 
     if (!company) {
+      console.error('MC Number creation failed: Company not found', {
+        userId: session.user.id,
+        userEmail: session.user.email,
+        companyId: session.user.companyId,
+        role: session.user.role,
+      });
+      
+      // For admins, try to find an alternative company
+      if (session.user.role === 'ADMIN') {
+        // First, check if they have access via UserCompany
+        const userCompanies = await prisma.userCompany.findMany({
+          where: {
+            userId: session.user.id,
+            isActive: true,
+          },
+          include: {
+            company: true,
+          },
+        });
+
+        console.log('Admin UserCompany records found:', {
+          count: userCompanies.length,
+          userCompanies: userCompanies.map(uc => ({
+            companyId: uc.companyId,
+            companyName: uc.company.name,
+            companyIsActive: uc.company.isActive,
+          })),
+        });
+
+        if (userCompanies.length > 0) {
+          // Admin has access to other companies, use the first active one
+          const activeCompany = userCompanies.find(uc => uc.company.isActive)?.company;
+          if (activeCompany) {
+            console.log('Admin company not found, using alternative company from UserCompany', {
+              originalCompanyId: session.user.companyId,
+              alternativeCompanyId: activeCompany.id,
+              alternativeCompanyName: activeCompany.name,
+            });
+            // Use the alternative company for MC number creation
+            try {
+              const mcNumber = await createMcNumberForCompany(validatedData, activeCompany.id);
+              return NextResponse.json({
+                success: true,
+                data: mcNumber,
+              });
+            } catch (createError: any) {
+              // Handle duplicate error from helper function
+              if (createError.message === 'MC number already exists for this company') {
+                return NextResponse.json(
+                  {
+                    success: false,
+                    error: {
+                      code: 'DUPLICATE',
+                      message: 'MC number already exists for this company',
+                    },
+                  },
+                  { status: 400 }
+                );
+              }
+              // Re-throw to be handled by outer catch block
+              throw createError;
+            }
+          }
+        }
+
+        // If no UserCompany records found, check if there are any active companies in the system
+        // Admins should be able to create MC numbers for any company
+        const anyActiveCompany = await prisma.company.findFirst({
+          where: {
+            isActive: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        });
+
+        if (anyActiveCompany) {
+          console.log('Admin company not found, using first active company in system', {
+            originalCompanyId: session.user.companyId,
+            fallbackCompanyId: anyActiveCompany.id,
+            fallbackCompanyName: anyActiveCompany.name,
+          });
+          // Use the first active company as fallback
+          try {
+            const mcNumber = await createMcNumberForCompany(validatedData, anyActiveCompany.id);
+            return NextResponse.json({
+              success: true,
+              data: mcNumber,
+            });
+          } catch (createError: any) {
+            // Handle duplicate error from helper function
+            if (createError.message === 'MC number already exists for this company') {
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: {
+                    code: 'DUPLICATE',
+                    message: 'MC number already exists for this company',
+                  },
+                },
+                { status: 400 }
+              );
+            }
+            // Re-throw to be handled by outer catch block
+            throw createError;
+          }
+        }
+      }
+
       return NextResponse.json(
         {
           success: false,
@@ -123,65 +284,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize the MC number (trim whitespace) before checking for duplicates
-    const normalizedNumber = validatedData.number.trim();
-    
-    // Get all MC numbers for this company to check for duplicates (normalize for comparison)
-    const allMcNumbers = await prisma.mcNumber.findMany({
-      where: {
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-      select: { number: true },
-    });
-    
-    // Check if any existing MC number matches the normalized number
-    const duplicateExists = allMcNumbers.some(
-      (mc) => mc.number.trim() === normalizedNumber
-    );
-    
-    if (duplicateExists) {
+    if (!company.isActive) {
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: 'DUPLICATE',
-            message: 'MC number already exists for this company',
+            code: 'COMPANY_INACTIVE',
+            message: 'Your company is inactive. Please contact support to activate your company.',
           },
         },
-        { status: 400 }
+        { status: 403 }
       );
     }
-    
-    // Use normalized number for creation
-    validatedData.number = normalizedNumber;
 
-    // If setting as default, unset other defaults
-    if (validatedData.isDefault) {
-      await prisma.mcNumber.updateMany({
-        where: {
-          companyId: session.user.companyId,
-          isDefault: true,
-          deletedAt: null,
-        },
-        data: {
-          isDefault: false,
-        },
+    // Create the MC number using the helper function
+    try {
+      const mcNumber = await createMcNumberForCompany(validatedData, session.user.companyId);
+      return NextResponse.json({
+        success: true,
+        data: mcNumber,
       });
+    } catch (createError: any) {
+      // Handle duplicate error from helper function
+      if (createError.message === 'MC number already exists for this company') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'DUPLICATE',
+              message: 'MC number already exists for this company',
+            },
+          },
+          { status: 400 }
+        );
+      }
+      // Re-throw to be handled by outer catch block
+      throw createError;
     }
-
-    const mcNumber = await prisma.mcNumber.create({
-      data: {
-        ...validatedData,
-        companyId: session.user.companyId,
-        isDefault: validatedData.isDefault ?? false,
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: mcNumber,
-    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

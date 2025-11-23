@@ -13,16 +13,21 @@ export default async function FactoringCompaniesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       <Breadcrumb
         items={[
           { label: 'Accounting', href: '/dashboard/accounting' },
           { label: 'Factoring', href: '/dashboard/accounting/factoring' },
-          { label: 'Factoring Companies', href: '/dashboard/accounting/factoring-companies' },
+          { label: 'Factoring Companies' },
         ]}
       />
-      <FactoringCompanyList />
-    </div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Factoring Companies</h1>
+        </div>
+        <FactoringCompanyList />
+      </div>
+    </>
   );
 }
 

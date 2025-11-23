@@ -223,7 +223,6 @@ export default function InvoiceList() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Invoices</h1>
           <p className="text-muted-foreground">
             Manage invoices and payments
           </p>

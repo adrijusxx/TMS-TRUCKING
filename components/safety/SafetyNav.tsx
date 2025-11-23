@@ -5,6 +5,19 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Shield, ChevronRight, ChevronLeft, FileText, Wrench } from 'lucide-react';
 import { useSidebarToggle } from '@/hooks/useSidebarToggle';
+import {
+  SIDEBAR_WIDTHS,
+  NAV_PADDING,
+  NAV_SPACING,
+  NAV_ICON_SIZES,
+  NAV_TYPOGRAPHY,
+  NAV_STATES,
+  NAV_ROUNDED,
+  NAV_CLASSES,
+  NAV_BORDERS,
+  NAV_TOGGLE_BUTTONS,
+  NAV_BACKGROUNDS,
+} from '@/lib/navigation-constants';
 
 interface NavItem {
   name: string;
@@ -29,37 +42,42 @@ export default function SafetyNav() {
 
   if (!isOpen) {
     return (
-      <div className="w-12 border-r bg-card p-2 flex flex-col items-center">
+      <div className={cn(SIDEBAR_WIDTHS.collapsed, 'border-r', NAV_BACKGROUNDS.sidebar, 'p-2 flex flex-col items-center')}>
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className={NAV_TOGGLE_BUTTONS.collapsed}
           onClick={toggle}
           title="Show sidebar"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className={NAV_ICON_SIZES.chevron} />
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="w-56 border-r bg-card p-2">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
-          Safety Department
-        </h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={toggle}
-          title="Hide sidebar"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
+    <div className={cn(SIDEBAR_WIDTHS.expanded, 'border-r', NAV_BACKGROUNDS.sidebar, 'overflow-y-auto p-4', NAV_SPACING.sections)}>
+      <div className={cn(NAV_BORDERS.header, 'pb-3 mb-3')}>
+        <div className="flex items-center justify-between mb-1">
+          <div className={cn('flex items-center', NAV_SPACING.iconText)}>
+            <Shield className={cn(NAV_ICON_SIZES.section, 'text-primary')} />
+            <h2 className={cn(NAV_TYPOGRAPHY.sectionHeader, NAV_TYPOGRAPHY.truncate)}>
+              Safety Department
+            </h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={NAV_TOGGLE_BUTTONS.expanded}
+            onClick={toggle}
+            title="Hide sidebar"
+          >
+            <ChevronLeft className={NAV_ICON_SIZES.chevron} />
+          </Button>
+        </div>
       </div>
-      <nav className="space-y-0.5">
+      <nav className={NAV_SPACING.items}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
@@ -69,17 +87,15 @@ export default function SafetyNav() {
               key={item.name}
               onClick={() => router.push(item.href)}
               className={cn(
-                'w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
-                active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-foreground/80 hover:bg-accent hover:text-foreground'
+                'w-full flex items-center justify-between',
+                active ? NAV_CLASSES.itemActive : NAV_CLASSES.itemHover
               )}
             >
-              <div className="flex items-center space-x-2">
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span>{item.name}</span>
+              <div className={cn('flex items-center', NAV_SPACING.iconText)}>
+                <Icon className={cn(NAV_ICON_SIZES.item, 'flex-shrink-0')} />
+                <span className={NAV_TYPOGRAPHY.truncate}>{item.name}</span>
               </div>
-              {active && <ChevronRight className="h-4 w-4 flex-shrink-0" />}
+              {active && <ChevronRight className={cn(NAV_ICON_SIZES.chevron, 'flex-shrink-0')} />}
             </button>
           );
         })}

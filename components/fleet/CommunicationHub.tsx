@@ -306,10 +306,6 @@ export default function CommunicationHub() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Communication Hub</h1>
-            <p className="text-muted-foreground">
-              All driver communications across breakdown cases
-            </p>
           </div>
         </div>
         <Card>
@@ -334,7 +330,6 @@ export default function CommunicationHub() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Communication Hub</h1>
           <p className="text-muted-foreground">
             All driver communications across breakdown cases
           </p>

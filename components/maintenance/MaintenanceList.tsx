@@ -134,7 +134,6 @@ export default function MaintenanceList() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Maintenance Records</h1>
           <p className="text-sm text-muted-foreground">Manage vehicle maintenance schedules and history</p>
         </div>
         <div className="flex items-center gap-2">

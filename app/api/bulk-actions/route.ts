@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       customer: { model: 'customer', permission: 'customers.edit' },
       invoice: { model: 'invoice', permission: 'invoices.edit' },
       user: { model: 'user', permission: 'settings.view' }, // Users need special permission
-      trailer: { model: 'truck', permission: 'trucks.edit' }, // Trailers might be trucks or separate
+      trailer: { model: 'trailer', permission: 'trucks.edit' },
       inspection: { model: 'inspection', permission: 'trucks.edit' },
       breakdown: { model: 'breakdown', permission: 'trucks.edit' },
       document: { model: 'document', permission: 'documents.delete' },
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Soft delete
-      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice' | 'user' | 'document' | 'breakdown';
+      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice' | 'user' | 'document' | 'breakdown' | 'trailer';
       result = await (prisma[model] as any).updateMany({
         where: {
           id: { in: validated.ids },

@@ -434,14 +434,14 @@ export default function FactoringCompanyList() {
             <div className="space-y-2">
               <Label htmlFor="apiProvider">API Provider</Label>
               <Select
-                value={formData.apiProvider}
-                onValueChange={(value) => setFormData({ ...formData, apiProvider: value })}
+                value={formData.apiProvider || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, apiProvider: value === 'none' ? '' : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select API provider" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   <SelectItem value="RTS">RTS Financial</SelectItem>
                   <SelectItem value="TAFS">TAFS (Transportation Alliance Bank)</SelectItem>
                   <SelectItem value="FACTORING_SOLUTIONS">Factoring Solutions</SelectItem>
@@ -597,14 +597,14 @@ export default function FactoringCompanyList() {
             <div className="space-y-2">
               <Label htmlFor="edit-apiProvider">API Provider</Label>
               <Select
-                value={formData.apiProvider}
-                onValueChange={(value) => setFormData({ ...formData, apiProvider: value })}
+                value={formData.apiProvider || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, apiProvider: value === 'none' ? '' : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select API provider" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   <SelectItem value="RTS">RTS Financial</SelectItem>
                   <SelectItem value="TAFS">TAFS</SelectItem>
                   <SelectItem value="FACTORING_SOLUTIONS">Factoring Solutions</SelectItem>

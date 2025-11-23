@@ -201,7 +201,6 @@ export default function SafetyPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Safety</h1>
           <p className="text-sm text-muted-foreground">Manage safety records and compliance</p>
         </div>
       </div>

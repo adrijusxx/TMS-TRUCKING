@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { McStateManager } from '@/lib/managers/McStateManager';
+import { getInvoiceFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,14 +28,25 @@ export async function GET(request: NextRequest) {
     const dueDate = searchParams.get('dueDate');
     const minTotal = searchParams.get('minTotal');
     const mcNumber = searchParams.get('mcNumber');
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID (from CompanySwitcher)
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', 'multi', or specific MC ID (from CompanySwitcher)
     const reconciliationStatus = searchParams.get('reconciliationStatus');
     const factoringStatus = searchParams.get('factoringStatus');
     const paymentMethod = searchParams.get('paymentMethod');
     const isAdmin = session.user?.role === 'ADMIN';
 
+    // Check if multi-MC mode is active
+    const mcState = await McStateManager.getMcState(session, request);
+    const isMultiMode = mcState.viewMode === 'multi' || mcViewMode === 'multi';
+
     // Build base filter with MC number if applicable
-    let baseFilter = await buildMcNumberWhereClause(session, request);
+    let baseFilter;
+    if (isMultiMode && mcState.mcNumberIds.length > 0) {
+      // Use multi-MC filtering for customers
+      baseFilter = await buildMultiMcNumberWhereClause(session, request);
+    } else {
+      // Use single MC or all MCs filtering
+      baseFilter = await buildMcNumberWhereClause(session, request);
+    }
     
     // Admin-only: Override MC filter based on view mode
     let customerFilter: any = { ...baseFilter };
@@ -45,7 +59,7 @@ export async function GET(request: NextRequest) {
         };
         // Explicitly remove mcNumber if it exists
         delete customerFilter.mcNumber;
-      } else if (mcViewMode !== 'current' && mcViewMode !== null) {
+      } else if (mcViewMode !== 'current' && mcViewMode !== 'multi' && mcViewMode !== null) {
         // Filter by specific MC number ID (admin selecting specific MC)
         // Handle both "mc:ID" format and plain ID format
         const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
@@ -83,9 +97,25 @@ export async function GET(request: NextRequest) {
     });
     const customerIds = companyCustomers.map((c) => c.id);
 
+    // Apply role-based filtering
+    const roleFilter = await getInvoiceFilter(
+      createFilterContext(
+        session.user.id,
+        session.user.role as any,
+        session.user.companyId
+      )
+    );
+
+    // Merge role filter with customer filter
+    // If roleFilter has loadId, we need to filter invoices by their loadId
     const where: any = {
       customerId: { in: customerIds },
     };
+
+    // If role filter includes loadId, add it to the where clause
+    if (roleFilter.loadId) {
+      where.loadId = roleFilter.loadId;
+    }
 
     if (status) {
       where.status = status;
@@ -172,9 +202,14 @@ export async function GET(request: NextRequest) {
       prisma.invoice.count({ where }),
     ]);
 
+    // Filter sensitive fields based on role
+    const filteredInvoices = invoices.map((invoice) =>
+      filterSensitiveFields(invoice, session.user.role as any)
+    );
+
     return NextResponse.json({
       success: true,
-      data: invoices,
+      data: filteredInvoices,
       meta: {
         total,
         page,

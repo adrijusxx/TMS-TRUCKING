@@ -2,6 +2,7 @@
 
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 const fields = [
   { name: 'name', label: 'Name', type: 'text' as const, required: true },
@@ -37,13 +38,16 @@ const columns = [
 
 export default function TariffsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Tariffs & Payments</h1>
-        <p className="text-muted-foreground">
-          Configure tariffs and payment structures
-        </p>
-      </div>
+    <>
+      <Breadcrumb items={[
+        { label: 'Settings', href: '/dashboard/settings' },
+        { label: 'Customizations', href: '/dashboard/settings' },
+        { label: 'Tariffs' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Tariff Configuration</h1>
+        </div>
       <GenericCRUDManager
         endpoint="/api/tariffs"
         queryKey="tariffs"
@@ -53,6 +57,7 @@ export default function TariffsPage() {
         fields={fields}
         columns={columns}
       />
-    </div>
+      </div>
+    </>
   );
 }

@@ -42,7 +42,6 @@ export default function InvoiceReports() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Invoice Reports</h1>
           <p className="text-muted-foreground">
             Customer summary reports
           </p>

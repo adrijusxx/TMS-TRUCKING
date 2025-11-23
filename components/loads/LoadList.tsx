@@ -24,17 +24,17 @@ import {
 } from '@/components/ui/select';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/export';
-import { Package, Plus, Search, Filter, Download, FileText, Edit, MapPin, Trash2, Upload, Settings2, Users } from 'lucide-react';
+import { Package, Plus, Search, Filter, Download, FileText, Edit, MapPin, Trash2, Upload, Settings2, Users, Clock, UserCheck, Navigation, CheckCircle, User, Truck, ArrowRight, MoreVertical } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import {
@@ -59,14 +59,12 @@ import { LoadStatus } from '@prisma/client';
 import LoadStatusQuickActions from './LoadStatusQuickActions';
 import AdvancedFilters from '@/components/filters/AdvancedFilters';
 import SavedFilters from '@/components/filters/SavedFilters';
-import LoadListStats from '@/components/loads/LoadListStats';
 import BulkStatusUpdate from '@/components/loads/BulkStatusUpdate';
-import LoadQuickView from '@/components/loads/LoadQuickView';
+import LoadDetailDialog from '@/components/loads/LoadDetailDialog';
 import DocumentViewerDialog from '@/components/loads/DocumentViewerDialog';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 interface Load {
   id: string;
@@ -159,6 +157,32 @@ const statusColors: Record<LoadStatus, string> = {
 
 function formatStatus(status: LoadStatus): string {
   return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
+function getStatusIcon(status: LoadStatus) {
+  const iconClass = "h-3.5 w-3.5";
+  switch (status) {
+    case 'PENDING':
+      return <Clock className={iconClass} />;
+    case 'ASSIGNED':
+      return <UserCheck className={iconClass} />;
+    case 'EN_ROUTE_PICKUP':
+    case 'EN_ROUTE_DELIVERY':
+      return <Navigation className={iconClass} />;
+    case 'AT_PICKUP':
+    case 'AT_DELIVERY':
+      return <MapPin className={iconClass} />;
+    case 'LOADED':
+      return <Package className={iconClass} />;
+    case 'DELIVERED':
+    case 'INVOICED':
+    case 'PAID':
+      return <CheckCircle className={iconClass} />;
+    case 'CANCELLED':
+      return <Trash2 className={iconClass} />;
+    default:
+      return <Package className={iconClass} />;
+  }
 }
 
 async function fetchLoads(params: {
@@ -288,28 +312,30 @@ export default function LoadList() {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [deleteLoadId, setDeleteLoadId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   
-  // Column visibility state
+  // Column visibility state - default view with essential columns
   const [visibleColumns, setVisibleColumns] = useState({
     checkbox: true,
     loadNumber: true,
     customer: true,
     route: true,
-    stops: true,
-    pickupDate: true,
-    deliveryDate: true,
+    stops: false,
+    pickupDate: false,
+    deliveryDate: false,
     driver: true,
     dispatcher: true,
     truck: true,
     trailer: true,
     status: true,
     revenue: true,
-    driverPay: true,
-    serviceFee: true,
-    ratePerMile: true,
+    driverPay: false,
+    serviceFee: false,
+    ratePerMile: false,
     miles: true,
-    emptyMiles: true,
-    documents: true,
+    loadedMiles: false,
+    emptyMiles: false,
+    documents: false,
     actions: true,
   });
 
@@ -465,18 +491,44 @@ export default function LoadList() {
 
   return (
     <div className="space-y-4">
-      <Breadcrumb items={[{ label: 'Loads', href: '/dashboard/loads' }]} />
-      {/* Header */}
+      {/* Header Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Loads</h1>
-          <p className="text-muted-foreground">
-            Manage and track all your loads
-          </p>
-        </div>
         <div className="flex gap-2">
-          <ImportButton entityType="loads" />
-          <ExportDialog entityType="loads" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Actions
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Import/Export</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <Link href="/dashboard/import/loads">
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import Loads
+                </DropdownMenuItem>
+              </Link>
+              <DropdownMenuItem onSelect={(e) => {
+                e.preventDefault();
+                setExportDialogOpen(true);
+              }}>
+                <Download className="h-4 w-4 mr-2" />
+                Export Loads
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Selection</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={selectAllPages}
+                onCheckedChange={handleSelectAllPages}
+                disabled={isFetchingAllIds}
+              >
+                {isFetchingAllIds ? 'Loading...' : selectAllPages ? 'Clear All Pages' : 'Select All Pages'}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -624,6 +676,14 @@ export default function LoadList() {
                 Total Miles
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
+                checked={visibleColumns.loadedMiles}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, loadedMiles: checked })
+                }
+              >
+                Loaded Miles
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
                 checked={visibleColumns.emptyMiles}
                 onCheckedChange={(checked) =>
                   setVisibleColumns({ ...visibleColumns, emptyMiles: checked })
@@ -660,7 +720,6 @@ export default function LoadList() {
         </div>
       </div>
 
-      <LoadListStats filters={{ ...advancedFilters, status: statusFilter, search: searchQuery }} />
 
       {/* Bulk Actions */}
       {(selectedLoadIds.length > 0 || selectAllPages) && (
@@ -735,49 +794,33 @@ export default function LoadList() {
             className="pl-10"
           />
         </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(value) => {
-            setStatusFilter(value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {Object.keys(statusColors).map((status) => (
-              <SelectItem key={status} value={status}>
-                {formatStatus(status as LoadStatus)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={dispatcherFilter}
-          onValueChange={(value) => {
-            setDispatcherFilter(value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <Users className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by dispatcher" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Dispatchers</SelectItem>
-            {dispatchers.map((dispatcher: any) => (
-              <SelectItem key={dispatcher.id} value={dispatcher.id}>
-                {dispatcher.firstName} {dispatcher.lastName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div className="flex items-center gap-2 flex-wrap">
           <AdvancedFilters
             filters={[
+              { 
+                field: 'status', 
+                label: 'Status', 
+                type: 'select',
+                options: [
+                  { value: 'all', label: 'All Statuses' },
+                  ...Object.keys(statusColors).map((status) => ({
+                    value: status,
+                    label: formatStatus(status as LoadStatus)
+                  }))
+                ]
+              },
+              { 
+                field: 'dispatcherId', 
+                label: 'Dispatcher', 
+                type: 'select',
+                options: [
+                  { value: 'all', label: 'All Dispatchers' },
+                  ...dispatchers.map((dispatcher: any) => ({
+                    value: dispatcher.id,
+                    label: `${dispatcher.firstName} ${dispatcher.lastName}`
+                  }))
+                ]
+              },
               { field: 'customerId', label: 'Customer', type: 'text' },
               { field: 'driverId', label: 'Driver', type: 'text' },
               { field: 'pickupCity', label: 'Pickup City', type: 'text' },
@@ -786,12 +829,31 @@ export default function LoadList() {
               { field: 'revenue', label: 'Min Revenue', type: 'number' },
             ]}
             onApply={(filters) => {
-              setAdvancedFilters(filters);
+              // Extract status and dispatcher from filters
+              const { status, dispatcherId, ...rest } = filters;
+              if (status && status !== 'all') {
+                setStatusFilter(status);
+              } else {
+                setStatusFilter('all');
+              }
+              if (dispatcherId && dispatcherId !== 'all') {
+                setDispatcherFilter(dispatcherId);
+              } else {
+                setDispatcherFilter('all');
+              }
+              setAdvancedFilters(rest);
               setPage(1);
             }}
             onClear={() => {
               setAdvancedFilters({});
+              setStatusFilter('all');
+              setDispatcherFilter('all');
               setPage(1);
+            }}
+            initialValues={{
+              status: statusFilter !== 'all' ? statusFilter : undefined,
+              dispatcherId: dispatcherFilter !== 'all' ? dispatcherFilter : undefined,
+              ...advancedFilters,
             }}
           />
           <SavedFilters
@@ -857,42 +919,19 @@ export default function LoadList() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {visibleColumns.checkbox && <TableHead className="w-32">
-                    <div className="flex flex-col gap-1">
-                      <Checkbox
-                        checked={selectAllPages || (selectedLoadIds.length === loads.length && loads.length > 0 && !selectAllPages)}
-                        onCheckedChange={(checked) => {
-                          if (checked && !selectAllPages) {
-                            // Only select current page if not in "select all pages" mode
-                            setSelectedLoadIds(loads.map((load) => load.id));
-                          } else if (!selectAllPages) {
-                            setSelectedLoadIds([]);
-                          }
-                        }}
-                        disabled={selectAllPages}
-                      />
-                      {!selectAllPages && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={handleSelectAllPages}
-                          disabled={isFetchingAllIds}
-                        >
-                          {isFetchingAllIds ? 'Loading...' : 'Select All Pages'}
-                        </Button>
-                      )}
-                      {selectAllPages && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={handleSelectAllPages}
-                        >
-                          Clear All
-                        </Button>
-                      )}
-                    </div>
+                  {visibleColumns.checkbox && <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectAllPages || (selectedLoadIds.length === loads.length && loads.length > 0 && !selectAllPages)}
+                      onCheckedChange={(checked) => {
+                        if (checked && !selectAllPages) {
+                          // Only select current page if not in "select all pages" mode
+                          setSelectedLoadIds(loads.map((load) => load.id));
+                        } else if (!selectAllPages) {
+                          setSelectedLoadIds([]);
+                        }
+                      }}
+                      disabled={selectAllPages}
+                    />
                   </TableHead>}
                   {visibleColumns.loadNumber && <TableHead>Load #</TableHead>}
                   {visibleColumns.customer && <TableHead>Customer</TableHead>}
@@ -910,6 +949,7 @@ export default function LoadList() {
                   {visibleColumns.serviceFee && <TableHead className="text-right">Service Fee</TableHead>}
                   {visibleColumns.ratePerMile && <TableHead className="text-right">Rate/Mile</TableHead>}
                   {visibleColumns.miles && <TableHead className="text-right">Total Miles</TableHead>}
+                  {visibleColumns.loadedMiles && <TableHead className="text-right">Loaded Miles</TableHead>}
                   {visibleColumns.emptyMiles && <TableHead className="text-right">Empty Miles</TableHead>}
                   {visibleColumns.documents && <TableHead>Docs</TableHead>}
                   {visibleColumns.actions && <TableHead className="text-right">Actions</TableHead>}
@@ -918,7 +958,7 @@ export default function LoadList() {
               <TableBody>
                 {loads.map((load) => (
                   <TableRow key={load.id}>
-                    {visibleColumns.checkbox && <TableCell>
+                    {visibleColumns.checkbox && <TableCell className="px-3 py-2">
                       <Checkbox
                         checked={selectAllPages || selectedLoadIds.includes(load.id)}
                         onCheckedChange={(checked) => {
@@ -934,48 +974,48 @@ export default function LoadList() {
                         disabled={selectAllPages}
                       />
                     </TableCell>}
-                    {visibleColumns.loadNumber && <TableCell className="font-medium">
+                    {visibleColumns.loadNumber && <TableCell className="px-3 py-2">
                       <button
                         onClick={() => setQuickViewLoadId(load.id)}
-                        className="text-primary hover:underline text-left"
+                        className="text-sm font-medium text-primary hover:underline text-left"
                       >
                         {load.loadNumber}
                       </button>
                     </TableCell>}
-                    {visibleColumns.customer && <TableCell>
-                      <div className="font-medium">{load.customer.name}</div>
+                    {visibleColumns.customer && <TableCell className="px-3 py-2">
+                      <div className="text-sm font-medium">{load.customer.name}</div>
                     </TableCell>}
-                    {visibleColumns.route && <TableCell>
-                      <div className="text-sm">
+                    {visibleColumns.route && <TableCell className="px-3 py-2">
+                      <div className="text-xs">
                         {(load.pickupCity && load.pickupCity !== 'Unknown' && load.deliveryCity && load.deliveryCity !== 'Unknown') ? (
-                          <>
-                            <div>
-                              {load.pickupCity}, {load.pickupState || ''}
-                            </div>
-                            <div className="text-muted-foreground">→</div>
-                            <div>
-                              {load.deliveryCity}, {load.deliveryState || ''}
-                            </div>
-                          </>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate">{load.pickupCity}, {load.pickupState || ''}</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate">{load.deliveryCity}, {load.deliveryState || ''}</span>
+                          </div>
                         ) : load.pickupLocation || load.deliveryLocation ? (
-                          <>
-                            <div>{load.pickupLocation || 'N/A'}</div>
-                            <div className="text-muted-foreground">→</div>
-                            <div>{load.deliveryLocation || 'N/A'}</div>
-                          </>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate">{load.pickupLocation || 'N/A'}</span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate">{load.deliveryLocation || 'N/A'}</span>
+                          </div>
                         ) : load.stops && load.stops.length > 0 ? (
-                          <div className="text-muted-foreground">
-                            {load.stops.filter((s: any) => s.stopType === 'PICKUP').length} pickup(s) →{' '}
-                            {load.stops.filter((s: any) => s.stopType === 'DELIVERY').length} delivery(ies)
+                          <div className="text-muted-foreground flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            <span>{load.stops.filter((s: any) => s.stopType === 'PICKUP').length} pickup(s) → {load.stops.filter((s: any) => s.stopType === 'DELIVERY').length} delivery(ies)</span>
                           </div>
                         ) : (
-                          <div className="text-muted-foreground">-</div>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </div>
                     </TableCell>}
-                    {visibleColumns.stops && <TableCell>
+                    {visibleColumns.stops && <TableCell className="px-3 py-2">
                       {load.stopsCount !== undefined && load.stopsCount !== null ? (
-                        <div className="text-sm">
+                        <div className="text-xs">
                           <span className="font-medium">{load.stopsCount}</span>
                           {load.stops && load.stops.length > 0 && (
                             <div className="text-xs text-muted-foreground">
@@ -985,7 +1025,7 @@ export default function LoadList() {
                           )}
                         </div>
                       ) : load.stops && load.stops.length > 0 ? (
-                        <div className="text-sm">
+                        <div className="text-xs">
                           <span className="font-medium">{load.stops.length}</span>
                           <div className="text-xs text-muted-foreground">
                             {load.stops.filter((s: any) => s.stopType === 'PICKUP').length} pickup /{' '}
@@ -993,65 +1033,71 @@ export default function LoadList() {
                           </div>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground text-sm">1</span>
+                        <span className="text-muted-foreground text-xs">1</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.pickupDate && <TableCell>{formatDate(load.pickupDate)}</TableCell>}
-                    {visibleColumns.deliveryDate && <TableCell>
-                      {load.deliveryDate ? formatDate(load.deliveryDate) : (
-                        <span className="text-muted-foreground">-</span>
+                    {visibleColumns.pickupDate && <TableCell className="px-3 py-2">
+                      <span className="text-xs">{formatDate(load.pickupDate)}</span>
+                    </TableCell>}
+                    {visibleColumns.deliveryDate && <TableCell className="px-3 py-2">
+                      {load.deliveryDate ? (
+                        <span className="text-xs">{formatDate(load.deliveryDate)}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.driver && <TableCell>
+                    {visibleColumns.driver && <TableCell className="px-3 py-2">
                       {load.driver ? (
-                        <div>
-                          {load.driver.user.firstName}{' '}
-                          {load.driver.user.lastName}
-                          <div className="text-sm text-muted-foreground">
-                            {load.driver.driverNumber}
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <div className="text-xs">
+                            <div className="font-medium">{load.driver.user.firstName} {load.driver.user.lastName}</div>
+                            <div className="text-xs text-muted-foreground">{load.driver.driverNumber}</div>
                           </div>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">Unassigned</span>
+                        <span className="text-muted-foreground text-xs">Unassigned</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.dispatcher && <TableCell>
+                    {visibleColumns.dispatcher && <TableCell className="px-3 py-2">
                       {load.dispatcher ? (
-                        <div>
-                          {load.dispatcher.firstName} {load.dispatcher.lastName}
+                        <span className="text-xs">{load.dispatcher.firstName} {load.dispatcher.lastName}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </TableCell>}
+                    {visibleColumns.truck && <TableCell className="px-3 py-2">
+                      {load.truck ? (
+                        <div className="flex items-center gap-1.5">
+                          <Truck className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span className="text-xs font-medium">{load.truck.truckNumber}</span>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.truck && <TableCell>
-                      {load.truck ? (
-                        load.truck.truckNumber
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>}
-                    {visibleColumns.trailer && <TableCell>
+                    {visibleColumns.trailer && <TableCell className="px-3 py-2">
                       {load.trailerNumber ? (
-                        <span className="font-medium">{load.trailerNumber}</span>
+                        <span className="text-xs font-medium">{load.trailerNumber}</span>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.status && <TableCell>
+                    {visibleColumns.status && <TableCell className="px-3 py-2">
                       <Badge
                         variant="outline"
-                        className={statusColors[load.status as LoadStatus]}
+                        className={`${statusColors[load.status as LoadStatus]} flex items-center gap-1.5 w-fit`}
                       >
-                        {formatStatus(load.status)}
+                        {getStatusIcon(load.status as LoadStatus)}
+                        <span className="text-xs">{formatStatus(load.status)}</span>
                       </Badge>
                     </TableCell>}
-                    {visibleColumns.revenue && <TableCell className="text-right font-medium">
-                      {formatCurrency(load.revenue)}
+                    {visibleColumns.revenue && <TableCell className="px-3 py-2 text-right">
+                      <div className="text-sm font-medium">{formatCurrency(load.revenue)}</div>
                     </TableCell>}
-                    {visibleColumns.driverPay && <TableCell className="text-right text-sm">
+                    {visibleColumns.driverPay && <TableCell className="px-3 py-2 text-right">
                       {load.driverPay || load.totalPay ? (
-                        <div>
+                        <div className="text-xs">
                           {load.driverPay ? (
                             <div className="font-medium">{formatCurrency(load.driverPay)}</div>
                           ) : load.totalPay ? (
@@ -1064,19 +1110,19 @@ export default function LoadList() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.serviceFee && <TableCell className="text-right text-sm">
+                    {visibleColumns.serviceFee && <TableCell className="px-3 py-2 text-right">
                       {load.serviceFee ? (
-                        <div className="font-medium">{formatCurrency(load.serviceFee)}</div>
+                        <div className="text-xs font-medium">{formatCurrency(load.serviceFee)}</div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.ratePerMile && <TableCell className="text-right text-sm">
+                    {visibleColumns.ratePerMile && <TableCell className="px-3 py-2 text-right">
                       {load.totalMiles && load.totalMiles > 0 ? (
-                        <div>
+                        <div className="text-xs">
                           <div>${(load.revenue / load.totalMiles).toFixed(2)}</div>
                           {load.loadedMiles && load.loadedMiles > 0 && (
                             <div className="text-xs text-muted-foreground">
@@ -1085,52 +1131,47 @@ export default function LoadList() {
                           )}
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.miles && <TableCell className="text-right">
+                    {visibleColumns.miles && <TableCell className="px-3 py-2 text-right">
                       {load.totalMiles ? (
-                        <div className="font-medium">{load.totalMiles.toLocaleString()}</div>
+                        <div className="text-xs font-medium">{load.totalMiles.toLocaleString()}</div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.emptyMiles && <TableCell className="text-right">
+                    {visibleColumns.loadedMiles && <TableCell className="px-3 py-2 text-right">
+                      {load.loadedMiles ? (
+                        <div className="text-xs font-medium">{load.loadedMiles.toLocaleString()}</div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </TableCell>}
+                    {visibleColumns.emptyMiles && <TableCell className="px-3 py-2 text-right">
                       {load.emptyMiles ? (
-                        <div className="font-medium">{load.emptyMiles.toLocaleString()}</div>
+                        <div className="text-xs font-medium">{load.emptyMiles.toLocaleString()}</div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.documents && <TableCell>
+                    {visibleColumns.documents && <TableCell className="px-3 py-2">
                       {load.documents && load.documents.length > 0 ? (
-                        <div className="flex items-center gap-1">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm">{load.documents.length}</span>
+                        <div className="flex items-center gap-1.5">
+                          <FileText className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                          <span className="text-xs font-medium">{load.documents.length}</span>
                           <DocumentViewerDialog documents={load.documents} loadNumber={load.loadNumber} />
                         </div>
                       ) : (
-                        <span className="text-muted-foreground">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </TableCell>}
-                    {visibleColumns.actions && <TableCell className="text-right">
+                    {visibleColumns.actions && <TableCell className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <LoadStatusQuickActions
                           loadId={load.id}
                           currentStatus={load.status}
                         />
-                        {can('loads.edit') && (
-                          <Link href={`/dashboard/loads/${load.id}/edit`}>
-                            <Button variant="ghost" size="sm" title="Edit Load">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        )}
-                        <Link href={`/dashboard/loads/${load.id}`}>
-                          <Button variant="ghost" size="sm">
-                            View
-                          </Button>
-                        </Link>
                         {can('loads.delete') && (
                           <Button
                             variant="ghost"
@@ -1248,9 +1289,21 @@ export default function LoadList() {
         </>
       )}
 
-      {stats && <LoadStatsSummary stats={stats} />}
+      {stats && <LoadStatsSummary stats={stats} filters={{ 
+        ...advancedFilters, 
+        status: statusFilter !== 'all' ? statusFilter : undefined, 
+        search: searchQuery || undefined,
+        mc: mcParam || undefined,
+        dispatcherId: dispatcherFilter !== 'all' ? dispatcherFilter : undefined,
+      }} />}
 
-      <LoadQuickView
+      <ExportDialog 
+        entityType="loads"
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+      />
+
+      <LoadDetailDialog
         loadId={quickViewLoadId}
         open={!!quickViewLoadId}
         onOpenChange={(open) => {
@@ -1261,21 +1314,56 @@ export default function LoadList() {
   );
 }
 
-function LoadStatsSummary({ stats }: { stats?: LoadStats }) {
+function LoadStatsSummary({ stats, filters }: { stats?: LoadStats; filters?: Record<string, any> }) {
   if (!stats) return null;
 
-  const summaryItems: Array<{
+  // Fetch load stats (total loads, total revenue, active loads, avg revenue)
+  const { data: loadStatsData, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['load-stats', filters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) params.set(key, value.toString());
+        });
+      }
+      const response = await fetch(apiUrl(`/api/loads/stats?${params.toString()}`));
+      if (!response.ok) throw new Error('Failed to fetch load stats');
+      return response.json();
+    },
+  });
+
+  const loadStats = loadStatsData?.data || {
+    totalLoads: 0,
+    totalRevenue: 0,
+    activeLoads: 0,
+    averageRevenue: 0,
+  };
+
+  const overviewItems: Array<{
     label: string;
     value: number | null;
-    type: 'currency' | 'miles' | 'rpm';
+    type: 'currency' | 'miles' | 'rpm' | 'number';
+    note?: string;
+  }> = [
+    { label: 'Total Loads', value: isLoadingStats ? null : loadStats.totalLoads, type: 'number' },
+    { label: 'Total Revenue', value: isLoadingStats ? null : loadStats.totalRevenue, type: 'currency' },
+    { label: 'Active Loads', value: isLoadingStats ? null : loadStats.activeLoads, type: 'number' },
+    { label: 'Avg Revenue', value: isLoadingStats ? null : loadStats.averageRevenue, type: 'currency' },
+  ];
+
+  const financialItems: Array<{
+    label: string;
+    value: number | null;
+    type: 'currency' | 'miles' | 'rpm' | 'number';
     note?: string;
   }> = [
     { label: 'Total pay', value: stats.totalPay, type: 'currency' },
     { label: 'Total load pay', value: stats.totalLoadPay, type: 'currency' },
     { label: 'Driver gross', value: stats.driverGross, type: 'currency' },
     { label: 'Total miles', value: stats.totalMiles, type: 'miles' },
+    { label: 'Loaded miles', value: stats.loadedMiles, type: 'miles' },
     { label: 'Empty miles', value: stats.emptyMiles, type: 'miles' },
-    { label: 'RPM for loaded miles', value: stats.rpmLoadedMiles, type: 'rpm' },
     { label: 'RPM for total miles', value: stats.rpmTotalMiles, type: 'rpm' },
     {
       label: 'Service fee',
@@ -1285,9 +1373,9 @@ function LoadStatsSummary({ stats }: { stats?: LoadStats }) {
     },
   ];
 
-  const formatStatValue = (value: number | null, type: 'currency' | 'miles' | 'rpm') => {
+  const formatStatValue = (value: number | null, type: 'currency' | 'miles' | 'rpm' | 'number') => {
     if (value === null || value === undefined) {
-      return '-';
+      return isLoadingStats ? '...' : '-';
     }
 
     if (type === 'currency') {
@@ -1298,30 +1386,55 @@ function LoadStatsSummary({ stats }: { stats?: LoadStats }) {
       return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
     }
 
+    if (type === 'number') {
+      return value.toLocaleString();
+    }
+
     return `$${value.toFixed(2)}`;
   };
 
   return (
-    <div className="mt-8 space-y-4">
+    <div className="mt-8 space-y-6">
       <div>
         <h3 className="text-lg font-semibold">Totals</h3>
         <p className="text-sm text-muted-foreground">
           Calculated from the current filters and date range
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {summaryItems.map((item) => (
-          <div
-            key={item.label}
-            className="rounded-xl border bg-card text-card-foreground p-4 shadow-sm"
-          >
-            <p className="text-sm text-muted-foreground">{item.label}</p>
-            <p className="mt-1 text-2xl font-bold">{formatStatValue(item.value, item.type)}</p>
-            {item.note && (
-              <p className="mt-1 text-xs text-muted-foreground">{item.note}</p>
-            )}
-          </div>
-        ))}
+      
+      {/* Overview Section */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Overview</h4>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {overviewItems.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-lg border bg-card text-card-foreground p-4 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <p className="text-sm text-muted-foreground mb-2">{item.label}</p>
+              <p className="text-2xl font-bold">{formatStatValue(item.value, item.type)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Financial Section */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Financial & Performance</h4>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {financialItems.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-lg border bg-card text-card-foreground p-4 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <p className="text-sm text-muted-foreground mb-2">{item.label}</p>
+              <p className="text-2xl font-bold">{formatStatValue(item.value, item.type)}</p>
+              {item.note && (
+                <p className="mt-2 text-xs text-muted-foreground">{item.note}</p>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

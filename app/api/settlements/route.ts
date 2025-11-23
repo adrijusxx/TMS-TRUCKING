@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { getSettlementFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,10 +61,44 @@ export async function GET(request: NextRequest) {
     }
     // Non-admin users: always use baseFilter (their assigned MC)
 
+    // Convert mcNumber string to mcNumberId for driver relation filter
+    // Driver.mcNumber is a relation, not a string field, so we need to use mcNumberId
+    let driverFilter: any = {
+      companyId: baseFilter.companyId,
+    };
+
+    if (baseFilter.mcNumber) {
+      // Look up the MC number record to get its ID
+      const mcRecord = await prisma.mcNumber.findFirst({
+        where: {
+          companyId: session.user.companyId,
+          OR: [
+            { number: baseFilter.mcNumber },
+            { companyName: { contains: baseFilter.mcNumber, mode: 'insensitive' } },
+          ],
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+
+      if (mcRecord) {
+        driverFilter.mcNumberId = mcRecord.id;
+      }
+    }
+
+    // Apply role-based filtering
+    const roleFilter = await getSettlementFilter(
+      createFilterContext(
+        session.user.id,
+        session.user.role as any,
+        session.user.companyId
+      )
+    );
+
+    // Merge role filter with driver filter
     const where: any = {
-      driver: {
-        ...baseFilter,
-      },
+      ...roleFilter,
+      driver: driverFilter,
     };
 
     if (driverId) {
@@ -97,9 +133,14 @@ export async function GET(request: NextRequest) {
       prisma.settlement.count({ where }),
     ]);
 
+    // Filter sensitive fields based on role
+    const filteredSettlements = settlements.map((settlement) =>
+      filterSensitiveFields(settlement, session.user.role as any)
+    );
+
     return NextResponse.json({
       success: true,
-      data: settlements,
+      data: filteredSettlements,
       meta: {
         total,
         page,

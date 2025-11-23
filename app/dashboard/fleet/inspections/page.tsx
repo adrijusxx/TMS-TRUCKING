@@ -6,12 +6,16 @@ export default function FleetInspectionsPage() {
     <>
       <Breadcrumb
         items={[
-          { label: 'Home', href: '/dashboard' },
-          { label: 'Fleet Department', href: '/dashboard/fleet/breakdowns' },
-          { label: 'Inspections', href: '/dashboard/fleet/inspections' },
+          { label: 'Fleet Department', href: '/dashboard/fleet' },
+          { label: 'Inspections' },
         ]}
       />
-      <FleetInspections />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Fleet Inspections</h1>
+        </div>
+        <FleetInspections />
+      </div>
     </>
   );
 }

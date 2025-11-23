@@ -118,7 +118,6 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           </Link>
           <div>
             <h1 className="text-3xl font-bold">{settlement.settlementNumber}</h1>
-            <p className="text-muted-foreground">Settlement Details</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

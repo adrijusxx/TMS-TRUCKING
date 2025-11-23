@@ -63,12 +63,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (theme === 'system') {
       const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       effectiveTheme = systemPrefersDark ? 'dark' : 'light';
-    } else {
+    } else if (theme === 'light' || theme === 'dark') {
       effectiveTheme = theme;
+    } else {
+      // Fallback to light if theme is invalid
+      effectiveTheme = 'light';
     }
 
-    root.classList.add(effectiveTheme);
-    setResolvedTheme(effectiveTheme);
+    // Only add theme class if it's valid and not empty
+    if (effectiveTheme && effectiveTheme.trim() !== '') {
+      root.classList.add(effectiveTheme);
+      setResolvedTheme(effectiveTheme);
+    }
   }, [theme, mounted]);
 
   // Apply font size
@@ -118,8 +124,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const root = document.documentElement;
       root.classList.remove('light', 'dark');
       const newTheme = mediaQuery.matches ? 'dark' : 'light';
-      root.classList.add(newTheme);
-      setResolvedTheme(newTheme);
+      if (newTheme && newTheme.trim() !== '') {
+        root.classList.add(newTheme);
+        setResolvedTheme(newTheme);
+      }
     };
 
     mediaQuery.addEventListener('change', handleChange);

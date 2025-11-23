@@ -6,8 +6,34 @@ const stopItemSchema = z.object({
   orderId: z.string().optional(),
   item: z.string().optional(),
   product: z.string().optional(),
-  pieces: z.number().int().positive().optional(),
-  weight: z.number().positive().optional(),
+  pieces: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
+      if (typeof val === 'string') {
+        const num = parseInt(val, 10);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().int().positive().optional()
+  ),
+  weight: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().positive().optional()
+  ),
   description: z.string().optional(),
 });
 
@@ -16,25 +42,108 @@ const loadStopSchema = z.object({
   stopType: z.enum(['PICKUP', 'DELIVERY']),
   sequence: z.number().int().positive(),
   company: z.string().optional(),
-  address: z.string().min(1, 'Address is required'),
-  city: z.string().min(1, 'City is required'),
-  state: z.string().length(2, 'State must be 2 characters'),
-  zip: z.string().min(5, 'ZIP code is required'),
+  address: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim() : val || ''),
+    z.string().min(1, 'Address is required')
+  ),
+  city: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim() : val || ''),
+    z.string().min(1, 'City is required')
+  ),
+  state: z.preprocess(
+    (val) => {
+      if (typeof val === 'string') {
+        const trimmed = val.trim().toUpperCase();
+        return trimmed.length >= 2 ? trimmed.slice(0, 2) : trimmed;
+      }
+      return val || '';
+    },
+    z.string().length(2, 'State must be 2 characters')
+  ),
+  zip: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim() : val || ''),
+    z.string().min(5, 'ZIP code is required (minimum 5 characters)')
+  ),
   phone: z.string().optional(),
-  earliestArrival: z.string().or(z.date()).optional(),
-  latestArrival: z.string().or(z.date()).optional(),
+  earliestArrival: z.preprocess(
+    (val) => {
+      if (val instanceof Date) return val.toISOString();
+      if (typeof val === 'string') return val;
+      return val;
+    },
+    z.string().or(z.date()).optional()
+  ),
+  latestArrival: z.preprocess(
+    (val) => {
+      if (val instanceof Date) return val.toISOString();
+      if (typeof val === 'string') return val;
+      return val;
+    },
+    z.string().or(z.date()).optional()
+  ),
   contactName: z.string().optional(),
   contactPhone: z.string().optional(),
-  items: z.array(stopItemSchema).optional(),
-  totalPieces: z.number().int().positive().optional(),
-  totalWeight: z.number().positive().optional(),
+  items: z.preprocess(
+    (val) => {
+      if (!val) return undefined;
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string') {
+        try {
+          const parsed = JSON.parse(val);
+          return Array.isArray(parsed) ? parsed : undefined;
+        } catch {
+          return undefined;
+        }
+      }
+      return undefined;
+    },
+    z.array(stopItemSchema).optional()
+  ),
+  totalPieces: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
+      if (typeof val === 'string') {
+        const num = parseInt(val, 10);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().int().positive().optional()
+  ),
+  totalWeight: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().positive().optional()
+  ),
   notes: z.string().optional(),
   specialInstructions: z.string().optional(),
 });
 
 export const createLoadSchema = z.object({
   loadNumber: z.string().min(1, 'Load number is required'),
-  customerId: z.string().min(1, 'Customer is required'),
+  customerId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null) return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().min(1, 'Customer is required')
+  ),
   loadType: z.nativeEnum(LoadType),
   equipmentType: z.nativeEnum(EquipmentType),
   
@@ -70,8 +179,38 @@ export const createLoadSchema = z.object({
   deliveryCompany: z.string().optional(),
   
   // Load specs
-  weight: z.number().positive('Weight must be positive'),
-  pieces: z.number().int().positive().optional(),
+  weight: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (trimmed === '') return undefined;
+        const num = parseFloat(trimmed);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number({
+      message: 'Weight must be a valid number',
+    }).positive('Weight must be positive').optional()
+  ),
+  pieces: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
+      if (typeof val === 'string') {
+        const num = parseInt(val, 10);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().int().positive().optional()
+  ),
   commodity: z.string().optional(),
   pallets: z.number().int().positive().optional(),
   temperature: z.string().optional(),
@@ -147,6 +286,10 @@ export const createLoadSchema = z.object({
       createdById: z.string().optional(),
       tripId: z.string().optional(),
       mcNumber: z.string().optional(),
+      // Driver and equipment assignment
+      driverId: z.string().optional(),
+      truckId: z.string().optional(),
+      trailerId: z.string().optional(),
       revenuePerMile: z.preprocess(
         (val) => {
           if (val === undefined || val === null || val === '') return undefined;

@@ -93,10 +93,6 @@ export default function DispatchBoard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Dispatch Board</h1>
-          <p className="text-muted-foreground">
-            Manage load assignments and driver availability
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />

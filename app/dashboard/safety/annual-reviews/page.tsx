@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import DriverSelector from '@/components/safety/DriverSelector';
 import AnnualReviewForm from '@/components/safety/drivers/AnnualReviewForm';
@@ -9,12 +10,20 @@ export default function AnnualReviewsPage() {
   const [selectedDriverId, setSelectedDriverId] = useState<string>('');
 
   return (
-    <div className="p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Annual Reviews</CardTitle>
-          <CardDescription>Driver annual qualification reviews</CardDescription>
-        </CardHeader>
+    <>
+      <Breadcrumb items={[
+        { label: 'Safety Department', href: '/dashboard/safety' },
+        { label: 'Annual Reviews' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Annual Reviews</h1>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Manage Annual Reviews</CardTitle>
+            <CardDescription>Select a driver to view and manage their annual reviews</CardDescription>
+          </CardHeader>
         <CardContent className="space-y-4">
           <DriverSelector
             value={selectedDriverId}
@@ -28,8 +37,9 @@ export default function AnnualReviewsPage() {
             </div>
           )}
         </CardContent>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 }
 

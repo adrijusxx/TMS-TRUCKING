@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import ReconcileForm from '@/components/reconciliation/ReconcileForm';
 import { Plus } from 'lucide-react';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 async function fetchReconciliations() {
   const response = await fetch(apiUrl('/api/reconciliation'));
@@ -33,14 +34,16 @@ export default function ReconciliationPage() {
   const reconciliations = data?.data || [];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Reconciliation</h1>
-          <p className="text-muted-foreground">
-            Match payments to invoices
-          </p>
-        </div>
+    <>
+      <Breadcrumb items={[
+        { label: 'Invoices', href: '/dashboard/invoices' },
+        { label: 'Reconciliation' }
+      ]} />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Reconciliation</h1>
+          </div>
         <Button
           onClick={() => {
             setSelectedInvoiceId(null);
@@ -93,12 +96,13 @@ export default function ReconciliationPage() {
         </div>
       )}
 
-      <ReconcileForm
-        invoiceId={selectedInvoiceId || ''}
-        open={reconcileFormOpen}
-        onOpenChange={setReconcileFormOpen}
-      />
-    </div>
+        <ReconcileForm
+          invoiceId={selectedInvoiceId || ''}
+          open={reconcileFormOpen}
+          onOpenChange={setReconcileFormOpen}
+        />
+      </div>
+    </>
   );
 }
 

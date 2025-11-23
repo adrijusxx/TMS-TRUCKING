@@ -107,8 +107,6 @@ export default function LocationList() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Locations</h1>
-          <p className="text-muted-foreground">Manage frequently used pickup and delivery locations</p>
         </div>
         <div className="flex items-center gap-2">
           <ImportDialog entityType="locations" onImportComplete={() => refetch()} />

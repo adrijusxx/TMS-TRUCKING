@@ -26,18 +26,39 @@ import {
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadType, EquipmentType } from '@prisma/client';
-import { ArrowLeft, Sparkles, X, FileText, Upload, MapPin } from 'lucide-react';
+import { ArrowLeft, Sparkles, X, FileText, Upload, MapPin, Plus, User, Truck, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import AILoadImporter from './AILoadImporter';
 import LoadStopsDisplay from './LoadStopsDisplay';
 import EditableLoadStops from './EditableLoadStops';
+import AddStopDialog from './AddStopDialog';
+import CreateCustomerDialog from '@/components/customers/CreateCustomerDialog';
+import CustomerCombobox from '@/components/customers/CustomerCombobox';
 import DocumentUpload from '@/components/documents/DocumentUpload';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { apiUrl } from '@/lib/utils';
+import { useSession } from 'next-auth/react';
 
 async function fetchCustomers() {
   const response = await fetch(apiUrl('/api/customers'));
   if (!response.ok) throw new Error('Failed to fetch customers');
+  return response.json();
+}
+
+async function fetchDrivers(mcNumber?: string | null, canReassign?: boolean, isAdmin?: boolean) {
+  // Admin can see all drivers, dispatchers and others only see drivers for their MC number
+  const url = (isAdmin)
+    ? apiUrl('/api/drivers?limit=1000&status=AVAILABLE')
+    : (mcNumber)
+      ? apiUrl(`/api/drivers?limit=1000&status=AVAILABLE&mcNumber=${encodeURIComponent(mcNumber)}`)
+      : apiUrl('/api/drivers?limit=1000&status=AVAILABLE');
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch drivers');
   return response.json();
 }
 
@@ -57,18 +78,47 @@ async function createLoad(data: CreateLoadInput) {
 export default function CreateLoadForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [isAIDialogOpen, setIsAIDialogOpen] = useState(false);
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [isAddStopDialogOpen, setIsAddStopDialogOpen] = useState(false);
   const [createdLoadId, setCreatedLoadId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isCalculatingMiles, setIsCalculatingMiles] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basic', 'pickup', 'delivery', 'details'])); // All sections expanded by default
+
+  // Get current user's MC number from session
+  const currentMcNumber = session?.user?.mcNumber || null;
+  const userRole = session?.user?.role;
+  const isAdmin = userRole === 'ADMIN';
+  const isDispatcher = userRole === 'DISPATCHER';
+  // Dispatchers and admins can reassign drivers, but dispatchers are restricted to their MC number
+  const canReassignDriver = isAdmin || isDispatcher;
 
   const { data: customersData, refetch: refetchCustomers } = useQuery({
     queryKey: ['customers'],
     queryFn: fetchCustomers,
   });
 
+  const { data: driversData } = useQuery({
+    queryKey: ['drivers', currentMcNumber, canReassignDriver, isAdmin],
+    queryFn: () => fetchDrivers(currentMcNumber, canReassignDriver, isAdmin),
+    enabled: !!session, // Only fetch when session is available
+  });
+
   const customers = customersData?.data || [];
+  const drivers = driversData?.data || [];
+
+  const toggleSection = (section: string) => {
+    const newExpanded = new Set(expandedSections);
+    if (newExpanded.has(section)) {
+      newExpanded.delete(section);
+    } else {
+      newExpanded.add(section);
+    }
+    setExpandedSections(newExpanded);
+  };
 
   const {
     register,
@@ -84,12 +134,14 @@ export default function CreateLoadForm() {
       equipmentType: 'DRY_VAN',
       hazmat: false,
       fuelAdvance: 0,
+      customerId: '', // Initialize customerId as empty string (not undefined)
     },
   });
 
   // Watch for stops to determine if this is a multi-stop load
   const stops = watch('stops');
   const isMultiStop = stops && Array.isArray(stops) && stops.length > 0;
+  const selectedDriverId = watch('driverId');
   
   // Watch form values for mileage calculation
   const pickupCity = watch('pickupCity');
@@ -303,6 +355,75 @@ export default function CreateLoadForm() {
 
   const onSubmit = async (data: CreateLoadInput) => {
     setError(null);
+    
+    // Validate customerId is present
+    if (!data.customerId || data.customerId.trim() === '') {
+      setError('Please select a customer before submitting');
+      toast.error('Customer is required');
+      return;
+    }
+    
+    // Normalize and validate stops if present
+    if (data.stops && Array.isArray(data.stops) && data.stops.length > 0) {
+      console.log('Original stops data:', JSON.stringify(data.stops, null, 2));
+      const normalizedStops = data.stops.map((stop: any) => {
+        // Ensure all required fields are present and properly formatted
+        const normalized: any = {
+          stopType: stop.stopType,
+          sequence: stop.sequence,
+          address: stop.address?.trim() || '',
+          city: stop.city?.trim() || '',
+          state: stop.state?.trim().toUpperCase().slice(0, 2) || '',
+          zip: stop.zip?.trim() || '',
+        };
+        
+        // Add optional fields if they exist
+        if (stop.company) normalized.company = stop.company.trim();
+        if (stop.phone) normalized.phone = stop.phone.trim();
+        if (stop.contactName) normalized.contactName = stop.contactName.trim();
+        if (stop.contactPhone) normalized.contactPhone = stop.contactPhone.trim();
+        if (stop.notes) normalized.notes = stop.notes.trim();
+        if (stop.specialInstructions) normalized.specialInstructions = stop.specialInstructions.trim();
+        if (stop.items) normalized.items = stop.items;
+        if (stop.totalPieces) normalized.totalPieces = stop.totalPieces;
+        if (stop.totalWeight) normalized.totalWeight = stop.totalWeight;
+        
+        // Normalize dates - convert Date objects to ISO strings if needed
+        if (stop.earliestArrival) {
+          normalized.earliestArrival = stop.earliestArrival instanceof Date
+            ? stop.earliestArrival.toISOString()
+            : typeof stop.earliestArrival === 'string'
+            ? stop.earliestArrival
+            : undefined;
+        }
+        if (stop.latestArrival) {
+          normalized.latestArrival = stop.latestArrival instanceof Date
+            ? stop.latestArrival.toISOString()
+            : typeof stop.latestArrival === 'string'
+            ? stop.latestArrival
+            : undefined;
+        }
+        
+        return normalized;
+      });
+      
+      // Validate each stop has required fields
+      const invalidStops = normalizedStops.filter(
+        (stop: any) => !stop.address || !stop.city || !stop.state || stop.state.length !== 2 || !stop.zip || stop.zip.length < 5
+      );
+      
+      if (invalidStops.length > 0) {
+        const invalidSequences = invalidStops.map((s: any) => s.sequence).join(', ');
+        setError(`Stops ${invalidSequences} are missing required fields (address, city, state, zip)`);
+        toast.error(`Please complete all required fields for stops: ${invalidSequences}`);
+        return;
+      }
+      
+      // Replace stops with normalized version
+      data.stops = normalizedStops;
+      console.log('Normalized stops data:', JSON.stringify(normalizedStops, null, 2));
+    }
+    
     console.log('Form submitted with data:', {
       loadNumber: data.loadNumber,
       customerId: data.customerId,
@@ -338,11 +459,14 @@ export default function CreateLoadForm() {
       totalMiles: data.totalMiles,
     });
     
-    // Refresh customers list if a new customer was created
+    // Refresh customers list if a customer was matched or created
     if (data.customerId) {
+      console.log('Refetching customers to ensure customer is in list...');
       await refetchCustomers();
-      // Wait a bit for the customers to be available
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Invalidate and refetch to ensure fresh data
+      await queryClient.invalidateQueries({ queryKey: ['customers'] });
+      // Wait longer for the customers to be available and query to update
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     // Auto-calculate miles if AI provided mileage data
@@ -384,16 +508,37 @@ export default function CreateLoadForm() {
 
     // Set customerId first if available (before other fields)
     if (data.customerId) {
-      // Verify customer exists in the updated list
+      // Get the most up-to-date customer list
       const updatedCustomers = queryClient.getQueryData(['customers']) as any;
       const allCustomers = updatedCustomers?.data || customersData?.data || customers;
       const customerExists = allCustomers.some((c: any) => c.id === data.customerId);
       
+      console.log('Setting customerId:', data.customerId);
+      console.log('Customer exists in list:', customerExists);
+      console.log('Total customers in list:', allCustomers.length);
+      
       if (customerExists) {
         setValue('customerId', data.customerId, { shouldValidate: false });
-        console.log('Set customerId:', data.customerId);
+        console.log('✓ Successfully set customerId:', data.customerId);
       } else {
-        console.warn('Customer ID not found in customers list:', data.customerId);
+        // If customer doesn't exist in list yet, try one more refetch
+        console.warn('Customer ID not found in customers list, attempting one more refetch...');
+        await refetchCustomers();
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const retryCustomers = queryClient.getQueryData(['customers']) as any;
+        const retryAllCustomers = retryCustomers?.data || [];
+        const retryExists = retryAllCustomers.some((c: any) => c.id === data.customerId);
+        
+        if (retryExists) {
+          setValue('customerId', data.customerId, { shouldValidate: false });
+          console.log('✓ Successfully set customerId after retry:', data.customerId);
+        } else {
+          // Set it anyway - the backend has it, so it should work
+          setValue('customerId', data.customerId, { shouldValidate: false });
+          console.warn('⚠ Set customerId anyway (not in list but exists in backend):', data.customerId);
+          toast.info('Customer selected. If not visible in dropdown, please refresh the page.');
+        }
       }
     }
     
@@ -567,8 +712,108 @@ export default function CreateLoadForm() {
     setIsAIDialogOpen(false);
   };
 
+  // Handle driver selection - auto-populate truck and trailer
+  const handleDriverChange = (driverId: string) => {
+    setValue('driverId', driverId, { shouldValidate: false });
+    const driver = drivers.find((d: any) => d.id === driverId);
+    if (driver) {
+      if (driver.currentTruck?.id) {
+        setValue('truckId', driver.currentTruck.id, { shouldValidate: false });
+      }
+      if (driver.currentTrailer?.id) {
+        setValue('trailerId', driver.currentTrailer.id, { shouldValidate: false });
+      }
+    }
+  };
+
+  // Handle customer creation
+  const handleCustomerCreated = async (customerId: string) => {
+    // Invalidate and refetch customers query
+    await queryClient.invalidateQueries({ queryKey: ['customers'] });
+    const result = await refetchCustomers();
+    
+    // Wait a bit for the query cache to update
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Get the latest customers from the query cache
+    const latestCustomers = result.data?.data || customersData?.data || [];
+    const customerExists = latestCustomers.some((c: any) => c.id === customerId);
+    
+    if (customerExists) {
+      setValue('customerId', customerId, { shouldValidate: true });
+      toast.success('Customer created and selected');
+    } else {
+      // Try one more refetch if not found
+      const retryResult = await refetchCustomers();
+      const retryCustomers = retryResult.data?.data || [];
+      if (retryCustomers.some((c: any) => c.id === customerId)) {
+        setValue('customerId', customerId, { shouldValidate: true });
+        toast.success('Customer created and selected');
+      } else {
+        // If still not found, set it anyway (it might be a timing issue)
+        // Ensure customerId is a valid string before setting
+        if (customerId && typeof customerId === 'string' && customerId.trim() !== '') {
+          setValue('customerId', customerId, { shouldValidate: true });
+          toast.success('Customer created. If not visible, please refresh the page.');
+        } else {
+          toast.error('Customer created but could not be selected. Please select it manually from the dropdown.');
+        }
+      }
+    }
+  };
+
+  // Handle adding a new stop manually
+  const handleAddStop = (stop: Omit<any, 'sequence'>) => {
+    const currentStops = watch('stops') || [];
+    const nextSequence = currentStops.length > 0 
+      ? Math.max(...currentStops.map((s: any) => s.sequence)) + 1 
+      : 1;
+    
+    // Ensure all required fields are present and convert Date to string
+    const newStop: any = {
+      stopType: stop.stopType,
+      sequence: nextSequence,
+      address: stop.address || '',
+      city: stop.city || '',
+      state: stop.state || '',
+      zip: stop.zip || '',
+      company: stop.company,
+      phone: stop.phone,
+      earliestArrival: stop.earliestArrival instanceof Date 
+        ? stop.earliestArrival.toISOString() 
+        : typeof stop.earliestArrival === 'string' 
+          ? stop.earliestArrival 
+          : undefined,
+      latestArrival: stop.latestArrival instanceof Date 
+        ? stop.latestArrival.toISOString() 
+        : typeof stop.latestArrival === 'string' 
+          ? stop.latestArrival 
+          : undefined,
+      contactName: stop.contactName,
+      contactPhone: stop.contactPhone,
+      notes: stop.notes,
+      specialInstructions: stop.specialInstructions,
+    };
+    
+    setValue('stops', [...currentStops, newStop], { shouldValidate: false });
+    toast.success('Stop added successfully');
+  };
+
+  const selectedDriver = drivers.find((d: any) => d.id === selectedDriverId);
+
+  // Auto-set MC number from session on mount
+  useEffect(() => {
+    if (currentMcNumber) {
+      const currentMcValue = watch('mcNumber');
+      if (!currentMcValue || currentMcValue !== currentMcNumber) {
+        setValue('mcNumber', currentMcNumber, { shouldValidate: false });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMcNumber]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-6">
       {/* AI Import Dialog */}
       <Dialog open={isAIDialogOpen} onOpenChange={setIsAIDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
@@ -585,107 +830,167 @@ export default function CreateLoadForm() {
         </DialogContent>
       </Dialog>
 
-      {/* AI Import Button */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold">Quick Import</h3>
-              <p className="text-sm text-muted-foreground">
-                Upload a rate confirmation PDF to auto-fill the form
-              </p>
-            </div>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setIsAIDialogOpen(true)}
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              AI Import from PDF
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* File Upload Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Attach Files</CardTitle>
-          <CardDescription>
-            Upload rate confirmation, BOL, POD, or other documents to attach to this load
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DocumentUpload
-            loadId={undefined} // Will be set after load creation
-            onFileSelected={(file) => {
-              setPendingFiles((prev) => [...prev, file]);
-            }}
-          />
-          {pendingFiles.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-sm font-medium">Files to attach after creation:</p>
-              {pendingFiles.map((file, index) => (
-                <div key={index} className="flex items-center justify-between p-2 border rounded">
-                  <span className="text-sm">{file.name}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="flex items-center gap-4">
+      {/* Header Section with Compact Actions */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
           <Link href="/dashboard/loads">
-            <Button type="button" variant="ghost" size="icon">
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
-            <h2 className="text-2xl font-semibold">Load Information</h2>
             <p className="text-sm text-muted-foreground">
-              Basic details about the shipment
+              Enter load details to create a new shipment
             </p>
           </div>
         </div>
+        
+        {/* Compact Quick Actions */}
+        <div className="flex items-center gap-2">
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={() => setIsAIDialogOpen(true)}
+            className="h-8 text-xs"
+          >
+            <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+            AI Import
+          </Button>
+          <label className="relative cursor-pointer">
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setPendingFiles((prev) => [...prev, file]);
+                  e.target.value = ''; // Reset input
+                }
+              }}
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+            />
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              className="h-8 text-xs relative"
+            >
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Attach Files
+              {pendingFiles.length > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-primary-foreground rounded-full text-[10px] flex items-center justify-center font-medium">
+                  {pendingFiles.length}
+                </span>
+              )}
+            </Button>
+          </label>
+          {!isMultiStop && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddStopDialogOpen(true)}
+              className="h-8 text-xs"
+            >
+              <MapPin className="h-3.5 w-3.5 mr-1.5" />
+              Multi-Stop
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Pending Files List - Compact */}
+      {pendingFiles.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 p-2 bg-muted/30 rounded-md border border-dashed">
+          {pendingFiles.map((file, index) => (
+            <div key={index} className="flex items-center gap-1.5 px-2 py-1 bg-background rounded-md text-xs border shadow-sm">
+              <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+              <span className="max-w-[180px] truncate font-medium">{file.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-4 w-4 p-0 hover:bg-destructive/10 shrink-0"
+                onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
         {/* Display validation errors */}
         {Object.keys(errors).length > 0 && (
-          <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md border border-destructive/20">
-            <strong>Validation Errors:</strong>
-            <ul className="list-disc list-inside mt-2">
-              {Object.entries(errors).map(([key, error]) => (
-                <li key={key}>
-                  {key}: {error?.message || 'Invalid'}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 bg-destructive/10 rounded">
+                  <X className="h-4 w-4 text-destructive" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-sm text-destructive mb-2">Validation Errors</h4>
+                  <ul className="space-y-1 text-sm">
+                    {Object.entries(errors).map(([key, error]) => {
+                      // Handle nested errors (like stops[0].address)
+                      if (key.startsWith('stops') && error && typeof error === 'object' && 'message' in error) {
+                        return (
+                          <li key={key} className="text-destructive/90">
+                            <span className="font-medium">{key}:</span> {error.message || 'Invalid'}
+                          </li>
+                        );
+                      }
+                      // Handle array errors
+                      if (key === 'stops' && Array.isArray(error)) {
+                        return error.map((err: any, idx: number) => (
+                          <li key={`${key}-${idx}`} className="text-destructive/90">
+                            <span className="font-medium">Stop {idx + 1}:</span> {err?.message || JSON.stringify(err)}
+                          </li>
+                        ));
+                      }
+                      return (
+                        <li key={key} className="text-destructive/90">
+                          <span className="font-medium">{key}:</span> {error?.message || (typeof error === 'string' ? error : 'Invalid')}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Multi-Stop Display */}
         {isMultiStop && stops && (
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Multi-Stop Load ({stops.length} stops)</CardTitle>
-              <CardDescription>
-                This load has multiple stops. Click Edit on any stop to modify details. Single pickup/delivery fields are not required for multi-stop loads.
-              </CardDescription>
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-primary/10 rounded">
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <CardTitle className="text-sm font-semibold">Multi-Stop Route ({stops.length} stops)</CardTitle>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddStopDialogOpen(true)}
+                  className="h-7 text-xs"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Stop
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0 pb-3">
               <EditableLoadStops
                 stops={stops as any}
                 onChange={(updatedStops) => {
-                  // Ensure earliestArrival and latestArrival are strings
                   const normalizedStops = updatedStops.map((stop: any) => ({
                     ...stop,
                     earliestArrival: stop.earliestArrival && typeof stop.earliestArrival !== 'string'
@@ -697,388 +1002,508 @@ export default function CreateLoadForm() {
                   }));
                   setValue('stops', normalizedStops as any, { shouldValidate: false });
                 }}
-                compact={stops.length > 3}
+                compact={true}
               />
             </CardContent>
           </Card>
         )}
 
-        <div className="grid gap-6 md:grid-cols-2">
+
+        {/* Customer Creation Dialog */}
+        <CreateCustomerDialog
+          open={isCustomerDialogOpen}
+          onOpenChange={setIsCustomerDialogOpen}
+          onCustomerCreated={handleCustomerCreated}
+          quickCreate={true}
+        />
+
+        {/* Add Stop Dialog */}
+        <AddStopDialog
+          open={isAddStopDialogOpen}
+          onOpenChange={setIsAddStopDialogOpen}
+          onAddStop={handleAddStop}
+          nextSequence={(stops?.length || 0) + 1}
+          existingStops={(stops || []).map((stop: any) => ({
+            ...stop,
+            earliestArrival: stop.earliestArrival instanceof Date 
+              ? stop.earliestArrival.toISOString() 
+              : stop.earliestArrival,
+            latestArrival: stop.latestArrival instanceof Date 
+              ? stop.latestArrival.toISOString() 
+              : stop.latestArrival,
+          }))}
+        />
+
+        <div className="grid gap-3 md:grid-cols-2">
         {/* Basic Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>Load number and customer</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="loadNumber">Load Number *</Label>
-              <Input
-                id="loadNumber"
-                placeholder="LOAD-2024-001"
-                {...register('loadNumber')}
-              />
-              {errors.loadNumber && (
-                <p className="text-sm text-destructive">
-                  {errors.loadNumber.message}
-                </p>
-              )}
-            </div>
+        <Card className="shadow-sm">
+          <Collapsible open={expandedSections.has('basic')} onOpenChange={() => toggleSection('basic')}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-2.5 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-blue-500/10 rounded">
+                      <Package className="h-3.5 w-3.5 text-blue-600" />
+                    </div>
+                    <CardTitle className="text-sm font-semibold">Basic Information</CardTitle>
+                  </div>
+                  {expandedSections.has('basic') ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-2.5 pt-3 pb-3">
+                 <div className="space-y-1.5">
+                   <Label htmlFor="loadNumber" className="text-xs">Load Number *</Label>
+                   <Input
+                     id="loadNumber"
+                     placeholder="LOAD-2024-001"
+                     className="h-8 text-sm"
+                     {...register('loadNumber')}
+                   />
+                   {errors.loadNumber && (
+                     <p className="text-xs text-destructive">
+                       {errors.loadNumber.message}
+                     </p>
+                   )}
+                 </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="customerId">Customer *</Label>
-              <Select
-                value={watch('customerId') || ''}
-                onValueChange={(value) => setValue('customerId', value, { shouldValidate: true })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer: any) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.name} ({customer.customerNumber})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.customerId && (
-                <p className="text-sm text-destructive">
-                  {errors.customerId.message}
-                </p>
-              )}
-            </div>
+                 <div className="space-y-1.5">
+                   <div className="flex items-center justify-between">
+                     <Label htmlFor="customerId" className="text-xs">Customer *</Label>
+                     <Button
+                       type="button"
+                       variant="ghost"
+                       size="sm"
+                       onClick={() => setIsCustomerDialogOpen(true)}
+                       className="h-6 text-xs px-2"
+                     >
+                       <Plus className="h-3 w-3 mr-1" />
+                       New
+                     </Button>
+                   </div>
+                   <CustomerCombobox
+                     key={`customer-${customers.length}-${watch('customerId')}`}
+                     value={watch('customerId') || ''}
+                     onValueChange={(value) => {
+                       if (value && value.trim() !== '') {
+                         setValue('customerId', value, { shouldValidate: true });
+                         console.log('Customer selected via combobox:', value);
+                       } else {
+                         setValue('customerId', '', { shouldValidate: true });
+                       }
+                     }}
+                     onNewCustomer={() => setIsCustomerDialogOpen(true)}
+                     placeholder="Search customer by name, number, or email..."
+                     className="h-8 text-sm"
+                     customers={customers}
+                   />
+                   {errors.customerId && (
+                     <p className="text-xs text-destructive">
+                       {errors.customerId.message}
+                     </p>
+                   )}
+                 </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="loadType">Load Type *</Label>
-                <Select
-                  onValueChange={(value) =>
-                    setValue('loadType', value as LoadType)
-                  }
-                  defaultValue="FTL"
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FTL">Full Truckload</SelectItem>
-                    <SelectItem value="LTL">Less Than Truckload</SelectItem>
-                    <SelectItem value="PARTIAL">Partial</SelectItem>
-                    <SelectItem value="INTERMODAL">Intermodal</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                 {currentMcNumber && (
+                   <div className="space-y-1">
+                     <Label className="text-xs">MC Number</Label>
+                     <div className="p-1.5 bg-muted rounded text-xs">
+                       {currentMcNumber}
+                     </div>
+                   </div>
+                 )}
 
-              <div className="space-y-2">
-                <Label htmlFor="equipmentType">Equipment Type *</Label>
-                <Select
-                  onValueChange={(value) =>
-                    setValue('equipmentType', value as EquipmentType)
-                  }
-                  defaultValue="DRY_VAN"
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DRY_VAN">Dry Van</SelectItem>
-                    <SelectItem value="REEFER">Reefer</SelectItem>
-                    <SelectItem value="FLATBED">Flatbed</SelectItem>
-                    <SelectItem value="STEP_DECK">Step Deck</SelectItem>
-                    <SelectItem value="LOWBOY">Lowboy</SelectItem>
-                    <SelectItem value="TANKER">Tanker</SelectItem>
-                    <SelectItem value="CONESTOGA">Conestoga</SelectItem>
-                    <SelectItem value="POWER_ONLY">Power Only</SelectItem>
-                    <SelectItem value="HOTSHOT">Hotshot</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
+                 <div className="space-y-1.5">
+                   <Label htmlFor="driverId" className="text-xs">
+                     Driver {canReassignDriver && !isAdmin && '(MC only)'}
+                   </Label>
+                   {canReassignDriver ? (
+                     <Select
+                       value={watch('driverId') || ''}
+                       onValueChange={handleDriverChange}
+                     >
+                       <SelectTrigger className="h-8 text-sm">
+                         <SelectValue placeholder="Select driver (optional)" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {drivers.map((driver: any) => (
+                           <SelectItem key={driver.id} value={driver.id}>
+                             {driver.user?.firstName} {driver.user?.lastName} ({driver.driverNumber})
+                             {isAdmin && driver.mcNumber && ` - MC: ${typeof driver.mcNumber === 'object' ? driver.mcNumber.number : driver.mcNumber}`}
+                           </SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
+                   ) : (
+                     <div className="p-1.5 bg-muted rounded text-xs text-muted-foreground">
+                       Contact dispatcher to assign
+                     </div>
+                   )}
+                   {selectedDriver && (
+                     <div className="p-1.5 bg-muted rounded text-xs space-y-0.5">
+                       {selectedDriver.currentTruck && (
+                         <div className="flex items-center gap-1.5">
+                           <Truck className="h-3 w-3" />
+                           <span>Truck: {selectedDriver.currentTruck.truckNumber}</span>
+                         </div>
+                       )}
+                       {selectedDriver.currentTrailer && (
+                         <div className="flex items-center gap-1.5">
+                           <Package className="h-3 w-3" />
+                           <span>Trailer: {selectedDriver.currentTrailer.trailerNumber}</span>
+                         </div>
+                       )}
+                     </div>
+                   )}
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-2">
+                   <div className="space-y-1.5">
+                     <Label htmlFor="loadType" className="text-xs">Load Type *</Label>
+                     <Select
+                       onValueChange={(value) =>
+                         setValue('loadType', value as LoadType)
+                       }
+                       defaultValue="FTL"
+                     >
+                       <SelectTrigger className="h-8 text-sm">
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="FTL">Full Truckload</SelectItem>
+                         <SelectItem value="LTL">Less Than Truckload</SelectItem>
+                         <SelectItem value="PARTIAL">Partial</SelectItem>
+                         <SelectItem value="INTERMODAL">Intermodal</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+
+                   <div className="space-y-1.5">
+                     <Label htmlFor="equipmentType" className="text-xs">Equipment Type *</Label>
+                     <Select
+                       onValueChange={(value) =>
+                         setValue('equipmentType', value as EquipmentType)
+                       }
+                       defaultValue="DRY_VAN"
+                     >
+                       <SelectTrigger className="h-8 text-sm">
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="DRY_VAN">Dry Van</SelectItem>
+                         <SelectItem value="REEFER">Reefer</SelectItem>
+                         <SelectItem value="FLATBED">Flatbed</SelectItem>
+                         <SelectItem value="STEP_DECK">Step Deck</SelectItem>
+                         <SelectItem value="LOWBOY">Lowboy</SelectItem>
+                         <SelectItem value="TANKER">Tanker</SelectItem>
+                         <SelectItem value="CONESTOGA">Conestoga</SelectItem>
+                         <SelectItem value="POWER_ONLY">Power Only</SelectItem>
+                         <SelectItem value="HOTSHOT">Hotshot</SelectItem>
+                       </SelectContent>
+                     </Select>
+                   </div>
+                 </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
-        {/* Pickup Information - Show but mark as optional for multi-stop loads */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Pickup Information {isMultiStop && '(Optional for multi-stop loads)'}</CardTitle>
-            <CardDescription>
-              {isMultiStop 
-                ? 'Single pickup details (optional - stops are used for multi-stop loads)'
-                : 'Origin details'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="pickupLocation">Location Name {!isMultiStop && '*'}</Label>
-              <Input
-                id="pickupLocation"
-                placeholder="ABC Warehouse"
-                {...register('pickupLocation')}
-              />
-              {errors.pickupLocation && (
-                <p className="text-sm text-destructive">
-                  {errors.pickupLocation.message}
-                </p>
-              )}
-            </div>
+         {/* Pickup Information */}
+         <Card className="shadow-sm">
+           <Collapsible open={expandedSections.has('pickup')} onOpenChange={() => toggleSection('pickup')}>
+             <CollapsibleTrigger asChild>
+               <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-2.5 border-b">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <div className="p-1 bg-green-500/10 rounded">
+                       <MapPin className="h-3.5 w-3.5 text-green-600" />
+                     </div>
+                     <CardTitle className="text-sm font-semibold">Pickup {isMultiStop && '(Optional)'}</CardTitle>
+                   </div>
+                   {expandedSections.has('pickup') ? (
+                     <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                   ) : (
+                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                   )}
+                 </div>
+               </CardHeader>
+             </CollapsibleTrigger>
+             <CollapsibleContent>
+               <CardContent className="space-y-2.5 pt-3 pb-3">
+             <div className="space-y-1.5">
+               <Label htmlFor="pickupLocation" className="text-xs">Location Name {!isMultiStop && '*'}</Label>
+               <Input
+                 id="pickupLocation"
+                 placeholder="ABC Warehouse"
+                 className="h-8 text-sm"
+                 {...register('pickupLocation')}
+               />
+               {errors.pickupLocation && (
+                 <p className="text-xs text-destructive">
+                   {errors.pickupLocation.message}
+                 </p>
+               )}
+             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="pickupAddress">Address {!isMultiStop && '*'}</Label>
-              <Input
-                id="pickupAddress"
-                placeholder="123 Main St"
-                {...register('pickupAddress')}
-              />
-            </div>
+             <div className="space-y-1.5">
+               <Label htmlFor="pickupAddress" className="text-xs">Address {!isMultiStop && '*'}</Label>
+               <Input
+                 id="pickupAddress"
+                 placeholder="123 Main St"
+                 className="h-8 text-sm"
+                 {...register('pickupAddress')}
+               />
+             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="pickupCity">City {!isMultiStop && '*'}</Label>
-                <Input
-                  id="pickupCity"
-                  placeholder="Dallas"
-                  {...register('pickupCity')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pickupState">State {!isMultiStop && '*'}</Label>
-                <Input
-                  id="pickupState"
-                  placeholder="TX"
-                  maxLength={2}
-                  {...register('pickupState')}
-                />
-                {errors.pickupState && (
-                  <p className="text-sm text-destructive">
-                    {errors.pickupState.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pickupZip">ZIP {!isMultiStop && '*'}</Label>
-                <Input
-                  id="pickupZip"
-                  placeholder="75001"
-                  {...register('pickupZip')}
-                />
-                {errors.pickupZip && (
-                  <p className="text-sm text-destructive">
-                    {errors.pickupZip.message}
-                  </p>
-                )}
-              </div>
-            </div>
+             <div className="grid grid-cols-3 gap-2">
+               <div className="space-y-1.5">
+                 <Label htmlFor="pickupCity" className="text-xs">City {!isMultiStop && '*'}</Label>
+                 <Input
+                   id="pickupCity"
+                   placeholder="Dallas"
+                   className="h-8 text-sm"
+                   {...register('pickupCity')}
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="pickupState" className="text-xs">State {!isMultiStop && '*'}</Label>
+                 <Input
+                   id="pickupState"
+                   placeholder="TX"
+                   maxLength={2}
+                   className="h-8 text-sm"
+                   {...register('pickupState')}
+                 />
+                 {errors.pickupState && (
+                   <p className="text-xs text-destructive">
+                     {errors.pickupState.message}
+                   </p>
+                 )}
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="pickupZip" className="text-xs">ZIP {!isMultiStop && '*'}</Label>
+                 <Input
+                   id="pickupZip"
+                   placeholder="75001"
+                   className="h-8 text-sm"
+                   {...register('pickupZip')}
+                 />
+                 {errors.pickupZip && (
+                   <p className="text-xs text-destructive">
+                     {errors.pickupZip.message}
+                   </p>
+                 )}
+               </div>
+             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="pickupDate">Pickup Date {!isMultiStop && '*'}</Label>
-              <Input
-                id="pickupDate"
-                type="datetime-local"
-                {...register('pickupDate')}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="pickupContact">Contact Name</Label>
-                <Input
-                  id="pickupContact"
-                  placeholder="John Doe"
-                  {...register('pickupContact')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pickupPhone">Contact Phone</Label>
-                <Input
-                  id="pickupPhone"
-                  type="tel"
-                  placeholder="555-0100"
-                  {...register('pickupPhone')}
-                />
-              </div>
-            </div>
-          </CardContent>
+             <div className="space-y-1.5">
+               <Label htmlFor="pickupDate" className="text-xs">Pickup Date {!isMultiStop && '*'}</Label>
+               <Input
+                 id="pickupDate"
+                 type="datetime-local"
+                 className="h-8 text-sm"
+                 {...register('pickupDate')}
+               />
+             </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
-        {/* Delivery Information - Show but mark as optional for multi-stop loads */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Delivery Information {isMultiStop && '(Optional for multi-stop loads)'}</CardTitle>
-            <CardDescription>
-              {isMultiStop 
-                ? 'Single delivery details (optional - stops are used for multi-stop loads)'
-                : 'Destination details'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="deliveryLocation">Location Name {!isMultiStop && '*'}</Label>
-              <Input
-                id="deliveryLocation"
-                placeholder="XYZ Distribution"
-                {...register('deliveryLocation')}
-              />
-            </div>
+         {/* Delivery Information */}
+         <Card className="shadow-sm">
+           <Collapsible open={expandedSections.has('delivery')} onOpenChange={() => toggleSection('delivery')}>
+             <CollapsibleTrigger asChild>
+               <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-2.5 border-b">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <div className="p-1 bg-orange-500/10 rounded">
+                       <MapPin className="h-3.5 w-3.5 text-orange-600" />
+                     </div>
+                     <CardTitle className="text-sm font-semibold">Delivery {isMultiStop && '(Optional)'}</CardTitle>
+                   </div>
+                   {expandedSections.has('delivery') ? (
+                     <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                   ) : (
+                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                   )}
+                 </div>
+               </CardHeader>
+             </CollapsibleTrigger>
+             <CollapsibleContent>
+               <CardContent className="space-y-2.5 pt-3 pb-3">
+             <div className="space-y-1.5">
+               <Label htmlFor="deliveryLocation" className="text-xs">Location Name {!isMultiStop && '*'}</Label>
+               <Input
+                 id="deliveryLocation"
+                 placeholder="XYZ Distribution"
+                 className="h-8 text-sm"
+                 {...register('deliveryLocation')}
+               />
+             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="deliveryAddress">Address {!isMultiStop && '*'}</Label>
-              <Input
-                id="deliveryAddress"
-                placeholder="456 Delivery Ave"
-                {...register('deliveryAddress')}
-              />
-            </div>
+             <div className="space-y-1.5">
+               <Label htmlFor="deliveryAddress" className="text-xs">Address {!isMultiStop && '*'}</Label>
+               <Input
+                 id="deliveryAddress"
+                 placeholder="456 Delivery Ave"
+                 className="h-8 text-sm"
+                 {...register('deliveryAddress')}
+               />
+             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="deliveryCity">City {!isMultiStop && '*'}</Label>
-                <Input
-                  id="deliveryCity"
-                  placeholder="Houston"
-                  {...register('deliveryCity')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deliveryState">State {!isMultiStop && '*'}</Label>
-                <Input
-                  id="deliveryState"
-                  placeholder="TX"
-                  maxLength={2}
-                  {...register('deliveryState')}
-                />
-                {errors.deliveryState && (
-                  <p className="text-sm text-destructive">
-                    {errors.deliveryState.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deliveryZip">ZIP {!isMultiStop && '*'}</Label>
-                <Input
-                  id="deliveryZip"
-                  placeholder="77001"
-                  {...register('deliveryZip')}
-                />
-                {errors.deliveryZip && (
-                  <p className="text-sm text-destructive">
-                    {errors.deliveryZip.message}
-                  </p>
-                )}
-              </div>
-            </div>
+             <div className="grid grid-cols-3 gap-2">
+               <div className="space-y-1.5">
+                 <Label htmlFor="deliveryCity" className="text-xs">City {!isMultiStop && '*'}</Label>
+                 <Input
+                   id="deliveryCity"
+                   placeholder="Houston"
+                   className="h-8 text-sm"
+                   {...register('deliveryCity')}
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="deliveryState" className="text-xs">State {!isMultiStop && '*'}</Label>
+                 <Input
+                   id="deliveryState"
+                   placeholder="TX"
+                   maxLength={2}
+                   className="h-8 text-sm"
+                   {...register('deliveryState')}
+                 />
+                 {errors.deliveryState && (
+                   <p className="text-xs text-destructive">
+                     {errors.deliveryState.message}
+                   </p>
+                 )}
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="deliveryZip" className="text-xs">ZIP {!isMultiStop && '*'}</Label>
+                 <Input
+                   id="deliveryZip"
+                   placeholder="77001"
+                   className="h-8 text-sm"
+                   {...register('deliveryZip')}
+                 />
+                 {errors.deliveryZip && (
+                   <p className="text-xs text-destructive">
+                     {errors.deliveryZip.message}
+                   </p>
+                 )}
+               </div>
+             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="deliveryDate">Delivery Date {!isMultiStop && '*'}</Label>
-              <Input
-                id="deliveryDate"
-                type="datetime-local"
-                {...register('deliveryDate')}
-              />
-            </div>
+             <div className="space-y-1.5">
+               <Label htmlFor="deliveryDate" className="text-xs">Delivery Date {!isMultiStop && '*'}</Label>
+               <Input
+                 id="deliveryDate"
+                 type="datetime-local"
+                 className="h-8 text-sm"
+                 {...register('deliveryDate')}
+               />
+             </div>
+               </CardContent>
+             </CollapsibleContent>
+           </Collapsible>
+         </Card>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="deliveryContact">Contact Name</Label>
-                <Input
-                  id="deliveryContact"
-                  placeholder="Jane Smith"
-                  {...register('deliveryContact')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="deliveryPhone">Contact Phone</Label>
-                <Input
-                  id="deliveryPhone"
-                  type="tel"
-                  placeholder="555-0200"
-                  {...register('deliveryPhone')}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+         {/* Load Details & Financial - Now beside Delivery */}
+         <Card className="shadow-sm">
+           <Collapsible open={expandedSections.has('details')} onOpenChange={() => toggleSection('details')}>
+             <CollapsibleTrigger asChild>
+               <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-2.5 border-b">
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <div className="p-1 bg-purple-500/10 rounded">
+                       <FileText className="h-3.5 w-3.5 text-purple-600" />
+                     </div>
+                     <CardTitle className="text-sm font-semibold">Load Details & Financial</CardTitle>
+                   </div>
+                   {expandedSections.has('details') ? (
+                     <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                   ) : (
+                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                   )}
+                 </div>
+               </CardHeader>
+             </CollapsibleTrigger>
+             <CollapsibleContent>
+               <CardContent className="space-y-2.5 pt-3 pb-3">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+               <div className="space-y-1.5">
+                 <Label htmlFor="weight" className="text-xs">Weight (lbs) *</Label>
+                 <Input
+                   id="weight"
+                   type="number"
+                   placeholder="45000"
+                   className="h-8 text-sm"
+                   {...register('weight', { valueAsNumber: true })}
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="pieces" className="text-xs">Pieces</Label>
+                 <Input
+                   id="pieces"
+                   type="number"
+                   placeholder="20"
+                   className="h-8 text-sm"
+                   {...register('pieces', { valueAsNumber: true })}
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="commodity" className="text-xs">Commodity</Label>
+                 <Input
+                   id="commodity"
+                   placeholder="Electronics"
+                   className="h-8 text-sm"
+                   {...register('commodity')}
+                 />
+               </div>
+             </div>
 
-        {/* Load Details & Financial */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Load Details & Financial</CardTitle>
-            <CardDescription>Specifications and pricing</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="weight">Weight (lbs) *</Label>
-                <Input
-                  id="weight"
-                  type="number"
-                  placeholder="45000"
-                  {...register('weight', { valueAsNumber: true })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pieces">Pieces</Label>
-                <Input
-                  id="pieces"
-                  type="number"
-                  placeholder="20"
-                  {...register('pieces', { valueAsNumber: true })}
-                />
-              </div>
-            </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+               <div className="space-y-1.5">
+                 <Label htmlFor="revenue" className="text-xs">Revenue ($) *</Label>
+                 <Input
+                   id="revenue"
+                   type="number"
+                   step="0.01"
+                   placeholder="2500.00"
+                   className="h-8 text-sm"
+                   {...register('revenue', { valueAsNumber: true })}
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="trailerNumber" className="text-xs">Trailer Number</Label>
+                 <Input
+                   id="trailerNumber"
+                   placeholder="TRL-001"
+                   className="h-8 text-sm"
+                   {...register('trailerNumber')}
+                 />
+               </div>
+             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="commodity">Commodity</Label>
-              <Input
-                id="commodity"
-                placeholder="Electronics"
-                {...register('commodity')}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="revenue">Revenue ($) *</Label>
-                <Input
-                  id="revenue"
-                  type="number"
-                  step="0.01"
-                  placeholder="2500.00"
-                  {...register('revenue', { valueAsNumber: true })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="driverPay">Driver Pay ($)</Label>
-                <Input
-                  id="driverPay"
-                  type="number"
-                  step="0.01"
-                  placeholder="1800.00"
-                  {...register('driverPay', { 
-                    valueAsNumber: true,
-                    setValueAs: (v) => {
-                      if (v === '' || v === null || v === undefined) return undefined;
-                      const num = parseFloat(v);
-                      return isNaN(num) ? undefined : num;
-                    }
-                  })}
-                />
-                {errors.driverPay && (
-                  <p className="text-sm text-destructive">
-                    {errors.driverPay.message}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="loadedMiles">Loaded Miles</Label>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+               <div className="space-y-1.5">
+                 <Label htmlFor="loadedMiles" className="text-xs">
+                   Loaded Miles
+                   {loadedMiles !== undefined && loadedMiles !== null && !isNaN(loadedMiles) && (
+                     <span className="text-xs text-muted-foreground ml-1 font-normal">({Math.round(loadedMiles)} mi)</span>
+                   )}
+                 </Label>
                 <Input
                   id="loadedMiles"
                   type="number"
                   step="0.1"
+                  value={loadedMiles !== undefined && loadedMiles !== null && !isNaN(loadedMiles) ? loadedMiles : ''}
                   placeholder="Auto-calculated"
+                  className="h-8 text-sm"
                   {...register('loadedMiles', { 
                     valueAsNumber: true,
                     setValueAs: (v) => {
@@ -1088,14 +1513,21 @@ export default function CreateLoadForm() {
                     }
                   })}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="emptyMiles">Empty Miles (Deadhead)</Label>
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="emptyMiles" className="text-xs">
+                   Empty Miles
+                   {emptyMiles !== undefined && emptyMiles !== null && !isNaN(emptyMiles) && (
+                     <span className="text-xs text-muted-foreground ml-1 font-normal">({Math.round(emptyMiles)} mi)</span>
+                   )}
+                 </Label>
                 <Input
                   id="emptyMiles"
                   type="number"
                   step="0.1"
+                  value={emptyMiles !== undefined && emptyMiles !== null && !isNaN(emptyMiles) ? emptyMiles : ''}
                   placeholder="Auto-calculated"
+                  className="h-8 text-sm"
                   {...register('emptyMiles', { 
                     valueAsNumber: true,
                     setValueAs: (v) => {
@@ -1105,18 +1537,22 @@ export default function CreateLoadForm() {
                     }
                   })}
                 />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="totalMiles">Total Miles</Label>
-                <div className="flex gap-2">
+               </div>
+               <div className="space-y-1.5">
+                 <Label htmlFor="totalMiles" className="text-xs">
+                   Total Miles
+                   {totalMiles !== undefined && totalMiles !== null && !isNaN(totalMiles) && (
+                     <span className="text-xs text-muted-foreground ml-1 font-normal">({Math.round(totalMiles)} mi)</span>
+                   )}
+                 </Label>
+                 <div className="flex gap-1.5">
                   <Input
                     id="totalMiles"
                     type="number"
                     step="0.1"
+                    value={totalMiles !== undefined && totalMiles !== null && !isNaN(totalMiles) ? totalMiles : ''}
                     placeholder="Auto-calculated"
+                    className="h-8 text-sm"
                     {...register('totalMiles', { 
                       valueAsNumber: true,
                       setValueAs: (v) => {
@@ -1126,86 +1562,74 @@ export default function CreateLoadForm() {
                       }
                     })}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={calculateMileage}
-                    disabled={isCalculatingMiles}
-                    title="Calculate mileage based on stops"
-                  >
-                    {isCalculatingMiles ? (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2 animate-spin" />
-                        Calculating...
-                      </>
-                    ) : (
-                      <>
-                        <MapPin className="h-4 w-4 mr-2" />
-                        Calculate
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="trailerNumber">Trailer Number</Label>
-                <Input
-                  id="trailerNumber"
-                  placeholder="TRL-001"
-                  {...register('trailerNumber')}
-                />
-              </div>
-            </div>
+                   <Button
+                     type="button"
+                     variant="outline"
+                     size="sm"
+                     onClick={calculateMileage}
+                     disabled={isCalculatingMiles}
+                     title="Calculate mileage"
+                     className="h-8 px-2"
+                   >
+                     {isCalculatingMiles ? (
+                       <Sparkles className="h-3 w-3 animate-spin" />
+                     ) : (
+                       <MapPin className="h-3 w-3" />
+                     )}
+                   </Button>
+                 </div>
+               </div>
+             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="hazmat"
-                {...register('hazmat')}
-                className="rounded border-gray-300"
-              />
-              <Label htmlFor="hazmat" className="cursor-pointer">
-                Hazmat Load
-              </Label>
-            </div>
-          </CardContent>
+             <div className="flex items-center space-x-2 pt-1">
+               <input
+                 type="checkbox"
+                 id="hazmat"
+                 {...register('hazmat')}
+                 className="rounded border-gray-300"
+               />
+               <Label htmlFor="hazmat" className="cursor-pointer text-xs">
+                 Hazmat Load
+               </Label>
+             </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
         </div>
 
-        {/* Error message at bottom before submit buttons */}
-        {error && (
-          <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md border border-destructive/20">
-            <strong>Error:</strong> {error}
-          </div>
-        )}
+         {/* Error message at bottom before submit buttons */}
+         {error && (
+           <Card className="border-destructive/50 bg-destructive/5">
+             <CardContent className="p-3">
+               <div className="flex items-start gap-2">
+                 <X className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                 <div>
+                   <p className="text-sm font-medium text-destructive">Error</p>
+                   <p className="text-xs text-destructive/90 mt-0.5">{error}</p>
+                 </div>
+               </div>
+             </CardContent>
+           </Card>
+         )}
 
-        <div className="flex justify-end gap-4">
-          <Link href="/dashboard/loads">
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          </Link>
-          <Button 
-            type="submit" 
-            disabled={isSubmitting || createMutation.isPending}
-            onClick={(e) => {
-              // Log form state before submission
-              const formData = watch();
-              console.log('Button clicked, form data:', {
-                loadNumber: formData.loadNumber,
-                customerId: formData.customerId,
-                stopsCount: formData.stops?.length || 0,
-                weight: formData.weight,
-                revenue: formData.revenue,
-                errors: Object.keys(errors),
-              });
-            }}
-          >
-            {isSubmitting || createMutation.isPending
-              ? 'Creating...'
-              : 'Create Load'}
-          </Button>
-        </div>
+         {/* Form Actions */}
+         <div className="flex justify-end gap-3 pt-2 border-t">
+           <Link href="/dashboard/loads">
+             <Button type="button" variant="outline" size="sm">
+               Cancel
+             </Button>
+           </Link>
+           <Button 
+             type="submit" 
+             size="sm"
+             disabled={isSubmitting || createMutation.isPending}
+           >
+             {isSubmitting || createMutation.isPending
+               ? 'Creating...'
+               : 'Create Load'}
+           </Button>
+         </div>
       </form>
     </div>
   );

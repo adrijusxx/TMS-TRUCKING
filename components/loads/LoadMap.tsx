@@ -29,9 +29,11 @@ interface LoadMapProps {
     pickupCity?: string | null;
     pickupState?: string | null;
     pickupAddress?: string | null;
+    pickupZip?: string | null;
     deliveryCity?: string | null;
     deliveryState?: string | null;
     deliveryAddress?: string | null;
+    deliveryZip?: string | null;
     // Multi-stop load
     stops?: Array<{
       stopType: 'PICKUP' | 'DELIVERY';
@@ -39,9 +41,36 @@ interface LoadMapProps {
       city: string;
       state: string;
       address: string;
+      zip?: string | null;
       company?: string | null;
     }>;
   };
+  compact?: boolean;
+}
+
+// Helper function to build a complete address string
+function buildAddressString(
+  address?: string | null,
+  city?: string | null,
+  state?: string | null,
+  zip?: string | null
+): string {
+  const parts: string[] = [];
+  if (address) parts.push(address);
+  if (city) parts.push(city);
+  if (state) parts.push(state);
+  if (zip) parts.push(zip);
+  
+  if (parts.length > 0) {
+    return parts.join(', ');
+  }
+  
+  // Fallback to city, state if no address
+  if (city && state) {
+    return `${city}, ${state}`;
+  }
+  
+  return '';
 }
 
 interface DriverLocation {
@@ -67,7 +96,7 @@ async function fetchDriverLocation(loadId: string): Promise<DriverLocation | nul
   return data.data;
 }
 
-export default function LoadMap({ load }: LoadMapProps) {
+export default function LoadMap({ load, compact = false }: LoadMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
   const [directionsService, setDirectionsService] = useState<any>(null);
@@ -210,7 +239,7 @@ export default function LoadMap({ load }: LoadMapProps) {
       return;
     }
 
-    const waypoints: Array<{ city: string; state: string; address?: string }> = [];
+    const waypoints: Array<{ city: string; state: string; address?: string; zip?: string | null }> = [];
 
     if (load.stops && load.stops.length > 0) {
       // Multi-stop load
@@ -220,13 +249,24 @@ export default function LoadMap({ load }: LoadMapProps) {
           city: stop.city,
           state: stop.state,
           address: stop.address,
+          zip: stop.zip || null,
         }))
       );
     } else if (load.pickupCity && load.pickupState && load.deliveryCity && load.deliveryState) {
       // Single-stop load
       waypoints.push(
-        { city: load.pickupCity, state: load.pickupState, address: load.pickupAddress || undefined },
-        { city: load.deliveryCity, state: load.deliveryState, address: load.deliveryAddress || undefined }
+        { 
+          city: load.pickupCity, 
+          state: load.pickupState, 
+          address: load.pickupAddress || undefined,
+          zip: load.pickupZip || null
+        },
+        { 
+          city: load.deliveryCity, 
+          state: load.deliveryState, 
+          address: load.deliveryAddress || undefined,
+          zip: load.deliveryZip || null
+        }
       );
     } else {
       return; // No route to display
@@ -235,17 +275,24 @@ export default function LoadMap({ load }: LoadMapProps) {
     if (waypoints.length < 2) return;
 
     const google = window.google;
-    const origin = waypoints[0].address
-      ? waypoints[0].address
-      : `${waypoints[0].city}, ${waypoints[0].state}`;
-    const destination = waypoints[waypoints.length - 1].address
-      ? waypoints[waypoints.length - 1].address
-      : `${waypoints[waypoints.length - 1].city}, ${waypoints[waypoints.length - 1].state}`;
+    // Build complete address strings with all components
+    const origin = buildAddressString(
+      waypoints[0].address,
+      waypoints[0].city,
+      waypoints[0].state,
+      waypoints[0].zip
+    );
+    const destination = buildAddressString(
+      waypoints[waypoints.length - 1].address,
+      waypoints[waypoints.length - 1].city,
+      waypoints[waypoints.length - 1].state,
+      waypoints[waypoints.length - 1].zip
+    );
 
     const waypointParams =
       waypoints.length > 2
         ? waypoints.slice(1, -1).map((wp) => ({
-            location: wp.address || `${wp.city}, ${wp.state}`,
+            location: buildAddressString(wp.address, wp.city, wp.state, wp.zip),
             stopover: true,
           }))
         : [];
@@ -378,7 +425,7 @@ export default function LoadMap({ load }: LoadMapProps) {
     if (!map || !window.google) return;
     
     const google = window.google;
-    const waypoints: Array<{ city: string; state: string; address?: string }> = [];
+    const waypoints: Array<{ city: string; state: string; address?: string; zip?: string | null }> = [];
 
     if (load.stops && load.stops.length > 0) {
       const sortedStops = [...load.stops].sort((a, b) => a.sequence - b.sequence);
@@ -387,12 +434,23 @@ export default function LoadMap({ load }: LoadMapProps) {
           city: stop.city,
           state: stop.state,
           address: stop.address,
+          zip: stop.zip || null,
         }))
       );
     } else if (load.pickupCity && load.pickupState && load.deliveryCity && load.deliveryState) {
       waypoints.push(
-        { city: load.pickupCity, state: load.pickupState, address: load.pickupAddress || undefined },
-        { city: load.deliveryCity, state: load.deliveryState, address: load.deliveryAddress || undefined }
+        { 
+          city: load.pickupCity, 
+          state: load.pickupState, 
+          address: load.pickupAddress || undefined,
+          zip: load.pickupZip || null
+        },
+        { 
+          city: load.deliveryCity, 
+          state: load.deliveryState, 
+          address: load.deliveryAddress || undefined,
+          zip: load.deliveryZip || null
+        }
       );
     } else {
       return;
@@ -412,7 +470,13 @@ export default function LoadMap({ load }: LoadMapProps) {
     const positions: Array<{ lat: number; lng: number }> = [];
 
     waypoints.forEach((waypoint, index) => {
-      const address = waypoint.address || `${waypoint.city}, ${waypoint.state}`;
+      // Build complete address string with all components
+      const address = buildAddressString(
+        waypoint.address,
+        waypoint.city,
+        waypoint.state,
+        waypoint.zip
+      );
       geocoder.geocode({ address }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
         if (status === 'OK' && results && results[0]) {
           const location = results[0].geometry.location;
@@ -545,120 +609,79 @@ export default function LoadMap({ load }: LoadMapProps) {
     }
   }, [map, driverLocation, load.driver, load.truck]);
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full bg-muted rounded-lg">
+        <div className="text-center">
+          <p className="text-destructive mb-2">{error}</p>
+          <p className="text-sm text-muted-foreground">
+            Please ensure Google Maps API key is configured
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <Card className="md:col-span-2 lg:col-span-3">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Route Map
-            </CardTitle>
-            <CardDescription>
-              {load.stops && load.stops.length > 0
-                ? `Multi-stop route with ${load.stops.length} stops`
-                : 'Pickup to delivery route'}
-            </CardDescription>
+    <div className="relative w-full h-full">
+      <div 
+        ref={mapRef} 
+        className="w-full h-full rounded-lg border" 
+        style={{ 
+          width: '100%',
+          position: 'relative',
+          overflow: 'hidden'
+        }} 
+      />
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-lg">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )}
+      {error && (
+        <div className="absolute top-4 left-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 shadow-lg max-w-md z-10">
+          <p className="text-sm text-yellow-800 font-medium mb-1">Map Configuration Notice</p>
+          <p className="text-xs text-yellow-700">
+            To enable full route visualization, please enable the <strong>Directions API</strong> in your Google Cloud Console.
+            The map will still display markers for pickup and delivery locations.
+          </p>
+        </div>
+      )}
+      {load.driver && load.truck && driverLocation && (
+        <div className="absolute top-4 right-4 bg-background border rounded-lg p-3 shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Truck className="h-4 w-4 text-primary" />
+            <span className="font-medium text-sm">Driver Location</span>
           </div>
-          <div className="flex items-center gap-2">
-            {routeInfo && (
-              <div className="flex items-center gap-3 text-sm">
-                <Badge variant="outline">
-                  <Navigation className="h-3 w-3 mr-1" />
-                  {routeInfo.distance}
-                </Badge>
-                <Badge variant="outline">{routeInfo.duration}</Badge>
-              </div>
+          <div className="text-xs space-y-1">
+            <p>
+              <strong>Truck:</strong> {load.truck.truckNumber}
+            </p>
+            <p>
+              <strong>Driver:</strong> {load.driver.user.firstName} {load.driver.user.lastName}
+            </p>
+            {driverLocation.address && (
+              <p className="text-muted-foreground">{driverLocation.address}</p>
             )}
-            {load.driver && load.truck && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetchLocation()}
-                disabled={!driverLocation}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh Location
-              </Button>
+            {driverLocation.speed !== undefined && (
+              <p>
+                <strong>Speed:</strong> {driverLocation.speed.toFixed(0)} mph
+              </p>
             )}
+            <p className="text-muted-foreground">
+              Updated: {new Date(driverLocation.lastUpdated).toLocaleTimeString()}
+            </p>
           </div>
         </div>
-      </CardHeader>
-      <CardContent>
-        {error ? (
-          <div className="flex items-center justify-center h-96 bg-muted rounded-lg">
-            <div className="text-center">
-              <p className="text-destructive mb-2">{error}</p>
-              <p className="text-sm text-muted-foreground">
-                Please ensure Google Maps API key is configured
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="relative w-full">
-            <div 
-              ref={mapRef} 
-              className="w-full h-[600px] min-h-[600px] rounded-lg border" 
-              style={{ 
-                minHeight: '600px',
-                height: '600px',
-                width: '100%',
-                position: 'relative',
-                overflow: 'hidden'
-              }} 
-            />
-            {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-lg">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            )}
-            {error && (
-              <div className="absolute top-4 left-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 shadow-lg max-w-md z-10">
-                <p className="text-sm text-yellow-800 font-medium mb-1">Map Configuration Notice</p>
-                <p className="text-xs text-yellow-700">
-                  To enable full route visualization, please enable the <strong>Directions API</strong> in your Google Cloud Console.
-                  The map will still display markers for pickup and delivery locations.
-                </p>
-              </div>
-            )}
-            {load.driver && load.truck && driverLocation && (
-              <div className="absolute top-4 right-4 bg-background border rounded-lg p-3 shadow-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Truck className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-sm">Driver Location</span>
-                </div>
-                <div className="text-xs space-y-1">
-                  <p>
-                    <strong>Truck:</strong> {load.truck.truckNumber}
-                  </p>
-                  <p>
-                    <strong>Driver:</strong> {load.driver.user.firstName} {load.driver.user.lastName}
-                  </p>
-                  {driverLocation.address && (
-                    <p className="text-muted-foreground">{driverLocation.address}</p>
-                  )}
-                  {driverLocation.speed !== undefined && (
-                    <p>
-                      <strong>Speed:</strong> {driverLocation.speed.toFixed(0)} mph
-                    </p>
-                  )}
-                  <p className="text-muted-foreground">
-                    Updated: {new Date(driverLocation.lastUpdated).toLocaleTimeString()}
-                  </p>
-                </div>
-              </div>
-            )}
-            {load.driver && load.truck && !driverLocation && (
-              <div className="absolute top-4 right-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 shadow-lg">
-                <p className="text-sm text-yellow-800">
-                  Driver location not available from Samsara
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+      {load.driver && load.truck && !driverLocation && (
+        <div className="absolute top-4 right-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 shadow-lg">
+          <p className="text-sm text-yellow-800">
+            Driver location not available from Samsara
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 

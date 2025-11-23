@@ -2,6 +2,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import EditLoadForm from '@/components/loads/EditLoadForm';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default async function EditLoadPage({
   params,
@@ -49,5 +50,19 @@ export default async function EditLoadPage({
     notFound();
   }
 
-  return <EditLoadForm loadId={loadId} initialData={load} />;
+  return (
+    <>
+      <Breadcrumb items={[
+        { label: 'Load Management', href: '/dashboard/loads' },
+        { label: `Load #${load.loadNumber}`, href: `/dashboard/loads/${loadId}` },
+        { label: 'Edit' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Edit Load</h1>
+        </div>
+        <EditLoadForm loadId={loadId} initialData={load} />
+      </div>
+    </>
+  );
 }

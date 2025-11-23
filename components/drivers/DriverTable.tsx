@@ -31,7 +31,7 @@ interface Driver {
   email: string;
   phone: string | null;
   driverType: DriverType;
-  mcNumber: string | null;
+  mcNumber: { id: string; number: string } | null;
   status: DriverStatus;
   employeeStatus: EmployeeStatus;
   assignmentStatus: AssignmentStatus;
@@ -260,7 +260,7 @@ export default function DriverTable({
               {cols.name && <TableCell className="font-medium">{driver.firstName}</TableCell>}
               {cols.name && <TableCell className="font-medium">{driver.lastName}</TableCell>}
               {cols.driverType && <TableCell>{formatDriverType(driver.driverType)}</TableCell>}
-              {cols.mcNumber && <TableCell>{driver.mcNumber || '-'}</TableCell>}
+              {cols.mcNumber && <TableCell>{driver.mcNumber?.number || '-'}</TableCell>}
               {cols.phone && <TableCell>{driver.phone || '-'}</TableCell>}
               {cols.email && (
                 <TableCell className="max-w-[200px] truncate">

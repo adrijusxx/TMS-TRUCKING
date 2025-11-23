@@ -91,12 +91,6 @@ export default function SafetyDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Safety Dashboard</h1>
-        <p className="text-muted-foreground">Real-time safety metrics and compliance status</p>
-      </div>
-
       {/* Active Alerts */}
       {alerts.length > 0 && (
         <Card className="border-destructive">

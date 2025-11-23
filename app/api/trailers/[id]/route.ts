@@ -12,7 +12,7 @@ const updateTrailerSchema = z.object({
   year: z.number().int().min(1900).max(2100).optional().nullable(),
   licensePlate: z.string().optional().nullable(),
   state: z.string().optional().nullable(),
-  mcNumber: z.string().optional().nullable(),
+  mcNumberId: z.string().min(1, 'MC number is required').optional(),
   type: z.string().optional().nullable(),
   ownership: z.string().optional().nullable(),
   ownerName: z.string().optional().nullable(),

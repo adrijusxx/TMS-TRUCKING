@@ -7,7 +7,12 @@ export default function InvoicesPage() {
   return (
     <>
       <Breadcrumb items={[{ label: 'Invoices', href: '/dashboard/invoices' }]} />
-      <InvoiceList />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Invoices</h1>
+        </div>
+        <InvoiceList />
+      </div>
     </>
   );
 }

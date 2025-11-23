@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,12 +20,14 @@ export async function GET(request: NextRequest) {
     const targetDate = dateParam ? new Date(dateParam) : new Date();
 
     // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Load uses mcNumber (string), Driver and Truck use mcNumberId (relation)
+    const loadFilter = await buildMcNumberWhereClause(session, request);
+    const driverTruckFilter = await buildMcNumberIdWhereClause(session, request);
 
     // Get unassigned loads
     const unassignedLoads = await prisma.load.findMany({
       where: {
-        ...baseFilter,
+        ...loadFilter,
         status: 'PENDING',
         deletedAt: null,
         pickupDate: {
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     // Get assigned loads
     const assignedLoads = await prisma.load.findMany({
       where: {
-        ...baseFilter,
+        ...loadFilter,
         status: {
           in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
         },
@@ -90,7 +92,7 @@ export async function GET(request: NextRequest) {
     // Get available drivers
     const availableDrivers = await prisma.driver.findMany({
       where: {
-        ...baseFilter,
+        ...driverTruckFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,
@@ -116,7 +118,7 @@ export async function GET(request: NextRequest) {
     // Get available trucks
     const availableTrucks = await prisma.truck.findMany({
       where: {
-        ...baseFilter,
+        ...driverTruckFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,

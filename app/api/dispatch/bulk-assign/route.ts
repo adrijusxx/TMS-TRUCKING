@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { notifyLoadAssigned } from '@/lib/notifications/triggers';
+import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 
 const bulkAssignSchema = z.object({
   loadIds: z.array(z.string().cuid()).min(1, 'At least one load is required'),
@@ -48,12 +49,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify driver and truck if provided
+    let driver = null;
     if (validated.driverId) {
-      const driver = await prisma.driver.findFirst({
+      driver = await prisma.driver.findFirst({
         where: {
           id: validated.driverId,
           companyId: session.user.companyId,
           deletedAt: null,
+        },
+        select: {
+          id: true,
+          driverNumber: true,
+          payType: true,
+          payRate: true,
         },
       });
 
@@ -89,11 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update loads
-    const updateData: any = {};
-    if (validated.driverId) updateData.driverId = validated.driverId;
-    if (validated.truckId) updateData.truckId = validated.truckId;
-
-    if (Object.keys(updateData).length === 0) {
+    if (!validated.driverId && !validated.truckId) {
       return NextResponse.json(
         {
           success: false,
@@ -106,12 +110,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updated = await prisma.load.updateMany({
-      where: {
-        id: { in: validated.loadIds },
-      },
-      data: updateData,
+    // Update each load individually to calculate driver pay
+    const updatePromises = loads.map(async (load) => {
+      const updateData: any = {};
+      if (validated.driverId) updateData.driverId = validated.driverId;
+      if (validated.truckId) updateData.truckId = validated.truckId;
+
+      // Calculate driver pay if driver is being assigned and driverPay is not set
+      if (validated.driverId && driver && (!load.driverPay || load.driverPay === 0)) {
+        const calculatedPay = calculateDriverPay(
+          {
+            payType: driver.payType,
+            payRate: driver.payRate,
+          },
+          {
+            totalMiles: load.totalMiles,
+            loadedMiles: load.loadedMiles,
+            emptyMiles: load.emptyMiles,
+            revenue: load.revenue,
+          }
+        );
+        updateData.driverPay = calculatedPay;
+      }
+
+      return prisma.load.update({
+        where: { id: load.id },
+        data: updateData,
+      });
     });
+
+    await Promise.all(updatePromises);
 
     // Create status history entries
     const statusHistoryEntries = validated.loadIds.map((loadId) => ({
@@ -145,9 +173,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully assigned ${updated.count} load(s)`,
+      message: `Successfully assigned ${loads.length} load(s)`,
       data: {
-        updatedCount: updated.count,
+        updatedCount: loads.length,
         loadIds: validated.loadIds,
       },
     });

@@ -85,7 +85,7 @@ export default function DriverMainTab({
       notes: driver.notes || '',
       teamDriver: driver.teamDriver || false,
       otherId: driver.otherId || '',
-      mcNumber: driver.mcNumber || '',
+      mcNumber: typeof driver.mcNumber === 'object' ? driver.mcNumber?.id || '' : driver.mcNumber || '',
       safetyManager: driver.safetyManagerId || '',
       driverTags: driver.tags || [],
       // Emergency contact

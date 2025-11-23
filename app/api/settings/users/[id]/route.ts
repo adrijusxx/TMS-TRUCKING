@@ -8,10 +8,10 @@ const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   phone: z.string().optional(),
-  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER']).optional(),
+  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']).optional(),
   password: z.string().min(8).optional(),
   isActive: z.boolean().optional(),
-  mcNumberId: z.string().nullable().optional(),
+  mcNumberId: z.string().min(1, 'MC number is required').optional(),
 });
 
 export async function PATCH(
@@ -77,44 +77,65 @@ export async function PATCH(
       delete validated.mcNumberId;
     }
 
+    // Validate MC number if being updated (for non-CUSTOMER roles)
+    if (validated.mcNumberId !== undefined && existingUser.role !== 'CUSTOMER') {
+      if (validated.mcNumberId) {
+        const mcNumber = await prisma.mcNumber.findFirst({
+          where: {
+            id: validated.mcNumberId,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+
+        if (!mcNumber) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'INVALID_MC_NUMBER',
+                message: 'MC number not found or does not belong to your company',
+              },
+            },
+            { status: 400 }
+          );
+        }
+      } else if (!validated.mcNumberId && (existingUser.role as string) !== 'CUSTOMER') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'MC number is required for this role',
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const updateData: any = { ...validated };
 
-    // Handle mcNumberId - if null, set to null; if undefined, don't change
-    if (validated.mcNumberId === null) {
-      updateData.mcNumberId = null;
-    } else if (validated.mcNumberId === undefined) {
+    // Handle mcNumberId - if undefined or null, don't change (mcNumberId is required)
+    if (validated.mcNumberId === undefined || validated.mcNumberId === null) {
       delete updateData.mcNumberId;
     }
 
-    // If user is a driver and mcNumberId is being set, also update driver.mcNumber
+    // If user is a driver and mcNumberId is being set, also update driver.mcNumberId
     if (validated.mcNumberId !== undefined && existingUser.role === 'DRIVER') {
       // Get the user's driver record
       const driver = await prisma.driver.findFirst({
         where: { userId: existingUser.id },
       });
       
-      if (driver) {
-        if (validated.mcNumberId) {
-          // Get the MC number value
-          const mcNumber = await prisma.mcNumber.findUnique({
-            where: { id: validated.mcNumberId },
-            select: { number: true },
-          });
-          
-          if (mcNumber) {
-            // Update driver's mcNumber
-            await prisma.driver.update({
-              where: { id: driver.id },
-              data: { mcNumber: mcNumber.number },
-            });
-          }
-        } else {
-          // Clear driver's mcNumber if mcNumberId is null
-          await prisma.driver.update({
-            where: { id: driver.id },
-            data: { mcNumber: null },
-          });
-        }
+      if (driver && validated.mcNumberId) {
+        // Update driver's mcNumberId to match user's mcNumberId
+        await prisma.driver.update({
+          where: { id: driver.id },
+          data: { 
+            mcNumberId: validated.mcNumberId,
+          },
+        });
       }
     }
 

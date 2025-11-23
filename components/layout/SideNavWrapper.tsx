@@ -6,6 +6,7 @@ import AccountingNav from '@/components/accounting/AccountingNav';
 import SafetyNav from '@/components/safety/SafetyNav';
 import HRManagementNav from '@/components/hr/HRManagementNav';
 import SettingsNav from '@/components/settings/SettingsNav';
+import FleetManagementSidebar from '@/components/fleet/FleetManagementSidebar';
 
 export default function SideNavWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,10 +37,9 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       return <AccountingNav />;
     }
 
-    // Safety pages - Don't show SafetyNav here, SafetyLayout has its own sidebar
-    // SafetyLayout provides comprehensive navigation, so we skip SideNavWrapper for safety pages
+    // Safety pages - handled by SafetyLayout with its own comprehensive sidebar
     if (pathname.startsWith('/dashboard/safety')) {
-      return null; // SafetyLayout handles its own navigation
+      return null;
     }
     
     // Documents page (if not in safety section)
@@ -60,8 +60,13 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       return <SettingsNav />;
     }
 
-    // Fleet Department pages - handled by individual layouts with FleetManagementSidebar
-    // No need for SideNavWrapper here as each layout has its own sidebar
+    // Fleet Department pages
+    if (pathname.startsWith('/dashboard/fleet') ||
+        pathname.startsWith('/dashboard/trucks') ||
+        pathname.startsWith('/dashboard/trailers') ||
+        pathname.startsWith('/dashboard/fleet-board')) {
+      return <FleetManagementSidebar />;
+    }
 
     // HR Management pages
     if (pathname.startsWith('/dashboard/hr') ||

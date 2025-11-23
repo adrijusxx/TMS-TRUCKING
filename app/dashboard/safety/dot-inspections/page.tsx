@@ -1,14 +1,15 @@
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function DOTInspectionsPage() {
   return (
-    <DashboardLayout hideMainNav={true}>
-      <div className="p-6">
-        <div className="mb-6">
+    <>
+      <Breadcrumb items={[
+        { label: 'Safety Department', href: '/dashboard/safety' },
+        { label: 'DOT Inspections' }
+      ]} />
+      <div className="space-y-6">
+        <div>
           <h1 className="text-3xl font-bold">DOT Inspections</h1>
-          <p className="text-muted-foreground mt-2">
-            Track and manage DOT inspection records
-          </p>
         </div>
         <div className="bg-card rounded-lg border p-6">
           <p className="text-muted-foreground">
@@ -22,7 +23,9 @@ export default function DOTInspectionsPage() {
           </ul>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
+
+
 

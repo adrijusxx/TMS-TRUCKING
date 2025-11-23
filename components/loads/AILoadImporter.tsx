@@ -10,6 +10,7 @@ import { Upload, FileText, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateLoadInput } from '@/lib/validations/load';
 import { apiUrl } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
 
 interface AILoadImporterProps {
   onDataExtracted: (data: Partial<CreateLoadInput>, pdfFile?: File) => void;
@@ -20,6 +21,7 @@ interface ExtractedData {
   [key: string]: any;
   customerId?: string;
   customerMatched?: boolean;
+  customerCreated?: boolean;
   extractedFields?: number;
 }
 
@@ -44,32 +46,74 @@ export default function AILoadImporter({ onDataExtracted, onClose }: AILoadImpor
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [importStatus, setImportStatus] = useState<string>('');
+  const [progress, setProgress] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const importMutation = useMutation({
     mutationFn: async (file: File) => {
-      setImportStatus('Extracting text from PDF...');
-      const result = await importPDF(file);
-      setImportStatus('Processing with AI...');
-      // Small delay to show status update
-      await new Promise(resolve => setTimeout(resolve, 100));
-      return result;
+      setProgress(0);
+      setImportStatus('Uploading PDF...');
+      
+      // Simulate progress for better UX
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 90) return prev; // Don't go to 100% until done
+          return prev + Math.random() * 15; // Increment by 0-15%
+        });
+      }, 300);
+      
+      try {
+        setImportStatus('Processing PDF with AI...');
+        setProgress(30);
+        
+        // Small delay to show progress
+        await new Promise(resolve => setTimeout(resolve, 200));
+        setProgress(50);
+        setImportStatus('Extracting data from PDF...');
+        
+        await new Promise(resolve => setTimeout(resolve, 200));
+        setProgress(70);
+        setImportStatus('Analyzing load details...');
+        
+        const result = await importPDF(file);
+        
+        clearInterval(progressInterval);
+        setProgress(100);
+        setImportStatus('Complete!');
+        
+        return result;
+      } catch (error) {
+        clearInterval(progressInterval);
+        setProgress(0);
+        throw error;
+      }
     },
     onSuccess: (response) => {
-      setImportStatus('Complete!');
-      setExtractedData(response.data);
-      const customerMessage = response.meta.customerMatched 
-        ? ' and matched customer' 
-        : response.data.customerId 
+      // Merge meta into data for easier access
+      const dataWithMeta = {
+        ...response.data,
+        customerMatched: response.meta?.customerMatched,
+        customerCreated: response.meta?.customerCreated,
+        extractedFields: response.meta?.extractedFields,
+      };
+      setExtractedData(dataWithMeta);
+      
+      const customerMessage = response.meta?.customerMatched 
+        ? ' and matched existing customer' 
+        : response.meta?.customerCreated
           ? ' and created new customer' 
-          : ' (customer not found)';
+          : ' (customer not matched)';
       toast.success(
-        `Successfully extracted ${response.meta.extractedFields} fields from PDF${customerMessage}`
+        `Successfully extracted ${response.meta?.extractedFields || 0} fields from PDF${customerMessage}`
       );
-      setTimeout(() => setImportStatus(''), 2000);
+      setTimeout(() => {
+        setImportStatus('');
+        setProgress(0);
+      }, 2000);
     },
     onError: (error: Error) => {
       setImportStatus('');
+      setProgress(0);
       toast.error(error.message || 'Failed to import PDF');
     },
   });
@@ -102,7 +146,7 @@ export default function AILoadImporter({ onDataExtracted, onClose }: AILoadImpor
     if (!extractedData) return;
 
     // Remove metadata fields before passing to form
-    const { customerMatched, extractedFields, ...loadDataRaw } = extractedData;
+    const { customerMatched, customerCreated, extractedFields, ...loadDataRaw } = extractedData;
     
     // Pass the selected PDF file to be attached after load creation
 
@@ -123,25 +167,67 @@ export default function AILoadImporter({ onDataExtracted, onClose }: AILoadImpor
       deliveryDate: extractedData.deliveryDate || undefined,
       // Multi-stop support - stops array is already in the correct format
       stops: extractedData.stops && Array.isArray(extractedData.stops) 
-        ? extractedData.stops.map((stop: any) => ({
-            stopType: stop.stopType as 'PICKUP' | 'DELIVERY',
-            sequence: Number(stop.sequence) || 1,
-            company: stop.company,
-            address: stop.address,
-            city: stop.city,
-            state: stop.state?.toUpperCase().slice(0, 2),
-            zip: stop.zip,
-            phone: stop.phone,
-            earliestArrival: stop.earliestArrival,
-            latestArrival: stop.latestArrival,
-            contactName: stop.contactName,
-            contactPhone: stop.contactPhone,
-            items: stop.items,
-            totalPieces: stop.totalPieces ? Number(stop.totalPieces) : undefined,
-            totalWeight: stop.totalWeight ? Number(stop.totalWeight) : undefined,
-            notes: stop.notes,
-            specialInstructions: stop.specialInstructions,
-          }))
+        ? extractedData.stops.map((stop: any) => {
+            // Process items - ensure they're objects, not strings
+            let processedItems: any[] | undefined = undefined;
+            if (stop.items) {
+              if (Array.isArray(stop.items)) {
+                processedItems = stop.items.map((item: any) => {
+                  // If item is a string, convert to object
+                  if (typeof item === 'string') {
+                    return {
+                      description: item,
+                      item: item,
+                    };
+                  }
+                  // If item is already an object, ensure it has required structure
+                  return {
+                    orderId: item.orderId,
+                    item: item.item || item.product || item.description,
+                    product: item.product,
+                    pieces: item.pieces ? Number(item.pieces) : undefined,
+                    weight: item.weight ? Number(item.weight) : undefined,
+                    description: item.description || item.item || item.product,
+                  };
+                });
+              } else if (typeof stop.items === 'string') {
+                // If items is a string, try to parse it
+                try {
+                  const parsed = JSON.parse(stop.items);
+                  if (Array.isArray(parsed)) {
+                    processedItems = parsed.map((item: any) => 
+                      typeof item === 'string' 
+                        ? { description: item, item: item }
+                        : item
+                    );
+                  }
+                } catch {
+                  // If parsing fails, treat as single item description
+                  processedItems = [{ description: stop.items, item: stop.items }];
+                }
+              }
+            }
+
+            return {
+              stopType: stop.stopType as 'PICKUP' | 'DELIVERY',
+              sequence: Number(stop.sequence) || 1,
+              company: stop.company,
+              address: stop.address,
+              city: stop.city,
+              state: stop.state?.toUpperCase().slice(0, 2),
+              zip: stop.zip,
+              phone: stop.phone,
+              earliestArrival: stop.earliestArrival,
+              latestArrival: stop.latestArrival,
+              contactName: stop.contactName,
+              contactPhone: stop.contactPhone,
+              items: processedItems,
+              totalPieces: stop.totalPieces ? Number(stop.totalPieces) : undefined,
+              totalWeight: stop.totalWeight ? Number(stop.totalWeight) : undefined,
+              notes: stop.notes,
+              specialInstructions: stop.specialInstructions,
+            };
+          })
         : undefined,
     };
 
@@ -205,6 +291,17 @@ export default function AILoadImporter({ onDataExtracted, onClose }: AILoadImpor
           )}
         </div>
 
+        {/* Progress Bar */}
+        {importMutation.isPending && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{importStatus || 'Processing...'}</span>
+              <span className="text-muted-foreground">{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+        )}
+
         {importMutation.isError && (
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
             <div className="flex items-center gap-2 text-destructive">
@@ -228,7 +325,11 @@ export default function AILoadImporter({ onDataExtracted, onClose }: AILoadImpor
               </div>
               <p className="text-sm text-green-600 mt-1">
                 Extracted {extractedData.extractedFields || 0} fields
-                {extractedData.customerMatched ? ' • Customer matched' : ' • Customer not matched'}
+                {extractedData.customerMatched 
+                  ? ' • Customer matched' 
+                  : extractedData.customerCreated 
+                    ? ' • New customer created' 
+                    : ' • Customer not matched'}
               </p>
             </div>
 

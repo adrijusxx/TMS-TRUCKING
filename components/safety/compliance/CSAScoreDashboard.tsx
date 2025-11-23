@@ -101,11 +101,6 @@ export default function CSAScoreDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">CSA Score Dashboard</h1>
-        <p className="text-muted-foreground">Compliance, Safety, Accountability (CSA) scores</p>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">

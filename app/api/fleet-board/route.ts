@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { McStateManager } from '@/lib/managers/McStateManager';
 
 /**
  * GET /api/fleet-board
@@ -17,13 +18,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build base filter with MC number ID for trucks (Truck uses mcNumberId relation)
+    const truckFilter = await buildMcNumberIdWhereClause(session, request);
+    
+    // Get MC state to get MC number string for Load filtering (Load uses mcNumber string)
+    const mcState = await McStateManager.getMcState(session, request);
+    const loadMcFilter = mcState.viewMode === 'all' 
+      ? {} 
+      : mcState.mcNumber 
+        ? { mcNumber: mcState.mcNumber } 
+        : {};
 
     // Get all trucks with their current loads
     const trucks = await prisma.truck.findMany({
       where: {
-        ...baseFilter,
+        ...truckFilter,
         isActive: true,
         deletedAt: null,
       },
@@ -42,7 +51,7 @@ export async function GET(request: NextRequest) {
         },
         loads: {
           where: {
-            ...(baseFilter.mcNumber ? { mcNumber: baseFilter.mcNumber } : {}),
+            ...loadMcFilter,
             status: {
               in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
             },

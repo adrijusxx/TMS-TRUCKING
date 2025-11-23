@@ -2,11 +2,12 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import CustomerDetail from '@/components/customers/CustomerDetail';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default async function CustomerDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await auth();
 
@@ -14,9 +15,12 @@ export default async function CustomerDetailPage({
     redirect('/login');
   }
 
+  // Await params as it's now a Promise in Next.js 15+
+  const resolvedParams = await params;
+
   const customer = await prisma.customer.findFirst({
     where: {
-      id: params.id,
+      id: resolvedParams.id,
       companyId: session.user.companyId,
       deletedAt: null,
     },
@@ -48,6 +52,19 @@ export default async function CustomerDetailPage({
     notFound();
   }
 
-  return <CustomerDetail customer={customer} />;
+  return (
+    <>
+      <Breadcrumb items={[
+        { label: 'Customers', href: '/dashboard/customers' },
+        { label: customer.name }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Customer Details</h1>
+        </div>
+        <CustomerDetail customer={customer} />
+      </div>
+    </>
+  );
 }
 

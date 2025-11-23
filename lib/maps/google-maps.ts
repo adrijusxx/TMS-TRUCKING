@@ -9,6 +9,11 @@
  * Note: Requires GOOGLE_MAPS_API_KEY environment variable
  */
 
+import {
+  GeocodingCacheManager,
+  ApiCacheType,
+} from '@/lib/managers/GeocodingCacheManager';
+
 interface DistanceMatrixRequest {
   origins: Array<{ city: string; state: string } | { lat: number; lng: number }>;
   destinations: Array<{ city: string; state: string } | { lat: number; lng: number }>;
@@ -48,6 +53,27 @@ export async function calculateDistanceMatrix(
     // Fallback to simplified calculation
     console.warn('Google Maps API key not configured, using simplified distance calculation');
     return calculateSimplifiedDistanceMatrix(request);
+  }
+
+  // Check cache first
+  const cacheKey = GeocodingCacheManager.normalizeDistanceKey(
+    request.origins,
+    request.destinations,
+    {
+      mode: request.mode,
+      units: request.units,
+      avoid: request.avoid,
+      departureTime: request.departureTime,
+      trafficModel: request.trafficModel,
+    }
+  );
+  const cached = await GeocodingCacheManager.get<DistanceMatrixResponse[][]>(
+    cacheKey,
+    ApiCacheType.DISTANCE_MATRIX
+  );
+
+  if (cached) {
+    return cached;
   }
 
   try {
@@ -91,7 +117,7 @@ export async function calculateDistanceMatrix(
     }
 
     // Transform response to our format
-    return data.rows.map((row: any) =>
+    const result = data.rows.map((row: any) =>
       row.elements.map((element: any) => ({
         distance: element.distance.value, // meters
         duration: element.duration.value, // seconds
@@ -99,6 +125,15 @@ export async function calculateDistanceMatrix(
         status: element.status,
       }))
     );
+
+    // Cache successful response
+    await GeocodingCacheManager.set(
+      cacheKey,
+      ApiCacheType.DISTANCE_MATRIX,
+      result
+    );
+
+    return result;
   } catch (error) {
     console.error('Google Maps API error:', error);
     // Fallback to simplified calculation
@@ -134,6 +169,17 @@ export async function geocodeAddress(
     return null;
   }
 
+  // Check cache first
+  const cacheKey = GeocodingCacheManager.normalizeGeocodeKey(address);
+  const cached = await GeocodingCacheManager.get<GeocodeResponse>(
+    cacheKey,
+    ApiCacheType.GEOCODE
+  );
+
+  if (cached) {
+    return cached;
+  }
+
   try {
     const params = new URLSearchParams({
       address,
@@ -155,11 +201,20 @@ export async function geocodeAddress(
     }
 
     const result = data.results[0];
-    return {
+    const geocodeResponse: GeocodeResponse = {
       lat: result.geometry.location.lat,
       lng: result.geometry.location.lng,
       formattedAddress: result.formatted_address,
     };
+
+    // Cache successful response
+    await GeocodingCacheManager.set(
+      cacheKey,
+      ApiCacheType.GEOCODE,
+      geocodeResponse
+    );
+
+    return geocodeResponse;
   } catch (error) {
     console.error('Geocoding error:', error);
     return null;
@@ -175,6 +230,23 @@ export async function calculateRoute(waypoints: RouteWaypoint[]) {
   if (!apiKey) {
     console.warn('Google Maps API key not configured, route calculation unavailable');
     return null;
+  }
+
+  // Check cache first
+  const cacheKey = GeocodingCacheManager.normalizeRouteKey(waypoints, {
+    mode: 'driving',
+    units: 'imperial',
+  });
+  const cached = await GeocodingCacheManager.get<{
+    distance: number;
+    duration: number;
+    polyline: string;
+    bounds: unknown;
+    steps: unknown[];
+  }>(cacheKey, ApiCacheType.DIRECTIONS);
+
+  if (cached) {
+    return cached;
   }
 
   try {
@@ -224,13 +296,22 @@ export async function calculateRoute(waypoints: RouteWaypoint[]) {
     const route = data.routes[0];
     const leg = route.legs[0];
 
-    return {
+    const result = {
       distance: route.legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0), // meters
       duration: route.legs.reduce((sum: number, leg: any) => sum + leg.duration.value, 0), // seconds
       polyline: route.overview_polyline.points,
       bounds: route.bounds,
       steps: route.legs.flatMap((leg: any) => leg.steps),
     };
+
+    // Cache successful response
+    await GeocodingCacheManager.set(
+      cacheKey,
+      ApiCacheType.DIRECTIONS,
+      result
+    );
+
+    return result;
   } catch (error) {
     console.error('Route calculation error:', error);
     return null;

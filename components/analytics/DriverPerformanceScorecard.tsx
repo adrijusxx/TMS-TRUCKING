@@ -62,13 +62,6 @@ export default function DriverPerformanceScorecard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Driver Performance Scorecard</h1>
-        <p className="text-muted-foreground">
-          Track and compare driver performance metrics
-        </p>
-      </div>
-
       {/* Filters */}
       <Card>
         <CardHeader>

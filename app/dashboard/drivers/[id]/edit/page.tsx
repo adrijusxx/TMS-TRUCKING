@@ -2,6 +2,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import DriverEditForm from '@/components/drivers/DriverEditForm';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default async function DriverEditPage({
   params,
@@ -174,13 +175,25 @@ export default async function DriverEditPage({
   ]);
 
   return (
-    <DriverEditForm
-      driver={driver}
-      trucks={trucks}
-      trailers={trailers}
-      dispatchers={dispatchers}
-      users={users}
-    />
+    <>
+      <Breadcrumb items={[
+        { label: 'Drivers', href: '/dashboard/drivers' },
+        { label: `${driver.user.firstName} ${driver.user.lastName}`, href: `/dashboard/drivers/${id}` },
+        { label: 'Edit' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Edit Driver</h1>
+        </div>
+        <DriverEditForm
+          driver={driver}
+          trucks={trucks}
+          trailers={trailers}
+          dispatchers={dispatchers}
+          users={users}
+        />
+      </div>
+    </>
   );
 }
 

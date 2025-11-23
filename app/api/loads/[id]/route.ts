@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications/triggers';
 import { hasPermission } from '@/lib/permissions';
 import { LoadStatus } from '@prisma/client';
+import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 
 export async function GET(
   request: NextRequest,
@@ -156,6 +157,33 @@ export async function PATCH(
     // Track if driver was newly assigned
     const wasDriverAssigned = !existingLoad.driverId && validated.driverId;
     const oldStatus = existingLoad.status;
+
+    // Calculate driver pay if driver is being assigned and driverPay is not manually set
+    if (wasDriverAssigned && validated.driverId) {
+      const driver = await prisma.driver.findUnique({
+        where: { id: validated.driverId },
+        select: {
+          payType: true,
+          payRate: true,
+        },
+      });
+
+      if (driver && (!validated.driverPay || validated.driverPay === 0)) {
+        const calculatedPay = calculateDriverPay(
+          {
+            payType: driver.payType,
+            payRate: driver.payRate,
+          },
+          {
+            totalMiles: validated.totalMiles ?? existingLoad.totalMiles,
+            loadedMiles: validated.loadedMiles ?? existingLoad.loadedMiles,
+            emptyMiles: validated.emptyMiles ?? existingLoad.emptyMiles,
+            revenue: validated.revenue ?? existingLoad.revenue,
+          }
+        );
+        updateData.driverPay = calculatedPay;
+      }
+    }
 
     // Create status history entry if status changed
     if (validated.status && validated.status !== existingLoad.status) {

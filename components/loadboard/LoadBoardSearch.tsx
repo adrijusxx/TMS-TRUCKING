@@ -69,10 +69,6 @@ export default function LoadBoardSearch() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Load Board</h1>
-        <p className="text-muted-foreground">
-          Search for available loads on DAT and Truckstop.com
-        </p>
       </div>
 
       <Card>

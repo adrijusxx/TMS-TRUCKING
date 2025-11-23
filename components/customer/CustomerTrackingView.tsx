@@ -47,9 +47,6 @@ export default function CustomerTrackingView({ load }: CustomerTrackingViewProps
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Load Tracking</h1>
-            <p className="text-muted-foreground">
-              Track your shipment in real-time
-            </p>
           </div>
           <Badge variant="outline" className={statusColors[load.status as LoadStatus]}>
             {formatStatus(load.status)}

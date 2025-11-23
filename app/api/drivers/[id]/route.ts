@@ -172,6 +172,23 @@ export async function PATCH(
       }
     });
 
+    // Detect truck change and auto-split loads
+    if (updateData.currentTruckId !== undefined && updateData.currentTruckId !== existingDriver.currentTruckId) {
+      const { LoadSplitManager } = await import('@/lib/managers/LoadSplitManager');
+      
+      try {
+        await LoadSplitManager.autoSplitOnTruckChange({
+          driverId: id,
+          oldTruckId: existingDriver.currentTruckId || undefined,
+          newTruckId: updateData.currentTruckId || undefined,
+          changeDate: new Date(),
+        });
+      } catch (splitError) {
+        console.error('Auto-split error on truck change:', splitError);
+        // Don't fail the update if auto-split fails, just log it
+      }
+    }
+
     // Recalculate driver tariff if payType or payRate changed
     if (updateData.payType !== undefined || updateData.payRate !== undefined) {
       const { calculateDriverTariff } = await import('@/lib/utils/driverTariff');

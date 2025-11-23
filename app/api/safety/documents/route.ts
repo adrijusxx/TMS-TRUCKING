@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { DocumentService } from '@/lib/services/safety/DocumentService';
+import { validateFileUpload, sanitizeFileName, getFileSizeLimit } from '@/lib/utils/file-upload-validation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,18 +59,46 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // For now, we'll create a temporary URL structure
-      // In production, you should upload to S3/Cloudinary/etc. and get the actual URL
-      // TODO: Implement proper file storage (S3, Cloudinary, etc.)
-      const fileUrl = `/uploads/${session.user.companyId}/${Date.now()}-${file.name}`;
+      // Validate file upload
+      const maxSize = getFileSizeLimit(file.type);
+      const validation = validateFileUpload(file, {
+        maxSize,
+        requireExtension: true,
+      });
+
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: validation.error || 'File validation failed' },
+          { status: 400 }
+        );
+      }
+
+      // Sanitize filename
+      const sanitizedFileName = sanitizeFileName(file.name);
+
+      // File storage implementation:
+      // Option 1: AWS S3 - Use @aws-sdk/client-s3
+      // Option 2: Cloudinary - Use cloudinary npm package
+      // Option 3: Google Cloud Storage - Use @google-cloud/storage
+      // For now, create a temporary URL structure (replace with actual storage in production)
+      // Example S3 implementation:
+      // const s3Client = new S3Client({ region: process.env.AWS_REGION });
+      // const uploadResult = await s3Client.send(new PutObjectCommand({
+      //   Bucket: process.env.AWS_S3_BUCKET,
+      //   Key: `${session.user.companyId}/${Date.now()}-${sanitizedFileName}`,
+      //   Body: await file.arrayBuffer(),
+      //   ContentType: file.type
+      // }));
+      // const fileUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${uploadResult.Key}`;
+      const fileUrl = `/uploads/${session.user.companyId}/${Date.now()}-${sanitizedFileName}`;
       
       body = {
-        fileName: file.name,
+        fileName: sanitizedFileName,
         fileUrl: fileUrl, // This should be replaced with actual storage URL
         fileSize: file.size,
         mimeType: file.type || 'application/octet-stream',
         type: documentType || 'OTHER',
-        title: file.name,
+        title: sanitizedFileName,
         description: `Uploaded via DQF form`,
       };
     } else if (contentType.includes('application/json')) {

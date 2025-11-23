@@ -126,8 +126,8 @@ export async function PATCH(
       );
     }
 
-    // If amount is being updated, recalculate invoice amounts
-    if (validated.amount !== undefined && validated.amount !== payment.amount) {
+    // If amount is being updated, recalculate invoice amounts (only if payment has an invoice)
+    if (validated.amount !== undefined && validated.amount !== payment.amount && payment.invoice && payment.invoiceId) {
       const amountDifference = validated.amount - payment.amount;
       const newAmountPaid = (payment.invoice.amountPaid || 0) + amountDifference;
       const newBalance = payment.invoice.total - newAmountPaid;
@@ -145,7 +145,7 @@ export async function PATCH(
           amountPaid: newAmountPaid,
           balance: newBalance,
           status: newStatus,
-          paidDate: newBalance <= 0 ? new Date() : payment.invoice.paidDate,
+          paidDate: newBalance <= 0 ? new Date() : payment.invoice.paidDate || undefined,
         },
       });
     }
@@ -156,7 +156,7 @@ export async function PATCH(
         ...(validated.amount !== undefined && { amount: validated.amount }),
         ...(validated.paymentDate && { paymentDate: new Date(validated.paymentDate) }),
         ...(validated.paymentMethod && { paymentMethod: validated.paymentMethod }),
-        ...(validated.referenceNumber !== undefined && { referenceNumber: validated.referenceNumber }),
+        ...(validated.referenceNumber !== undefined && { referenceNumber: validated.referenceNumber || undefined }),
         ...(validated.notes !== undefined && { notes: validated.notes }),
       },
       include: {
@@ -266,32 +266,39 @@ export async function DELETE(
       );
     }
 
-    // Recalculate invoice amounts
-    const newAmountPaid = Math.max(0, (payment.invoice.amountPaid || 0) - payment.amount);
-    const newBalance = payment.invoice.total - newAmountPaid;
+    // Recalculate invoice amounts (only if payment has an invoice)
+    if (payment.invoice && payment.invoiceId) {
+      const newAmountPaid = Math.max(0, (payment.invoice.amountPaid || 0) - payment.amount);
+      const newBalance = payment.invoice.total - newAmountPaid;
 
-    let newStatus = payment.invoice.status;
-    if (newAmountPaid === 0) {
-      newStatus = 'SENT';
-    } else if (newBalance > 0) {
-      newStatus = 'PARTIAL';
-    }
+      let newStatus = payment.invoice.status;
+      if (newAmountPaid === 0) {
+        newStatus = 'SENT';
+      } else if (newBalance > 0) {
+        newStatus = 'PARTIAL';
+      }
 
-    // Delete payment and update invoice
-    await prisma.$transaction([
-      prisma.payment.delete({
+      // Delete payment and update invoice
+      await prisma.$transaction([
+        prisma.payment.delete({
+          where: { id: id },
+        }),
+        prisma.invoice.update({
+          where: { id: payment.invoiceId },
+          data: {
+            amountPaid: newAmountPaid,
+            balance: newBalance,
+            status: newStatus,
+            paidDate: newAmountPaid === 0 ? undefined : payment.invoice?.paidDate || undefined,
+          },
+        }),
+      ]);
+    } else {
+      // Delete payment without invoice update
+      await prisma.payment.delete({
         where: { id: id },
-      }),
-      prisma.invoice.update({
-        where: { id: payment.invoiceId },
-        data: {
-          amountPaid: newAmountPaid,
-          balance: newBalance,
-          status: newStatus,
-          paidDate: newAmountPaid === 0 ? null : payment.invoice.paidDate,
-        },
-      }),
-    ]);
+      });
+    }
 
     return NextResponse.json({
       success: true,

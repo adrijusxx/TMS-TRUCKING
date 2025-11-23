@@ -15,6 +15,8 @@ interface ExportDialogProps {
   exportUrl?: string;
   filename?: string;
   children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function ExportDialog({
@@ -22,8 +24,12 @@ export default function ExportDialog({
   exportUrl,
   filename,
   children,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: ExportDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = controlledOnOpenChange || setInternalOpen;
   const [format, setFormat] = useState<'csv' | 'json'>('csv');
   const [includeHeaders, setIncludeHeaders] = useState(true);
 
@@ -78,14 +84,16 @@ export default function ExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        )}
-      </DialogTrigger>
+      {!controlledOpen && (
+        <DialogTrigger asChild>
+          {children || (
+            <Button variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Export {entityType.charAt(0).toUpperCase() + entityType.slice(1)}</DialogTitle>

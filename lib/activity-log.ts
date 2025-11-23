@@ -26,6 +26,7 @@ export type EntityType =
   | 'Load'
   | 'Driver'
   | 'Truck'
+  | 'Trailer'
   | 'Customer'
   | 'Invoice'
   | 'Settlement'

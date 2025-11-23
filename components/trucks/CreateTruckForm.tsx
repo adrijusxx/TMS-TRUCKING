@@ -21,6 +21,7 @@ import { EquipmentType } from '@prisma/client';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl } from '@/lib/utils';
+import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 
 async function createTruck(data: CreateTruckInput) {
   const response = await fetch(apiUrl('/api/trucks'), {
@@ -45,6 +46,7 @@ export default function CreateTruckForm() {
     handleSubmit,
     formState: { errors, isSubmitting },
     setValue,
+    watch,
   } = useForm<CreateTruckInput>({
     resolver: zodResolver(createTruckSchema) as any,
     defaultValues: {
@@ -53,6 +55,8 @@ export default function CreateTruckForm() {
       gpsInstalled: false,
     },
   });
+
+  const mcNumberId = watch('mcNumberId');
 
   const createMutation = useMutation({
     mutationFn: createTruck,
@@ -176,6 +180,13 @@ export default function CreateTruckForm() {
                 />
               </div>
             </div>
+
+            <McNumberSelector
+              value={mcNumberId}
+              onValueChange={(mcNumberId) => setValue('mcNumberId', mcNumberId, { shouldValidate: true })}
+              required
+              error={errors.mcNumberId?.message}
+            />
           </CardContent>
         </Card>
 

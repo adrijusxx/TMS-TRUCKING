@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 
 const assignLoadSchema = z.object({
   driverId: z.string().min(1, 'Driver is required').optional(),
@@ -61,6 +62,12 @@ export async function POST(
           isActive: true,
           deletedAt: null,
         },
+        select: {
+          id: true,
+          driverNumber: true,
+          payType: true,
+          payRate: true,
+        },
       });
 
       if (!driver) {
@@ -103,6 +110,27 @@ export async function POST(
 
     if (validated.driverId) {
       updateData.driverId = validated.driverId;
+      
+      // Calculate driver pay based on driver's pay type and rate
+      if (driver) {
+        const calculatedPay = calculateDriverPay(
+          {
+            payType: driver.payType,
+            payRate: driver.payRate,
+          },
+          {
+            totalMiles: load.totalMiles,
+            loadedMiles: load.loadedMiles,
+            emptyMiles: load.emptyMiles,
+            revenue: load.revenue,
+          }
+        );
+        
+        // Only set driverPay if it's not already manually set or if it's 0
+        if (!load.driverPay || load.driverPay === 0) {
+          updateData.driverPay = calculatedPay;
+        }
+      }
     }
 
     if (validated.truckId) {

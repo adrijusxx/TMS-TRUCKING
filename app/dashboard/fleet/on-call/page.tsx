@@ -6,12 +6,16 @@ export default function OnCallSchedulePage() {
     <>
       <Breadcrumb
         items={[
-          { label: 'Home', href: '/dashboard' },
-          { label: 'Fleet Department', href: '/dashboard/fleet/breakdowns' },
-          { label: 'On-Call Schedule', href: '/dashboard/fleet/on-call' },
+          { label: 'Fleet Department', href: '/dashboard/fleet' },
+          { label: 'On-Call Schedule' },
         ]}
       />
-      <OnCallSchedule />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">On-Call Schedule</h1>
+        </div>
+        <OnCallSchedule />
+      </div>
     </>
   );
 }

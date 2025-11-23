@@ -1,16 +1,20 @@
 import ExpenseCategories from '@/components/settings/customizations/ExpenseCategories';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function ExpensesPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Expenses</h1>
-        <p className="text-muted-foreground">
-          Manage expense categories and types
-        </p>
+    <>
+      <Breadcrumb items={[
+        { label: 'Accounting', href: '/dashboard/accounting' },
+        { label: 'Expenses' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Accounting Expenses</h1>
+        </div>
+        <ExpenseCategories />
       </div>
-      <ExpenseCategories />
-    </div>
+    </>
   );
 }
 

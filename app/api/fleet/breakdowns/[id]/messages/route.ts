@@ -106,8 +106,16 @@ export async function POST(
       throw error; // Re-throw if it's a different error
     }
 
-    // TODO: Send push notification to driver's mobile app
-    // This would integrate with your push notification service (FCM, APNS, etc.)
+    // Send push notification to driver's mobile app (if configured)
+    // To implement: Integrate with Firebase Cloud Messaging (FCM) or Apple Push Notification Service (APNS)
+    // Example integration would go here:
+    // if (driver?.deviceToken) {
+    //   await sendPushNotification(driver.deviceToken, {
+    //     title: 'New Breakdown Message',
+    //     body: validatedData.message,
+    //     data: { breakdownId, communicationId: communication.id }
+    //   });
+    // }
 
     return NextResponse.json({
       success: true,

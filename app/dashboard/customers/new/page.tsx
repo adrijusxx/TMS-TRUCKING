@@ -1,16 +1,20 @@
 import CreateCustomerForm from '@/components/customers/CreateCustomerForm';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function NewCustomerPage() {
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold">Add New Customer</h1>
-        <p className="text-muted-foreground">
-          Register a new customer in your system
-        </p>
+    <>
+      <Breadcrumb items={[
+        { label: 'Customers', href: '/dashboard/customers' },
+        { label: 'New Customer' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Add New Customer</h1>
+        </div>
+        <CreateCustomerForm />
       </div>
-      <CreateCustomerForm />
-    </div>
+    </>
   );
 }
 

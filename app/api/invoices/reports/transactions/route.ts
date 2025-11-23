@@ -90,16 +90,16 @@ export async function GET(request: NextRequest) {
         amount: inv.total,
         description: `Invoice ${inv.invoiceNumber}`,
       })),
-      ...payments.map((pay) => ({
+      ...payments.filter((pay) => pay.invoice !== null).map((pay) => ({
         type: 'PAYMENT' as const,
         id: pay.id,
         number: pay.paymentNumber,
-        customerId: pay.invoice.customerId,
-        customerName: pay.invoice.customer.name,
-        customerNumber: pay.invoice.customer.customerNumber || '',
+        customerId: pay.invoice!.customerId,
+        customerName: pay.invoice!.customer.name,
+        customerNumber: pay.invoice!.customer.customerNumber || '',
         date: pay.paymentDate,
         amount: -pay.amount, // Negative for payments
-        description: `Payment ${pay.paymentNumber} for ${pay.invoice.invoiceNumber}`,
+        description: `Payment ${pay.paymentNumber} for ${pay.invoice!.invoiceNumber}`,
       })),
     ].sort((a, b) => b.date.getTime() - a.date.getTime());
 

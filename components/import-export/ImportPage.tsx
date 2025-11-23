@@ -48,6 +48,8 @@ export default function ImportPage({
   const [selectedMcNumberId, setSelectedMcNumberId] = useState<string>('');
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
+  const [importProgress, setImportProgress] = useState<number>(0);
+  const [importStatus, setImportStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -209,22 +211,59 @@ export default function ImportPage({
         availableFields: Object.keys(selectedMc),
       });
 
+      // Reset progress
+      setImportProgress(0);
+      setImportStatus('Preparing import...');
+
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('columnMapping', JSON.stringify(columnMapping));
       formData.append('mcNumber', mcNumberValue);
 
-      const response = await fetch(apiUrl(`/api/import-export/${entityType}`), {
-        method: 'POST',
-        body: formData,
-      });
+      const totalRows = importResult.data?.length || 0;
+      let processedRows = 0;
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Import failed');
+      // Simulate progress updates (since we can't stream from API)
+      const progressInterval = setInterval(() => {
+        // Estimate progress based on time elapsed (rough estimate)
+        // This is a simple approximation - actual progress will be shown on completion
+        processedRows = Math.min(processedRows + Math.max(1, Math.floor(totalRows / 50)), totalRows);
+        const estimatedProgress = Math.min(95, Math.round((processedRows / totalRows) * 100));
+        setImportProgress(estimatedProgress);
+        
+        if (estimatedProgress < 30) {
+          setImportStatus('Reading file data...');
+        } else if (estimatedProgress < 60) {
+          setImportStatus('Processing rows...');
+        } else if (estimatedProgress < 90) {
+          setImportStatus('Creating records...');
+        } else {
+          setImportStatus('Finalizing import...');
+        }
+      }, 200);
+
+      try {
+        const response = await fetch(apiUrl(`/api/import-export/${entityType}`), {
+          method: 'POST',
+          body: formData,
+        });
+
+        clearInterval(progressInterval);
+        setImportProgress(100);
+        setImportStatus('Import completed!');
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || 'Import failed');
+        }
+
+        return response.json();
+      } catch (error) {
+        clearInterval(progressInterval);
+        setImportProgress(0);
+        setImportStatus('');
+        throw error;
       }
-
-      return response.json();
     },
     onSuccess: (data) => {
       const created = data.data?.created || 0;
@@ -241,6 +280,8 @@ export default function ImportPage({
       }, 2000);
     },
     onError: (error: Error) => {
+      setImportProgress(0);
+      setImportStatus('');
       toast.error(error.message || 'Import failed');
     },
   });
@@ -285,7 +326,6 @@ export default function ImportPage({
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-        <h1 className="text-3xl font-bold">Import {entityLabel}</h1>
       </div>
 
       {/* Step Indicator */}
@@ -578,6 +618,17 @@ export default function ImportPage({
                     <div>... and {importResult.errors.length - 5} more errors</div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Progress Bar */}
+            {importMutation.isPending && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{importStatus || 'Importing...'}</span>
+                  <span className="text-muted-foreground">{importProgress}%</span>
+                </div>
+                <Progress value={importProgress} className="w-full" />
               </div>
             )}
 

@@ -52,6 +52,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Get or create default MC number for the company
+    let mcNumber = await prisma.mcNumber.findFirst({
+      where: {
+        companyId: company.id,
+        isDefault: true,
+      },
+    });
+
+    if (!mcNumber) {
+      // Create a default MC number
+      mcNumber = await prisma.mcNumber.create({
+        data: {
+          companyId: company.id,
+          number: company.mcNumber || `MC-${Date.now()}`,
+          companyName: company.name,
+          type: 'CARRIER',
+          isDefault: true,
+        },
+      });
+    }
+
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -62,6 +83,7 @@ export async function POST(request: NextRequest) {
         phone: validated.phone && validated.phone.trim() !== '' ? validated.phone : null,
         role: 'DISPATCHER', // Default role for new registrations
         companyId: company.id,
+        mcNumberId: mcNumber.id,
       },
     });
 

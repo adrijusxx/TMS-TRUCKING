@@ -130,8 +130,7 @@ export default function FleetReports() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Fleet Reports & Analytics</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground">
             Comprehensive breakdown analysis and performance metrics
           </p>
         </div>

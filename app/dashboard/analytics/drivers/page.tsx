@@ -8,7 +8,12 @@ export default function DriverPerformancePage() {
         { label: 'Analytics & Reports', href: '/dashboard/analytics' },
         { label: 'Driver Performance' }
       ]} />
-      <DriverPerformanceScorecard />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Driver Performance Analytics</h1>
+        </div>
+        <DriverPerformanceScorecard />
+      </div>
     </>
   );
 }

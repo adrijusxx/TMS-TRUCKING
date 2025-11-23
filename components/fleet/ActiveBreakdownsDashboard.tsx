@@ -179,9 +179,6 @@ export default function ActiveBreakdownsDashboard() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">Active Breakdowns</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Real-time dashboard of all active breakdown situations
-          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button

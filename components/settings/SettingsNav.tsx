@@ -23,51 +23,132 @@ import {
   Layers,
   ChevronRight,
   ChevronLeft,
+  Building2,
+  Bell,
 } from 'lucide-react';
 import { useSidebarToggle } from '@/hooks/useSidebarToggle';
+import { usePermissions } from '@/hooks/usePermissions';
+import {
+  SIDEBAR_WIDTHS,
+  NAV_PADDING,
+  NAV_SPACING,
+  NAV_ICON_SIZES,
+  NAV_TYPOGRAPHY,
+  NAV_STATES,
+  NAV_ROUNDED,
+  NAV_CLASSES,
+  NAV_BORDERS,
+  NAV_TOGGLE_BUTTONS,
+  NAV_BACKGROUNDS,
+} from '@/lib/navigation-constants';
 
 interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   query?: string;
+  adminOnly?: boolean;
+  category?: string;
 }
 
-const navItems: NavItem[] = [
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-  { name: 'Team Management', href: '/dashboard/settings', icon: Users, query: 'tab=team' },
-  { name: 'Permissions & Roles', href: '/dashboard/settings', icon: Shield, query: 'tab=security' },
-  { name: 'Billing & Subscription', href: '/dashboard/settings', icon: CreditCard, query: 'tab=billing' },
-  { name: 'Integrations', href: '/dashboard/settings', icon: Plug, query: 'tab=integrations' },
-  { name: 'EDI', href: '/dashboard/edi', icon: FileText },
-  { name: 'MC numbers', href: '/dashboard/mc-numbers', icon: Hash },
-  { name: 'Apps & Marketplace', href: '/dashboard/apps/marketplace', icon: ShoppingBag },
-  { name: 'Dynamic statuses', href: '/dashboard/settings/customizations/statuses', icon: Palette },
-  { name: 'Tag management', href: '/dashboard/settings/customizations/tags', icon: Tag },
-  { name: 'Classifications', href: '/dashboard/settings/customizations/classifications', icon: FolderTree },
-  { name: 'Templates', href: '/dashboard/settings/customizations/templates', icon: FileText },
-  { name: 'Default configurations', href: '/dashboard/settings/customizations/defaults', icon: Settings },
-  { name: 'Task Management Projects', href: '/dashboard/settings/customizations/tasks', icon: Layers },
-];
+interface NavCategory {
+  name: string;
+  items: NavItem[];
+  adminOnly?: boolean;
+}
 
 export default function SettingsNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isOpen, toggle } = useSidebarToggle('settingsNavOpen', true);
+  const { isAdmin } = usePermissions();
+  
+  // Determine base settings path based on role
+  const baseSettingsPath = isAdmin ? '/dashboard/settings/admin' : '/dashboard/settings/employee';
+  
+  const navCategories: NavCategory[] = [
+    {
+      name: 'Main Settings',
+      adminOnly: false,
+      items: [
+        { name: 'Company & Organization', href: baseSettingsPath, icon: Building2, query: 'tab=company', category: 'Main Settings', adminOnly: true },
+        { name: 'Team & Users', href: baseSettingsPath, icon: Users, query: 'tab=team', category: 'Main Settings', adminOnly: true },
+        { name: 'System Configuration', href: baseSettingsPath, icon: Settings, query: 'tab=system', category: 'Main Settings', adminOnly: true },
+        { name: 'General', href: baseSettingsPath, icon: Settings, category: 'Main Settings' },
+        { name: 'Appearance', href: baseSettingsPath, icon: Palette, query: 'tab=appearance', category: 'Main Settings' },
+        { name: 'Notifications', href: baseSettingsPath, icon: Bell, query: 'tab=notifications', category: 'Main Settings' },
+        { name: 'Security & Privacy', href: baseSettingsPath, icon: Shield, query: 'tab=security', category: 'Main Settings' },
+      ],
+    },
+    {
+      name: 'Customizations',
+      adminOnly: true,
+      items: [
+        { name: 'Customizations', href: baseSettingsPath, icon: Layers, query: 'tab=customizations', category: 'Customizations', adminOnly: true },
+        { name: 'Dynamic Statuses', href: '/dashboard/settings/customizations/statuses', icon: Layers, category: 'Customizations', adminOnly: true },
+        { name: 'Tag Management', href: '/dashboard/settings/customizations/tags', icon: Tag, category: 'Customizations', adminOnly: true },
+        { name: 'Classifications', href: '/dashboard/settings/customizations/classifications', icon: FolderTree, category: 'Customizations', adminOnly: true },
+        { name: 'Templates', href: '/dashboard/settings/customizations/templates', icon: FileText, category: 'Customizations', adminOnly: true },
+        { name: 'Default Configurations', href: '/dashboard/settings/customizations/defaults', icon: Settings, category: 'Customizations', adminOnly: true },
+        { name: 'Task Management Projects', href: '/dashboard/settings/customizations/tasks', icon: Layers, category: 'Customizations', adminOnly: true },
+      ],
+    },
+    {
+      name: 'Integrations & Billing',
+      adminOnly: true,
+      items: [
+        { name: 'Integrations', href: baseSettingsPath, icon: Plug, query: 'tab=integrations', category: 'Integrations & Billing', adminOnly: true },
+        { name: 'Billing & Subscription', href: baseSettingsPath, icon: CreditCard, query: 'tab=billing', category: 'Integrations & Billing', adminOnly: true },
+      ],
+    },
+    {
+      name: 'Other',
+      adminOnly: false,
+      items: [
+        { name: 'EDI', href: '/dashboard/edi', icon: FileText, category: 'Other' },
+        { name: 'MC Numbers', href: '/dashboard/mc-numbers', icon: Hash, category: 'Other' },
+        { name: 'Apps & Marketplace', href: '/dashboard/apps/marketplace', icon: ShoppingBag, category: 'Other' },
+      ],
+    },
+  ];
+
+  // Filter categories and items based on admin status
+  const visibleCategories = navCategories
+    .filter(cat => !cat.adminOnly || isAdmin)
+    .map(cat => ({
+      ...cat,
+      items: cat.items.filter(item => !item.adminOnly || isAdmin),
+    }))
+    .filter(cat => cat.items.length > 0);
 
   const isActive = (item: NavItem) => {
     // For settings pages with query params
-    if (item.href === '/dashboard/settings' && item.query) {
+    if (item.href === baseSettingsPath && item.query) {
       const currentTab = searchParams.get('tab');
       const expectedTab = item.query.split('=')[1];
-      return pathname === item.href && currentTab === expectedTab;
+      // Map old tab names to new ones
+      const tabMap: Record<string, string> = {
+        'company': 'company',
+        'team': 'team',
+        'system': 'system',
+        'customizations': 'customizations',
+        'integrations': 'integrations',
+        'notifications': 'notifications',
+        'security': 'security',
+        'billing': 'billing',
+        'appearance': 'appearance',
+        'general': isAdmin ? 'company' : 'general',
+      };
+      const mappedTab = tabMap[currentTab || ''] || currentTab;
+      return (pathname === '/dashboard/settings/admin' || pathname === '/dashboard/settings/employee') && mappedTab === expectedTab;
     }
     
     // For settings page without query (default)
-    if (item.href === '/dashboard/settings' && !item.query) {
+    if (item.href === baseSettingsPath && !item.query) {
       const currentTab = searchParams.get('tab');
-      return pathname === item.href && (!currentTab || currentTab === 'general');
+      const defaultTab = isAdmin ? 'company' : 'general';
+      return (pathname === '/dashboard/settings/admin' || pathname === '/dashboard/settings/employee') && (!currentTab || currentTab === defaultTab);
     }
     
     // For other pages
@@ -84,60 +165,72 @@ export default function SettingsNav() {
 
   if (!isOpen) {
     return (
-      <div className="w-12 border-r bg-card p-2 flex flex-col items-center">
+      <div className={cn(SIDEBAR_WIDTHS.collapsed, 'border-r', NAV_BACKGROUNDS.sidebar, 'p-2 flex flex-col items-center')}>
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className={NAV_TOGGLE_BUTTONS.collapsed}
           onClick={toggle}
           title="Show sidebar"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className={NAV_ICON_SIZES.chevron} />
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="w-56 border-r bg-card p-2">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
-          Settings
-        </h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6"
-          onClick={toggle}
-          title="Hide sidebar"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
+    <div className={cn(SIDEBAR_WIDTHS.expanded, 'border-r', NAV_BACKGROUNDS.sidebar, 'overflow-y-auto p-4', NAV_SPACING.sections)}>
+      <div className={cn(NAV_BORDERS.header, 'pb-3 mb-3')}>
+        <div className="flex items-center justify-between mb-1">
+          <div className={cn('flex items-center', NAV_SPACING.iconText)}>
+            <Settings className={cn(NAV_ICON_SIZES.section, 'text-primary')} />
+            <h2 className={cn(NAV_TYPOGRAPHY.sectionHeader, NAV_TYPOGRAPHY.truncate)}>
+              Settings
+            </h2>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={NAV_TOGGLE_BUTTONS.expanded}
+            onClick={toggle}
+            title="Hide sidebar"
+          >
+            <ChevronLeft className={NAV_ICON_SIZES.chevron} />
+          </Button>
+        </div>
       </div>
-      <nav className="space-y-0.5">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item);
-          
-          return (
-            <button
-              key={item.name}
-              onClick={() => handleNavigation(item)}
-              className={cn(
-                'w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm font-medium transition-colors',
-                active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-foreground/80 hover:bg-accent hover:text-foreground'
-              )}
-            >
-              <div className="flex items-center space-x-2">
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                <span>{item.name}</span>
-              </div>
-              {active && <ChevronRight className="h-4 w-4 flex-shrink-0" />}
-            </button>
-          );
-        })}
+      <nav className={NAV_SPACING.items}>
+        {visibleCategories.map((category, categoryIndex) => (
+          <div key={category.name} className={categoryIndex > 0 ? 'mt-6' : ''}>
+            <h3 className={cn(NAV_TYPOGRAPHY.sectionHeader, 'text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2')}>
+              {category.name}
+            </h3>
+            <div className="space-y-1">
+              {category.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item);
+                
+                return (
+                  <button
+                    key={item.name}
+                    onClick={() => handleNavigation(item)}
+                    className={cn(
+                      'w-full flex items-center justify-between px-2 py-1.5 rounded-md',
+                      active ? NAV_CLASSES.itemActive : NAV_CLASSES.itemHover
+                    )}
+                  >
+                    <div className={cn('flex items-center', NAV_SPACING.iconText)}>
+                      <Icon className={cn(NAV_ICON_SIZES.item, 'flex-shrink-0')} />
+                      <span className={NAV_TYPOGRAPHY.truncate}>{item.name}</span>
+                    </div>
+                    {active && <ChevronRight className={cn(NAV_ICON_SIZES.chevron, 'flex-shrink-0')} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
     </div>
   );

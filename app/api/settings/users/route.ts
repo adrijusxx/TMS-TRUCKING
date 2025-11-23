@@ -12,17 +12,18 @@ const createUserSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().optional(),
-  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER']),
-  mcNumberId: z.string().nullable().optional(),
+  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']),
+  mcNumberId: z.string().min(1, 'MC number is required'),
 });
 
 const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   phone: z.string().optional(),
-  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER']).optional(),
+  role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']).optional(),
   password: z.string().min(8).optional(),
   isActive: z.boolean().optional(),
+  mcNumberId: z.string().min(1, 'MC number is required').optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -60,19 +61,31 @@ export async function GET(request: NextRequest) {
       if (mcNumberId) {
         where.mcNumberId = mcNumberId;
       }
+    } else if (roleFilter === 'FLEET') {
+      where.role = 'FLEET';
+      // If MC number is selected, filter fleet managers by their mcNumberId
+      if (mcNumberId) {
+        where.mcNumberId = mcNumberId;
+      }
+    } else if (roleFilter === 'ADMIN') {
+      where.role = 'ADMIN';
+      // If MC number is selected, filter admins by their mcNumberId
+      if (mcNumberId) {
+        where.mcNumberId = mcNumberId;
+      }
     } else if (roleFilter === 'EMPLOYEES') {
-      // Employees = ADMIN, ACCOUNTANT (not DISPATCHER, not DRIVER)
-      where.role = { in: ['ADMIN', 'ACCOUNTANT'] };
+      // Employees = ACCOUNTANT (excluding ADMIN, DISPATCHER, DRIVER)
+      where.role = 'ACCOUNTANT';
       // If MC number is selected, filter employees by their mcNumberId
       if (mcNumberId) {
         where.mcNumberId = mcNumberId;
       }
     } else if (roleFilter === 'DRIVER') {
       where.role = 'DRIVER';
-      // If MC number is selected, filter drivers by their driver.mcNumber
-      if (mcNumber) {
+      // If MC number is selected, filter drivers by their driver.mcNumberId
+      if (mcNumberId) {
         where.driver = {
-          mcNumber: mcNumber,
+          mcNumberId: mcNumberId,
         };
       }
     } else if (roleFilter === 'SAFETY') {
@@ -86,11 +99,11 @@ export async function GET(request: NextRequest) {
         some: {},
       };
     } else {
-      // For all users, if MC number is selected, filter by mcNumberId (for dispatchers/employees) or driver.mcNumber (for drivers)
+      // For all users, if MC number is selected, filter by mcNumberId (for dispatchers/employees) or driver.mcNumberId (for drivers)
       if (mcNumberId) {
         where.OR = [
           { mcNumberId: mcNumberId },
-          { driver: { mcNumber: mcNumber } },
+          { driver: { mcNumberId: mcNumberId } },
         ];
       }
     }
@@ -186,6 +199,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate MC number exists and belongs to company (for non-CUSTOMER roles)
+    if (validated.role !== 'CUSTOMER' && validated.mcNumberId) {
+      const mcNumber = await prisma.mcNumber.findFirst({
+        where: {
+          id: validated.mcNumberId,
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+      });
+
+      if (!mcNumber) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_MC_NUMBER',
+              message: 'MC number not found or does not belong to your company',
+            },
+          },
+          { status: 400 }
+        );
+      }
+    } else if (validated.role !== 'CUSTOMER' && !validated.mcNumberId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'MC number is required for this role',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
@@ -196,8 +244,8 @@ export async function POST(request: NextRequest) {
       companyId: session.user.companyId,
     };
     
-    // Remove mcNumberId from userData if it's null/empty (let it be undefined)
-    if (!userData.mcNumberId) {
+    // For CUSTOMER role, don't require MC number
+    if (validated.role === 'CUSTOMER') {
       delete userData.mcNumberId;
     }
 

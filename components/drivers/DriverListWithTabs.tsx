@@ -42,7 +42,7 @@ interface Driver {
   email: string;
   phone: string | null;
   driverType: any;
-  mcNumber: string | null;
+  mcNumber: { id: string; number: string } | null;
   status: any;
   employeeStatus: any;
   assignmentStatus: any;

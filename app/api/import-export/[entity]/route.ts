@@ -459,21 +459,11 @@ export async function POST(
     if (formMcNumber) {
       // Normalize MC number: trim whitespace
       currentMcNumber = formMcNumber.trim() || undefined;
-      console.log('[Import] MC number from form:', {
-        formMcNumber,
-        currentMcNumber,
-        entity,
-      });
     } else {
       // Fallback to session MC number
       const { getCurrentMcNumber } = await import('@/lib/mc-number-filter');
       const { mcNumber } = await getCurrentMcNumber(session, request);
       currentMcNumber = mcNumber?.trim() || undefined;
-      console.log('[Import] MC number from session:', {
-        mcNumber,
-        currentMcNumber,
-        entity,
-      });
     }
     
     // Get column mapping if provided
@@ -1128,6 +1118,7 @@ export async function POST(
       const BATCH_SIZE = 500; // Increased for better performance with large imports
       const trailersToCreate: any[] = [];
       const existingTrailerNumbers = new Set<string>();
+      const totalRows = importResult.data.length;
       
       // Pre-fetch existing trailers to avoid duplicate checks
       const existingTrailers = await prisma.trailer.findMany({
@@ -1142,7 +1133,7 @@ export async function POST(
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
         try {
-          const trailerNumber = getValue(row, ['unit_number', 'Unit number', 'Unit Number', 'trailer_number']);
+          const trailerNumber = getValue(row, ['unit_number', 'Unit number', 'Unit Number', 'trailer_number', 'Trailer Number']);
           if (!trailerNumber) {
             errors.push({ row: i + 1, error: 'Unit number is required' });
             continue;
@@ -1157,8 +1148,34 @@ export async function POST(
           const model = getValue(row, ['model', 'Model']) || 'Unknown';
 
           // Note: assignedTruckId will be resolved in batch after creation
-          const assignedTruckNumber = getValue(row, ['assigned_truck', 'Assigned truck', 'Assigned Truck']);
+          const assignedTruckNumber = getValue(row, ['assigned_truck', 'Assigned truck', 'Assigned Truck', 'assignedTruck', 'assigned_truck_id', 'assignedTruckId']);
+          
+          // Get operator driver (can be driver number or name)
+          const operatorDriverValue = getValue(row, ['operator_(driver)', 'operator (driver)', 'Operator (Driver)', 'operator_driver', 'operatorDriver', 'Operator Driver', 'operator_driver_id', 'operatorDriverId']);
 
+          // Resolve MC number value to ID
+          const csvMcValue = getValue(row, ['mc_number', 'MC Number', 'MC number', 'mcNumber']);
+          let mcNumberValue: string | null = null;
+          
+          if (csvMcValue) {
+            const csvStr = csvMcValue.toString().trim();
+            if (csvStr) {
+              // Check if multiple values (separated by comma, semicolon, pipe, or slash)
+              const multipleValues = csvStr.split(/[,;|/]/).map((v: string) => v.trim()).filter((v: string) => v);
+              
+              if (multipleValues.length > 1) {
+                // Multiple MC numbers found - use the first one
+                mcNumberValue = multipleValues[0];
+              } else {
+                // Single value
+                mcNumberValue = csvStr;
+              }
+            }
+          } else if (currentMcNumber) {
+            // Fall back to form MC selection
+            mcNumberValue = currentMcNumber;
+          }
+          
           trailersToCreate.push({
             companyId: session.user.companyId,
             trailerNumber,
@@ -1166,72 +1183,44 @@ export async function POST(
             make,
             model,
             year: parseInt(String(getValue(row, ['year', 'Year']) || '0')) || null,
-            licensePlate: getValue(row, ['plate_number', 'Plate number', 'Plate Number', 'license_plate']) || null,
-            state: getValue(row, ['state', 'State']) || null,
-            mcNumber: (() => {
-              // CSV column has priority (for mixed MC imports), falls back to form MC number
-              // Accepts BOTH formats in CSV:
-              //   - Numeric MC numbers: "160847", "1090857" (as strings)
-              //   - String values: "FOUR WAYS LOGISTICS II INC", "Truckzilla Inc" (company names)
-              //   - Multiple values: "160847, 1090857" or "MC1, MC2" → uses FIRST value only
-              // This allows importing multiple MC numbers in one file with any format
-              // Priority: CSV column value > Form MC selection > null
-              const csvMcValue = getValue(row, ['mc_number', 'MC Number', 'MC Number']);
-              
-              let finalValue: string | null = null;
-              
-              if (csvMcValue) {
-                const csvStr = csvMcValue.toString().trim();
-                if (csvStr) {
-                  // Check if multiple values (separated by comma, semicolon, pipe, or slash)
-                  const multipleValues = csvStr.split(/[,;|/]/).map((v: string) => v.trim()).filter((v: string) => v);
-                  
-                  if (multipleValues.length > 1) {
-                    // Multiple MC numbers found - use the first one
-                    finalValue = multipleValues[0];
-                    if (i === 0) { // Log warning for first row only
-                      console.warn('[Import Trailers] Multiple MC numbers in CSV cell, using first:', {
-                        original: csvStr,
-                        values: multipleValues,
-                        using: finalValue,
-                      });
-                    }
-                  } else {
-                    // Single value
-                    finalValue = csvStr;
-                  }
-                }
-              } else if (currentMcNumber) {
-                // Fall back to form MC selection
-                finalValue = currentMcNumber;
-              }
-              
-              if (i === 0) { // Log first trailer for debugging
-                console.log('[Import Trailers] MC number:', {
-                  fromRow: csvMcValue,
-                  currentMcNumber,
-                  final: finalValue,
-                  note: csvMcValue ? `Using MC from CSV column` : (currentMcNumber ? 'Using MC from form selection' : 'No MC number'),
-                });
-              }
-              
-              return finalValue;
-            })(),
+            licensePlate: getValue(row, ['plate_number', 'Plate number', 'Plate Number', 'license_plate', 'plateNumber']) || null,
+            state: getValue(row, ['state', 'State', 'license_state', 'licenseState']) || null,
+            mcNumberValue: mcNumberValue || null, // Store for later resolution to ID
             type: getValue(row, ['type', 'Type']) || null,
             ownership: getValue(row, ['ownership', 'Ownership']) || null,
-            ownerName: getValue(row, ['owner_name', 'Owner name', 'Owner Name']) || null,
+            ownerName: getValue(row, ['owner_name', 'Owner name', 'Owner Name', 'ownerName']) || null,
             assignedTruckNumber: assignedTruckNumber || null, // Store for later resolution
             status: getValue(row, ['status', 'Status']) || null,
-            fleetStatus: getValue(row, ['fleet_status', 'Fleet Status', 'Fleet Status']) || null,
+            fleetStatus: getValue(row, ['fleet_status', 'Fleet Status', 'Fleet status', 'fleetStatus']) || null,
             registrationExpiry: parseDate(
-              getValue(row, ['registration_expiry', 'Registration expiry date', 'Registration Expiry Date'])
+              getValue(row, ['registration_expiry', 'Registration expiry date', 'Registration Expiry Date', 'registration_expiry_date'])
             ),
             inspectionExpiry: parseDate(
-              getValue(row, ['inspection_expiry', 'Annual inspection expiry date', 'Annual Inspection Expiry Date'])
+              getValue(row, ['inspection_expiry', 'Annual inspection expiry date', 'Annual Inspection Expiry Date', 'inspection_expiry_date', 'annual_inspection_expiry_date'])
             ),
             insuranceExpiry: parseDate(
-              getValue(row, ['insurance_expiry', 'Insurance expiry date', 'Insurance Expiry Date'])
+              getValue(row, ['insurance_expiry', 'Insurance expiry date', 'Insurance Expiry Date', 'insurance_expiry_date', 'insuranceExpiryDate'])
             ),
+            operatorDriverValue: operatorDriverValue || null, // Store for later resolution
+            tags: (() => {
+              const tagsValue = getValue(row, ['tags', 'Tags', 'tag', 'Tag']);
+              if (!tagsValue) return null;
+              // Parse tags - can be comma-separated string or JSON array
+              if (typeof tagsValue === 'string') {
+                try {
+                  // Try parsing as JSON first
+                  const parsed = JSON.parse(tagsValue);
+                  if (Array.isArray(parsed)) {
+                    return parsed;
+                  }
+                } catch {
+                  // Not JSON, treat as comma-separated string
+                  const tagsArray = tagsValue.split(',').map((t: string) => t.trim()).filter((t: string) => t);
+                  return tagsArray.length > 0 ? tagsArray : null;
+                }
+              }
+              return null;
+            })(),
           });
           
           existingTrailerNumbers.add(trailerNumber);
@@ -1240,7 +1229,102 @@ export async function POST(
         }
       }
 
-      // Pre-fetch trucks for assignment resolution
+      // Pre-fetch MC Numbers for resolution (trailers require mcNumberId, not mcNumber string)
+      const mcNumbersForResolution = await prisma.mcNumber.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { id: true, number: true, companyName: true },
+      });
+      
+      // Create maps to resolve MC number values to IDs
+      // Map by numeric MC number
+      const mcNumberValueMap = new Map<string, string>();
+      // Map by company name (case-insensitive)
+      const mcCompanyNameMap = new Map<string, string>();
+      
+      mcNumbersForResolution.forEach(mc => {
+        // Map by numeric MC number
+        if (mc.number) {
+          const normalizedNumber = mc.number.trim();
+          mcNumberValueMap.set(normalizedNumber, mc.id);
+          mcNumberValueMap.set(normalizedNumber.toLowerCase(), mc.id);
+        }
+        // Map by company name - multiple variations for better matching
+        if (mc.companyName) {
+          const normalizedName = mc.companyName.trim().toLowerCase();
+          mcCompanyNameMap.set(normalizedName, mc.id);
+          // Try without spaces
+          mcCompanyNameMap.set(normalizedName.replace(/\s+/g, ''), mc.id);
+          // Try without special characters (II, INC, etc.)
+          mcCompanyNameMap.set(normalizedName.replace(/[^a-z0-9]/gi, ''), mc.id);
+          // Try with common variations (II vs 2, INC vs INCORPORATED)
+          mcCompanyNameMap.set(normalizedName.replace(/\bii\b/g, '2'), mc.id);
+          mcCompanyNameMap.set(normalizedName.replace(/\b2\b/g, 'ii'), mc.id);
+          mcCompanyNameMap.set(normalizedName.replace(/\binc\b/g, 'incorporated'), mc.id);
+          mcCompanyNameMap.set(normalizedName.replace(/\bincorporated\b/g, 'inc'), mc.id);
+        }
+      });
+      
+      // Helper function to resolve MC number value to ID
+      const resolveMcNumberId = (mcValue: string | null | undefined): string | null => {
+        if (!mcValue) return null;
+        
+        const trimmed = mcValue.toString().trim();
+        if (!trimmed) return null;
+        
+        const lowerTrimmed = trimmed.toLowerCase();
+        
+        // Try exact match by numeric MC number
+        let mcId = mcNumberValueMap.get(trimmed) || mcNumberValueMap.get(lowerTrimmed);
+        if (mcId) {
+          return mcId;
+        }
+        
+        // Try by company name (case-insensitive) - multiple variations
+        const variations = [
+          lowerTrimmed,
+          lowerTrimmed.replace(/\s+/g, ''),
+          lowerTrimmed.replace(/[^a-z0-9]/gi, ''),
+          lowerTrimmed.replace(/\bii\b/g, '2'),
+          lowerTrimmed.replace(/\b2\b/g, 'ii'),
+          lowerTrimmed.replace(/\binc\b/g, 'incorporated'),
+          lowerTrimmed.replace(/\bincorporated\b/g, 'inc'),
+        ];
+        
+        for (const variation of variations) {
+          mcId = mcCompanyNameMap.get(variation);
+          if (mcId) {
+            return mcId;
+          }
+        }
+        
+        // Try fuzzy matching - check if the value contains any company name
+        for (const [companyName, id] of mcCompanyNameMap.entries()) {
+          if (lowerTrimmed.includes(companyName) || companyName.includes(lowerTrimmed)) {
+            if (companyName.length > 5 && lowerTrimmed.length > 5) { // Only for substantial matches
+              return id;
+            }
+          }
+        }
+        
+        // If currentMcNumber was provided from form, use it as fallback
+        if (currentMcNumber) {
+          mcId = mcNumberValueMap.get(currentMcNumber.trim()) || 
+                 mcNumberValueMap.get(currentMcNumber.trim().toLowerCase());
+          if (mcId) {
+            return mcId;
+          }
+        }
+        
+        // Only log warning if resolution fails (reduced verbosity)
+        console.warn(`[Import Trailers] Could not resolve MC number "${trimmed}" to ID`);
+        
+        return null;
+      };
+      
+      // Pre-fetch trucks and drivers for assignment resolution
       const trucksForAssignment = await prisma.truck.findMany({
         where: {
           companyId: session.user.companyId,
@@ -1249,44 +1333,250 @@ export async function POST(
         select: { id: true, truckNumber: true },
       });
       const truckNumberMap = new Map(trucksForAssignment.map(t => [t.truckNumber, t.id]));
+      
+      // Pre-fetch drivers for operator driver resolution
+      const driversForAssignment = await prisma.driver.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { id: true, driverNumber: true, user: { select: { firstName: true, lastName: true } } },
+      });
+      const driverNumberMap = new Map<string, string>();
+      const driverNameMap = new Map<string, string>();
+      driversForAssignment.forEach(d => {
+        driverNumberMap.set(d.driverNumber.toLowerCase().trim(), d.id);
+        const fullName = `${d.user.firstName} ${d.user.lastName}`.toLowerCase().trim();
+        driverNameMap.set(fullName, d.id);
+        driverNameMap.set(`${d.user.firstName} ${d.user.lastName}`.trim(), d.id);
+      });
 
       // Batch create trailers for better performance
       for (let i = 0; i < trailersToCreate.length; i += BATCH_SIZE) {
         const batch = trailersToCreate.slice(i, i + BATCH_SIZE);
+        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(trailersToCreate.length / BATCH_SIZE);
+        
         try {
-          // Resolve assigned truck IDs before creating
-          const batchWithTruckIds = batch.map((t: any) => {
-            const { assignedTruckNumber, ...rest } = t;
-            const assignedTruckId = assignedTruckNumber ? truckNumberMap.get(assignedTruckNumber) || null : null;
-            return {
-              ...rest,
-              ...(assignedTruckId ? { assignedTruckId } : {}),
-            };
-          });
-
+          // Resolve assigned truck IDs, operator driver IDs, and MC number IDs before creating
+          const batchWithResolvedIds: any[] = [];
+          const failedResolutions: any[] = [];
+          
+          for (const t of batch) {
+            try {
+              const { assignedTruckNumber, operatorDriverValue, tags, mcNumberValue, ...rest } = t;
+              const assignedTruckId = assignedTruckNumber ? truckNumberMap.get(assignedTruckNumber) || null : null;
+              
+              // Resolve operator driver ID
+              let operatorDriverId: string | null = null;
+              if (operatorDriverValue) {
+                const driverValueStr = String(operatorDriverValue).trim();
+                // Try by driver number first
+                operatorDriverId = driverNumberMap.get(driverValueStr.toLowerCase()) || null;
+                // If not found, try by name
+                if (!operatorDriverId) {
+                  operatorDriverId = driverNameMap.get(driverValueStr.toLowerCase()) || driverNameMap.get(driverValueStr) || null;
+                }
+              }
+              
+              // Resolve MC number value to ID (REQUIRED for trailers)
+              const mcNumberId = resolveMcNumberId(mcNumberValue);
+              if (!mcNumberId) {
+                failedResolutions.push({
+                  trailerNumber: t.trailerNumber,
+                  mcValue: mcNumberValue,
+                  error: `MC number "${mcNumberValue || 'N/A'}" could not be resolved to an ID`,
+                });
+                continue; // Skip this trailer
+              }
+              
+              // Prepare tags as JSON for legacyTags field
+              const legacyTags = tags && Array.isArray(tags) && tags.length > 0 ? tags : null;
+              
+              batchWithResolvedIds.push({
+                ...rest,
+                mcNumberId, // Use mcNumberId directly for createMany (doesn't support relations)
+                ...(assignedTruckId ? { assignedTruckId } : {}),
+                ...(operatorDriverId ? { operatorDriverId } : {}),
+                ...(legacyTags ? { legacyTags: legacyTags } : {}),
+              });
+            } catch (err: any) {
+              console.error(`[Import Trailers] Error processing trailer ${t.trailerNumber}:`, err.message);
+              failedResolutions.push({
+                trailerNumber: t.trailerNumber,
+                error: err.message,
+              });
+            }
+          }
+          
+          // Log failed resolutions (only if there are failures)
+          if (failedResolutions.length > 0) {
+            // Add to errors
+            failedResolutions.forEach((fail, idx) => {
+              errors.push({ row: i * BATCH_SIZE + batch.findIndex(t => t.trailerNumber === fail.trailerNumber) + 1, error: fail.error });
+            });
+          }
+          
+          // Skip batch if no valid trailers
+          if (batchWithResolvedIds.length === 0) {
+            continue;
+          }
+          
+          // First, try to create new trailers
           await prisma.trailer.createMany({
-            data: batchWithTruckIds as any,
+            data: batchWithResolvedIds as any,
             skipDuplicates: true,
           });
-          // Fetch created trailers to get their IDs
+          
+          // For trailers that weren't created (duplicates), update them instead
+          const trailerNumbers = batchWithResolvedIds.map(t => t.trailerNumber);
+          
+          // Check if trailers exist (including soft-deleted ones to understand the situation)
+          const existingTrailers = await prisma.trailer.findMany({
+            where: {
+              trailerNumber: { in: trailerNumbers },
+              // Don't filter by companyId or deletedAt - check all trailers with these numbers
+            },
+            select: { 
+              id: true, 
+              trailerNumber: true, 
+              mcNumberId: true,
+              companyId: true,
+              deletedAt: true,
+            },
+          });
+          
+          // Separate trailers by status
+          const activeTrailers = existingTrailers.filter(t => 
+            t.companyId === session.user.companyId && t.deletedAt === null
+          );
+          const softDeletedTrailers = existingTrailers.filter(t => t.deletedAt !== null);
+          const wrongCompanyTrailers = existingTrailers.filter(t => 
+            t.companyId !== session.user.companyId && t.deletedAt === null
+          );
+          
+          const existingNumbers = new Set(activeTrailers.map(t => t.trailerNumber));
+          const trailersToUpdate = batchWithResolvedIds.filter(t => existingNumbers.has(t.trailerNumber));
+          
+          // Update existing active trailers with new data (especially mcNumberId)
+          if (trailersToUpdate.length > 0) {
+            for (const trailerData of trailersToUpdate) {
+              try {
+                await prisma.trailer.update({
+                  where: {
+                    trailerNumber: trailerData.trailerNumber,
+                  },
+                  data: {
+                    ...trailerData,
+                    updatedAt: new Date(), // Ensure updatedAt is refreshed
+                  },
+                });
+              } catch (updateError: any) {
+                console.error(`[Import Trailers] Failed to update trailer ${trailerData.trailerNumber}:`, updateError.message);
+                errors.push({ 
+                  row: batch.findIndex(t => t.trailerNumber === trailerData.trailerNumber) + 1, 
+                  error: `Failed to update trailer: ${updateError.message}` 
+                });
+              }
+            }
+          }
+          
+          // Handle soft-deleted trailers - restore them
+          if (softDeletedTrailers.length > 0) {
+            const softDeletedNumbers = new Set(softDeletedTrailers.map(t => t.trailerNumber));
+            const trailersToRestore = batchWithResolvedIds.filter(t => softDeletedNumbers.has(t.trailerNumber));
+            
+            for (const trailerData of trailersToRestore) {
+              try {
+                await prisma.trailer.update({
+                  where: {
+                    trailerNumber: trailerData.trailerNumber,
+                  },
+                  data: {
+                    ...trailerData,
+                    deletedAt: null, // Restore
+                    isActive: true,
+                    updatedAt: new Date(),
+                  },
+                });
+              } catch (restoreError: any) {
+                console.error(`[Import Trailers] Failed to restore trailer ${trailerData.trailerNumber}:`, restoreError.message);
+                errors.push({ 
+                  row: batch.findIndex(t => t.trailerNumber === trailerData.trailerNumber) + 1, 
+                  error: `Failed to restore trailer: ${restoreError.message}` 
+                });
+              }
+            }
+          }
+          
+          // Fetch all trailers (both newly created and updated) to get their IDs
           const createdBatch = await prisma.trailer.findMany({
             where: {
               companyId: session.user.companyId,
-              trailerNumber: { in: batch.map(t => t.trailerNumber) },
+              trailerNumber: { in: trailerNumbers },
+              deletedAt: null,
             },
           });
+          
+          if (createdBatch.length < batchWithResolvedIds.length) {
+            // Check which trailers weren't created/updated
+            const createdNumbers = new Set(createdBatch.map(t => t.trailerNumber));
+            const missingNumbers = batchWithResolvedIds.map(t => t.trailerNumber).filter(n => !createdNumbers.has(n));
+            
+            // Try to create missing trailers individually to see what the error is
+            if (missingNumbers.length > 0 && missingNumbers.length <= 5) {
+              const missingTrailerData = batchWithResolvedIds.filter(t => missingNumbers.includes(t.trailerNumber));
+              for (const trailerData of missingTrailerData) {
+                try {
+                  const created = await prisma.trailer.create({
+                    data: trailerData as any,
+                  });
+                  createdBatch.push(created);
+                } catch (createError: any) {
+                  console.error(`[Import Trailers] Failed to create missing trailer ${trailerData.trailerNumber}:`, createError.message);
+                  errors.push({ 
+                    row: batch.findIndex(t => t.trailerNumber === trailerData.trailerNumber) + 1, 
+                    error: `Failed to create trailer: ${createError.message}` 
+                  });
+                }
+              }
+            }
+          }
+          
           created.push(...createdBatch);
         } catch (error: any) {
           // If batch fails, try individual creates
           for (let j = 0; j < batch.length; j++) {
             const trailerData = batch[j];
             try {
-              const { assignedTruckNumber, ...rest } = trailerData as any;
+              const { assignedTruckNumber, operatorDriverValue, tags, mcNumberValue, ...rest } = trailerData as any;
               const assignedTruckId = assignedTruckNumber ? truckNumberMap.get(assignedTruckNumber) || null : null;
+              
+              // Resolve operator driver ID
+              let operatorDriverId: string | null = null;
+              if (operatorDriverValue) {
+                const driverValueStr = String(operatorDriverValue).trim();
+                operatorDriverId = driverNumberMap.get(driverValueStr.toLowerCase()) || 
+                                 driverNameMap.get(driverValueStr.toLowerCase()) || 
+                                 driverNameMap.get(driverValueStr) || null;
+              }
+              
+              // Resolve MC number value to ID (REQUIRED for trailers)
+              const mcNumberId = resolveMcNumberId(mcNumberValue);
+              if (!mcNumberId) {
+                throw new Error(`MC number "${mcNumberValue || 'N/A'}" could not be resolved to an ID. Please ensure the MC number exists in the system.`);
+              }
+              
+              // Prepare tags as JSON
+              const legacyTags = tags && Array.isArray(tags) && tags.length > 0 ? tags : null;
+              
               const trailer = await prisma.trailer.create({ 
                 data: {
                   ...rest,
+                  mcNumberId, // Use mcNumberId directly (same as batch create)
                   ...(assignedTruckId ? { assignedTruckId } : {}),
+                  ...(operatorDriverId ? { operatorDriverId } : {}),
+                  ...(legacyTags ? { legacyTags: legacyTags } : {}),
                 }
               });
               created.push(trailer);
@@ -1295,6 +1585,11 @@ export async function POST(
             }
           }
         }
+      }
+      
+      // Final summary log (reduced verbosity)
+      if (errors.length > 0) {
+        console.log(`[Import Trailers] Completed: ${created.length} trailers imported, ${errors.length} errors`);
       }
     } else if (entity === 'vendors') {
       // Import vendors
@@ -1418,14 +1713,32 @@ export async function POST(
             companyId: session.user.companyId,
             deletedAt: null,
           },
-          select: { id: true, truckNumber: true, mcNumber: true },
+          select: { 
+            id: true, 
+            truckNumber: true, 
+            mcNumber: {
+              select: {
+                id: true,
+                number: true,
+              },
+            },
+          },
         }),
         prisma.trailer.findMany({
           where: {
             companyId: session.user.companyId,
             deletedAt: null,
           },
-          select: { id: true, trailerNumber: true, mcNumber: true },
+          select: { 
+            id: true, 
+            trailerNumber: true, 
+            mcNumber: {
+              select: {
+                id: true,
+                number: true,
+              },
+            },
+          },
         }),
         prisma.driver.findMany({
           where: {
@@ -1500,12 +1813,12 @@ export async function POST(
           truckMap.set(`0${truckKey}`, t.id);
         }
         
-        if (t.mcNumber) truckMcMap.set(t.mcNumber.toLowerCase(), t.id);
+        if (t.mcNumber?.number) truckMcMap.set(t.mcNumber.number.toLowerCase(), t.id);
       });
 
       allTrailers.forEach((t) => {
         trailerMap.set(t.trailerNumber.toLowerCase(), t.id);
-        if (t.mcNumber) trailerMcMap.set(t.mcNumber.toLowerCase(), t.id);
+        if (t.mcNumber?.number) trailerMcMap.set(t.mcNumber.number.toLowerCase(), t.id);
       });
 
       allDrivers.forEach((d) => {
@@ -2933,6 +3246,29 @@ export async function POST(
       // Starting users import
       const bcrypt = await import('bcryptjs');
       
+      // Get or create default MC number for the company
+      let mcNumber = await prisma.mcNumber.findFirst({
+        where: {
+          companyId: session.user.companyId,
+          isDefault: true,
+        },
+      });
+
+      if (!mcNumber) {
+        const company = await prisma.company.findUnique({
+          where: { id: session.user.companyId },
+        });
+        mcNumber = await prisma.mcNumber.create({
+          data: {
+            companyId: session.user.companyId,
+            number: company?.mcNumber || `MC-${Date.now()}`,
+            companyName: company?.name || 'Company',
+            type: 'CARRIER',
+            isDefault: true,
+          },
+        });
+      }
+      
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
         try {
@@ -2992,6 +3328,7 @@ export async function POST(
               phone: getValue(row, ['Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Phone #', 'phone #', 'Mobile', 'mobile', 'Cell', 'cell', 'Cell Phone', 'cell_phone', 'Work Phone', 'work_phone']) || null,
               role,
               companyId: session.user.companyId,
+              mcNumberId: mcNumber.id,
             },
           });
           

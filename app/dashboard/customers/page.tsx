@@ -5,7 +5,12 @@ export default function CustomersPage() {
   return (
     <>
       <Breadcrumb items={[{ label: 'Customers', href: '/dashboard/customers' }]} />
-      <CustomerList />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Customers</h1>
+        </div>
+        <CustomerList />
+      </div>
     </>
   );
 }

@@ -48,6 +48,7 @@ import {
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 import BreakdownCommunicationLog from './BreakdownCommunicationLog';
+import PaymentTracking from '@/components/accounting/PaymentTracking';
 
 interface BreakdownDetailEnhancedProps {
   breakdownId: string;
@@ -747,6 +748,15 @@ export default function BreakdownDetailEnhanced({ breakdownId }: BreakdownDetail
               )}
             </CardContent>
           </Card>
+
+          {/* Payment Tracking */}
+          <PaymentTracking
+            entityId={breakdownId}
+            entityType="breakdown"
+            payments={breakdown.payments || []}
+            mcNumberId={breakdown.mcNumberId}
+            canEdit={can('trucks.edit')}
+          />
         </TabsContent>
       </Tabs>
     </div>

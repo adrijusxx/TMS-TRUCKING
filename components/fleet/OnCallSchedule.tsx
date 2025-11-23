@@ -285,7 +285,6 @@ export default function OnCallSchedule() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">On-Call Schedule</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage 24/7 road service staffing and coverage
           </p>

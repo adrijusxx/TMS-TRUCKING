@@ -2,6 +2,7 @@
 
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 const fields = [
   { name: 'name', label: 'Name', type: 'text' as const, required: true },
@@ -32,13 +33,16 @@ const columns = [
 
 export default function OrderPaymentTypesPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Order Payment Types</h1>
-        <p className="text-muted-foreground">
-          Configure order payment type definitions
-        </p>
-      </div>
+    <>
+      <Breadcrumb items={[
+        { label: 'Settings', href: '/dashboard/settings' },
+        { label: 'Customizations', href: '/dashboard/settings' },
+        { label: 'Order Payment Types' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Payment Type Configuration</h1>
+        </div>
       <GenericCRUDManager
         endpoint="/api/order-payment-types"
         queryKey="order-payment-types"
@@ -48,6 +52,7 @@ export default function OrderPaymentTypesPage() {
         fields={fields}
         columns={columns}
       />
-    </div>
+      </div>
+    </>
   );
 }

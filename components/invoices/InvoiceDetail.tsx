@@ -110,7 +110,6 @@ export default function InvoiceDetail({ invoice }: InvoiceDetailProps) {
           </Link>
           <div>
             <h1 className="text-3xl font-bold">{invoice.invoiceNumber}</h1>
-            <p className="text-muted-foreground">Invoice Details</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -123,7 +122,12 @@ export default function InvoiceDetail({ invoice }: InvoiceDetailProps) {
               Synced to QuickBooks
             </Badge>
           )}
-          <Button variant="outline">
+          <Button
+            variant="outline"
+            onClick={() => {
+              window.open(apiUrl(`/api/invoices/${invoice.id}/pdf`), '_blank');
+            }}
+          >
             <Download className="h-4 w-4 mr-2" />
             Download PDF
           </Button>

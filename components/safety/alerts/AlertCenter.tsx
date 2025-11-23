@@ -111,11 +111,6 @@ export default function AlertCenter() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Alert Center</h1>
-        <p className="text-muted-foreground">Safety and compliance alerts</p>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">

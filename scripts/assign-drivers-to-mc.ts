@@ -74,15 +74,12 @@ async function main() {
 
     console.log(`\n📍 Target MC number: ${targetMc.companyName} (MC: ${targetMc.number})`);
 
-    // Get all drivers without MC number assignment (or all drivers if you want to reassign)
-    const driversWithoutMc = await prisma.driver.findMany({
+    // Get all drivers - we'll filter by checking if they need MC assignment
+    // Note: mcNumberId is required, so we get all drivers and check their MC assignment
+    const allDrivers = await prisma.driver.findMany({
       where: {
         companyId: targetMc.company.id,
         deletedAt: null,
-        OR: [
-          { mcNumber: null },
-          { mcNumber: '' },
-        ],
       },
       include: {
         user: {
@@ -93,8 +90,17 @@ async function main() {
             lastName: true,
           },
         },
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+          },
+        },
       },
     });
+
+    // Filter drivers that don't have the target MC number assigned
+    const driversWithoutMc = allDrivers.filter((driver: any) => driver.mcNumberId !== targetMc.id);
 
     if (driversWithoutMc.length === 0) {
       console.log('❌ No drivers found without MC number assignment in this company.');
@@ -102,8 +108,8 @@ async function main() {
     }
 
     console.log(`\n📊 Found ${driversWithoutMc.length} driver(s) without MC number assignment:`);
-    driversWithoutMc.forEach((driver, index) => {
-      console.log(`${index + 1}. ${driver.user.firstName} ${driver.user.lastName} (${driver.driverNumber}) - Current MC: ${driver.mcNumber || 'None'}`);
+    driversWithoutMc.forEach((driver: any, index: number) => {
+      console.log(`${index + 1}. ${driver.user?.firstName || ''} ${driver.user?.lastName || ''} (${driver.driverNumber}) - Current MC: ${driver.mcNumber?.number || 'None'}`);
     });
 
     // Confirm
@@ -123,11 +129,11 @@ async function main() {
       try {
         await prisma.driver.update({
           where: { id: driver.id },
-          data: { mcNumber: targetMc.number },
+          data: { mcNumberId: targetMc.id },
         });
 
         assigned++;
-        console.log(`✓ Assigned ${driver.user.firstName} ${driver.user.lastName} (${driver.driverNumber}) to MC ${targetMc.number}`);
+        console.log(`✓ Assigned ${(driver as any).user?.firstName || ''} ${(driver as any).user?.lastName || ''} (${driver.driverNumber}) to MC ${targetMc.number}`);
       } catch (error: any) {
         errors++;
         console.error(`✗ Error assigning ${driver.driverNumber}: ${error.message}`);
@@ -142,7 +148,7 @@ async function main() {
     const driversWithMc = await prisma.driver.count({
       where: {
         companyId: targetMc.company.id,
-        mcNumber: targetMc.number,
+        mcNumberId: targetMc.id,
         deletedAt: null,
       },
     });

@@ -2,6 +2,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import DriverDetail from '@/components/drivers/DriverDetail';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default async function DriverDetailPage({
   params,
@@ -60,6 +61,19 @@ export default async function DriverDetailPage({
     notFound();
   }
 
-  return <DriverDetail driver={driver} />;
+  return (
+    <>
+      <Breadcrumb items={[
+        { label: 'Drivers', href: '/dashboard/drivers' },
+        { label: `${driver.user.firstName} ${driver.user.lastName}` }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Driver Details</h1>
+        </div>
+        <DriverDetail driver={driver} />
+      </div>
+    </>
+  );
 }
 

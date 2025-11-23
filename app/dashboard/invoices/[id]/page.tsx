@@ -2,6 +2,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import InvoiceDetail from '@/components/invoices/InvoiceDetail';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default async function InvoiceDetailPage({
   params,
@@ -51,6 +52,19 @@ export default async function InvoiceDetailPage({
       })
     : [];
 
-  return <InvoiceDetail invoice={{ ...invoice, loads }} />;
+  return (
+    <>
+      <Breadcrumb items={[
+        { label: 'Invoices', href: '/dashboard/invoices' },
+        { label: `Invoice #${invoice.invoiceNumber}` }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Invoice Details</h1>
+        </div>
+        <InvoiceDetail invoice={{ ...invoice, loads }} />
+      </div>
+    </>
+  );
 }
 

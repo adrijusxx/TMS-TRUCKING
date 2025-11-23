@@ -101,13 +101,6 @@ export default function EDITesting() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">EDI Testing Environment</h1>
-        <p className="text-muted-foreground">
-          Test and validate EDI files (204, 210, 214)
-        </p>
-      </div>
-
       <Tabs defaultValue="parse" className="space-y-4">
         <TabsList>
           <TabsTrigger value="parse">Parse EDI</TabsTrigger>

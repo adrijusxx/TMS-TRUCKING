@@ -4,7 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { createTruckSchema } from '@/lib/validations/truck';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { McStateManager } from '@/lib/managers/McStateManager';
+import { getTruckFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,11 +30,63 @@ export async function GET(request: NextRequest) {
     const model = searchParams.get('model');
     const equipmentType = searchParams.get('equipmentType');
     const licenseState = searchParams.get('licenseState');
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
+    const mcViewMode = searchParams.get('mc'); // 'all', 'current', 'multi', or specific MC ID
     const isAdmin = session.user?.role === 'ADMIN';
 
+    // Check if multi-MC mode is active
+    const mcState = await McStateManager.getMcState(session, request);
+    const isMultiMode = mcState.viewMode === 'multi' || mcViewMode === 'multi';
+
     // Build base where clause with MC number filtering if applicable
-    let baseFilter: any = await buildMcNumberWhereClause(session, request);
+    let baseFilter: any;
+    if (isMultiMode && mcState.mcNumberIds.length > 0) {
+      // Use multi-MC filtering
+      baseFilter = await buildMultiMcNumberWhereClause(session, request);
+    } else {
+      // Use single MC or all MCs filtering
+      baseFilter = await buildMcNumberWhereClause(session, request);
+    }
+    
+    // Convert mcNumber (string) to mcNumberId (foreign key) for trucks
+    // Trucks use mcNumberId relation, not mcNumber string field
+    if (baseFilter.mcNumber && typeof baseFilter.mcNumber === 'string') {
+      const mcNumberValue = baseFilter.mcNumber;
+      // Look up the MC Number record by its number value
+      const mcRecord = await prisma.mcNumber.findFirst({
+        where: {
+          companyId: session.user.companyId,
+          number: mcNumberValue,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      
+      if (mcRecord) {
+        // Replace mcNumber with mcNumberId
+        delete baseFilter.mcNumber;
+        baseFilter.mcNumberId = mcRecord.id;
+      } else {
+        // MC number not found, remove the filter
+        delete baseFilter.mcNumber;
+      }
+    }
+
+    // Apply role-based filtering
+    const { mcNumberId } = await getCurrentMcNumber(session, request);
+    const roleFilter = getTruckFilter(
+      createFilterContext(
+        session.user.id,
+        session.user.role as any,
+        session.user.companyId,
+        mcNumberId ?? undefined
+      )
+    );
+
+    // Merge role filter with base filter
+    if (roleFilter.mcNumberId && baseFilter.mcNumberId) {
+      // Both have mcNumberId, keep baseFilter's (from MC selection)
+      delete roleFilter.mcNumberId;
+    }
     
     // Admin-only: Override MC filter based on view mode
     if (isAdmin && mcViewMode === 'all') {
@@ -39,7 +94,10 @@ export async function GET(request: NextRequest) {
       if (baseFilter.mcNumber) {
         delete baseFilter.mcNumber;
       }
-    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
+      if (baseFilter.mcNumberId) {
+        delete baseFilter.mcNumberId;
+      }
+    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== 'multi' && mcViewMode !== null) {
       // Filter by specific MC number ID (admin selecting specific MC)
       // Handle both "mc:ID" format and plain ID format
       const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
@@ -58,41 +116,25 @@ export async function GET(request: NextRequest) {
         ].filter(Boolean) as string[];
         
         if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
-          const trimmedMcNumber = mcNumberRecord.number?.trim();
-          const trimmedCompanyName = mcNumberRecord.companyName?.trim();
+          // Trucks now use mcNumberId (foreign key), not mcNumber (string)
+          baseFilter = {
+            ...baseFilter,
+            mcNumberId: mcId, // Filter by mcNumberId foreign key
+          };
           
-          // Build OR conditions to match both MC number value AND company name
-          // This handles cases where existing data has company names instead of MC numbers
-          const orConditions: any[] = [];
-          
-          if (trimmedMcNumber) {
-            orConditions.push({ mcNumber: trimmedMcNumber });
-          }
-          
-          if (trimmedCompanyName) {
-            orConditions.push({ mcNumber: { contains: trimmedCompanyName, mode: 'insensitive' } });
-          }
-          
-          // Use OR condition if we have multiple ways to match
-          if (orConditions.length > 1) {
-            baseFilter = {
-              ...baseFilter,
-              OR: orConditions,
-            };
+          // Remove any old mcNumber filter if it exists
+          if (baseFilter.mcNumber) {
             delete baseFilter.mcNumber;
-          } else if (orConditions.length === 1) {
-            baseFilter = {
-              ...baseFilter,
-              ...orConditions[0],
-            };
           }
         }
       }
     }
     // Non-admin users: always use baseFilter (their assigned MC)
 
+    // Merge role filter
     const where: any = {
       ...baseFilter,
+      ...roleFilter,
       isActive: true,
       deletedAt: null,
     };
@@ -151,9 +193,14 @@ export async function GET(request: NextRequest) {
       prisma.truck.count({ where }),
     ]);
 
+    // Filter sensitive fields based on role
+    const filteredTrucks = trucks.map((truck) =>
+      filterSensitiveFields(truck, session.user.role as any)
+    );
+
     return NextResponse.json({
       success: true,
-      data: trucks,
+      data: filteredTrucks,
       meta: {
         total,
         page,
@@ -235,6 +282,41 @@ export async function POST(request: NextRequest) {
           },
         },
         { status: 409 }
+      );
+    }
+
+    // Validate MC number exists and belongs to company
+    if (validated.mcNumberId) {
+      const mcNumber = await prisma.mcNumber.findFirst({
+        where: {
+          id: validated.mcNumberId,
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+      });
+
+      if (!mcNumber) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_MC_NUMBER',
+              message: 'MC number not found or does not belong to your company',
+            },
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'MC number is required',
+          },
+        },
+        { status: 400 }
       );
     }
 

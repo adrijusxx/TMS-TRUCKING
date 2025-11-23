@@ -82,11 +82,6 @@ export default function DefectDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Defect Management</h1>
-        <p className="text-muted-foreground">Central view of all vehicle defects</p>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">

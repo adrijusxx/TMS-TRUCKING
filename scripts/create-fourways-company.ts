@@ -113,6 +113,41 @@ async function createFourWaysCompany() {
       if (adminUser) {
         console.log('');
         console.log('Creating admin user for Four Ways Logistics...');
+        
+        // Get or create default MC number
+        let defaultMcNumber = await prisma.mcNumber.findFirst({
+          where: {
+            companyId: fourWaysCompany.id,
+            isDefault: true,
+          },
+        });
+        
+        if (!defaultMcNumber) {
+          // Get first MC number or create one
+          const firstMcNumber = await prisma.mcNumber.findFirst({
+            where: { companyId: fourWaysCompany.id },
+          });
+          
+          if (firstMcNumber) {
+            // Set first MC number as default
+            defaultMcNumber = await prisma.mcNumber.update({
+              where: { id: firstMcNumber.id },
+              data: { isDefault: true },
+            });
+          } else {
+            // Create default MC number
+            defaultMcNumber = await prisma.mcNumber.create({
+              data: {
+                companyId: fourWaysCompany.id,
+                number: fourWaysCompany.mcNumber || `MC-${Date.now()}`,
+                companyName: fourWaysCompany.name,
+                type: 'CARRIER',
+                isDefault: true,
+              },
+            });
+          }
+        }
+        
         const hashedPassword = await bcrypt.hash('password123', 10); // Default password - change after migration
         
         const newAdminUser = await prisma.user.create({
@@ -124,6 +159,7 @@ async function createFourWaysCompany() {
             phone: adminUser.phone,
             role: 'ADMIN',
             companyId: fourWaysCompany.id,
+            mcNumberId: defaultMcNumber.id,
             isActive: true,
           },
         });

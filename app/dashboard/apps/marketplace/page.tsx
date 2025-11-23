@@ -1,3 +1,4 @@
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -5,13 +6,12 @@ import { ShoppingBag, Download, CheckCircle2, Star } from 'lucide-react';
 
 export default function MarketplacePage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Apps & Marketplace</h1>
-        <p className="text-muted-foreground">
-          Discover and install apps to extend your TMS functionality
-        </p>
-      </div>
+    <>
+      <Breadcrumb items={[{ label: 'Apps & Marketplace', href: '/dashboard/apps/marketplace' }]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Apps & Marketplace</h1>
+        </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -83,6 +83,7 @@ export default function MarketplacePage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

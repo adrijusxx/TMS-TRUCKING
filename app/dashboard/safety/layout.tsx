@@ -6,83 +6,23 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
-  LayoutDashboard,
-  AlertTriangle,
-  FileCheck,
   Shield,
-  Truck,
-  Users,
-  BarChart3,
-  Bell,
-  ClipboardList,
-  FileText,
-  Wrench,
-  CheckCircle2,
-  Car,
-  Clock,
-  TestTube,
-  GraduationCap,
-  Calendar,
-  Search,
-  Settings,
   ChevronLeft,
   ChevronRight,
-  FileSearch,
-  ShieldCheck,
-  FileBarChart,
-  FolderOpen,
-  ClipboardCheck,
-  Building2,
-  Award,
-  AlertCircle,
-  FileX
 } from 'lucide-react';
-
-const safetyNavItems = [
-  // Dashboard
-  { name: 'Dashboard', href: '/dashboard/safety', icon: LayoutDashboard },
-  
-  // Incidents & Accidents
-  { name: 'Incidents', href: '/dashboard/safety/incidents', icon: AlertTriangle },
-  { name: 'Alerts', href: '/dashboard/safety/alerts', icon: Bell },
-  
-  // Driver Compliance
-  { name: 'DQF Management', href: '/dashboard/safety/dqf', icon: FileCheck },
-  { name: 'Medical Cards', href: '/dashboard/safety/medical-cards', icon: FileText },
-  { name: 'CDL Records', href: '/dashboard/safety/cdl', icon: FileCheck },
-  { name: 'MVR Tracking', href: '/dashboard/safety/mvr', icon: Search },
-  { name: 'Drug Tests', href: '/dashboard/safety/drug-tests', icon: TestTube },
-  { name: 'HOS Monitoring', href: '/dashboard/safety/hos', icon: Clock },
-  { name: 'Annual Reviews', href: '/dashboard/safety/annual-reviews', icon: Calendar },
-  { name: 'Training Records', href: '/dashboard/safety/trainings', icon: GraduationCap },
-  
-  // Vehicle Safety
-  { name: 'DVIR', href: '/dashboard/safety/dvir', icon: ClipboardList },
-  { name: 'Defects', href: '/dashboard/safety/defects', icon: Wrench },
-  { name: 'Roadside Inspections', href: '/dashboard/safety/roadside-inspections', icon: Car },
-  { name: 'DOT Inspections', href: '/dashboard/safety/dot-inspections', icon: ShieldCheck },
-  { name: 'Out of Service Orders', href: '/dashboard/safety/out-of-service', icon: AlertCircle },
-  
-  // DOT Compliance
-  { name: 'CSA Scores', href: '/dashboard/safety/compliance/csa-scores', icon: BarChart3 },
-  { name: 'DataQ', href: '/dashboard/safety/compliance/dataq', icon: CheckCircle2 },
-  { name: 'FMCSA Compliance', href: '/dashboard/safety/compliance/fmcsa', icon: Shield },
-  
-  // Insurance & Claims
-  { name: 'Insurance Policies', href: '/dashboard/safety/insurance/policies', icon: Building2 },
-  { name: 'Claims', href: '/dashboard/safety/insurance/claims', icon: FileX },
-  
-  // Safety Programs
-  { name: 'Safety Meetings', href: '/dashboard/safety/programs/meetings', icon: Users },
-  { name: 'Safety Policies', href: '/dashboard/safety/programs/policies', icon: FileText },
-  { name: 'Recognition Programs', href: '/dashboard/safety/programs/recognition', icon: Award },
-  
-  // Document Management
-  { name: 'Documents', href: '/dashboard/safety/documents', icon: FolderOpen },
-  
-  // Reports & Analytics
-  { name: 'Reports', href: '/dashboard/safety/reports', icon: FileBarChart },
-];
+import SafetyNavSection from '@/components/safety/SafetyNavSection';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  SIDEBAR_WIDTHS,
+  NAV_SPACING,
+  NAV_ICON_SIZES,
+  NAV_TYPOGRAPHY,
+  NAV_TOGGLE_BUTTONS,
+  NAV_BACKGROUNDS,
+  NAV_BORDERS,
+  NAV_CLASSES,
+} from '@/lib/navigation-constants';
+import { safetyNavigationSections, safetyStandaloneItems } from '@/lib/safety-navigation-config';
 
 export default function SafetyLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -103,68 +43,91 @@ export default function SafetyLayout({ children }: { children: React.ReactNode }
     localStorage.setItem('safetySidebarOpen', String(newState));
   };
 
+  if (!sidebarOpen) {
+    return (
+      <div className="flex">
+        <div className={cn(SIDEBAR_WIDTHS.collapsed, 'border-r', NAV_BACKGROUNDS.sidebar, 'p-2 flex flex-col items-center')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={NAV_TOGGLE_BUTTONS.collapsed}
+            onClick={toggleSidebar}
+            title="Show sidebar"
+          >
+            <ChevronRight className={NAV_ICON_SIZES.chevron} />
+          </Button>
+        </div>
+        <div className="flex-1">{children}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] relative">
-      {/* Safety Sidebar - Always visible unless toggled closed */}
-      {sidebarOpen && (
-        <aside className="w-64 border-r bg-slate-50 dark:bg-secondary p-4 space-y-2 overflow-y-auto transition-all">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+    <div className="flex gap-2 relative">
+      <div className={cn(SIDEBAR_WIDTHS.expanded, 'border-r', NAV_BACKGROUNDS.sidebar, 'overflow-y-auto p-4', NAV_SPACING.sections)}>
+        <div className={cn('flex items-center justify-between mb-1', NAV_BORDERS.header, 'pb-3 mb-3')}>
+          <div className={cn('flex items-center', NAV_SPACING.iconText)}>
+            <Shield className={cn(NAV_ICON_SIZES.section, 'text-primary')} />
+            <h2 className={cn(NAV_TYPOGRAPHY.sectionHeader, NAV_TYPOGRAPHY.truncate)}>
               Safety Department
             </h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={toggleSidebar}
-              title="Hide sidebar"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
           </div>
-          <nav className="space-y-1">
-            {safetyNavItems.map((item) => {
+          <Button
+            variant="ghost"
+            size="icon"
+            className={NAV_TOGGLE_BUTTONS.expanded}
+            onClick={toggleSidebar}
+            title="Hide sidebar"
+          >
+            <ChevronLeft className={NAV_ICON_SIZES.chevron} />
+          </Button>
+        </div>
+
+        <nav className={NAV_SPACING.items}>
+          <TooltipProvider delayDuration={300}>
+            {/* Standalone items (always visible) */}
+            {safetyStandaloneItems.map((item) => {
+              const ItemIcon = item.icon;
               const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+              
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.name}</span>
-                </Link>
+                <Tooltip key={item.href}>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        'flex items-center',
+                        NAV_SPACING.iconText,
+                        isActive ? NAV_CLASSES.itemActive : NAV_CLASSES.itemHover
+                      )}
+                    >
+                      <ItemIcon className={cn(NAV_ICON_SIZES.item, 'flex-shrink-0')} />
+                      <span className={NAV_TYPOGRAPHY.truncate}>{item.name}</span>
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    <p className="font-medium mb-1">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
-          </nav>
-        </aside>
-      )}
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-background relative">
-        {!sidebarOpen && (
-          <div className="p-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleSidebar}
-              title="Show sidebar"
-              className="h-9 px-4 gap-2 shadow-sm border bg-background hover:bg-accent"
-            >
-              <ChevronRight className="h-4 w-4" />
-              <span className="text-sm">Show Menu</span>
-            </Button>
-          </div>
-        )}
-        <div className="h-full">
-          {children}
-        </div>
-      </main>
+            {/* Collapsible sections */}
+            {safetyNavigationSections.map((section) => (
+              <SafetyNavSection
+                key={section.title}
+                title={section.title}
+                items={section.items}
+                icon={section.icon}
+                colorScheme={section.colorScheme}
+              />
+            ))}
+          </TooltipProvider>
+        </nav>
+      </div>
+
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }

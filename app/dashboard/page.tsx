@@ -14,8 +14,9 @@ import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSumm
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { LoadStatus } from '@prisma/client';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { cookies } from 'next/headers';
+import { getLoadFilter, getDriverFilter, getTruckFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 
 // Mark this page as dynamic since it uses auth() which internally uses headers()
 export const dynamic = 'force-dynamic';
@@ -29,12 +30,53 @@ export default async function DashboardPage() {
       return <div>Loading...</div>;
     }
 
-  // Build base filter with MC number if applicable
+  // Build filters with MC number if applicable
+  // Load uses mcNumber (string), Driver and Truck use mcNumberId (relation)
   const cookieStore = await cookies();
   const requestCookies = {
     get: (name: string) => cookieStore.get(name) || null,
   } as any;
-  const baseFilter = await buildMcNumberWhereClause(session, requestCookies);
+  
+  // Get MC number for role filtering (for drivers/trucks which use mcNumberId relation)
+  const { mcNumberId } = await getCurrentMcNumber(session, requestCookies);
+  
+  // Apply role-based filtering
+  // Note: Loads use mcNumber (string), so MC filtering is handled in baseLoadFilter
+  const roleLoadFilter = await getLoadFilter(
+    createFilterContext(
+      session.user.id,
+      session.user.role as any,
+      session.user.companyId
+    )
+  );
+  
+  // Drivers use mcNumberId (relation), so pass it for driver filtering
+  const roleDriverFilter = await getDriverFilter(
+    createFilterContext(
+      session.user.id,
+      session.user.role as any,
+      session.user.companyId,
+      mcNumberId ?? undefined
+    )
+  );
+  
+  // Merge MC filters with role filters
+  const baseLoadFilter = await buildMcNumberWhereClause(session, requestCookies);
+  const baseDriverTruckFilter = await buildMcNumberIdWhereClause(session, requestCookies);
+  
+  const loadFilter = { ...baseLoadFilter, ...roleLoadFilter };
+  const driverFilter = { ...baseDriverTruckFilter, ...roleDriverFilter };
+  
+  // Get truck filter separately (trucks don't have assignedDispatcherId)
+  const roleTruckFilter = getTruckFilter(
+    createFilterContext(
+      session.user.id,
+      session.user.role as any,
+      session.user.companyId,
+      mcNumberId ?? undefined
+    )
+  );
+  const truckFilter = { ...baseDriverTruckFilter, ...roleTruckFilter };
 
   // Fetch dashboard stats
   const [
@@ -48,13 +90,13 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     prisma.load.count({
       where: {
-        ...baseFilter,
+        ...loadFilter,
         deletedAt: null,
       },
     }),
     prisma.load.count({
       where: {
-        ...baseFilter,
+        ...loadFilter,
         status: {
           in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
         },
@@ -63,14 +105,14 @@ export default async function DashboardPage() {
     }),
     prisma.driver.count({
       where: {
-        ...baseFilter,
+        ...driverFilter,
         isActive: true,
         deletedAt: null,
       },
     }),
     prisma.driver.count({
       where: {
-        ...baseFilter,
+        ...driverFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,
@@ -78,14 +120,14 @@ export default async function DashboardPage() {
     }),
     prisma.truck.count({
       where: {
-        ...baseFilter,
+        ...truckFilter,
         isActive: true,
         deletedAt: null,
       },
     }),
     prisma.truck.count({
       where: {
-        ...baseFilter,
+        ...truckFilter,
         status: 'AVAILABLE',
         isActive: true,
         deletedAt: null,
@@ -93,7 +135,7 @@ export default async function DashboardPage() {
     }),
     prisma.load.aggregate({
       where: {
-        ...baseFilter,
+        ...loadFilter,
         status: {
           in: ['DELIVERED', 'INVOICED', 'PAID'],
         },
@@ -143,9 +185,6 @@ export default async function DashboardPage() {
       <Breadcrumb items={[{ label: 'Dashboard' }]} />
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back, {session.user?.name || 'User'}
-        </p>
       </div>
 
       {/* Overview Statistics Section */}

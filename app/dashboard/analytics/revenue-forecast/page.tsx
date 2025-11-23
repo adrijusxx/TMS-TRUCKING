@@ -8,7 +8,12 @@ export default function RevenueForecastPage() {
         { label: 'Analytics & Reports', href: '/dashboard/analytics' },
         { label: 'Revenue Forecast' }
       ]} />
-      <RevenueForecast />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Revenue Forecast</h1>
+        </div>
+        <RevenueForecast />
+      </div>
     </>
   );
 }

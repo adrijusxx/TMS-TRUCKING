@@ -116,17 +116,19 @@ export async function POST(
       });
     }
 
-    // TODO: Log email send event
-    // await prisma.activityLog.create({
-    //   data: {
-    //     companyId: session.user.companyId,
-    //     userId: session.user.id,
-    //     action: 'INVOICE_RESENT',
-    //     entityType: 'Invoice',
-    //     entityId: invoice.id,
-    //     description: `Invoice ${invoice.invoiceNumber} resent to ${recipientEmails.join(', ')}`,
-    //   },
-    // });
+    // Log email send event
+    const { createActivityLog } = await import('@/lib/activity-log');
+    const requestHeaders = request.headers;
+    await createActivityLog({
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      action: 'SEND',
+      entityType: 'Invoice',
+      entityId: invoice.id,
+      description: `Invoice ${invoice.invoiceNumber} resent to ${recipientEmails.join(', ')}`,
+      ipAddress: requestHeaders.get('x-forwarded-for') || requestHeaders.get('x-real-ip') || undefined,
+      userAgent: requestHeaders.get('user-agent') || undefined,
+    });
 
     return NextResponse.json({
       success: true,

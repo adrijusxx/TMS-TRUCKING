@@ -199,17 +199,19 @@ export async function POST(
       console.error('[Factoring] Error during export/API submission:', error);
     }
 
-    // TODO: Log activity
-    // await prisma.activityLog.create({
-    //   data: {
-    //     companyId: session.user.companyId,
-    //     userId: session.user.id,
-    //     action: 'INVOICE_SUBMITTED_TO_FACTOR',
-    //     entityType: 'Invoice',
-    //     entityId: invoice.id,
-    //     description: `Invoice ${invoice.invoiceNumber} submitted to ${factoringCompany.name}`,
-    //   },
-    // });
+    // Log activity
+    const { createActivityLog } = await import('@/lib/activity-log');
+    const requestHeaders = request.headers;
+    await createActivityLog({
+      companyId: session.user.companyId,
+      userId: session.user.id,
+      action: 'EXPORT',
+      entityType: 'Invoice',
+      entityId: invoice.id,
+      description: `Invoice ${invoice.invoiceNumber} submitted to ${factoringCompany.name}`,
+      ipAddress: requestHeaders.get('x-forwarded-for') || requestHeaders.get('x-real-ip') || undefined,
+      userAgent: requestHeaders.get('user-agent') || undefined,
+    });
 
     return NextResponse.json({
       success: true,

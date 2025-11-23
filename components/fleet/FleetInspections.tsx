@@ -194,7 +194,6 @@ export default function FleetInspections() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Fleet Inspections</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Track pre-trip, post-trip, and safety inspections
         </p>

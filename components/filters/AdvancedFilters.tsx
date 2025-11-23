@@ -47,10 +47,16 @@ export default function AdvancedFilters({
   );
 
   const handleChange = (field: string, value: any) => {
-    const newValues = { ...values, [field]: value };
+    const newValues = { ...values };
+    // If value is empty string or 'all', remove it from values
+    if (value === '' || value === 'all' || value === null || value === undefined) {
+      delete newValues[field];
+    } else {
+      newValues[field] = value;
+    }
     setValues(newValues);
     const active = Object.keys(newValues).filter(
-      (key) => newValues[key] !== '' && newValues[key] !== null
+      (key) => newValues[key] !== '' && newValues[key] !== null && newValues[key] !== undefined
     ).length;
     setActiveCount(active);
   };
@@ -117,14 +123,21 @@ export default function AdvancedFilters({
                 )}
                 {filter.type === 'select' && filter.options && (
                   <Select
-                    value={values[filter.field] || 'all'}
-                    onValueChange={(value) => handleChange(filter.field, value === 'all' ? '' : value)}
+                    value={values[filter.field] || filter.options[0]?.value || 'all'}
+                    onValueChange={(value) => {
+                      // If first option is "all" type option, treat it as empty
+                      const firstOption = filter.options?.[0];
+                      if (firstOption && (firstOption.value === 'all' || firstOption.label.toLowerCase().includes('all'))) {
+                        handleChange(filter.field, value === firstOption.value ? '' : value);
+                      } else {
+                        handleChange(filter.field, value);
+                      }
+                    }}
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue placeholder={`Select ${filter.label.toLowerCase()}`} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
                       {filter.options.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}

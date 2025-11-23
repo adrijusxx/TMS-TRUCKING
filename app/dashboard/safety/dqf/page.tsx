@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import DriverSelector from '@/components/safety/DriverSelector';
 import DQFManager from '@/components/safety/dqf/DQFManager';
@@ -9,12 +10,20 @@ export default function DQFPage() {
   const [selectedDriverId, setSelectedDriverId] = useState<string>('');
 
   return (
-    <div className="p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>DQF Management</CardTitle>
-          <CardDescription>Manage Driver Qualification Files</CardDescription>
-        </CardHeader>
+    <>
+      <Breadcrumb items={[
+        { label: 'Safety Department', href: '/dashboard/safety' },
+        { label: 'DQF Management' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Driver Qualification Files</h1>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Manage DQF</CardTitle>
+            <CardDescription>Select a driver to view and manage their qualification files</CardDescription>
+          </CardHeader>
         <CardContent className="space-y-4">
           <DriverSelector
             value={selectedDriverId}
@@ -28,8 +37,9 @@ export default function DQFPage() {
             </div>
           )}
         </CardContent>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 }
 

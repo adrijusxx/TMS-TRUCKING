@@ -2,11 +2,12 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import TruckDetail from '@/components/trucks/TruckDetail';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default async function TruckDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const session = await auth();
 
@@ -14,9 +15,12 @@ export default async function TruckDetailPage({
     redirect('/login');
   }
 
+  // Await params as it's now a Promise in Next.js 15+
+  const resolvedParams = await params;
+
   const truck = await prisma.truck.findFirst({
     where: {
-      id: params.id,
+      id: resolvedParams.id,
       companyId: session.user.companyId,
       deletedAt: null,
     },
@@ -48,6 +52,19 @@ export default async function TruckDetailPage({
     notFound();
   }
 
-  return <TruckDetail truck={truck} />;
+  return (
+    <>
+      <Breadcrumb items={[
+        { label: 'Trucks', href: '/dashboard/trucks' },
+        { label: `Truck #${truck.truckNumber}` }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Truck Details</h1>
+        </div>
+        <TruckDetail truck={truck} />
+      </div>
+    </>
+  );
 }
 

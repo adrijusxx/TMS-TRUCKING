@@ -1,10 +1,23 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { CustomerType } from '@prisma/client';
 import {
   ArrowLeft,
@@ -15,7 +28,11 @@ import {
   DollarSign,
   Package,
   User,
+  Edit,
+  Trash2,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import EditCustomerDialog from './EditCustomerDialog';
 
 interface CustomerDetailProps {
   customer: any;
@@ -25,9 +42,74 @@ function formatCustomerType(type: CustomerType): string {
   return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+async function deleteCustomer(id: string) {
+  const response = await fetch(apiUrl(`/api/customers/${id}`), {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Failed to delete customer');
+  }
+  return response.json();
+}
+
 export default function CustomerDetail({ customer }: CustomerDetailProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteCustomer(customer.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Customer deleted successfully');
+      router.push('/dashboard/customers');
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+
+  const handleDelete = () => {
+    deleteMutation.mutate();
+  };
+
   return (
     <div className="space-y-6">
+      {/* Edit Dialog */}
+      <EditCustomerDialog
+        customer={customer}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onSuccess={() => {
+          // Refresh the page to show updated data
+          router.refresh();
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the customer "{customer.name}" and all associated data.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -43,9 +125,28 @@ export default function CustomerDetail({ customer }: CustomerDetailProps) {
             </p>
           </div>
         </div>
-        <Badge variant="outline">
-          {formatCustomerType(customer.type)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">
+            {formatCustomerType(customer.type)}
+          </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditDialogOpen(true)}
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsDeleteDialogOpen(true)}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

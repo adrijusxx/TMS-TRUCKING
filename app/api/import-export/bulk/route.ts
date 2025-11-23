@@ -258,6 +258,45 @@ async function importEntityData(
             getValue(row, ['Annual inspection expiry date', 'Annual Inspection Expiry Date', 'inspection_expiry'])
           ) || new Date();
 
+          // Get or create MC number
+          const mcNumberValue = getValue(row, ['MC number', 'MC Number', 'mc_number']) || currentMcNumber;
+          let mcNumberId: string | undefined;
+          if (mcNumberValue) {
+            let mcNumber = await prisma.mcNumber.findFirst({
+              where: {
+                companyId,
+                number: mcNumberValue,
+              },
+            });
+            if (!mcNumber) {
+              const company = await prisma.company.findUnique({
+                where: { id: companyId },
+              });
+              mcNumber = await prisma.mcNumber.create({
+                data: {
+                  companyId,
+                  number: mcNumberValue,
+                  companyName: company?.name || 'Company',
+                  type: 'CARRIER',
+                  isDefault: false,
+                },
+              });
+            }
+            mcNumberId = mcNumber.id;
+          } else {
+            // Get default MC number if no MC number specified
+            const defaultMcNumber = await prisma.mcNumber.findFirst({
+              where: {
+                companyId,
+                isDefault: true,
+              },
+            });
+            if (!defaultMcNumber) {
+              throw new Error('No MC number specified and no default MC number found');
+            }
+            mcNumberId = defaultMcNumber.id;
+          }
+
           const truck = await prisma.truck.create({
             data: {
               companyId,
@@ -268,7 +307,7 @@ async function importEntityData(
               year: parseInt(getValue(row, ['Year', 'year']) || '0') || new Date().getFullYear(),
               licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']) || '',
               state: getValue(row, ['State', 'state']) || '',
-              mcNumber: getValue(row, ['MC number', 'MC Number', 'mc_number']) || currentMcNumber || null,
+              mcNumberId,
               equipmentType: 'DRY_VAN', // Default, should be mapped from Excel
               capacity: 45000, // Default
               status: getValue(row, ['Status', 'status']) || 'AVAILABLE',
@@ -333,6 +372,45 @@ async function importEntityData(
             if (truck) assignedTruckId = truck.id;
           }
 
+          // Get or create MC number
+          const mcNumberValue = getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber;
+          let mcNumberId: string | undefined;
+          if (mcNumberValue) {
+            let mcNumber = await prisma.mcNumber.findFirst({
+              where: {
+                companyId,
+                number: mcNumberValue,
+              },
+            });
+            if (!mcNumber) {
+              const company = await prisma.company.findUnique({
+                where: { id: companyId },
+              });
+              mcNumber = await prisma.mcNumber.create({
+                data: {
+                  companyId,
+                  number: mcNumberValue,
+                  companyName: company?.name || 'Company',
+                  type: 'CARRIER',
+                  isDefault: false,
+                },
+              });
+            }
+            mcNumberId = mcNumber.id;
+          } else {
+            // Get default MC number if no MC number specified
+            const defaultMcNumber = await prisma.mcNumber.findFirst({
+              where: {
+                companyId,
+                isDefault: true,
+              },
+            });
+            if (!defaultMcNumber) {
+              throw new Error('No MC number specified and no default MC number found');
+            }
+            mcNumberId = defaultMcNumber.id;
+          }
+
           const trailer = await prisma.trailer.create({
             data: {
               companyId,
@@ -343,7 +421,7 @@ async function importEntityData(
               year: parseInt(getValue(row, ['Year', 'year']) || '0') || null,
               licensePlate: getValue(row, ['Plate number', 'Plate Number', 'license_plate']),
               state: getValue(row, ['State', 'state']),
-              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || null,
+              mcNumberId,
               type: getValue(row, ['Type', 'type']),
               ownership: getValue(row, ['Ownership', 'ownership']),
               ownerName: getValue(row, ['Owner name', 'Owner Name', 'owner_name']),

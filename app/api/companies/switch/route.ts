@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { McStateManager } from '@/lib/managers/McStateManager';
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,7 +68,6 @@ export async function POST(request: NextRequest) {
       include: {
         userCompanies: {
           where: {
-            companyId: actualCompanyId,
             isActive: true,
           },
         },
@@ -84,10 +84,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get all accessible company IDs
+    const accessibleCompanyIds = [
+      user.companyId,
+      ...user.userCompanies.map((uc) => uc.companyId),
+    ];
+
     // Check if user has access to this company (either primary or in userCompanies)
-    const hasAccess =
-      user.companyId === actualCompanyId ||
-      user.userCompanies.some((uc) => uc.companyId === actualCompanyId);
+    // For MC numbers, also verify the MC number belongs to an accessible company
+    const hasAccess = accessibleCompanyIds.includes(actualCompanyId);
 
     if (!hasAccess) {
       return NextResponse.json(
@@ -100,6 +105,30 @@ export async function POST(request: NextRequest) {
         },
         { status: 403 }
       );
+    }
+
+    // Additional check for MC numbers: verify the MC number exists and belongs to accessible company
+    if (isMcNumber && mcNumberId) {
+      const mcNumberRecord = await prisma.mcNumber.findFirst({
+        where: {
+          id: mcNumberId,
+          companyId: { in: accessibleCompanyIds },
+          deletedAt: null,
+        },
+      });
+
+      if (!mcNumberRecord) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'MC number not found or you do not have access to it',
+            },
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // Get MC number value if switching to an MC number
@@ -130,40 +159,30 @@ export async function POST(request: NextRequest) {
         mcNumber: mcNumber || null,
         isMcNumber,
         message: isMcNumber 
-          ? 'MC Number switched successfully. Please refresh to see changes.'
-          : 'Company switched successfully. Please refresh to see changes.',
+          ? 'MC Number switched successfully'
+          : 'Company switched successfully',
       },
     });
 
-    // Set cookies for MC number selection (readable by API routes)
-    if (mcNumberId && mcNumber) {
-      response.cookies.set('currentMcNumberId', mcNumberId, {
-        httpOnly: false, // Allow client-side access too
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-        path: '/',
-      });
-      response.cookies.set('currentMcNumber', mcNumber, {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-        path: '/',
-      });
-    } else {
-      // Clear cookies if switching to regular company or MC number doesn't belong to company
-      response.cookies.delete('currentMcNumberId');
-      response.cookies.delete('currentMcNumber');
-    }
+    // Use McStateManager to set cookies consistently
+    McStateManager.setMcStateCookies(response, {
+      mcNumberId: mcNumberId || null,
+      mcNumber: mcNumber || null,
+      viewMode: isMcNumber ? 'current' : 'current',
+    });
 
     return response;
   } catch (error) {
     console.error('Company switch error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Something went wrong';
     return NextResponse.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+        error: { 
+          code: 'INTERNAL_ERROR', 
+          message: errorMessage,
+          details: process.env.NODE_ENV === 'development' ? String(error) : undefined,
+        },
       },
       { status: 500 }
     );

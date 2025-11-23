@@ -13,15 +13,20 @@ export default async function AccessorialChargesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       <Breadcrumb
         items={[
           { label: 'Accounting', href: '/dashboard/accounting' },
-          { label: 'Accessorial Charges', href: '/dashboard/accounting/accessorial-charges' },
+          { label: 'Accessorial Charges' },
         ]}
       />
-      <AccessorialChargesList />
-    </div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Accessorial Charges</h1>
+        </div>
+        <AccessorialChargesList />
+      </div>
+    </>
   );
 }
 

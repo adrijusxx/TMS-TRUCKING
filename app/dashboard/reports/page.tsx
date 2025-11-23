@@ -1,19 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileText, Wrench } from 'lucide-react';
 
 export default function ReportsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Reports</h1>
-        <p className="text-muted-foreground">
-          Manage report templates and build custom reports
-        </p>
-      </div>
+    <>
+      <Breadcrumb items={[{ label: 'Reports', href: '/dashboard/reports' }]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Reports</h1>
+        </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -50,7 +50,8 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

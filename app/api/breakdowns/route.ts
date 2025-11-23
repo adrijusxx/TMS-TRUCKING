@@ -9,6 +9,7 @@ const createBreakdownSchema = z.object({
   truckId: z.string().min(1, 'Truck is required'),
   loadId: z.string().optional(),
   driverId: z.string().optional(),
+  mcNumberId: z.string().cuid().optional(),
   location: z.string().min(1, 'Location is required'),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -133,6 +134,23 @@ export async function GET(request: NextRequest) {
               },
             },
           },
+          mcNumber: {
+            select: {
+              id: true,
+              number: true,
+              companyName: true,
+            },
+          },
+          payments: {
+            select: {
+              id: true,
+              paymentNumber: true,
+              amount: true,
+              paymentDate: true,
+              paymentMethod: true,
+              type: true,
+            },
+          },
         },
         orderBy: {
           reportedAt: 'desc',
@@ -194,6 +212,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createBreakdownSchema.parse(body);
 
+    // Verify MC number belongs to company if provided
+    if (validatedData.mcNumberId) {
+      const mcNumber = await prisma.mcNumber.findFirst({
+        where: {
+          id: validatedData.mcNumberId,
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+      });
+
+      if (!mcNumber) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'MC Number not found' },
+          },
+          { status: 404 }
+        );
+      }
+    }
+
     // Generate breakdown case number in BD-YYYY-XXXX format
     const breakdownNumber = await generateBreakdownCaseNumber(session.user.companyId);
 
@@ -206,6 +245,7 @@ export async function POST(request: NextRequest) {
       priority: validatedData.priority ?? 'MEDIUM',
       loadId: validatedData.loadId ?? undefined,
       driverId: validatedData.driverId ?? undefined,
+      mcNumberId: validatedData.mcNumberId ?? undefined,
       address: validatedData.address ?? undefined,
       city: validatedData.city ?? undefined,
       state: validatedData.state ?? undefined,
@@ -255,6 +295,23 @@ export async function POST(request: NextRequest) {
                 lastName: true,
               },
             },
+          },
+        },
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
+        payments: {
+          select: {
+            id: true,
+            paymentNumber: true,
+            amount: true,
+            paymentDate: true,
+            paymentMethod: true,
+            type: true,
           },
         },
       },

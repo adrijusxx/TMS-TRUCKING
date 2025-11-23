@@ -1,14 +1,16 @@
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function InsuranceClaimsPage() {
   return (
-    <DashboardLayout hideMainNav={true}>
-      <div className="p-6">
-        <div className="mb-6">
+    <>
+      <Breadcrumb items={[
+        { label: 'Safety Department', href: '/dashboard/safety' },
+        { label: 'Insurance', href: '/dashboard/safety/insurance' },
+        { label: 'Claims' }
+      ]} />
+      <div className="space-y-6">
+        <div>
           <h1 className="text-3xl font-bold">Insurance Claims</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage insurance claims and track claim status
-          </p>
         </div>
         <div className="bg-card rounded-lg border p-6">
           <p className="text-muted-foreground">
@@ -22,7 +24,9 @@ export default function InsuranceClaimsPage() {
           </ul>
         </div>
       </div>
-    </DashboardLayout>
+    </>
   );
 }
+
+
 

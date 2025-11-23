@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * Get driver performance summary
@@ -18,12 +18,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Driver uses mcNumberId (relation), Load uses mcNumber (string)
+    const driverFilter = await buildMcNumberIdWhereClause(session, request);
+    const loadFilter = await buildMcNumberWhereClause(session, request);
 
     // Get all active drivers
     const drivers = await prisma.driver.findMany({
       where: {
-        ...baseFilter,
+        ...driverFilter,
         isActive: true,
         deletedAt: null,
       },
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
         },
         loads: {
           where: {
-            ...(baseFilter.mcNumber ? { mcNumber: baseFilter.mcNumber } : {}),
+            ...loadFilter,
             deletedAt: null,
           },
           select: {
@@ -57,17 +59,17 @@ export async function GET(request: NextRequest) {
 
     // Calculate performance metrics for each driver
     const driverPerformance = drivers.map((driver) => {
-      const allLoads = driver.loads;
+      const allLoads = driver.loads || [];
       const totalLoads = allLoads.length;
-      const completedLoads = allLoads.filter((l) => 
+      const completedLoads = allLoads.filter((l: any) => 
         ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status)
       ).length;
       
       // Calculate on-time rate only for completed loads
-      const completedLoadsWithDates = allLoads.filter((l) => 
+      const completedLoadsWithDates = allLoads.filter((l: any) => 
         ['DELIVERED', 'INVOICED', 'PAID'].includes(l.status) && l.deliveredAt && l.deliveryDate
       );
-      const onTimeLoads = completedLoadsWithDates.filter((l) => {
+      const onTimeLoads = completedLoadsWithDates.filter((l: any) => {
         if (!l.deliveredAt || !l.deliveryDate) return false;
         const delivered = new Date(l.deliveredAt);
         const expected = new Date(l.deliveryDate);
@@ -77,11 +79,11 @@ export async function GET(request: NextRequest) {
 
       const completionRate = totalLoads > 0 ? (completedLoads / totalLoads) * 100 : 0;
       const onTimeRate = completedLoadsWithDates.length > 0 ? (onTimeLoads / completedLoadsWithDates.length) * 100 : 0;
-      const totalRevenue = allLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+      const totalRevenue = allLoads.reduce((sum: number, l: any) => sum + (l.revenue || 0), 0);
 
       return {
         id: driver.id,
-        name: `${driver.user.firstName} ${driver.user.lastName}`,
+        name: `${driver.user?.firstName || ''} ${driver.user?.lastName || ''}`,
         driverNumber: driver.driverNumber,
         completionRate,
         onTimeRate,
@@ -90,8 +92,27 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Get drivers with HOS violations (placeholder - would need actual HOS data)
-    const driversWithViolations = 0; // TODO: Implement actual HOS violation check
+    // Get drivers with HOS violations
+    // Count unique drivers with violations in the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const violationsCount = await prisma.hOSViolation.groupBy({
+      by: ['driverId'],
+      where: {
+        companyId: session.user.companyId,
+        violationDate: {
+          gte: thirtyDaysAgo,
+        },
+        driver: {
+          ...driverFilter,
+          isActive: true,
+          deletedAt: null,
+        },
+      },
+    });
+    
+    const driversWithViolations = violationsCount.length;
 
     // Calculate averages
     const averageCompletionRate =

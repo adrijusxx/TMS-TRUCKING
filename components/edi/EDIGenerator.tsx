@@ -89,12 +89,6 @@ export default function EDIGenerator() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">EDI Generator</h1>
-          <p className="text-muted-foreground">
-            Generate EDI files for customer integration
-          </p>
-        </div>
         <Link href="/dashboard/edi/testing">
           <Button variant="outline">
             Testing Environment

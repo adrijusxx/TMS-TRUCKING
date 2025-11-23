@@ -4,6 +4,7 @@ import './globals.css';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import { McFilterProvider } from '@/lib/contexts/McFilterContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,7 +23,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider>
           <SessionProvider>
-            <QueryProvider>{children}</QueryProvider>
+            <QueryProvider>
+              <McFilterProvider>
+                {children}
+              </McFilterProvider>
+            </QueryProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>

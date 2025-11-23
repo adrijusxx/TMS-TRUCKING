@@ -145,7 +145,6 @@ export default function PreventiveMaintenance() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Preventive Maintenance</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Schedule and track preventive maintenance to reduce breakdowns
         </p>

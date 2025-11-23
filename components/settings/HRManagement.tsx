@@ -5,15 +5,7 @@ import UserManagement from './UserManagement';
 
 export default function HRManagement() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">HR Management</h1>
-        <p className="text-muted-foreground">
-          Manage dispatchers, employees, and drivers in your organization
-        </p>
-      </div>
-
-      <Tabs defaultValue="dispatchers" className="space-y-6">
+    <Tabs defaultValue="dispatchers" className="space-y-6">
         <TabsList>
           <TabsTrigger value="dispatchers">Dispatchers</TabsTrigger>
           <TabsTrigger value="employees">Employees</TabsTrigger>
@@ -32,7 +24,6 @@ export default function HRManagement() {
           <UserManagement roleFilter="DRIVER" title="Drivers" description="Manage drivers in your organization" />
         </TabsContent>
       </Tabs>
-    </div>
   );
 }
 

@@ -116,7 +116,6 @@ export default function BreakdownHotspots() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Breakdown Hotspots</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Geographic analysis of where breakdowns commonly occur
         </p>

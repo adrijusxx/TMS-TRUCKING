@@ -6,7 +6,9 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { hasPermission } from '@/lib/permissions';
 import { calculateDriverTariff } from '@/lib/utils/driverTariff';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { getDriverFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,14 +32,59 @@ export async function GET(request: NextRequest) {
     const homeTerminal = searchParams.get('homeTerminal');
     const minRating = searchParams.get('minRating');
     const mcViewMode = searchParams.get('mc'); // 'all' or specific MC ID
+    const mcNumber = searchParams.get('mcNumber'); // Filter by MC number value
 
-    // Build base where clause - drivers use companyId only (they don't have direct MC number association)
-    // When "All MC Numbers" is selected (mc=all), show all drivers from user's company
-    // Otherwise, show drivers from the user's company (MC number filtering doesn't apply to drivers)
+    // Apply role-based filtering
+    const { mcNumberId } = await getCurrentMcNumber(session, request);
+    const roleFilter = await getDriverFilter(
+      createFilterContext(
+        session.user.id,
+        session.user.role as any,
+        session.user.companyId,
+        mcNumberId ?? undefined
+      )
+    );
+
+    // Build base where clause
     const where: any = {
+      ...roleFilter,
       companyId: session.user.companyId,
       deletedAt: null,
     };
+
+    // Filter drivers by MC number if provided
+    // Drivers can be filtered by:
+    // 1. Driver's mcNumber field (if set)
+    // 2. Driver's user's mcNumberId (if user is assigned to an MC number)
+    if (mcNumber && mcViewMode !== 'all') {
+      // Get the MC number record to find its ID
+      const mcNumberRecord = await prisma.mcNumber.findFirst({
+        where: {
+          number: mcNumber.trim(),
+          companyId: session.user.companyId,
+        },
+        select: { id: true },
+      });
+
+      if (mcNumberRecord) {
+        // Filter by driver's mcNumberId OR user's mcNumberId
+        // mcNumber is a relation field, so we use mcNumberId (the foreign key)
+        const existingOR = where.OR || [];
+        where.OR = [
+          ...existingOR,
+          { mcNumberId: mcNumberRecord.id },
+          { user: { mcNumberId: mcNumberRecord.id } },
+        ];
+      } else {
+        // If MC number record not found, try to find by number in relation
+        // mcNumber is a relation, so we need to filter by the relation's number field
+        const existingOR = where.OR || [];
+        where.OR = [
+          ...existingOR,
+          { mcNumber: { number: mcNumber.trim() } },
+        ];
+      }
+    }
 
     // Tab-based filtering
     switch (tab) {
@@ -96,13 +143,27 @@ export async function GET(request: NextRequest) {
       where.rating = { gte: parseFloat(minRating) };
     }
 
+    // Handle search - merge with MC number OR conditions if they exist
     if (search) {
-      where.OR = [
+      const searchConditions = [
         { driverNumber: { contains: search, mode: 'insensitive' } },
         { user: { firstName: { contains: search, mode: 'insensitive' } } },
         { user: { lastName: { contains: search, mode: 'insensitive' } } },
         { user: { email: { contains: search, mode: 'insensitive' } } },
       ];
+      
+      if (where.OR && Array.isArray(where.OR)) {
+        // If OR already exists (from MC number filtering), combine conditions
+        // We need both MC number match AND search match, so use AND with OR groups
+        const existingOR = [...where.OR];
+        where.AND = [
+          { OR: existingOR },
+          { OR: searchConditions },
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
 
     const [drivers, total] = await Promise.all([
@@ -122,7 +183,12 @@ export async function GET(request: NextRequest) {
           assignmentStatus: true,
           dispatchStatus: true,
           driverType: true,
-          mcNumber: true,
+          mcNumber: {
+            select: {
+              id: true,
+              number: true,
+            },
+          },
           teamDriver: true,
           payTo: true,
           driverTariff: true,
@@ -203,9 +269,14 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Filter sensitive fields based on role
+    const filteredDrivers = driversWithTariff.map((driver) =>
+      filterSensitiveFields(driver, session.user.role as any)
+    );
+
     return NextResponse.json({
       success: true,
-      data: driversWithTariff,
+      data: filteredDrivers,
       meta: {
         total,
         page,
@@ -290,6 +361,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate MC number exists and belongs to company
+    if (validated.mcNumberId) {
+      const mcNumber = await prisma.mcNumber.findFirst({
+        where: {
+          id: validated.mcNumberId,
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+      });
+
+      if (!mcNumber) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_MC_NUMBER',
+              message: 'MC number not found or does not belong to your company',
+            },
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'MC number is required',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
@@ -301,7 +407,7 @@ export async function POST(request: NextRequest) {
       ? validated.medicalCardExpiry
       : new Date(validated.medicalCardExpiry);
 
-    // Create user first
+    // Create user first (with MC number for DRIVER role - synced from Driver record)
     const user = await prisma.user.create({
       data: {
         email: validated.email,
@@ -311,6 +417,7 @@ export async function POST(request: NextRequest) {
         phone: validated.phone,
         role: 'DRIVER',
         companyId: session.user.companyId,
+        mcNumberId: validated.mcNumberId, // Set MC number for driver user
       },
     });
 
@@ -335,6 +442,7 @@ export async function POST(request: NextRequest) {
         homeTerminal: validated.homeTerminal,
         emergencyContact: validated.emergencyContact,
         emergencyPhone: validated.emergencyPhone,
+        mcNumberId: validated.mcNumberId,
         status: 'AVAILABLE',
       },
       include: {

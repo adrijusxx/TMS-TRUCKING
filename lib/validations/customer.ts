@@ -20,6 +20,13 @@ export const createCustomerSchema = z.object({
   creditLimit: z.number().nonnegative().optional(),
 });
 
+// Simplified schema for quick customer creation (from load form)
+export const quickCreateCustomerSchema = z.object({
+  name: z.string().min(1, 'Customer name is required'),
+  email: z.string().email('Invalid email address'),
+  customerNumber: z.string().optional(), // Will be auto-generated if not provided
+});
+
 export const updateCustomerSchema = createCustomerSchema.partial();
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;

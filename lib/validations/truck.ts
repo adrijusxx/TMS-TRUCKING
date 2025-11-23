@@ -18,11 +18,13 @@ export const createTruckSchema = z.object({
   eldInstalled: z.boolean().default(false),
   eldProvider: z.string().optional(),
   gpsInstalled: z.boolean().default(false),
+  mcNumberId: z.string().min(1, 'MC number is required'),
 });
 
 export const updateTruckSchema = createTruckSchema.partial().extend({
   status: z.nativeEnum(TruckStatus).optional(),
   currentDriverId: z.string().optional(),
+  mcNumberId: z.string().min(1, 'MC number is required').optional(),
 });
 
 export type CreateTruckInput = z.infer<typeof createTruckSchema>;

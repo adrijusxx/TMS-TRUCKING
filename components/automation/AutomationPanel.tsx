@@ -109,13 +109,6 @@ export default function AutomationPanel() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Automation</h1>
-        <p className="text-muted-foreground">
-          Automated tasks and status updates
-        </p>
-      </div>
-
       {/* Load Status Updates */}
       <Card>
         <CardHeader>

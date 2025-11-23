@@ -2,16 +2,19 @@
 
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function ReportConstructorPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Report Constructor</h1>
-        <p className="text-muted-foreground">
-          Build custom reports with drag-and-drop interface
-        </p>
-      </div>
+    <>
+      <Breadcrumb items={[
+        { label: 'Reports', href: '/dashboard/reports' },
+        { label: 'Constructor' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Report Constructor</h1>
+        </div>
       <GenericCRUDManager
         endpoint="/api/report-constructors"
         queryKey="report-constructors"
@@ -48,7 +51,8 @@ export default function ReportConstructorPage() {
           For now, you can create basic report configurations here.
         </p>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

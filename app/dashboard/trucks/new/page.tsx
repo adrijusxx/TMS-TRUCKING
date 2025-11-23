@@ -1,16 +1,20 @@
 import CreateTruckForm from '@/components/trucks/CreateTruckForm';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function NewTruckPage() {
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold">Add New Truck</h1>
-        <p className="text-muted-foreground">
-          Register a new truck in your fleet
-        </p>
+    <>
+      <Breadcrumb items={[
+        { label: 'Trucks', href: '/dashboard/trucks' },
+        { label: 'New Truck' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Add New Truck</h1>
+        </div>
+        <CreateTruckForm />
       </div>
-      <CreateTruckForm />
-    </div>
+    </>
   );
 }
 

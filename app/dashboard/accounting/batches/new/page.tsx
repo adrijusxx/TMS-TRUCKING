@@ -3,18 +3,22 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CreateBatchForm from '@/components/batches/CreateBatchForm';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function NewBatchPage() {
   const router = useRouter();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Create New Batch</h1>
-        <p className="text-muted-foreground">
-          Select invoices to group into a batch
-        </p>
-      </div>
+    <>
+      <Breadcrumb items={[
+        { label: 'Accounting', href: '/dashboard/accounting' },
+        { label: 'Batches', href: '/dashboard/accounting/batches' },
+        { label: 'New Batch' }
+      ]} />
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Create Accounting Batch</h1>
+        </div>
       <CreateBatchForm
         open={true}
         onOpenChange={(open) => {
@@ -24,7 +28,8 @@ export default function NewBatchPage() {
           }
         }}
       />
-    </div>
+      </div>
+    </>
   );
 }
 
