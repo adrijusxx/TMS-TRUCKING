@@ -608,7 +608,7 @@ async function main() {
           truckId: truck.id,
           driverId: driver?.id,
           breakdownNumber: `BD-${company.dotNumber.slice(0, 3)}-${String(i + 1).padStart(4, '0')}`,
-          breakdownType: ['MECHANICAL', 'ELECTRICAL', 'TIRE'][i] as any,
+          breakdownType: ['ENGINE_FAILURE', 'ELECTRICAL_ISSUE', 'TIRE_FLAT'][i] as any,
           description: `Breakdown ${i + 1} - ${['Engine failure', 'Battery issue', 'Flat tire'][i]}`,
           location: `${500 + i} Highway Road`,
           city: ['Dallas', 'Houston', 'San Antonio'][i],
