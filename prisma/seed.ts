@@ -398,7 +398,8 @@ async function main() {
     const defaultMcNumber = mcNumbers.find(mc => mc.companyId === company.id && mc.isDefault);
 
     for (let i = 1; i <= 3; i++) {
-      const loadNumber = `LOAD-${company.dotNumber.slice(0, 3)}-${String(i).padStart(4, '0')}`;
+      // Generate unique load number: include company index to ensure uniqueness
+      const loadNumber = `LOAD-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i).padStart(4, '0')}`;
       const driver = companyDrivers[i - 1];
       const truck = companyTrucks[i - 1];
       const trailer = companyTrailers[i - 1];
@@ -409,44 +410,56 @@ async function main() {
       const deliveryDate = new Date(pickupDate);
       deliveryDate.setDate(deliveryDate.getDate() + 2);
 
-      const load = await prisma.load.create({
-        data: {
+      // Use upsert to handle existing loads
+      const loadData = {
+        companyId: company.id,
+        customerId: customer.id,
+        driverId: driver?.id,
+        truckId: truck?.id,
+        trailerId: trailer?.id,
+        dispatcherId: dispatcher?.id,
+        mcNumber: defaultMcNumber?.number,
+        status: (i === 1 ? 'ASSIGNED' : i === 2 ? 'EN_ROUTE_PICKUP' : 'LOADED') as any,
+        loadType: 'FTL' as any,
+        equipmentType: 'DRY_VAN' as any,
+        pickupLocation: `Pickup Location ${i}`,
+        pickupAddress: `${200 + i} Pickup Street`,
+        pickupCity: ['Dallas', 'Houston', 'San Antonio'][i - 1],
+        pickupState: 'TX',
+        pickupZip: `${75001 + i}`,
+        pickupDate,
+        pickupTimeStart: new Date(pickupDate.getTime() + 8 * 60 * 60 * 1000),
+        pickupTimeEnd: new Date(pickupDate.getTime() + 12 * 60 * 60 * 1000),
+        deliveryLocation: `Delivery Location ${i}`,
+        deliveryAddress: `${300 + i} Delivery Street`,
+        deliveryCity: ['Austin', 'Fort Worth', 'El Paso'][i - 1],
+        deliveryState: 'TX',
+        deliveryZip: `${78701 + i}`,
+        deliveryDate,
+        deliveryTimeStart: new Date(deliveryDate.getTime() + 14 * 60 * 60 * 1000),
+        deliveryTimeEnd: new Date(deliveryDate.getTime() + 18 * 60 * 60 * 1000),
+        weight: 40000 + (i * 1000),
+        pieces: 20 + i,
+        commodity: ['General Freight', 'Electronics', 'Food Products'][i - 1],
+        revenue: 1500 + (i * 200),
+        driverPay: 800 + (i * 100),
+        totalMiles: 500 + (i * 50),
+        loadedMiles: 450 + (i * 50),
+        emptyMiles: 50,
+      };
+
+      const load = await prisma.load.upsert({
+        where: { loadNumber },
+        update: loadData,
+        create: {
           loadNumber,
-          companyId: company.id,
-          customerId: customer.id,
-          driverId: driver?.id,
-          truckId: truck?.id,
-          trailerId: trailer?.id,
-          dispatcherId: dispatcher?.id,
-          mcNumber: defaultMcNumber?.number,
-          status: i === 1 ? 'ASSIGNED' : i === 2 ? 'EN_ROUTE_PICKUP' : 'LOADED',
-          loadType: 'FTL',
-          equipmentType: 'DRY_VAN',
-          pickupLocation: `Pickup Location ${i}`,
-          pickupAddress: `${200 + i} Pickup Street`,
-          pickupCity: ['Dallas', 'Houston', 'San Antonio'][i - 1],
-          pickupState: 'TX',
-          pickupZip: `${75001 + i}`,
-          pickupDate,
-          pickupTimeStart: new Date(pickupDate.setHours(8, 0, 0, 0)),
-          pickupTimeEnd: new Date(pickupDate.setHours(12, 0, 0, 0)),
-          deliveryLocation: `Delivery Location ${i}`,
-          deliveryAddress: `${300 + i} Delivery Street`,
-          deliveryCity: ['Austin', 'Fort Worth', 'El Paso'][i - 1],
-          deliveryState: 'TX',
-          deliveryZip: `${78701 + i}`,
-          deliveryDate,
-          deliveryTimeStart: new Date(deliveryDate.setHours(14, 0, 0, 0)),
-          deliveryTimeEnd: new Date(deliveryDate.setHours(18, 0, 0, 0)),
-          weight: 40000 + (i * 1000),
-          pieces: 20 + i,
-          commodity: ['General Freight', 'Electronics', 'Food Products'][i - 1],
-          revenue: 1500 + (i * 200),
-          driverPay: 800 + (i * 100),
-          totalMiles: 500 + (i * 50),
-          loadedMiles: 450 + (i * 50),
-          emptyMiles: 50,
+          ...loadData,
         },
+      });
+
+      // Delete existing stops for this load, then create new ones
+      await prisma.loadStop.deleteMany({
+        where: { loadId: load.id },
       });
 
       // Create stops for each load (2-3 stops)
@@ -489,23 +502,30 @@ async function main() {
 
     for (let i = 0; i < 3 && i < companyLoads.length; i++) {
       const load = companyLoads[i];
-      const invoiceNumber = `INV-${company.dotNumber.slice(0, 3)}-${String(i + 1).padStart(4, '0')}`;
+      // Generate unique invoice number: include company index to ensure uniqueness
+      const invoiceNumber = `INV-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
       
-      const invoice = await prisma.invoice.create({
-        data: {
+      const invoiceData = {
+        loadIds: [load.id],
+        loadId: load.id,
+        customerId: load.customerId,
+        invoiceDate: new Date(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        status: (i === 0 ? 'DRAFT' : i === 1 ? 'SENT' : 'PAID') as any,
+        subtotal: load.revenue,
+        tax: load.revenue * 0.08,
+        total: load.revenue * 1.08,
+        balance: i === 2 ? 0 : load.revenue * 1.08,
+        amountPaid: i === 2 ? load.revenue * 1.08 : 0,
+        paidDate: i === 2 ? new Date() : null,
+      };
+      
+      const invoice = await prisma.invoice.upsert({
+        where: { invoiceNumber },
+        update: invoiceData,
+        create: {
           invoiceNumber,
-          loadIds: [load.id],
-          loadId: load.id,
-          customerId: load.customerId,
-          invoiceDate: new Date(),
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          status: i === 0 ? 'DRAFT' : i === 1 ? 'SENT' : 'PAID',
-          subtotal: load.revenue,
-          tax: load.revenue * 0.08,
-          total: load.revenue * 1.08,
-          balance: i === 2 ? 0 : load.revenue * 1.08,
-          amountPaid: i === 2 ? load.revenue * 1.08 : 0,
-          paidDate: i === 2 ? new Date() : null,
+          ...invoiceData,
         },
       });
       invoices.push(invoice);
@@ -531,22 +551,29 @@ async function main() {
       
       if (driverLoads.length === 0) continue;
 
-      const settlementNumber = `SET-${company.dotNumber.slice(0, 3)}-${String(i + 1).padStart(4, '0')}`;
+      // Generate unique settlement number: include company index to ensure uniqueness
+      const settlementNumber = `SET-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
       const totalRevenue = driverLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
       const totalPay = driverLoads.reduce((sum, l) => sum + (l.driverPay || 0), 0);
       
-      const settlement = await prisma.settlement.create({
-        data: {
+      const settlementData = {
+        driverId: driver.id,
+        periodStart: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+        periodEnd: new Date(),
+        status: (i === 0 ? 'PENDING' : i === 1 ? 'PENDING' : 'APPROVED') as any,
+        grossPay: totalPay,
+        deductions: totalPay * 0.1,
+        advances: 0,
+        netPay: totalPay * 0.9,
+        loadIds: driverLoads.map(l => l.id),
+      };
+      
+      const settlement = await prisma.settlement.upsert({
+        where: { settlementNumber },
+        update: settlementData,
+        create: {
           settlementNumber,
-          driverId: driver.id,
-          periodStart: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-          periodEnd: new Date(),
-          status: i === 0 ? 'PENDING' : i === 1 ? 'PENDING' : 'APPROVED',
-          grossPay: totalPay,
-          deductions: totalPay * 0.1,
-          advances: 0,
-          netPay: totalPay * 0.9,
-          loadIds: driverLoads.map(l => l.id),
+          ...settlementData,
         },
       });
       settlements.push(settlement);
@@ -602,21 +629,30 @@ async function main() {
       const truck = companyTrucks[i];
       const driver = companyDrivers[i];
       
-      const breakdown = await prisma.breakdown.create({
-        data: {
-          companyId: company.id,
-          truckId: truck.id,
-          driverId: driver?.id,
-          breakdownNumber: `BD-${company.dotNumber.slice(0, 3)}-${String(i + 1).padStart(4, '0')}`,
-          breakdownType: ['ENGINE_FAILURE', 'ELECTRICAL_ISSUE', 'TIRE_FLAT'][i] as any,
-          description: `Breakdown ${i + 1} - ${['Engine failure', 'Battery issue', 'Flat tire'][i]}`,
-          location: `${500 + i} Highway Road`,
-          city: ['Dallas', 'Houston', 'San Antonio'][i],
-          state: 'TX',
-          reportedAt: new Date(Date.now() - (i + 1) * 2 * 24 * 60 * 60 * 1000),
-          odometerReading: truck.odometerReading + (i * 1000),
-          totalCost: 500 + (i * 200),
-          status: i === 0 ? 'REPORTED' : 'RESOLVED',
+      // Generate unique breakdown number: include company index to ensure uniqueness
+      const breakdownNumber = `BD-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
+      
+      const breakdownData = {
+        companyId: company.id,
+        truckId: truck.id,
+        driverId: driver?.id,
+        breakdownType: ['ENGINE_FAILURE', 'ELECTRICAL_ISSUE', 'TIRE_FLAT'][i] as any,
+        description: `Breakdown ${i + 1} - ${['Engine failure', 'Battery issue', 'Flat tire'][i]}`,
+        location: `${500 + i} Highway Road`,
+        city: ['Dallas', 'Houston', 'San Antonio'][i],
+        state: 'TX',
+        reportedAt: new Date(Date.now() - (i + 1) * 2 * 24 * 60 * 60 * 1000),
+        odometerReading: truck.odometerReading + (i * 1000),
+        totalCost: 500 + (i * 200),
+        status: (i === 0 ? 'REPORTED' : 'RESOLVED') as any,
+      };
+      
+      const breakdown = await prisma.breakdown.upsert({
+        where: { breakdownNumber },
+        update: breakdownData,
+        create: {
+          breakdownNumber,
+          ...breakdownData,
         },
       });
       breakdowns.push(breakdown);
@@ -638,19 +674,28 @@ async function main() {
     for (let i = 0; i < 3 && i < companyDrivers.length; i++) {
       const driver = companyDrivers[i];
       
-      const incident = await prisma.safetyIncident.create({
-        data: {
-          companyId: company.id,
-          driverId: driver.id,
-          incidentNumber: `SI-${company.dotNumber.slice(0, 3)}-${String(i + 1).padStart(4, '0')}`,
-          incidentType: ['ACCIDENT', 'COLLISION', 'DRIVER_ERROR'][i] as any,
-          severity: ['MINOR', 'MODERATE', 'MAJOR'][i] as any,
-          description: `Safety incident ${i + 1} - ${['Rear-end collision', 'Speeding violation', 'Close call'][i]}`,
-          location: `${600 + i} Safety Street`,
-          city: ['Dallas', 'Houston', 'San Antonio'][i],
-          state: 'TX',
-          date: new Date(Date.now() - (i + 1) * 30 * 24 * 60 * 60 * 1000),
-          status: i === 0 ? 'UNDER_INVESTIGATION' : i === 1 ? 'RESOLVED' : 'CLOSED',
+      // Generate unique incident number: include company index to ensure uniqueness
+      const incidentNumber = `SI-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
+      
+      const incidentData = {
+        companyId: company.id,
+        driverId: driver.id,
+        incidentType: ['ACCIDENT', 'COLLISION', 'DRIVER_ERROR'][i] as any,
+        severity: ['MINOR', 'MODERATE', 'MAJOR'][i] as any,
+        description: `Safety incident ${i + 1} - ${['Rear-end collision', 'Speeding violation', 'Close call'][i]}`,
+        location: `${600 + i} Safety Street`,
+        city: ['Dallas', 'Houston', 'San Antonio'][i],
+        state: 'TX',
+        date: new Date(Date.now() - (i + 1) * 30 * 24 * 60 * 60 * 1000),
+        status: (i === 0 ? 'UNDER_INVESTIGATION' : i === 1 ? 'RESOLVED' : 'CLOSED') as any,
+      };
+      
+      const incident = await prisma.safetyIncident.upsert({
+        where: { incidentNumber },
+        update: incidentData,
+        create: {
+          incidentNumber,
+          ...incidentData,
         },
       });
       safetyIncidents.push(incident);
