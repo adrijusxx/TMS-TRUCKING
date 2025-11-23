@@ -45,6 +45,14 @@ fi
 
 echo ""
 echo "❌ Neither connection string worked."
-echo "   Please get the exact 'Direct connection' string from Neon Dashboard:"
+echo ""
+echo "📋 You need to get the EXACT 'Direct connection' string from Neon Dashboard."
+echo ""
+echo "   Run this command for detailed instructions:"
+echo "   npm run db:get-neon-connection"
+echo ""
+echo "   Or go directly to:"
 echo "   https://console.neon.tech → Your Project → Connection Details → Direct connection"
+echo ""
+echo "   Copy the ENTIRE connection string and add it to .env as DATABASE_URL_MIGRATE"
 
