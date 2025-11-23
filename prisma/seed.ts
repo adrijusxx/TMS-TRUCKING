@@ -872,11 +872,12 @@ async function main() {
         data: {
           companyId: company.id,
           name: `${['Insurance', 'Escrow', 'Equipment'][i - 1]} Deduction`,
-          description: `Deduction rule ${i} for ${['insurance premiums', 'escrow deposits', 'equipment fees'][i - 1]}`,
-          deductionType: ['INSURANCE', 'ESCROW', 'EQUIPMENT_RENTAL'][i - 1] as any,
-          calculationType: i === 2 ? 'PERCENTAGE' : 'FIXED',
+          notes: `Deduction rule ${i} for ${['insurance premiums', 'escrow deposits', 'equipment fees'][i - 1]}`,
+          deductionType: (['INSURANCE', 'ESCROW', 'EQUIPMENT_RENTAL'][i - 1]) as any,
+          calculationType: (i === 2 ? 'PERCENTAGE' : 'FIXED') as any,
           amount: i === 2 ? undefined : 100 * i,
           percentage: i === 2 ? 5 : undefined,
+          frequency: 'PER_SETTLEMENT' as any,
           isActive: true,
         },
       });
