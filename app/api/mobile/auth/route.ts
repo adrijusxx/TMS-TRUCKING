@@ -17,9 +17,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = loginSchema.parse(body);
 
+    // Normalize email (lowercase and trim)
+    const normalizedEmail = validated.email.toLowerCase().trim();
+
     // Find user by email
     const user = await prisma.user.findUnique({
-      where: { email: validated.email },
+      where: { email: normalizedEmail },
       include: {
         driver: {
           include: {

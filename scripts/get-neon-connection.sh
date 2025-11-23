@@ -47,3 +47,5 @@ echo "   And run migration:"
 echo "   npm run db:migrate:deploy"
 echo ""
 
+
+

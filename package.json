@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "check-errors": "node check-errors.js",
+    "check-errors": "node scripts/check-errors.js",
     "type-check": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -32,6 +32,7 @@
     "db:update-drivers": "tsx scripts/update-drivers-from-import.ts",
     "db:list-users": "tsx scripts/list-users.ts",
     "db:fix-admin": "tsx scripts/fix-admin-user.ts",
+    "db:verify-users": "tsx scripts/verify-and-fix-users.ts",
     "cache:cleanup": "tsx scripts/cleanup-api-cache.ts"
   },
   "prisma": {

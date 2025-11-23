@@ -122,3 +122,5 @@ If you absolutely cannot get the direct connection to work, you can try:
 
 But the best solution is to use the direct connection string from Neon Dashboard.
 
+
+

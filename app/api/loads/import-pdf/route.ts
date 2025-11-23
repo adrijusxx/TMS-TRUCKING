@@ -281,9 +281,7 @@ Return ONLY JSON:`;
       // Try to fix incomplete JSON
       try {
         const fixedJson = fixIncompleteJSON(jsonText);
-        console.log('Attempting to parse fixed JSON (length:', fixedJson.length, ')...');
         const extracted = JSON.parse(fixedJson);
-        console.log('Successfully parsed fixed JSON');
         return extracted as ExtractedLoadData;
       } catch (fixError) {
         console.error('Failed to fix JSON:', fixError);
@@ -404,7 +402,6 @@ export async function POST(request: NextRequest) {
         });
         if (customer) {
           customerMatched = true;
-          console.log(`Customer matched by number: ${customer.name} (${extractedData.customerNumber})`);
         }
       }
       
@@ -421,7 +418,6 @@ export async function POST(request: NextRequest) {
         });
         if (customer) {
           customerMatched = true;
-          console.log(`Customer matched by exact name: ${customer.name}`);
         }
       }
       
@@ -438,7 +434,6 @@ export async function POST(request: NextRequest) {
         });
         if (customer) {
           customerMatched = true;
-          console.log(`Customer matched by partial name: ${customer.name} (searched: ${extractedData.customerName})`);
         }
       }
 
@@ -446,8 +441,6 @@ export async function POST(request: NextRequest) {
       if (!customer && extractedData.customerName) {
         // Generate customer number if not provided
         const customerNumber = extractedData.customerNumber || `CUST-${Date.now()}`;
-        
-        console.log(`Creating new customer: ${extractedData.customerName} (${customerNumber})`);
         
         const newCustomer = await prisma.customer.create({
           data: {
@@ -469,7 +462,6 @@ export async function POST(request: NextRequest) {
         });
         customer = { id: newCustomer.id, name: newCustomer.name };
         customerCreated = true;
-        console.log(`New customer created: ${newCustomer.name} (ID: ${newCustomer.id})`);
       }
 
       if (customer) {
@@ -497,7 +489,6 @@ export async function POST(request: NextRequest) {
         }
         
         if (isNaN(date.getTime())) {
-          console.warn('Invalid date:', dateStr);
           return undefined;
         }
         
@@ -527,7 +518,6 @@ export async function POST(request: NextRequest) {
         
         return `${year}-${month}-${day}T${hours}:${minutes}`;
       } catch (error) {
-        console.warn('Date formatting error:', error, dateStr);
         return undefined;
       }
     };

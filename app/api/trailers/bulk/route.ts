@@ -126,11 +126,6 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
-    // Log if some trailers were skipped
-    if (trailersToDelete.length < validated.trailerIds.length) {
-      const skipped = validated.trailerIds.length - trailersToDelete.length;
-      console.log(`[Bulk Delete] Skipped ${skipped} trailer(s) (already deleted, not found, or have active loads)`);
-    }
 
     // Create activity log
     await createActivityLog({

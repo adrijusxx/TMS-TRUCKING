@@ -19,3 +19,5 @@ CREATE INDEX IF NOT EXISTS "RolePermission_role_idx" ON "RolePermission"("role")
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "RolePermission_permission_idx" ON "RolePermission"("permission");
 
+
+

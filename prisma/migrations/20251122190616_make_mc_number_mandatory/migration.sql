@@ -142,3 +142,5 @@ DROP INDEX IF EXISTS "Driver_companyId_mcNumber_idx";
 DROP INDEX IF EXISTS "Truck_mcNumber_idx";
 DROP INDEX IF EXISTS "Truck_companyId_mcNumber_idx";
 
+
+

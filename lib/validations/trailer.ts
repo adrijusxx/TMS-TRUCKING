@@ -29,3 +29,5 @@ export const updateTrailerSchema = createTrailerSchema.partial().extend({
 export type CreateTrailerInput = z.infer<typeof createTrailerSchema>;
 export type UpdateTrailerInput = z.infer<typeof updateTrailerSchema>;
 
+
+

@@ -473,7 +473,7 @@ export async function POST(
       try {
         columnMapping = JSON.parse(mappingStr);
       } catch (e) {
-        console.warn('[Import] Failed to parse column mapping:', e);
+        // Column mapping parse error - continue with default mapping
       }
     }
 
@@ -1318,8 +1318,6 @@ export async function POST(
           }
         }
         
-        // Only log warning if resolution fails (reduced verbosity)
-        console.warn(`[Import Trailers] Could not resolve MC number "${trimmed}" to ID`);
         
         return null;
       };
@@ -1587,10 +1585,6 @@ export async function POST(
         }
       }
       
-      // Final summary log (reduced verbosity)
-      if (errors.length > 0) {
-        console.log(`[Import Trailers] Completed: ${created.length} trailers imported, ${errors.length} errors`);
-      }
     } else if (entity === 'vendors') {
       // Import vendors
       for (let i = 0; i < importResult.data.length; i++) {

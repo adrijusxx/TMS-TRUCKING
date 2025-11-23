@@ -23,7 +23,7 @@ export const authOptions: NextAuthConfig = {
           return null;
         }
 
-        const email = typeof credentials.email === 'string' ? credentials.email : '';
+        const email = typeof credentials.email === 'string' ? credentials.email.toLowerCase().trim() : '';
         const password = typeof credentials.password === 'string' ? credentials.password : '';
 
         const user = await prisma.user.findUnique({

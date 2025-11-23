@@ -238,12 +238,6 @@ export async function GET(request: NextRequest) {
       prisma.trailer.count({ where }),
     ]);
 
-    // Log for debugging
-    // Summary log only (reduced verbosity)
-    if (trailers.length === 0 && total === 0) {
-      // Only log if no trailers found at all (might indicate a filter issue)
-      console.log(`[Trailers API] No trailers found (total: ${total})`);
-    }
 
     // Get load statistics for all trailers
     // Note: Loads might be linked by trailerId (relation) or trailerNumber (string)

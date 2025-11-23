@@ -163,12 +163,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (!company) {
-      console.error('MC Number creation failed: Company not found', {
-        userId: session.user.id,
-        userEmail: session.user.email,
-        companyId: session.user.companyId,
-        role: session.user.role,
-      });
       
       // For admins, try to find an alternative company
       if (session.user.role === 'ADMIN') {
@@ -183,24 +177,11 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        console.log('Admin UserCompany records found:', {
-          count: userCompanies.length,
-          userCompanies: userCompanies.map(uc => ({
-            companyId: uc.companyId,
-            companyName: uc.company.name,
-            companyIsActive: uc.company.isActive,
-          })),
-        });
 
         if (userCompanies.length > 0) {
           // Admin has access to other companies, use the first active one
           const activeCompany = userCompanies.find(uc => uc.company.isActive)?.company;
           if (activeCompany) {
-            console.log('Admin company not found, using alternative company from UserCompany', {
-              originalCompanyId: session.user.companyId,
-              alternativeCompanyId: activeCompany.id,
-              alternativeCompanyName: activeCompany.name,
-            });
             // Use the alternative company for MC number creation
             try {
               const mcNumber = await createMcNumberForCompany(validatedData, activeCompany.id);
@@ -240,11 +221,6 @@ export async function POST(request: NextRequest) {
         });
 
         if (anyActiveCompany) {
-          console.log('Admin company not found, using first active company in system', {
-            originalCompanyId: session.user.companyId,
-            fallbackCompanyId: anyActiveCompany.id,
-            fallbackCompanyName: anyActiveCompany.name,
-          });
           // Use the first active company as fallback
           try {
             const mcNumber = await createMcNumberForCompany(validatedData, anyActiveCompany.id);

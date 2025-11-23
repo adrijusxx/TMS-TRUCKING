@@ -65,3 +65,5 @@ echo ""
 echo "📝 To see full .env file (be careful with sensitive data):"
 echo "   cat .env | grep DATABASE"
 
+
+

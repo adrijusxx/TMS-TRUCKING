@@ -229,3 +229,5 @@ function MyComponent() {
 2. **Debounce**: Already handled by `requestAnimationFrame`
 3. **Cache**: React Query cache prevents unnecessary refetches
 
+
+

@@ -215,14 +215,6 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Log the where clause for debugging
-    console.log('[GET /api/loads] Query params:', {
-      page,
-      limit,
-      statusParams,
-      search,
-      where: JSON.stringify(where, null, 2),
-    });
 
     const [loads, total, sums, allLoadsForStats] = await Promise.all([
       prisma.load.findMany({
@@ -385,20 +377,6 @@ export async function GET(request: NextRequest) {
       serviceFee: serviceFeeSum,
     };
 
-    console.log('[GET /api/loads] Returning:', {
-      loadsCount: loads.length,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-      firstLoadId: loads[0]?.id,
-      firstLoadNumber: loads[0]?.loadNumber,
-      firstLoadRevenue: loads[0]?.revenue,
-      firstLoadDriverPay: loads[0]?.driverPay,
-      firstLoadTotalPay: loads[0]?.totalPay,
-      firstLoadTotalMiles: loads[0]?.totalMiles,
-      stats,
-    });
 
     // Filter sensitive fields based on role
     const filteredLoads = loads.map((load) =>
