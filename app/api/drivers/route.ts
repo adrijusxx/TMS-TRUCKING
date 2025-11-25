@@ -9,11 +9,12 @@ import { calculateDriverTariff } from '@/lib/utils/driverTariff';
 import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { getDriverFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
 
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
-
     if (!session?.user?.companyId) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
@@ -21,6 +22,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 2. Permission Check
+    if (!hasPermission(session.user.role as any, 'drivers.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 500);
@@ -33,24 +46,38 @@ export async function GET(request: NextRequest) {
     const minRating = searchParams.get('minRating');
     const mcViewMode = searchParams.get('mc'); // 'all' or specific MC ID
     const mcNumber = searchParams.get('mcNumber'); // Filter by MC number value
+    const mcNumberIdFilter = searchParams.get('mcNumberId');
 
-    // Apply role-based filtering
-    const { mcNumberId } = await getCurrentMcNumber(session, request);
+    // Apply role-based filtering (separate from MC filtering)
     const roleFilter = await getDriverFilter(
       createFilterContext(
         session.user.id,
         session.user.role as any,
-        session.user.companyId,
-        mcNumberId ?? undefined
+        session.user.companyId
       )
     );
 
-    // Build base where clause
+    // Parse includeDeleted parameter (admins only)
+    const includeDeleted = parseIncludeDeleted(request);
+    
+    // Build deleted records filter (admins can include deleted records if requested)
+    const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
+    
+    // Merge MC filter with role filter and deleted filter
     const where: any = {
+      ...mcWhere,
       ...roleFilter,
-      companyId: session.user.companyId,
-      deletedAt: null,
-    };
+      ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
+    }
+
+    // Handle explicit MC number filter from table filter (overrides default MC view)
+    if (mcNumberIdFilter) {
+      if (mcNumberIdFilter === 'null' || mcNumberIdFilter === 'unassigned') {
+        where.mcNumberId = null;
+      } else {
+        where.mcNumberId = mcNumberIdFilter;
+      }
+    }
 
     // Filter drivers by MC number if provided
     // Drivers can be filtered by:
@@ -87,27 +114,49 @@ export async function GET(request: NextRequest) {
     }
 
     // Tab-based filtering
-    switch (tab) {
-      case 'active':
-        where.isActive = true;
-        where.employeeStatus = 'ACTIVE';
-        break;
-      case 'unassigned':
-        where.isActive = true;
-        where.employeeStatus = 'ACTIVE';
-        where.currentTruckId = null;
-        break;
-      case 'terminated':
-        where.employeeStatus = 'TERMINATED';
-        break;
-      case 'vacation':
-        where.isActive = true;
-        where.status = 'ON_LEAVE';
-        break;
-      case 'all':
-      default:
-        // Show all drivers (active and terminated)
-        break;
+    // When showing deleted records (includeDeleted=true), don't filter by employeeStatus
+    // as deleted drivers may have any employee status
+    if (!includeDeleted) {
+      switch (tab) {
+        case 'active':
+          where.isActive = true;
+          where.employeeStatus = 'ACTIVE';
+          break;
+        case 'unassigned':
+          where.isActive = true;
+          where.employeeStatus = 'ACTIVE';
+          where.currentTruckId = null;
+          break;
+        case 'terminated':
+          where.employeeStatus = 'TERMINATED';
+          break;
+        case 'vacation':
+          where.isActive = true;
+          where.status = 'ON_LEAVE';
+          break;
+        case 'all':
+        default:
+          // Show all drivers (active and terminated) - no employeeStatus filter
+          break;
+      }
+    } else {
+      // When showing deleted records, only apply basic filters that make sense
+      switch (tab) {
+        case 'unassigned':
+          // Even for deleted, we can filter by truck assignment
+          where.currentTruckId = null;
+          break;
+        case 'vacation':
+          // Status-based filter still applies
+          where.status = 'ON_LEAVE';
+          break;
+        case 'active':
+        case 'terminated':
+        case 'all':
+        default:
+          // Don't filter by employeeStatus when showing deleted records
+          break;
+      }
     }
 
     if (status) {
@@ -117,15 +166,19 @@ export async function GET(request: NextRequest) {
         where.status = status as any;
       } else if (status === 'ACTIVE') {
         // ACTIVE is not a DriverStatus, use employeeStatus instead
-        where.employeeStatus = 'ACTIVE';
-        where.isActive = true;
+        // Only filter by employeeStatus if not showing deleted records
+        if (!includeDeleted) {
+          where.employeeStatus = 'ACTIVE';
+          where.isActive = true;
+        }
         // Explicitly do NOT set where.status to prevent Prisma errors
         delete where.status;
       }
     }
 
     // Final safeguard: ensure status is never 'ACTIVE' in the where clause
-    if (where.status === 'ACTIVE') {
+    // Only apply employeeStatus filter if not showing deleted records
+    if (where.status === 'ACTIVE' && !includeDeleted) {
       delete where.status;
       where.employeeStatus = 'ACTIVE';
       where.isActive = true;
@@ -183,10 +236,14 @@ export async function GET(request: NextRequest) {
           assignmentStatus: true,
           dispatchStatus: true,
           driverType: true,
+          deletedAt: true, // Include deletedAt for UI indicators
+          isActive: true,
+          mcNumberId: true,
           mcNumber: {
             select: {
               id: true,
               number: true,
+              companyName: true,
             },
           },
           teamDriver: true,
@@ -266,6 +323,10 @@ export async function GET(request: NextRequest) {
         truck: driver.currentTruck,
         trailer: driver.currentTrailer,
         tags: driver.driverTags || [],
+        userId: driver.user.id,
+        currentTruckId: driver.currentTruckId,
+        currentTrailerId: driver.currentTrailerId,
+        mcNumberId: driver.mcNumberId || null,
       };
     });
 
@@ -361,8 +422,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate MC number exists and belongs to company
-    if (validated.mcNumberId) {
+    // Determine MC number assignment
+    // Rule: Only admins can choose MC; employees use their default MC
+    const isAdmin = session.user.role === 'ADMIN';
+    let assignedMcNumberId: string;
+
+    if (isAdmin && validated.mcNumberId) {
+      // Admin provided mcNumberId - validate it exists and belongs to company
       const mcNumber = await prisma.mcNumber.findFirst({
         where: {
           id: validated.mcNumberId,
@@ -383,17 +449,23 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      assignedMcNumberId = validated.mcNumberId;
     } else {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'MC number is required',
+      // Employee or admin without explicit mcNumberId - use user's default MC
+      const userMcNumberId = (session.user as any).mcNumberId;
+      if (!userMcNumberId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'MC number is required. Please ensure your account has an MC number assigned.',
+            },
           },
-        },
-        { status: 400 }
-      );
+          { status: 400 }
+        );
+      }
+      assignedMcNumberId = userMcNumberId;
     }
 
     // Hash password
@@ -417,7 +489,8 @@ export async function POST(request: NextRequest) {
         phone: validated.phone,
         role: 'DRIVER',
         companyId: session.user.companyId,
-        mcNumberId: validated.mcNumberId, // Set MC number for driver user
+        mcNumberId: assignedMcNumberId, // Admin can choose, employee uses their default
+        mcAccess: [assignedMcNumberId], // Driver has access to their assigned MC
       },
     });
 
@@ -442,7 +515,7 @@ export async function POST(request: NextRequest) {
         homeTerminal: validated.homeTerminal,
         emergencyContact: validated.emergencyContact,
         emergencyPhone: validated.emergencyPhone,
-        mcNumberId: validated.mcNumberId,
+        mcNumberId: assignedMcNumberId, // Admin can choose, employee uses their default
         status: 'AVAILABLE',
       },
       include: {

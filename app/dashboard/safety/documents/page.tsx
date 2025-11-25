@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import DocumentList from '@/components/documents/DocumentList';
+import DocumentListNew from '@/components/documents/DocumentListNew';
 import DocumentUpload from '@/components/documents/DocumentUpload';
 
 export default function DocumentsPage() {
@@ -19,7 +19,7 @@ export default function DocumentsPage() {
           <DocumentUpload />
         </div>
         <div className="lg:col-span-2">
-          <DocumentList />
+          <DocumentListNew />
         </div>
       </div>
       </div>

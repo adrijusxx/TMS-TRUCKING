@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,21 +32,26 @@ export async function GET(request: NextRequest) {
 
     const searchTerm = `%${query}%`;
 
-    // Build base filter with MC number if applicable
-    // Load uses mcNumber (string), Driver and Truck use mcNumberId (relation)
-    const loadFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filters - Load uses mcNumberId, Customer uses mcNumber string
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const driverTruckFilter = await buildMcNumberIdWhereClause(session, request);
+    
+    // Convert for Customer (uses mcNumber string)
+    const customerMcWhere = await convertMcNumberIdToMcNumberString(loadMcWhere);
 
-    // Search loads
+    // Search loads (Load uses mcNumberId)
     const loads = await prisma.load.findMany({
       where: {
-        ...loadFilter,
+        ...loadMcWhere,
         deletedAt: null,
         OR: [
           { loadNumber: { contains: query, mode: 'insensitive' } },
           { commodity: { contains: query, mode: 'insensitive' } },
           { pickupCity: { contains: query, mode: 'insensitive' } },
+          { pickupState: { contains: query, mode: 'insensitive' } },
           { deliveryCity: { contains: query, mode: 'insensitive' } },
+          { deliveryState: { contains: query, mode: 'insensitive' } },
+          { customer: { name: { contains: query, mode: 'insensitive' } } },
         ],
       },
       select: {
@@ -57,8 +62,12 @@ export async function GET(request: NextRequest) {
         pickupState: true,
         deliveryCity: true,
         deliveryState: true,
+        commodity: true,
       },
       take: 5,
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
     // Search drivers
@@ -70,6 +79,7 @@ export async function GET(request: NextRequest) {
           { driverNumber: { contains: query, mode: 'insensitive' } },
           { user: { firstName: { contains: query, mode: 'insensitive' } } },
           { user: { lastName: { contains: query, mode: 'insensitive' } } },
+          { user: { email: { contains: query, mode: 'insensitive' } } },
         ],
       },
       select: {
@@ -79,6 +89,7 @@ export async function GET(request: NextRequest) {
           select: {
             firstName: true,
             lastName: true,
+            email: true,
           },
         },
       },
@@ -94,6 +105,8 @@ export async function GET(request: NextRequest) {
           { truckNumber: { contains: query, mode: 'insensitive' } },
           { vin: { contains: query, mode: 'insensitive' } },
           { licensePlate: { contains: query, mode: 'insensitive' } },
+          { make: { contains: query, mode: 'insensitive' } },
+          { model: { contains: query, mode: 'insensitive' } },
         ],
       },
       select: {
@@ -101,26 +114,37 @@ export async function GET(request: NextRequest) {
         truckNumber: true,
         make: true,
         model: true,
+        year: true,
       },
       take: 5,
+      orderBy: {
+        truckNumber: 'asc',
+      },
     });
 
-    // Search customers
+    // Search customers (Customer uses mcNumber string)
     const customers = await prisma.customer.findMany({
       where: {
-        ...loadFilter,
+        ...customerMcWhere,
         deletedAt: null,
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
           { customerNumber: { contains: query, mode: 'insensitive' } },
+          { city: { contains: query, mode: 'insensitive' } },
+          { state: { contains: query, mode: 'insensitive' } },
         ],
       },
       select: {
         id: true,
         name: true,
         customerNumber: true,
+        city: true,
+        state: true,
       },
       take: 5,
+      orderBy: {
+        name: 'asc',
+      },
     });
 
     return NextResponse.json({

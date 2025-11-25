@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import TrailerList from '@/components/trailers/TrailerList';
+import TrailerListNew from '@/components/trailers/TrailerListNew';
 
 export default function TrailersPage() {
   return (
@@ -9,7 +9,7 @@ export default function TrailersPage() {
         <div>
           <h1 className="text-3xl font-bold">Trailers</h1>
         </div>
-        <TrailerList />
+        <TrailerListNew />
       </div>
     </>
   );

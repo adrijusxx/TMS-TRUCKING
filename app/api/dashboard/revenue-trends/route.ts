@@ -21,13 +21,13 @@ export async function GET(request: NextRequest) {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filter - Load uses mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
 
     // Get loads grouped by month - include ALL loads, use pickupDate or deliveryDate
     const loads = await prisma.load.findMany({
       where: {
-        ...baseFilter,
+        ...loadMcWhere,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: sixMonthsAgo, lte: now } },

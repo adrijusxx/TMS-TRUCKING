@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { McStateManager } from '@/lib/managers/McStateManager';
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -14,6 +15,7 @@ const createUserSchema = z.object({
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']),
   mcNumberId: z.string().min(1, 'MC number is required'),
+  mcAccess: z.array(z.string()).optional(), // Array of MC IDs user can access
 });
 
 const updateUserSchema = z.object({
@@ -39,73 +41,107 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const roleFilter = searchParams.get('role');
+    const statsOnly = searchParams.get('stats') === 'true';
 
-    // Check if MC number is selected
-    const { mcNumberId, mcNumber } = await getCurrentMcNumber(session, request);
+    // Get MC state - MC numbers are the primary organizational unit
+    const mcState = await McStateManager.getMcState(session, request);
+    const isAdmin = (session?.user as any)?.role === 'ADMIN';
+    const mcAccess = McStateManager.getMcAccess(session);
+    
+    // Debug logging
+    console.log('[Users API] MC State:', {
+      isAdmin,
+      mcAccessLength: mcAccess.length,
+      viewMode: mcState.viewMode,
+      roleFilter
+    });
 
     const where: any = {
-      companyId: session.user.companyId,
       deletedAt: null,
     };
+
+    // MC-based filtering - no companyId, only MC numbers
+    const { mcNumberId } = await getCurrentMcNumber(session, request);
 
     // Filter by role if specified
     if (roleFilter === 'DISPATCHER') {
       where.role = 'DISPATCHER';
-      // If MC number is selected, filter dispatchers by their mcNumberId
-      if (mcNumberId) {
-        where.mcNumberId = mcNumberId;
-      }
     } else if (roleFilter === 'ACCOUNTANT') {
       where.role = 'ACCOUNTANT';
-      // If MC number is selected, filter accountants by their mcNumberId
-      if (mcNumberId) {
-        where.mcNumberId = mcNumberId;
-      }
     } else if (roleFilter === 'FLEET') {
       where.role = 'FLEET';
-      // If MC number is selected, filter fleet managers by their mcNumberId
-      if (mcNumberId) {
-        where.mcNumberId = mcNumberId;
-      }
     } else if (roleFilter === 'ADMIN') {
       where.role = 'ADMIN';
-      // If MC number is selected, filter admins by their mcNumberId
-      if (mcNumberId) {
-        where.mcNumberId = mcNumberId;
-      }
     } else if (roleFilter === 'EMPLOYEES') {
-      // Employees = ACCOUNTANT (excluding ADMIN, DISPATCHER, DRIVER)
       where.role = 'ACCOUNTANT';
-      // If MC number is selected, filter employees by their mcNumberId
-      if (mcNumberId) {
-        where.mcNumberId = mcNumberId;
-      }
     } else if (roleFilter === 'DRIVER') {
       where.role = 'DRIVER';
-      // If MC number is selected, filter drivers by their driver.mcNumberId
-      if (mcNumberId) {
-        where.driver = {
-          mcNumberId: mcNumberId,
-        };
-      }
     } else if (roleFilter === 'SAFETY') {
-      // Safety Department: Users who are safety managers (have safetyManagedDrivers)
-      where.safetyManagedDrivers = {
-        some: {},
-      };
+      where.OR = [
+        { role: 'SAFETY' },
+        { safetyManagedDrivers: { some: {} } },
+      ];
     } else if (roleFilter === 'HR') {
-      // HR Department: Users who are HR managers (have hrManagedDrivers)
-      where.hrManagedDrivers = {
-        some: {},
-      };
+      where.OR = [
+        { role: 'HR' },
+        { hrManagedDrivers: { some: {} } },
+      ];
+    }
+
+    // Apply MC number filtering (MC-based organization)
+    // Admins can view "all MCs" or filter by selected MC(s)
+    if (isAdmin && mcState.viewMode === 'all') {
+      // Admin viewing all MCs - no MC filter
     } else {
-      // For all users, if MC number is selected, filter by mcNumberId (for dispatchers/employees) or driver.mcNumberId (for drivers)
-      if (mcNumberId) {
+      // Filter by MC number(s)
+      if (mcState.viewMode === 'filtered' && mcState.mcNumberIds && mcState.mcNumberIds.length > 0) {
+        // Multiple MCs selected
+        where.OR = [
+          { mcNumberId: { in: mcState.mcNumberIds } },
+          { driver: { mcNumberId: { in: mcState.mcNumberIds } } },
+        ];
+      } else if (mcNumberId) {
+        // Single MC selected
         where.OR = [
           { mcNumberId: mcNumberId },
           { driver: { mcNumberId: mcNumberId } },
         ];
+      } else if (mcAccess && mcAccess.length > 0) {
+        // User has limited MC access
+        where.OR = [
+          { mcNumberId: { in: mcAccess } },
+          { driver: { mcNumberId: { in: mcAccess } } },
+        ];
       }
+    }
+
+    // If stats only, return aggregated data
+    if (statsOnly) {
+      const [total, active, inactive, usersByRole] = await Promise.all([
+        prisma.user.count({ where }),
+        prisma.user.count({ where: { ...where, isActive: true } }),
+        prisma.user.count({ where: { ...where, isActive: false } }),
+        prisma.user.groupBy({
+          by: ['role'],
+          where,
+          _count: true,
+        }),
+      ]);
+
+      const byRole: Record<string, number> = {};
+      usersByRole.forEach((item) => {
+        byRole[item.role] = item._count;
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          total,
+          active,
+          inactive,
+          byRole,
+        },
+      });
     }
 
     const users = await prisma.user.findMany({
@@ -133,6 +169,7 @@ export async function GET(request: NextRequest) {
             mcNumber: true,
           },
         },
+        mcAccess: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -199,12 +236,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate MC number exists and belongs to company (for non-CUSTOMER roles)
+    // Validate MC number exists (MC-based organization)
     if (validated.role !== 'CUSTOMER' && validated.mcNumberId) {
       const mcNumber = await prisma.mcNumber.findFirst({
         where: {
           id: validated.mcNumberId,
-          companyId: session.user.companyId,
           deletedAt: null,
         },
       });
@@ -215,7 +251,7 @@ export async function POST(request: NextRequest) {
             success: false,
             error: {
               code: 'INVALID_MC_NUMBER',
-              message: 'MC number not found or does not belong to your company',
+              message: 'MC number not found',
             },
           },
           { status: 400 }
@@ -246,7 +282,16 @@ export async function POST(request: NextRequest) {
     
     // For CUSTOMER role, don't require MC number
     if (validated.role === 'CUSTOMER') {
-      delete userData.mcNumberId;
+      const { mcNumberId, ...userDataWithoutMc } = userData;
+      Object.assign(userData, userDataWithoutMc);
+    }
+
+    // Set mcAccess: empty array for admins (all access), or provided array, or default to [mcNumberId]
+    if (validated.role === 'ADMIN') {
+      userData.mcAccess = validated.mcAccess || []; // Empty array = access to all MCs
+    } else {
+      // For non-admins, use provided mcAccess or default to [mcNumberId]
+      userData.mcAccess = validated.mcAccess || (validated.mcNumberId ? [validated.mcNumberId] : []);
     }
 
     const user = await prisma.user.create({
@@ -268,6 +313,7 @@ export async function POST(request: NextRequest) {
             companyName: true,
           },
         },
+        mcAccess: true,
       },
     });
 

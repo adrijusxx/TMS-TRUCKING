@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMS Import Field Requirements</title>
+    <style>
+        @media print {
+            body { margin: 0; padding: 20px; }
+            .no-print { display: none; }
+            .page-break { page-break-after: always; }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+        }
+        .header {
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #1e40af;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        h2 {
+            color: #2563eb;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+        h3 {
+            color: #3b82f6;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        .warning {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .error {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th {
+            background: #2563eb;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        tr:hover {
+            background: #f9fafb;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 0 4px;
+        }
+        .badge-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .print-button:hover {
+            background: #1d4ed8;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .toc {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 8px 0;
+        }
+        .toc a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button no-print" onclick="window.print()">🖨️ Print to PDF</button>
+    
+    <div class="header">
+        <h1>📋 TMS Import Field Requirements</h1>
+        <p><strong>Transportation Management System - CSV/Excel Import Guide</strong></p>
+        <p>Last Updated: November 2025</p>
+    </div>
+
+    <div class="error">
+        <h3 style="margin-top: 0;">⚠️ Critical Warning</h3>
+        <p><strong>197 required database fields are NOT being imported from CSV/Excel files.</strong></p>
+        <p>This means when users click "Import" buttons, some required data is missing, which could cause:</p>
+        <ul>
+            <li>❌ <strong>Import failures</strong> - Database will reject records</li>
+            <li>❌ <strong>NULL constraint errors</strong> - Required fields without defaults will fail</li>
+            <li>❌ <strong>Data integrity issues</strong> - Missing critical information</li>
+            <li>❌ <strong>Application errors</strong> - Features that depend on these fields will break</li>
+        </ul>
+    </div>
+
+    <div class="toc">
+        <h2 style="margin-top: 0;">Table of Contents</h2>
+        <ul>
+            <li><a href="#loads">Loads Import Requirements</a></li>
+            <li><a href="#trucks">Trucks Import Requirements</a></li>
+            <li><a href="#trailers">Trailers Import Requirements</a></li>
+            <li><a href="#drivers">Drivers Import Requirements</a></li>
+            <li><a href="#customers">Customers Import Requirements</a></li>
+            <li><a href="#field-naming">CSV Column Naming Conventions</a></li>
+            <li><a href="#troubleshooting">Troubleshooting</a></li>
+        </ul>
+    </div>
+
+    <section id="loads">
+        <h2>🔴 Loads Import - Critical Missing Fields</h2>
+        
+        <div class="error">
+            <p><strong>These fields are REQUIRED by the database but NOT imported. Import will FAIL without them.</strong></p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Impact</th>
+                    <th>Suggested CSV Headers</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>customerId</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - cannot create load without customer</td>
+                    <td>customer_id, Customer ID, customerId, CustomerID</td>
+                </tr>
+                <tr>
+                    <td><code>equipmentType</code></td>
+                    <td>Enum</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - enum field without default</td>
+                    <td>equipment_type, Equipment Type, equipmentType, EquipmentType</td>
+                </tr>
+                <tr>
+                    <td><code>weight</code></td>
+                    <td>Float</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - numeric field without default</td>
+                    <td>weight, Weight, total_weight, Total Weight</td>
+                </tr>
+                <tr>
+                    <td><code>revenue</code></td>
+                    <td>Float</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - numeric field without default</td>
+                    <td>revenue, Revenue, load_revenue, Load Revenue</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Equipment Type Enum Values</h3>
+        <p>Valid values for <code>equipmentType</code>:</p>
+        <ul>
+            <li><code>DRY_VAN</code></li>
+            <li><code>REEFER</code></li>
+            <li><code>FLATBED</code></li>
+            <li><code>STEP_DECK</code></li>
+            <li><code>LOWBOY</code></li>
+            <li><code>TANKER</code></li>
+            <li><code>CONESTOGA</code></li>
+            <li><code>POWER_ONLY</code></li>
+            <li><code>HOTSHOT</code></li>
+        </ul>
+
+        <h3>🟡 Fields with Defaults (Less Critical)</h3>
+        <div class="warning">
+            <p>These have defaults but should still be imported for accuracy:</p>
+            <ul>
+                <li><code>loadType</code> - Default: <code>FTL</code> (but should import actual value)</li>
+                <li><code>hazmat</code> - Default: <code>false</code> (but should import if true)</li>
+                <li><code>fuelAdvance</code> - Default: <code>0</code> (but should import actual value)</li>
+                <li><code>expenses</code> - Default: <code>0</code> (but should import actual value)</li>
+                <li><code>accountingSyncStatus</code> - Default: <code>NOT_SYNCED</code> (but should import if available)</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="trucks">
+        <h2>🔴 Trucks Import - Critical Missing Fields</h2>
+        
+        <div class="error">
+            <p><strong>These fields are REQUIRED by the database but NOT imported. Import will FAIL without them.</strong></p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Impact</th>
+                    <th>Suggested CSV Headers</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>equipmentType</code></td>
+                    <td>Enum</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - enum field without default</td>
+                    <td>equipment_type, Equipment Type, equipmentType</td>
+                </tr>
+                <tr>
+                    <td><code>capacity</code></td>
+                    <td>Float</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - numeric field without default</td>
+                    <td>capacity, Capacity, max_capacity, Max Capacity</td>
+                </tr>
+                <tr>
+                    <td><code>registrationExpiry</code></td>
+                    <td>DateTime</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - date field without default</td>
+                    <td>registration_expiry, Registration Expiry, reg_expiry, Reg Expiry Date</td>
+                </tr>
+                <tr>
+                    <td><code>insuranceExpiry</code></td>
+                    <td>DateTime</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - date field without default</td>
+                    <td>insurance_expiry, Insurance Expiry, ins_expiry, Insurance Expiry Date</td>
+                </tr>
+                <tr>
+                    <td><code>inspectionExpiry</code></td>
+                    <td>DateTime</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - date field without default</td>
+                    <td>inspection_expiry, Inspection Expiry, insp_expiry, Inspection Expiry Date</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info">
+            <p><strong>Date Format:</strong> Dates should be in ISO format (YYYY-MM-DD) or common formats like MM/DD/YYYY or DD/MM/YYYY. The system will attempt to parse various date formats.</p>
+        </div>
+    </section>
+
+    <section id="trailers">
+        <h2>🔴 Trailers Import - Critical Missing Fields</h2>
+        
+        <div class="error">
+            <p><strong>These fields are REQUIRED by the database but NOT imported. Import will FAIL without them.</strong></p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Impact</th>
+                    <th>Suggested CSV Headers</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>equipmentType</code></td>
+                    <td>Enum</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - enum field without default</td>
+                    <td>equipment_type, Equipment Type, equipmentType</td>
+                </tr>
+                <tr>
+                    <td><code>capacity</code></td>
+                    <td>Float</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - numeric field without default</td>
+                    <td>capacity, Capacity, max_capacity, Max Capacity</td>
+                </tr>
+                <tr>
+                    <td><code>registrationExpiry</code></td>
+                    <td>DateTime</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - date field without default</td>
+                    <td>registration_expiry, Registration Expiry, reg_expiry</td>
+                </tr>
+                <tr>
+                    <td><code>insuranceExpiry</code></td>
+                    <td>DateTime</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - date field without default</td>
+                    <td>insurance_expiry, Insurance Expiry, ins_expiry</td>
+                </tr>
+                <tr>
+                    <td><code>inspectionExpiry</code></td>
+                    <td>DateTime</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - date field without default</td>
+                    <td>inspection_expiry, Inspection Expiry, insp_expiry</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="drivers">
+        <h2>🔴 Drivers Import - Critical Missing Fields</h2>
+        
+        <div class="error">
+            <p><strong>These fields are REQUIRED by the database but NOT imported. Import will FAIL without them.</strong></p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Impact</th>
+                    <th>Suggested CSV Headers</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>payType</code></td>
+                    <td>Enum</td>
+                    <td><span class="badge badge-warning">Has Default</span></td>
+                    <td>May work with default (PER_MILE), but should import actual value</td>
+                    <td>pay_type, Pay Type, payment_type, Payment Type</td>
+                </tr>
+                <tr>
+                    <td><code>payRate</code></td>
+                    <td>Float</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - numeric field without default</td>
+                    <td>pay_rate, Pay Rate, payment_rate, Payment Rate</td>
+                </tr>
+                <tr>
+                    <td><code>mcNumberId</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - cannot create driver without MC number</td>
+                    <td>mc_number_id, MC Number ID, mc_number, MC Number</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Pay Type Enum Values</h3>
+        <p>Valid values for <code>payType</code>:</p>
+        <ul>
+            <li><code>PER_MILE</code> - Pay per mile driven</li>
+            <li><code>PER_LOAD</code> - Pay per load completed</li>
+            <li><code>PERCENTAGE</code> - Pay as percentage of load revenue</li>
+            <li><code>HOURLY</code> - Pay per hour worked</li>
+        </ul>
+
+        <div class="info">
+            <p><strong>Note:</strong> When importing <code>mcNumberId</code>, you can provide either:</p>
+            <ul>
+                <li>The MC Number ID (database ID)</li>
+                <li>The MC Number itself (e.g., "MC-123456") - the system will resolve it to an ID</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="customers">
+        <h2>🔴 Customers Import - Critical Missing Fields</h2>
+        
+        <div class="error">
+            <p><strong>These fields are REQUIRED by the database but NOT imported. Import will FAIL without them.</strong></p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Field Name</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Impact</th>
+                    <th>Suggested CSV Headers</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>address</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - address is required</td>
+                    <td>address, Address, street_address, Street Address</td>
+                </tr>
+                <tr>
+                    <td><code>city</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - city is required</td>
+                    <td>city, City</td>
+                </tr>
+                <tr>
+                    <td><code>state</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - state is required</td>
+                    <td>state, State, state_code, State Code</td>
+                </tr>
+                <tr>
+                    <td><code>zip</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - zip code is required</td>
+                    <td>zip, Zip, zip_code, Zip Code, postal_code, Postal Code</td>
+                </tr>
+                <tr>
+                    <td><code>phone</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - phone is required</td>
+                    <td>phone, Phone, phone_number, Phone Number</td>
+                </tr>
+                <tr>
+                    <td><code>email</code></td>
+                    <td>String</td>
+                    <td><span class="badge badge-error">Required</span></td>
+                    <td>Import will FAIL - email is required</td>
+                    <td>email, Email, email_address, Email Address</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="field-naming">
+        <h2>📝 CSV Column Naming Conventions</h2>
+        
+        <div class="info">
+            <p>The import system is flexible with column naming. It will match columns using various naming conventions:</p>
+        </div>
+
+        <h3>Accepted Naming Patterns</h3>
+        <ul>
+            <li><strong>Exact match:</strong> <code>customerId</code></li>
+            <li><strong>CamelCase:</strong> <code>customerId</code>, <code>equipmentType</code></li>
+            <li><strong>Snake_case:</strong> <code>customer_id</code>, <code>equipment_type</code></li>
+            <li><strong>kebab-case:</strong> <code>customer-id</code>, <code>equipment-type</code></li>
+            <li><strong>With spaces:</strong> <code>Customer ID</code>, <code>Equipment Type</code></li>
+            <li><strong>Mixed case:</strong> <code>CustomerID</code>, <code>EquipmentType</code></li>
+        </ul>
+
+        <h3>Field Name Resolution</h3>
+        <p>The system will attempt to match your CSV columns to database fields by:</p>
+        <ol>
+            <li>Exact match (case-insensitive)</li>
+            <li>Partial match (contains the field name)</li>
+            <li>Normalized match (removes spaces, underscores, hyphens, and compares)</li>
+        </ol>
+
+        <div class="warning">
+            <p><strong>Tip:</strong> If your import is failing, check the "Column Mapping" section in the import interface. You can manually map your CSV columns to the correct database fields.</p>
+        </div>
+    </section>
+
+    <section id="troubleshooting">
+        <h2>🔧 Troubleshooting Import Issues</h2>
+
+        <h3>Common Error Messages</h3>
+
+        <h4>Error: "Cannot create [Entity]: [field] is required"</h4>
+        <div class="error">
+            <p><strong>Cause:</strong> A required field is missing from your CSV file.</p>
+            <p><strong>Solution:</strong></p>
+            <ul>
+                <li>Add the missing field column to your CSV file</li>
+                <li>Use the Column Mapping tool to map an existing column to the required field</li>
+                <li>Check the field name matches one of the suggested CSV headers</li>
+            </ul>
+        </div>
+
+        <h4>Error: "Invalid enum value for [field]"</h4>
+        <div class="error">
+            <p><strong>Cause:</strong> The value provided doesn't match a valid enum option.</p>
+            <p><strong>Solution:</strong></p>
+            <ul>
+                <li>Check the enum values listed in this document</li>
+                <li>Ensure your CSV values match exactly (case-sensitive)</li>
+                <li>Use the exact enum value (e.g., <code>DRY_VAN</code> not <code>Dry Van</code>)</li>
+            </ul>
+        </div>
+
+        <h4>Error: "Cannot resolve [field] ID from [value]"</h4>
+        <div class="error">
+            <p><strong>Cause:</strong> The system cannot find a matching record for a relationship field (e.g., customerId, mcNumberId).</p>
+            <p><strong>Solution:</strong></p>
+            <ul>
+                <li>Ensure the referenced record exists in the database</li>
+                <li>Use the exact ID or name that exists in the system</li>
+                <li>Create the referenced record first (e.g., create customer before importing loads)</li>
+            </ul>
+        </div>
+
+        <h3>Best Practices</h3>
+        <ol>
+            <li><strong>Use the Import Field Warnings:</strong> The system will show warnings about missing fields before you import. Review and fix these first.</li>
+            <li><strong>Test with a small file:</strong> Import a few rows first to verify your format is correct.</li>
+            <li><strong>Check data types:</strong> Ensure numeric fields contain numbers, dates are in valid formats, and enums match valid values.</li>
+            <li><strong>Resolve relationships first:</strong> Import customers, trucks, and drivers before importing loads that reference them.</li>
+            <li><strong>Use Column Mapping:</strong> If your CSV headers don't match exactly, use the Column Mapping tool to map them correctly.</li>
+        </ol>
+    </section>
+
+    <section>
+        <h2>📞 Need Help?</h2>
+        <div class="info">
+            <p>If you continue to experience import issues after following this guide:</p>
+            <ul>
+                <li>Check the import error messages for specific field names</li>
+                <li>Review the Column Mapping section in the import interface</li>
+                <li>Verify your data types match the field requirements</li>
+                <li>Contact your system administrator for assistance</li>
+            </ul>
+        </div>
+    </section>
+
+    <footer style="margin-top: 60px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280;">
+        <p>TMS Transportation Management System - Import Field Requirements Guide</p>
+        <p>For the most up-to-date information, refer to the system's import validation warnings.</p>
+    </footer>
+</body>
+</html>
+

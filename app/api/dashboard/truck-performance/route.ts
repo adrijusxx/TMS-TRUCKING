@@ -17,10 +17,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build base filter with MC number if applicable
-    // Truck uses mcNumberId (relation), Load uses mcNumber (string)
+    // Build MC filters - Truck uses mcNumberId, Load uses mcNumberId
     const truckFilter = await buildMcNumberIdWhereClause(session, request);
-    const loadFilter = await buildMcNumberWhereClause(session, request);
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
 
     // Get all active trucks
     const trucks = await prisma.truck.findMany({
@@ -32,7 +31,7 @@ export async function GET(request: NextRequest) {
       include: {
         loads: {
           where: {
-            ...loadFilter,
+            ...loadMcWhere,
             deletedAt: null,
           },
           select: {

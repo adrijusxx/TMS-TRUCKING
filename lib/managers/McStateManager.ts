@@ -2,74 +2,140 @@
  * Centralized MC State Manager
  * Handles all MC number state operations with proper synchronization
  * Eliminates state desync issues by using single source of truth
+ * 
+ * View Modes:
+ * - 'all': Admin viewing all MCs (no filtering)
+ * - 'filtered': Admin viewing specific selected MCs
+ * - 'assigned': Employee viewing their assigned MCs (from mcAccess array)
  */
 
 import { prisma } from '@/lib/prisma';
 
 export interface McState {
-  mcNumberId: string | null;
-  mcNumber: string | null;
-  mcNumberIds: string[]; // For multi-select
-  viewMode: 'current' | 'all' | 'multi';
+  mcNumberId: string | null; // Single MC ID (legacy, for backward compatibility)
+  mcNumber: string | null; // Single MC number value (legacy)
+  mcNumberIds: string[]; // Array of MC IDs being viewed
+  viewMode: 'all' | 'filtered' | 'assigned';
 }
 
 export class McStateManager {
   /**
+   * Gets user's accessible MC IDs from session
+   * Returns empty array for admins (which means access to all MCs)
+   */
+  static getMcAccess(session: any): string[] {
+    const mcAccess = (session?.user as any)?.mcAccess;
+    if (Array.isArray(mcAccess)) {
+      return mcAccess;
+    }
+    return [];
+  }
+
+  /**
+   * Checks if user can access a specific MC ID
+   * 
+   * Rules:
+   * - Admins with empty mcAccess array can access all MCs
+   * - Employees can only access MCs in their mcAccess array
+   * - If mcAccess is empty for non-admin, they have no access
+   */
+  static canAccessMc(session: any, mcId: string): boolean {
+    const mcAccess = this.getMcAccess(session);
+    const isAdmin = (session?.user as any)?.role === 'ADMIN';
+    
+    // Admins with empty mcAccess array have access to all MCs
+    if (isAdmin && mcAccess.length === 0) {
+      return true;
+    }
+    
+    // All users (including admins with restricted access) can only access MCs in their mcAccess array
+    return mcAccess.includes(mcId);
+  }
+
+  /**
    * Gets the current MC state from session and request
    * Single source of truth - checks session first, then cookies
+   * Validates MC selection against user's mcAccess array
+   * 
+   * Logic:
+   * - Admins with empty mcAccess: Can view 'all' or 'filtered' (specific MCs)
+   * - Employees with mcAccess array: Always view 'assigned' (their accessible MCs)
+   * - Validates all MC selections against user permissions
    */
   static async getMcState(session: any, request?: any): Promise<McState> {
-    // Try to get from session first (most authoritative)
-    let mcNumberId = (session?.user as any)?.mcNumberId || null;
-    let mcNumber: string | null = (session?.user as any)?.mcNumber || null;
-    let mcNumberIds: string[] = (session?.user as any)?.mcNumberIds || [];
-    let viewMode: 'current' | 'all' | 'multi' = 'current';
+    const mcAccess = this.getMcAccess(session);
+    const isAdmin = (session?.user as any)?.role === 'ADMIN';
+    const companyId = session?.user?.companyId || session?.user?.currentCompanyId;
 
-    // If not in session, try to get from cookies (for API routes or server components)
-    if (!mcNumberId && request) {
-      mcNumberId = this.getCookieValue(request, 'currentMcNumberId');
-      mcNumber = this.getCookieValue(request, 'currentMcNumber');
-      
-      // Check for multi-select MC IDs
-      const multiMcIdsCookie = this.getCookieValue(request, 'selectedMcNumberIds');
-      if (multiMcIdsCookie) {
+    // Initialize state variables
+    let mcNumberId: string | null = null;
+    let mcNumber: string | null = null;
+    let mcNumberIds: string[] = [];
+    let viewMode: 'all' | 'filtered' | 'assigned' = 'all';
+
+    // CASE 1: Admin with empty mcAccess (full access to all MCs)
+    if (isAdmin && mcAccess.length === 0) {
+      // Check cookies for admin's selection
+      const viewModeCookie = this.getCookieValue(request, 'mcViewMode');
+      const selectedMcIdsCookie = this.getCookieValue(request, 'selectedMcNumberIds');
+
+      if (viewModeCookie === 'all' || !viewModeCookie) {
+        // Admin viewing all MCs (default)
+        viewMode = 'all';
+        mcNumberIds = [];
+      } else if (viewModeCookie === 'filtered' && selectedMcIdsCookie) {
+        // Admin viewing specific filtered MCs
         try {
-          mcNumberIds = JSON.parse(multiMcIdsCookie);
-          if (Array.isArray(mcNumberIds) && mcNumberIds.length > 0) {
-            viewMode = 'multi';
+          const parsedIds = JSON.parse(selectedMcIdsCookie);
+          if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+            viewMode = 'filtered';
+            mcNumberIds = parsedIds;
+          } else {
+            // Invalid selection, default to 'all'
+            viewMode = 'all';
+            mcNumberIds = [];
           }
         } catch {
+          // Invalid JSON, default to 'all'
+          viewMode = 'all';
           mcNumberIds = [];
         }
-      }
-
-      // Check view mode cookie
-      const viewModeCookie = this.getCookieValue(request, 'mcViewMode');
-      if (viewModeCookie === 'all') {
+      } else {
+        // Default to 'all' for any other case
         viewMode = 'all';
-      } else if (viewModeCookie === 'multi' && mcNumberIds.length > 0) {
-        viewMode = 'multi';
+        mcNumberIds = [];
+      }
+    }
+    // CASE 2: Employee (or admin with restricted mcAccess)
+    else if (mcAccess.length > 0) {
+      // Employees always see their assigned MCs (combined view)
+      viewMode = 'assigned';
+      mcNumberIds = [...mcAccess]; // Use all their accessible MCs
+    }
+    // CASE 3: User with no MC access (shouldn't happen, but handle gracefully)
+    else {
+      viewMode = 'assigned';
+      mcNumberIds = [];
+    }
+
+    // Validate all MC IDs belong to company (security check)
+    if (mcNumberIds.length > 0 && companyId) {
+      const validation = await this.validateMcNumberIds(mcNumberIds, companyId);
+      if (!validation.valid) {
+        // Remove invalid IDs
+        mcNumberIds = mcNumberIds.filter(id => !validation.invalidIds.includes(id));
       }
     }
 
-    // If we have mcNumberId but not the value, fetch it from database
-    if (mcNumberId && !mcNumber) {
+    // For backward compatibility: set single mcNumberId if only one MC
+    if (mcNumberIds.length === 1) {
+      mcNumberId = mcNumberIds[0];
+      // Fetch MC number value
       const mcNumberRecord = await prisma.mcNumber.findUnique({
         where: { id: mcNumberId },
         select: { number: true },
       });
       mcNumber = mcNumberRecord?.number?.trim() || null;
-    }
-
-    // Normalize MC number value (trim whitespace)
-    if (mcNumber) {
-      mcNumber = mcNumber.trim();
-    }
-
-    // If multi-select is active, don't use single MC
-    if (viewMode === 'multi' && mcNumberIds.length > 0) {
-      mcNumberId = null;
-      mcNumber = null;
     }
 
     return {
@@ -99,12 +165,21 @@ export class McStateManager {
   }
 
   /**
-   * Builds where clause for single MC filtering
+   * Builds where clause for MC filtering using mcNumberId
+   * Returns appropriate filter based on user type and view mode
+   * 
+   * Returns:
+   * - Admin 'all' mode: { companyId } (no MC filter)
+   * - Admin 'filtered' mode: { companyId, mcNumberId: { in: [...] } }
+   * - Employee 'assigned' mode: { companyId, mcNumberId: { in: [...] } }
+   * 
+   * Note: This method now returns multi-MC format for consistency
+   * Use this for all queries that need MC filtering
    */
   static async buildMcNumberWhereClause(
     session: any,
     request?: any
-  ): Promise<{ companyId: string; mcNumber?: string }> {
+  ): Promise<{ companyId: string; mcNumberId?: string | { in: string[] } }> {
     const companyId = session?.user?.companyId || session?.user?.currentCompanyId;
     if (!companyId) {
       throw new Error('Company ID is required');
@@ -112,74 +187,48 @@ export class McStateManager {
 
     const mcState = await this.getMcState(session, request);
 
-    // If "all MCs" mode, don't filter by MC number
+    // Admin viewing all MCs - no MC filter
     if (mcState.viewMode === 'all') {
       return { companyId };
     }
 
-    // If multi-select mode, return base filter (will be handled by buildMultiMcNumberWhereClause)
-    if (mcState.viewMode === 'multi') {
-      return { companyId };
+    // Admin filtered mode or employee assigned mode - filter by MC array
+    if (mcState.mcNumberIds.length > 0) {
+      return {
+        companyId,
+        mcNumberId: { in: mcState.mcNumberIds },
+      };
     }
 
-    // Single MC mode
-    const whereClause: any = { companyId };
-    if (mcState.mcNumber) {
-      whereClause.mcNumber = mcState.mcNumber;
-    }
-
-    return whereClause;
+    // No MCs accessible - return empty filter (no results)
+    return {
+      companyId,
+      mcNumberId: { in: [] },
+    };
   }
 
   /**
-   * Builds where clause for multi-MC filtering
+   * Builds where clause for multi-MC filtering using mcNumberId
+   * This is now an alias for buildMcNumberWhereClause for backward compatibility
+   * Both methods now return the same format
+   * 
+   * @deprecated Use buildMcNumberWhereClause instead - both now return the same format
    */
   static async buildMultiMcNumberWhereClause(
     session: any,
     request?: any
-  ): Promise<{ companyId: string; mcNumber?: { in: string[] } }> {
-    const companyId = session?.user?.companyId || session?.user?.currentCompanyId;
-    if (!companyId) {
-      throw new Error('Company ID is required');
+  ): Promise<{ companyId: string; mcNumberId?: { in: string[] } }> {
+    const result = await this.buildMcNumberWhereClause(session, request);
+    
+    // Ensure we always return { in: [...] } format for this method
+    if (result.mcNumberId && typeof result.mcNumberId === 'string') {
+      return {
+        companyId: result.companyId,
+        mcNumberId: { in: [result.mcNumberId] },
+      };
     }
-
-    const mcState = await this.getMcState(session, request);
-
-    // If not in multi mode, fall back to single MC or all
-    if (mcState.viewMode !== 'multi' || mcState.mcNumberIds.length === 0) {
-      const singleClause = await this.buildMcNumberWhereClause(session, request);
-      // Convert single mcNumber to { in: [mcNumber] } format if needed
-      if (singleClause.mcNumber && typeof singleClause.mcNumber === 'string') {
-        return {
-          companyId: singleClause.companyId,
-          mcNumber: { in: [singleClause.mcNumber] },
-        };
-      }
-      return { companyId: singleClause.companyId };
-    }
-
-    // Fetch MC number values for the selected IDs
-    const mcNumbers = await prisma.mcNumber.findMany({
-      where: {
-        id: { in: mcState.mcNumberIds },
-        companyId,
-      },
-      select: { number: true },
-    });
-
-    const mcNumberValues = mcNumbers
-      .map((mc) => mc.number?.trim())
-      .filter((num): num is string => !!num);
-
-    if (mcNumberValues.length === 0) {
-      return { companyId };
-    }
-
-    const whereClause: { companyId: string; mcNumber?: { in: string[] } } = { companyId };
-    if (mcNumberValues.length > 0) {
-      whereClause.mcNumber = { in: mcNumberValues };
-    }
-    return whereClause;
+    
+    return result as { companyId: string; mcNumberId?: { in: string[] } };
   }
 
   /**
@@ -278,4 +327,5 @@ export class McStateManager {
     response.cookies.delete('mcViewMode');
   }
 }
+
 

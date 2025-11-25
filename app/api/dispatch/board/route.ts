@@ -19,15 +19,14 @@ export async function GET(request: NextRequest) {
     const dateParam = searchParams.get('date');
     const targetDate = dateParam ? new Date(dateParam) : new Date();
 
-    // Build base filter with MC number if applicable
-    // Load uses mcNumber (string), Driver and Truck use mcNumberId (relation)
-    const loadFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filters - Load uses mcNumberId, Driver and Truck use mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const driverTruckFilter = await buildMcNumberIdWhereClause(session, request);
 
     // Get unassigned loads
     const unassignedLoads = await prisma.load.findMany({
       where: {
-        ...loadFilter,
+        ...loadMcWhere,
         status: 'PENDING',
         deletedAt: null,
         pickupDate: {
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest) {
     // Get assigned loads
     const assignedLoads = await prisma.load.findMany({
       where: {
-        ...loadFilter,
+        ...loadMcWhere,
         status: {
           in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
         },

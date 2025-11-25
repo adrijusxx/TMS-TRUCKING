@@ -8,11 +8,12 @@ import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNu
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { getTruckFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
 
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
-
     if (!session?.user?.companyId) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
@@ -20,6 +21,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 2. Permission Check
+    if (!hasPermission(session.user.role as any, 'trucks.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
@@ -30,114 +43,38 @@ export async function GET(request: NextRequest) {
     const model = searchParams.get('model');
     const equipmentType = searchParams.get('equipmentType');
     const licenseState = searchParams.get('licenseState');
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', 'multi', or specific MC ID
-    const isAdmin = session.user?.role === 'ADMIN';
+    const mcNumberIdFilter = searchParams.get('mcNumberId');
 
-    // Check if multi-MC mode is active
-    const mcState = await McStateManager.getMcState(session, request);
-    const isMultiMode = mcState.viewMode === 'multi' || mcViewMode === 'multi';
-
-    // Build base where clause with MC number filtering if applicable
-    let baseFilter: any;
-    if (isMultiMode && mcState.mcNumberIds.length > 0) {
-      // Use multi-MC filtering
-      baseFilter = await buildMultiMcNumberWhereClause(session, request);
-    } else {
-      // Use single MC or all MCs filtering
-      baseFilter = await buildMcNumberWhereClause(session, request);
-    }
-    
-    // Convert mcNumber (string) to mcNumberId (foreign key) for trucks
-    // Trucks use mcNumberId relation, not mcNumber string field
-    if (baseFilter.mcNumber && typeof baseFilter.mcNumber === 'string') {
-      const mcNumberValue = baseFilter.mcNumber;
-      // Look up the MC Number record by its number value
-      const mcRecord = await prisma.mcNumber.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          number: mcNumberValue,
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-      
-      if (mcRecord) {
-        // Replace mcNumber with mcNumberId
-        delete baseFilter.mcNumber;
-        baseFilter.mcNumberId = mcRecord.id;
-      } else {
-        // MC number not found, remove the filter
-        delete baseFilter.mcNumber;
-      }
-    }
-
-    // Apply role-based filtering
-    const { mcNumberId } = await getCurrentMcNumber(session, request);
+    // Apply role-based filtering (separate from MC filtering)
     const roleFilter = getTruckFilter(
       createFilterContext(
         session.user.id,
         session.user.role as any,
-        session.user.companyId,
-        mcNumberId ?? undefined
+        session.user.companyId
       )
     );
-
-    // Merge role filter with base filter
-    if (roleFilter.mcNumberId && baseFilter.mcNumberId) {
-      // Both have mcNumberId, keep baseFilter's (from MC selection)
-      delete roleFilter.mcNumberId;
-    }
+    // Parse includeDeleted parameter (admins only)
+    const includeDeleted = parseIncludeDeleted(request);
     
-    // Admin-only: Override MC filter based on view mode
-    if (isAdmin && mcViewMode === 'all') {
-      // Remove MC number filter to show all MCs (admin only)
-      if (baseFilter.mcNumber) {
-        delete baseFilter.mcNumber;
-      }
-      if (baseFilter.mcNumberId) {
-        delete baseFilter.mcNumberId;
-      }
-    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== 'multi' && mcViewMode !== null) {
-      // Filter by specific MC number ID (admin selecting specific MC)
-      // Handle both "mc:ID" format and plain ID format
-      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
-      const mcNumberRecord = await prisma.mcNumber.findUnique({
-        where: { id: mcId },
-        select: { number: true, companyId: true, companyName: true },
-      });
-      if (mcNumberRecord) {
-        const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { companyId: true, userCompanies: { select: { companyId: true } } },
-        });
-        const accessibleCompanyIds = [
-          user?.companyId,
-          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
-        ].filter(Boolean) as string[];
-        
-        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
-          // Trucks now use mcNumberId (foreign key), not mcNumber (string)
-          baseFilter = {
-            ...baseFilter,
-            mcNumberId: mcId, // Filter by mcNumberId foreign key
-          };
-          
-          // Remove any old mcNumber filter if it exists
-          if (baseFilter.mcNumber) {
-            delete baseFilter.mcNumber;
-          }
-        }
-      }
-    }
-    // Non-admin users: always use baseFilter (their assigned MC)
-
-    // Merge role filter
+    // Build deleted records filter (admins can include deleted records if requested)
+    const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
+    
+    // Merge MC filter with role filter and deleted filter
     const where: any = {
-      ...baseFilter,
+      ...mcWhere,
       ...roleFilter,
       isActive: true,
-      deletedAt: null,
+      ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
     };
+
+    // Handle explicit MC number filter from table filter (overrides default MC view)
+    if (mcNumberIdFilter) {
+      if (mcNumberIdFilter === 'null' || mcNumberIdFilter === 'unassigned') {
+        where.mcNumberId = null;
+      } else {
+        where.mcNumberId = mcNumberIdFilter;
+      }
+    }
 
     if (status) {
       where.status = status;
@@ -172,7 +109,26 @@ export async function GET(request: NextRequest) {
     const [trucks, total] = await Promise.all([
       prisma.truck.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          truckNumber: true,
+          vin: true,
+          licensePlate: true,
+          make: true,
+          model: true,
+          year: true,
+          equipmentType: true,
+          status: true,
+          isActive: true,
+          deletedAt: true, // Include deletedAt for UI indicators
+          odometerReading: true,
+          mcNumber: {
+            select: {
+              id: true,
+              number: true,
+              companyName: true,
+            },
+          },
           currentDrivers: {
             select: {
               id: true,
@@ -331,6 +287,19 @@ export async function POST(request: NextRequest) {
       ? validated.inspectionExpiry
       : new Date(validated.inspectionExpiry);
 
+    // Determine MC number assignment
+    // Rule: Only admins can choose MC; employees use their default MC
+    const isAdmin = session.user.role === 'ADMIN';
+    let assignedMcNumberId: string | null = null;
+
+    if (isAdmin && validated.mcNumberId) {
+      // Admin provided mcNumberId - use it
+      assignedMcNumberId = validated.mcNumberId;
+    } else {
+      // Employee or admin without explicit mcNumberId - use user's default MC
+      assignedMcNumberId = (session.user as any).mcNumberId || null;
+    }
+
     const truck = await prisma.truck.create({
       data: {
         ...validated,
@@ -338,6 +307,7 @@ export async function POST(request: NextRequest) {
         insuranceExpiry,
         inspectionExpiry,
         companyId: session.user.companyId,
+        mcNumberId: assignedMcNumberId, // Admin can choose, employee uses their default
         status: 'AVAILABLE',
       },
     });

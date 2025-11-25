@@ -144,3 +144,5 @@ DROP INDEX IF EXISTS "Truck_companyId_mcNumber_idx";
 
 
 
+
+

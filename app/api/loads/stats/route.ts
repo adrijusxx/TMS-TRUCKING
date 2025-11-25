@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 import { LoadStatus } from '@prisma/client';
 
 /**
@@ -10,8 +11,8 @@ import { LoadStatus } from '@prisma/client';
  */
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
-
     if (!session?.user?.companyId) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
@@ -19,14 +20,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
+    // 2. Permission Check
+    if (!hasPermission(session.user.role as any, 'loads.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // 4. Query with Company + MC filtering
+    const { searchParams } = new URL(request.url);
 
     // Build where clause from filters
     const where: any = {
-      ...baseFilter,
+      ...mcWhere,
       deletedAt: null,
     };
 
@@ -118,12 +128,17 @@ export async function GET(request: NextRequest) {
     // For active loads, we want all active statuses regardless of any status filter
     // But we still apply all other filters (dispatcher, customer, driver, etc.)
     const activeLoadsWhere: any = {
-      ...baseFilter,
+      companyId: mcWhere.companyId,
       deletedAt: null,
       status: {
         in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'] as LoadStatus[],
       },
     };
+    
+    // Add mcNumberId filter based on type (single MC, multi-MC, or all)
+    if (mcWhere.mcNumberId !== undefined) {
+      activeLoadsWhere.mcNumberId = mcWhere.mcNumberId;
+    }
     
     // Apply all filters to active loads as well (except status which is already set)
     if (dispatcherId) {
@@ -205,10 +220,18 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Load stats fetch error:', error);
+    // Log more details for debugging
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return NextResponse.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+        error: { 
+          code: 'INTERNAL_ERROR', 
+          message: error instanceof Error ? error.message : 'Something went wrong' 
+        },
       },
       { status: 500 }
     );

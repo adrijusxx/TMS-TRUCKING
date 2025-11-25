@@ -20,11 +20,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
 
     // Build where clause from filters
+    // CRITICAL: Admins should see all trucks from ALL companies
+    const isAdmin = (session?.user as any)?.role === 'ADMIN';
     const where: any = {
-      companyId: session.user.companyId,
       isActive: true,
       deletedAt: null,
     };
+    
+    // Only add companyId filter if NOT admin (admins see all companies)
+    if (!isAdmin) {
+      where.companyId = session.user.companyId;
+    }
 
     // Apply filters
     const status = searchParams.get('status');

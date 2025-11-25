@@ -65,11 +65,13 @@ import DocumentViewerDialog from '@/components/loads/DocumentViewerDialog';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
+import McBadge from '@/components/mc-numbers/McBadge';
 
 interface Load {
   id: string;
   loadNumber: string;
   status: LoadStatus;
+  mcNumber?: string | null;
   customer: {
     id: string;
     name: string;
@@ -199,7 +201,7 @@ async function fetchLoads(params: {
   if (params.status) queryParams.set('status', params.status);
   if (params.search) queryParams.set('search', params.search);
   if (params.my) queryParams.set('my', params.my);
-  if (params.mc) queryParams.set('mc', params.mc);
+  // MC filtering is handled server-side via cookies, no need to pass in URL
 
   const response = await fetch(apiUrl(`/api/loads?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch loads');
@@ -339,9 +341,7 @@ export default function LoadList() {
     actions: true,
   });
 
-  const mcParam = useMemo(() => {
-    return searchParams?.get('mc') || null;
-  }, [searchParams?.toString()]);
+  // MC state is managed via cookies, not URL params
   
   const { data: dispatchersData } = useQuery({
     queryKey: ['dispatchers'],
@@ -354,8 +354,8 @@ export default function LoadList() {
   const dispatchers = dispatchersData?.data || [];
 
   const queryKey = useMemo(
-    () => ['loads', page, pageSize, statusFilter, searchQuery, JSON.stringify(advancedFilters), view, mcParam, dispatcherFilter],
-    [page, pageSize, statusFilter, searchQuery, advancedFilters, view, mcParam, dispatcherFilter]
+    () => ['loads', page, pageSize, statusFilter, searchQuery, JSON.stringify(advancedFilters), view, dispatcherFilter],
+    [page, pageSize, statusFilter, searchQuery, advancedFilters, view, dispatcherFilter]
   );
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -366,7 +366,7 @@ export default function LoadList() {
         limit: pageSize,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
-        mc: mcParam || undefined,
+        // MC filtering handled server-side via cookies
         dispatcherId: dispatcherFilter !== 'all' ? dispatcherFilter : undefined,
         ...advancedFilters,
       };
@@ -893,7 +893,18 @@ export default function LoadList() {
         <div className="text-center py-8">Loading loads...</div>
       ) : error ? (
         <div className="text-center py-8 text-destructive">
-          Error loading loads. Please try again.
+          <p className="font-medium">Error loading loads. Please try again.</p>
+          {error instanceof Error && (
+            <p className="text-sm mt-2 text-muted-foreground">{error.message}</p>
+          )}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => refetch()} 
+            className="mt-4"
+          >
+            Retry
+          </Button>
         </div>
       ) : loads.length === 0 ? (
         <div className="text-center py-12 border rounded-lg">
@@ -975,12 +986,15 @@ export default function LoadList() {
                       />
                     </TableCell>}
                     {visibleColumns.loadNumber && <TableCell className="px-3 py-2">
-                      <button
-                        onClick={() => setQuickViewLoadId(load.id)}
-                        className="text-sm font-medium text-primary hover:underline text-left"
-                      >
-                        {load.loadNumber}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setQuickViewLoadId(load.id)}
+                          className="text-sm font-medium text-primary hover:underline text-left"
+                        >
+                          {load.loadNumber}
+                        </button>
+                        {load.mcNumber && <McBadge mcNumber={load.mcNumber} size="sm" />}
+                      </div>
                     </TableCell>}
                     {visibleColumns.customer && <TableCell className="px-3 py-2">
                       <div className="text-sm font-medium">{load.customer.name}</div>
@@ -1293,7 +1307,7 @@ export default function LoadList() {
         ...advancedFilters, 
         status: statusFilter !== 'all' ? statusFilter : undefined, 
         search: searchQuery || undefined,
-        mc: mcParam || undefined,
+        // MC filtering handled server-side via cookies
         dispatcherId: dispatcherFilter !== 'all' ? dispatcherFilter : undefined,
       }} />}
 
@@ -1364,6 +1378,7 @@ function LoadStatsSummary({ stats, filters }: { stats?: LoadStats; filters?: Rec
     { label: 'Total miles', value: stats.totalMiles, type: 'miles' },
     { label: 'Loaded miles', value: stats.loadedMiles, type: 'miles' },
     { label: 'Empty miles', value: stats.emptyMiles, type: 'miles' },
+    { label: 'RPM for loaded miles', value: stats.rpmLoadedMiles, type: 'rpm' },
     { label: 'RPM for total miles', value: stats.rpmTotalMiles, type: 'rpm' },
     {
       label: 'Service fee',

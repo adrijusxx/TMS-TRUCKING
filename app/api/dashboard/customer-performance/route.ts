@@ -18,21 +18,53 @@ export async function GET(request: NextRequest) {
     }
 
     // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // Convert mcNumberId to mcNumber string for Customer model (Customer still uses mcNumber string)
+    let customerWhere: any = {
+      companyId: mcWhere.companyId,
+      isActive: true,
+      deletedAt: null,
+    };
+
+    // If filtering by MC, convert mcNumberId to mcNumber string
+    if (mcWhere.mcNumberId) {
+      if (typeof mcWhere.mcNumberId === 'string') {
+        const mcNumber = await prisma.mcNumber.findUnique({
+          where: { id: mcWhere.mcNumberId },
+          select: { number: true },
+        });
+        if (mcNumber) {
+          customerWhere.mcNumber = mcNumber.number;
+        }
+      } else if (typeof mcWhere.mcNumberId === 'object' && 'in' in mcWhere.mcNumberId) {
+        const mcNumbers = await prisma.mcNumber.findMany({
+          where: { id: { in: mcWhere.mcNumberId.in }, companyId: mcWhere.companyId },
+          select: { number: true },
+        });
+        const mcNumberValues = mcNumbers.map(mc => mc.number?.trim()).filter((n): n is string => !!n);
+        if (mcNumberValues.length > 0) {
+          customerWhere.mcNumber = { in: mcNumberValues };
+        }
+      }
+    }
+
+    // Build load filter (Load uses mcNumberId)
+    let loadWhere: any = {
+      deletedAt: null,
+    };
+    if (mcWhere.mcNumberId) {
+      loadWhere.mcNumberId = mcWhere.mcNumberId;
+    } else if (mcWhere.companyId) {
+      loadWhere.companyId = mcWhere.companyId;
+    }
 
     // Get all customers
     const customers = await prisma.customer.findMany({
-      where: {
-        ...baseFilter,
-        isActive: true,
-        deletedAt: null,
-      },
+      where: customerWhere,
       include: {
         loads: {
-          where: {
-            ...(baseFilter.mcNumber ? { mcNumber: baseFilter.mcNumber } : {}),
-            deletedAt: null,
-          },
+          where: loadWhere,
           select: {
             id: true,
             revenue: true,

@@ -122,3 +122,5 @@ npm run dev
 4. **Try generating a new API key** and updating `.env.local`
 5. **Clear Next.js cache** and restart
 
+
+

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +16,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check analytics permission
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!hasPermission(role, 'analytics.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const driverId = searchParams.get('driverId');
     const startDate = searchParams.get('startDate')
@@ -24,11 +34,11 @@ export async function GET(request: NextRequest) {
       ? new Date(searchParams.get('endDate')!)
       : new Date();
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filter - Driver uses mcNumberId
+    const driverMcWhere = await buildMcNumberIdWhereClause(session, request);
 
     const where: any = {
-      ...baseFilter,
+      ...driverMcWhere,
       deletedAt: null,
     };
 
@@ -87,7 +97,7 @@ export async function GET(request: NextRequest) {
 
       // Calculate revenue and pay from all loads
       // Use current driver payRate for calculations (reflects updated pay rates)
-      const totalRevenue = allLoads.reduce((sum, load) => sum + (load.revenue || 0), 0);
+      const totalRevenue = allLoads.reduce((sum, load) => sum + (Number(load.revenue) || 0), 0);
       
       // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
       const totalDriverPay = allLoads.reduce((sum, load) => {

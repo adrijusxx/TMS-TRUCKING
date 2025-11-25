@@ -67,7 +67,7 @@ async function migrateDemoToFourWays() {
             state: demoCompany.state,
             zip: demoCompany.zip,
             phone: fourWaysMcNumber.companyPhone || demoCompany.phone,
-            email: demoCompany.email.replace('demo', 'fourways') || 'info@fourwayslogistics.com',
+            email: demoCompany.email?.replace('demo', 'fourways') || 'info@fourwayslogistics.com',
             isActive: true,
           },
         });
@@ -214,25 +214,20 @@ async function migrateDemoToFourWays() {
     });
     console.log(`✓ Updated ${loadsUpdated.count} loads`);
 
-    // Update load MC numbers
+    // Update load MC numbers (Load uses mcNumberId foreign key)
     const loads = await prisma.load.findMany({
       where: { companyId: fourWaysCompany.id },
-      select: { id: true, mcNumber: true },
+      select: { id: true, mcNumberId: true },
     });
     for (const load of loads) {
-      if (load.mcNumber) {
-        // Find which MC number this belongs to
-        for (const [demoMcId, fourWaysMcId] of mcNumberMap.entries()) {
-          const demoMc = await prisma.mcNumber.findUnique({ where: { id: demoMcId }, select: { number: true } });
-          if (demoMc && load.mcNumber === demoMc.number) {
-            const fourWaysMc = await prisma.mcNumber.findUnique({ where: { id: fourWaysMcId }, select: { number: true } });
-            if (fourWaysMc) {
-              await prisma.load.update({
-                where: { id: load.id },
-                data: { mcNumber: fourWaysMc.number },
-              });
-            }
-          }
+      if (load.mcNumberId) {
+        // Map the MC number ID
+        const mappedMcId = getMappedMcNumberId(load.mcNumberId);
+        if (mappedMcId) {
+          await prisma.load.update({
+            where: { id: load.id },
+            data: { mcNumberId: mappedMcId },
+          });
         }
       }
     }
@@ -329,7 +324,7 @@ async function migrateDemoToFourWays() {
       select: { id: true, mcNumber: true },
     });
     for (const customer of customers) {
-      if (customer.mcNumber) {
+      if (customer.mcNumber && typeof customer.mcNumber === 'string') {
         for (const [demoMcId, fourWaysMcId] of mcNumberMap.entries()) {
           const demoMc = await prisma.mcNumber.findUnique({ where: { id: demoMcId }, select: { number: true } });
           if (demoMc && customer.mcNumber === demoMc.number) {
@@ -358,7 +353,7 @@ async function migrateDemoToFourWays() {
       select: { id: true, mcNumber: true },
     });
     for (const invoice of invoices) {
-      if (invoice.mcNumber) {
+      if (invoice.mcNumber && typeof invoice.mcNumber === 'string') {
         for (const [demoMcId, fourWaysMcId] of mcNumberMap.entries()) {
           const demoMc = await prisma.mcNumber.findUnique({ where: { id: demoMcId }, select: { number: true } });
           if (demoMc && invoice.mcNumber === demoMc.number) {

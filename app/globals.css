@@ -65,9 +65,13 @@
   * {
     @apply border-border;
   }
+  
+  html {
+    font-size: var(--base-font-size);
+  }
+  
   body {
     @apply bg-background text-foreground;
-    font-size: var(--base-font-size);
   }
 
   /* Compact mode styles */
@@ -92,5 +96,22 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Font size classes - applied to html element for global scaling */
+/* Placed outside @layer to avoid Tailwind processing conflicts */
+html.font-small {
+  --base-font-size: 0.875rem;
+  font-size: 0.875rem;
+}
+
+html.font-medium {
+  --base-font-size: 1rem;
+  font-size: 1rem;
+}
+
+html.font-large {
+  --base-font-size: 1.125rem;
+  font-size: 1.125rem;
 }
 

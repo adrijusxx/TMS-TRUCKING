@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +13,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
         { status: 401 }
+      );
+    }
+
+    // Check analytics permission
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!hasPermission(role, 'analytics.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
 
@@ -25,11 +35,11 @@ export async function GET(request: NextRequest) {
     const groupBy = searchParams.get('groupBy') || 'day';
     const customerId = searchParams.get('customerId');
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filter - Load uses mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
 
     const where: any = {
-      ...baseFilter,
+      ...loadMcWhere,
       deletedAt: null,
       OR: [
         { pickupDate: { gte: startDate, lte: endDate } },
@@ -60,7 +70,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate summary
-    const totalRevenue = loads.reduce((sum, load) => sum + load.revenue, 0);
+    const totalRevenue = loads.reduce((sum, load) => sum + (Number(load.revenue) || 0), 0);
     const totalLoads = loads.length;
     const averageRevenue = totalLoads > 0 ? totalRevenue / totalLoads : 0;
 
@@ -96,7 +106,7 @@ export async function GET(request: NextRequest) {
       if (!breakdown[key]) {
         breakdown[key] = { revenue: 0, loads: 0 };
       }
-      breakdown[key].revenue += load.revenue;
+      breakdown[key].revenue += Number(load.revenue) || 0;
       breakdown[key].loads += 1;
     });
 

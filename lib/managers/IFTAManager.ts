@@ -336,7 +336,85 @@ export class IFTAManager {
   }
 
   /**
+   * Calculate IFTA entries for all loads in a period
+   */
+  static async calculateEntriesForPeriod(
+    companyId: string,
+    periodType: 'QUARTER' | 'MONTH',
+    periodYear: number,
+    periodQuarter?: number,
+    periodMonth?: number,
+    driverId?: string,
+    mcNumberId?: string | string[]
+  ): Promise<number> {
+    const periodStart = this.getPeriodStart(periodType, periodYear, periodQuarter, periodMonth);
+    const periodEnd = this.getPeriodEnd(periodType, periodYear, periodQuarter, periodMonth);
+
+    // Find all loads in the period that don't have IFTA entries
+    const loadWhere: any = {
+      companyId,
+      deletedAt: null,
+      driverId: { not: null }, // Only loads with drivers
+      OR: [
+        { pickupDate: { gte: periodStart, lte: periodEnd } },
+        { deliveryDate: { gte: periodStart, lte: periodEnd } },
+        { deliveredAt: { gte: periodStart, lte: periodEnd } },
+      ],
+    };
+
+    if (driverId) {
+      loadWhere.driverId = driverId;
+    }
+
+    // Apply MC filtering if provided
+    if (mcNumberId) {
+      if (Array.isArray(mcNumberId)) {
+        loadWhere.mcNumberId = { in: mcNumberId };
+      } else {
+        loadWhere.mcNumberId = mcNumberId;
+      }
+    }
+
+    const loads = await prisma.load.findMany({
+      where: loadWhere,
+      select: {
+        id: true,
+      },
+    });
+
+    let calculatedCount = 0;
+
+    // Calculate IFTA for each load
+    for (const load of loads) {
+      try {
+        // Check if entry already exists
+        const existing = await prisma.iFTAEntry.findUnique({
+          where: { loadId: load.id },
+        });
+
+        if (!existing || !existing.isCalculated) {
+          await this.createOrUpdateIFTAEntry(
+            load.id,
+            companyId,
+            periodType,
+            periodYear,
+            periodQuarter,
+            periodMonth
+          );
+          calculatedCount++;
+        }
+      } catch (error) {
+        console.error(`Error calculating IFTA for load ${load.id}:`, error);
+        // Continue with other loads even if one fails
+      }
+    }
+
+    return calculatedCount;
+  }
+
+  /**
    * Get IFTA report data for a period
+   * Automatically calculates entries if they don't exist
    */
   static async getIFTAReport(
     companyId: string,
@@ -344,8 +422,28 @@ export class IFTAManager {
     periodYear: number,
     periodQuarter?: number,
     periodMonth?: number,
-    driverId?: string
+    driverId?: string,
+    autoCalculate: boolean = true,
+    mcNumberId?: string | string[]
   ) {
+    // First, try to calculate entries if they don't exist
+    if (autoCalculate) {
+      try {
+        await this.calculateEntriesForPeriod(
+          companyId,
+          periodType,
+          periodYear,
+          periodQuarter,
+          periodMonth,
+          driverId,
+          mcNumberId
+        );
+      } catch (error) {
+        console.error('Error auto-calculating IFTA entries:', error);
+        // Continue even if auto-calculation fails
+      }
+    }
+
     const where: any = {
       companyId,
       periodType,
@@ -361,6 +459,32 @@ export class IFTAManager {
 
     if (driverId) {
       where.driverId = driverId;
+    }
+
+    // Apply MC filtering if provided (filter by load's mcNumberId)
+    if (mcNumberId) {
+      // We need to filter by the load's mcNumberId, so we'll use a join
+      // First get loads with the MC filter
+      const loadWhere: any = {
+        companyId,
+        deletedAt: null,
+      };
+      if (Array.isArray(mcNumberId)) {
+        loadWhere.mcNumberId = { in: mcNumberId };
+      } else {
+        loadWhere.mcNumberId = mcNumberId;
+      }
+      const loads = await prisma.load.findMany({
+        where: loadWhere,
+        select: { id: true },
+      });
+      const loadIds = loads.map((l) => l.id);
+      if (loadIds.length > 0) {
+        where.loadId = { in: loadIds };
+      } else {
+        // No loads match MC filter, return empty
+        return [];
+      }
     }
 
     const entries = await prisma.iFTAEntry.findMany({

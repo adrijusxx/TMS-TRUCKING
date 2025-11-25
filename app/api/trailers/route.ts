@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { McStateManager } from '@/lib/managers/McStateManager';
 import { hasPermission } from '@/lib/permissions';
 import { createTrailerSchema } from '@/lib/validations/trailer';
 import { z } from 'zod';
 import { getTrailerFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
 
 /**
  * GET /api/trailers
@@ -14,6 +16,7 @@ import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
  */
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
     if (!session?.user?.companyId) {
       return NextResponse.json(
@@ -22,158 +25,54 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 2. Permission Check
+    if (!hasPermission(session.user.role as any, 'trailers.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
-    const isAdmin = session.user?.role === 'ADMIN';
+    const mcNumberIdFilter = searchParams.get('mcNumberId');
 
-    // Build base filter with MC number if applicable
-    let baseFilter: any = await buildMcNumberWhereClause(session, request);
-    
-    // Convert mcNumber (string) to mcNumberId (foreign key) for trailers
-    // Trailers use mcNumberId relation, not mcNumber string field
-    if (baseFilter.mcNumber && typeof baseFilter.mcNumber === 'string') {
-      const mcNumberValue = baseFilter.mcNumber;
-      // Look up the MC Number record by its number value
-      const mcRecord = await prisma.mcNumber.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          number: mcNumberValue,
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-      
-      if (mcRecord) {
-        // Replace mcNumber with mcNumberId
-        delete baseFilter.mcNumber;
-        baseFilter.mcNumberId = mcRecord.id;
-      } else {
-        // MC number not found, remove the filter
-        delete baseFilter.mcNumber;
-      }
-    }
-    
-    // Get user's MC number from session to handle company name matching
-    const userMcNumber = (session.user as any)?.mcNumber || baseFilter.mcNumber;
-    const userMcNumberId = (session.user as any)?.mcNumberId || baseFilter.mcNumberId;
-    
-    // Admin-only: Override MC filter based on view mode
-    if (isAdmin && mcViewMode === 'all') {
-      // Remove MC number filter to show all MCs (admin only)
-      if (baseFilter.mcNumber) {
-        delete baseFilter.mcNumber;
-      }
-      if (baseFilter.OR) {
-        delete baseFilter.OR;
-      }
-    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
-      // Filter by specific MC number ID (admin selecting specific MC)
-      // Handle both "mc:ID" format and plain ID format
-      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
-      
-      const mcNumberRecord = await prisma.mcNumber.findUnique({
-        where: { id: mcId },
-        select: { number: true, companyId: true, companyName: true },
-      });
-      
-      if (mcNumberRecord) {
-        const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { companyId: true, userCompanies: { select: { companyId: true } } },
-        });
-        const accessibleCompanyIds = [
-          user?.companyId,
-          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
-        ].filter(Boolean) as string[];
-        
-        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
-          // Build filter using mcNumberId (foreign key) - trailers now use mcNumberId, not mcNumber string
-          // Since we have the MC ID, we can directly filter by it
-          baseFilter = {
-            ...baseFilter,
-            mcNumberId: mcId, // Filter by mcNumberId foreign key
-          };
-          
-          // Remove any old mcNumber filter if it exists
-          if (baseFilter.mcNumber) {
-            delete baseFilter.mcNumber;
-          }
-        }
-      }
-    }
-    // Ensure we're using mcNumberId, not mcNumber (trailers use foreign key relation)
-    if (baseFilter.mcNumber && !baseFilter.mcNumberId) {
-      // This shouldn't happen after the conversion above, but handle it as a safety check
-      delete baseFilter.mcNumber;
-    }
-    
-    // For non-admin users: Handle MC number matching for trailers
-    // Trailers now use mcNumberId (foreign key), not mcNumber (string)
-    if (!isAdmin && userMcNumberId) {
-      // Filter by mcNumberId foreign key
-      baseFilter = {
-        ...baseFilter,
-        mcNumberId: userMcNumberId,
-      };
-      
-      // Remove any old mcNumber filter if it exists
-      if (baseFilter.mcNumber) {
-        delete baseFilter.mcNumber;
-      }
-    } else if (!isAdmin && baseFilter.mcNumber) {
-      // Legacy: If buildMcNumberWhereClause returned mcNumber (string), we need to resolve it to mcNumberId
-      // This shouldn't happen after migration, but handle it for safety
-      const mcNumberValue = baseFilter.mcNumber;
-      const mcRecord = await prisma.mcNumber.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          OR: [
-            { number: mcNumberValue },
-            { companyName: { contains: mcNumberValue, mode: 'insensitive' } },
-          ],
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-      
-      if (mcRecord) {
-        baseFilter = {
-          ...baseFilter,
-          mcNumberId: mcRecord.id,
-        };
-      }
-      
-      // Remove old mcNumber filter
-      delete baseFilter.mcNumber;
-    }
-
-    // Build where clause
-    // Apply role-based filtering
-    const { mcNumberId } = await getCurrentMcNumber(session, request);
+    // Apply role-based filtering (separate from MC filtering)
     const roleFilter = getTrailerFilter(
       createFilterContext(
         session.user.id,
         session.user.role as any,
-        session.user.companyId,
-        mcNumberId ?? undefined
+        session.user.companyId
       )
     );
-
-    // Merge role filter with base filter
-    if (roleFilter.mcNumberId && baseFilter.mcNumberId) {
-      // Both have mcNumberId, keep baseFilter's (from MC selection)
-      delete roleFilter.mcNumberId;
-    }
-
+    // Parse includeDeleted parameter (admins only)
+    const includeDeleted = parseIncludeDeleted(request);
+    
+    // Build deleted records filter (admins can include deleted records if requested)
+    const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
+    
+    // Merge MC filter with role filter and deleted filter
     const where: any = {
-      ...baseFilter,
+      ...mcWhere,
       ...roleFilter,
-      deletedAt: null,
+      ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
     };
+
+    // Handle explicit MC number filter from table filter (overrides default MC view)
+    if (mcNumberIdFilter) {
+      if (mcNumberIdFilter === 'null' || mcNumberIdFilter === 'unassigned') {
+        where.mcNumberId = null;
+      } else {
+        where.mcNumberId = mcNumberIdFilter;
+      }
+    }
 
     // Add search filter - merge with existing OR conditions if any
     if (search) {
@@ -185,12 +84,12 @@ export async function GET(request: NextRequest) {
         { vin: { contains: search, mode: 'insensitive' } },
       ];
       
-      // If baseFilter already has OR conditions (for MC number matching), combine them with AND
+      // Add search OR conditions
       if (where.OR) {
-        // MC number OR conditions must be satisfied AND search OR conditions must be satisfied
+        // If there are existing OR conditions, combine them with AND
         where.AND = [
-          { OR: where.OR }, // MC number matching (numeric or company name)
-          { OR: searchOr }, // Search conditions
+          { OR: where.OR },
+          { OR: searchOr },
         ];
         delete where.OR;
       } else {
@@ -387,13 +286,12 @@ export async function GET(request: NextRequest) {
         year: trailer.year,
         licensePlate: trailer.licensePlate,
         state: trailer.state,
-        mcNumber: trailer.mcNumber?.number || null, // Extract number from relation
-        mcNumberId: trailer.mcNumberId, // Include mcNumberId for reference
-        mcNumberRecord: trailer.mcNumber ? {
+        mcNumber: trailer.mcNumber ? {
           id: trailer.mcNumber.id,
           number: trailer.mcNumber.number,
           companyName: trailer.mcNumber.companyName,
         } : null,
+        mcNumberId: trailer.mcNumberId, // Include mcNumberId for reference
         type: trailer.type,
         ownership: trailer.ownership,
         ownerName: trailer.ownerName,
@@ -424,11 +322,12 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Filter sensitive fields based on role
+    // 5. Filter Sensitive Fields based on role
     const filteredTrailers = trailersWithStats.map((trailer) =>
       filterSensitiveFields(trailer, session.user.role as any)
     );
 
+    // 6. Return Success Response
     return NextResponse.json({
       success: true,
       data: filteredTrailers,

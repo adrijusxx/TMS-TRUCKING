@@ -59,19 +59,17 @@ export async function GET(request: NextRequest) {
     });
 
     // Only return MC numbers (not regular companies)
-    // Filter out "Demo Trucking LLC" if it exists
-    const companies = mcNumbers
-      .filter((mc) => !mc.companyName?.toLowerCase().includes('demo trucking'))
-      .map((mc) => ({
-        id: `mc:${mc.id}`, // Prefix with 'mc:' to identify as MC number
-        name: `${mc.companyName} (MC ${mc.number})`,
-        isPrimary: mc.isDefault,
-        role: user.role,
-        isMcNumber: true,
-        mcNumberId: mc.id,
-        mcNumber: mc.number,
-        companyId: mc.companyId,
-      }));
+    // Return all MC numbers for the user's company
+    const companies = mcNumbers.map((mc) => ({
+      id: `mc:${mc.id}`, // Prefix with 'mc:' to identify as MC number
+      name: `${mc.companyName} (MC ${mc.number})`,
+      isPrimary: mc.isDefault,
+      role: user.role,
+      isMcNumber: true,
+      mcNumberId: mc.id,
+      mcNumber: mc.number,
+      companyId: mc.companyId,
+    }));
 
     // Get current company and MC number from session or cookies
     const currentCompanyId =

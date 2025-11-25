@@ -92,8 +92,9 @@ export default function SafetyNavSection({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen} suppressHydrationWarning>
         <CollapsibleTrigger
+          suppressHydrationWarning
           className={cn(
             'w-full flex items-center justify-between',
             NAV_PADDING.trigger,
@@ -115,7 +116,7 @@ export default function SafetyNavSection({
             <ChevronRight className={NAV_ICON_SIZES.chevron} />
           )}
         </CollapsibleTrigger>
-        <CollapsibleContent className={cn(NAV_SPACING.collapsibleItems, 'pl-7 mt-1')}>
+        <CollapsibleContent className={cn(NAV_SPACING.collapsibleItems, 'pl-7 mt-1')} suppressHydrationWarning>
           {items.map((item) => {
             const ItemIcon = item.icon;
             const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');

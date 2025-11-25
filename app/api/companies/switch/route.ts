@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     McStateManager.setMcStateCookies(response, {
       mcNumberId: mcNumberId || null,
       mcNumber: mcNumber || null,
-      viewMode: isMcNumber ? 'current' : 'current',
+      viewMode: mcNumberId ? 'filtered' : 'all',
     });
 
     return response;

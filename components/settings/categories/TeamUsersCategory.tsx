@@ -1,15 +1,37 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Shield } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Users, Shield, UserCheck, UserX, Building2 } from 'lucide-react';
 import UserManagement from '@/components/settings/UserManagement';
 import RolePermissions from '@/components/settings/RolePermissions';
+import { apiUrl } from '@/lib/utils';
+
+async function fetchUsersStats() {
+  const response = await fetch(apiUrl('/api/settings/users?stats=true'));
+  if (!response.ok) throw new Error('Failed to fetch user stats');
+  return response.json();
+}
 
 export default function TeamUsersCategory() {
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['users-stats'],
+    queryFn: fetchUsersStats,
+  });
+
+  const stats = statsData?.data || {
+    total: 0,
+    active: 0,
+    inactive: 0,
+    byRole: {},
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold mb-2">Team & Users</h2>
         <p className="text-muted-foreground">
@@ -17,106 +39,65 @@ export default function TeamUsersCategory() {
         </p>
       </div>
 
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total || 0}</div>
+            <p className="text-xs text-muted-foreground">All team members</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.active || 0}</div>
+            <p className="text-xs text-muted-foreground">Currently active</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Inactive Users</CardTitle>
+            <UserX className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.inactive || 0}</div>
+            <p className="text-xs text-muted-foreground">Deactivated accounts</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Roles</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{Object.keys(stats.byRole || {}).length}</div>
+            <p className="text-xs text-muted-foreground">Active role types</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content Tabs */}
       <Tabs defaultValue="team" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="team">
-            <Users className="h-4 w-4 mr-2" />
+        <TabsList className="grid w-full grid-cols-2 lg:w-auto">
+          <TabsTrigger value="team" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
             Team Management
           </TabsTrigger>
-          <TabsTrigger value="permissions">
-            <Shield className="h-4 w-4 mr-2" />
+          <TabsTrigger value="permissions" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
             Roles & Permissions
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="team" className="space-y-6">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-xl font-semibold flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Team Management
-              </h3>
-              <p className="text-muted-foreground mt-1">
-                Manage users and team members across all departments
-              </p>
-            </div>
-            <Tabs defaultValue="drivers" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="drivers">Drivers</TabsTrigger>
-                <TabsTrigger value="admins">Administrators</TabsTrigger>
-                <TabsTrigger value="employees">Employees</TabsTrigger>
-                <TabsTrigger value="dispatch">Dispatch Department</TabsTrigger>
-                <TabsTrigger value="accounting">Accounting Department</TabsTrigger>
-                <TabsTrigger value="fleet">Fleet Department</TabsTrigger>
-                <TabsTrigger value="safety">Safety Department</TabsTrigger>
-                <TabsTrigger value="hr">HR Department</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="drivers">
-                <UserManagement 
-                  roleFilter="DRIVER" 
-                  title="Drivers" 
-                  description="Manage drivers in your organization" 
-                />
-              </TabsContent>
-
-              <TabsContent value="admins">
-                <UserManagement 
-                  roleFilter="ADMIN" 
-                  title="Administrators" 
-                  description="Manage system administrators with full access" 
-                />
-              </TabsContent>
-
-              <TabsContent value="employees">
-                <UserManagement 
-                  roleFilter="EMPLOYEES" 
-                  title="Employees" 
-                  description="Manage employees (accountants and other staff)" 
-                />
-              </TabsContent>
-
-              <TabsContent value="dispatch">
-                <UserManagement 
-                  roleFilter="DISPATCHER" 
-                  title="Dispatch Department" 
-                  description="Manage dispatchers in your organization" 
-                />
-              </TabsContent>
-
-              <TabsContent value="accounting">
-                <UserManagement 
-                  roleFilter="ACCOUNTANT" 
-                  title="Accounting Department" 
-                  description="Manage accountants and accounting staff" 
-                />
-              </TabsContent>
-
-              <TabsContent value="fleet">
-                <UserManagement 
-                  roleFilter="FLEET" 
-                  title="Fleet Department" 
-                  description="Manage fleet managers and fleet operations staff" 
-                />
-              </TabsContent>
-
-              <TabsContent value="safety">
-                <UserManagement 
-                  roleFilter="SAFETY" 
-                  title="Safety Department" 
-                  description="Manage safety department staff (Admins with safety access)" 
-                />
-              </TabsContent>
-
-              <TabsContent value="hr">
-                <UserManagement 
-                  roleFilter="HR" 
-                  title="HR Department" 
-                  description="Manage HR department staff (Admins with HR access)" 
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
+          <UserManagement />
         </TabsContent>
 
         <TabsContent value="permissions" className="space-y-6">
@@ -126,6 +107,8 @@ export default function TeamUsersCategory() {
     </div>
   );
 }
+
+
 
 
 

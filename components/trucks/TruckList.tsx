@@ -102,9 +102,7 @@ async function fetchTrucks(params: {
 export default function TruckList() {
   const { can } = usePermissions();
   const searchParams = useSearchParams();
-  const mcParam = useMemo(() => {
-    return searchParams?.get('mc') || null;
-  }, [searchParams?.toString()]);
+  // MC state is managed via cookies, not URL params
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,8 +112,8 @@ export default function TruckList() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const queryKey = useMemo(
-    () => ['trucks', page, statusFilter, searchQuery, JSON.stringify(advancedFilters), mcParam],
-    [page, statusFilter, searchQuery, advancedFilters, mcParam]
+    () => ['trucks', page, statusFilter, searchQuery, JSON.stringify(advancedFilters)],
+    [page, statusFilter, searchQuery, advancedFilters]
   );
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -126,7 +124,7 @@ export default function TruckList() {
         limit: 20,
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
-        mc: mcParam || undefined,
+        // MC filtering handled server-side via cookies
         ...advancedFilters,
       }),
     staleTime: 30000,

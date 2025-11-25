@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create user
+    // Create user with mcAccess (default to [mcNumberId] for non-admins)
     const user = await prisma.user.create({
       data: {
         email: validated.email,
@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
         role: 'DISPATCHER', // Default role for new registrations
         companyId: company.id,
         mcNumberId: mcNumber.id,
+        mcAccess: [mcNumber.id], // Default: access to their assigned MC
       },
     });
 

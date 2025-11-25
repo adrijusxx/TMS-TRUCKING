@@ -1,4 +1,4 @@
-import CustomerList from '@/components/customers/CustomerList';
+import CustomerListNew from '@/components/customers/CustomerListNew';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function CustomersPage() {
@@ -9,7 +9,7 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-3xl font-bold">Customers</h1>
         </div>
-        <CustomerList />
+        <CustomerListNew />
       </div>
     </>
   );

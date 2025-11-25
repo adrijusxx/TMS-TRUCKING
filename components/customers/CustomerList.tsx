@@ -73,7 +73,7 @@ async function fetchCustomers(params: {
 export default function CustomerList() {
   const { can } = usePermissions();
   const searchParams = useSearchParams();
-  const mcParam = searchParams?.get('mc');
+  // MC state is managed via cookies, not URL params
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
@@ -82,13 +82,13 @@ export default function CustomerList() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['customers', page, searchQuery, advancedFilters, mcParam],
+    queryKey: ['customers', page, searchQuery, advancedFilters],
     queryFn: () =>
       fetchCustomers({
         page,
         limit: 20,
         search: searchQuery || undefined,
-        mc: mcParam || undefined,
+        // MC filtering handled server-side via cookies
         ...advancedFilters,
       }),
   });

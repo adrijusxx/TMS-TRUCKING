@@ -1,5 +1,5 @@
 import { auth } from '@/app/api/auth/[...nextauth]/route';
-import RateConfirmationList from '@/components/rate-confirmations/RateConfirmationList';
+import RateConfirmationListNew from '@/components/rate-confirmations/RateConfirmationListNew';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export default async function RateConfirmationsPage() {
           },
         ]}
       />
-      <RateConfirmationList />
+      <RateConfirmationListNew />
     </div>
   );
 }

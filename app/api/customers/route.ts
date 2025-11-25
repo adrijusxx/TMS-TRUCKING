@@ -7,11 +7,12 @@ import { hasPermission } from '@/lib/permissions';
 import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { generateUniqueCustomerNumber } from '@/lib/utils/customer-numbering';
+import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
 
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
-
     if (!session?.user?.companyId) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
@@ -19,6 +20,48 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 2. Permission Check
+    if (!hasPermission(session.user.role as any, 'customers.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
+    // Note: Customer model uses mcNumber string field, not mcNumberId relation
+    // We need to convert mcNumberId to mcNumber string
+    const mcWhereWithId = await buildMcNumberWhereClause(session, request);
+    
+    let mcWhere: { companyId?: string; mcNumber?: string | { in: string[] } } = {
+      companyId: mcWhereWithId.companyId
+    };
+    
+    // Convert mcNumberId to mcNumber string for Customer model
+    if (mcWhereWithId.mcNumberId) {
+      if (typeof mcWhereWithId.mcNumberId === 'object' && 'in' in mcWhereWithId.mcNumberId) {
+        // Multiple MC IDs - convert to mcNumber strings
+        const mcNumbers = await prisma.mcNumber.findMany({
+          where: { id: { in: mcWhereWithId.mcNumberId.in }, companyId: mcWhereWithId.companyId },
+          select: { number: true },
+        });
+        const mcNumberValues = mcNumbers.map(mc => mc.number?.trim()).filter((n): n is string => !!n);
+        if (mcNumberValues.length > 0) {
+          mcWhere.mcNumber = { in: mcNumberValues };
+        }
+      } else {
+        // Single MC ID - convert to mcNumber string
+        const mcNumber = await prisma.mcNumber.findUnique({
+          where: { id: mcWhereWithId.mcNumberId as string },
+          select: { number: true },
+        });
+        if (mcNumber?.number) {
+          mcWhere.mcNumber = mcNumber.number.trim();
+        }
+      }
+    }
+
+    // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
@@ -28,100 +71,37 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state');
     const city = searchParams.get('city');
     const minRevenue = searchParams.get('minRevenue');
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', 'multi', or specific MC ID
-    const isAdmin = session.user?.role === 'ADMIN';
 
-    // Check if multi-MC mode is active
-    const mcState = await McStateManager.getMcState(session, request);
-    const isMultiMode = mcState.viewMode === 'multi' || mcViewMode === 'multi';
-
-    // Build base filter with MC number if applicable
-    let baseFilter: any;
-    if (isMultiMode && mcState.mcNumberIds.length > 0) {
-      // Use multi-MC filtering
-      baseFilter = await buildMultiMcNumberWhereClause(session, request);
-    } else {
-      // Use single MC or all MCs filtering
-      baseFilter = await buildMcNumberWhereClause(session, request);
-    }
+    // Parse includeDeleted parameter (admins only)
+    const includeDeleted = parseIncludeDeleted(request);
     
-    // Admin-only: Override MC filter based on view mode
-    if (isAdmin && mcViewMode === 'all') {
-      // Remove MC number filter to show all MCs (admin only)
-      if (baseFilter.mcNumber) {
-        delete baseFilter.mcNumber;
-      }
-    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== 'multi' && mcViewMode !== null) {
-      // Filter by specific MC number ID (admin selecting specific MC)
-      // Handle both "mc:ID" format and plain ID format
-      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
-      const mcNumberRecord = await prisma.mcNumber.findUnique({
-        where: { id: mcId },
-        select: { number: true, companyId: true, companyName: true },
-      });
-      if (mcNumberRecord) {
-        const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { companyId: true, userCompanies: { select: { companyId: true } } },
-        });
-        const accessibleCompanyIds = [
-          user?.companyId,
-          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
-        ].filter(Boolean) as string[];
-        
-        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
-          const trimmedMcNumber = mcNumberRecord.number?.trim();
-          const trimmedCompanyName = mcNumberRecord.companyName?.trim();
-          
-          // Build OR conditions to match both MC number value AND company name
-          const orConditions: any[] = [];
-          
-          if (trimmedMcNumber) {
-            orConditions.push({ mcNumber: trimmedMcNumber });
-          }
-          
-          if (trimmedCompanyName) {
-            orConditions.push({ mcNumber: { contains: trimmedCompanyName, mode: 'insensitive' } });
-          }
-          
-          if (orConditions.length > 1) {
-            baseFilter = {
-              ...baseFilter,
-              OR: orConditions,
-            };
-            delete baseFilter.mcNumber;
-          } else if (orConditions.length === 1) {
-            baseFilter = {
-              ...baseFilter,
-              ...orConditions[0],
-            };
-          }
-        }
-      }
-    }
-    // Non-admin users: always use baseFilter (their assigned MC)
-
-    // Build where clause - include customers with matching MC number OR no MC number (null)
-    // This ensures newly created customers without MC numbers still appear
+    // Build deleted records filter (admins can include deleted records if requested)
+    const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
+    
+    // Build where clause
     const where: any = {
-      companyId: baseFilter.companyId,
+      ...mcWhere,
       isActive: true,
-      deletedAt: null,
+      ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
     };
     
-    // If filtering by MC number, include both matching MC number and null MC numbers
-    // This ensures customers created without MC numbers are still visible
-    if (baseFilter.mcNumber) {
+    // Include customers with matching MC number OR no MC number (null)
+    // This ensures newly created customers without MC numbers still appear
+    if (mcWhere.mcNumber) {
       where.AND = [
         {
           OR: [
-            { mcNumber: baseFilter.mcNumber },
+            { mcNumber: mcWhere.mcNumber },
             { mcNumber: null },
           ],
         },
       ];
+      // Remove the direct mcNumber filter since we're using OR logic
+      const { mcNumber, ...whereWithoutMcNumber } = where;
+      Object.assign(where, whereWithoutMcNumber);
     }
 
+    // Additional filters
     if (type) {
       where.type = type;
     }
@@ -176,6 +156,8 @@ export async function GET(request: NextRequest) {
       prisma.customer.count({ where }),
     ]);
 
+    // 5. Filter Sensitive Fields (if needed - customers typically don't have sensitive fields)
+    // 6. Return Success Response
     return NextResponse.json({
       success: true,
       data: customers,
@@ -191,7 +173,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+        error: { code: 'INTERNAL_ERROR', message: 'An error occurred processing your request' },
       },
       { status: 500 }
     );
@@ -274,8 +256,31 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // Get user's MC number from session for filtering
-      const userMcNumber = (session.user as any)?.mcNumber || null;
+      // Determine mcNumber for the new customer
+      const isAdmin = (session?.user as any)?.role === 'ADMIN';
+      const mcState = await McStateManager.getMcState(session, request);
+      let customerMcNumber: string | null = null;
+      
+      if (isAdmin) {
+        // Admins can assign to any MC they have selected
+        customerMcNumber = mcState.mcNumber;
+      } else {
+        // Non-admins automatically assign to their default MC
+        customerMcNumber = (session.user as any)?.mcNumber || null;
+        // Ensure non-admins cannot explicitly set mcNumber in the request body
+        if (validated.mcNumber && validated.mcNumber !== customerMcNumber) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'FORBIDDEN',
+                message: 'Employees can only create customers under their assigned MC number.',
+              },
+            },
+            { status: 403 }
+          );
+        }
+      }
       
       // Create customer with minimal required fields
       const customer = await prisma.customer.create({
@@ -291,7 +296,7 @@ export async function POST(request: NextRequest) {
           phone: '',
           companyId: session.user.companyId,
           paymentTerms: 30,
-          mcNumber: userMcNumber, // Set MC number from user's session
+          mcNumber: customerMcNumber,
         },
       });
       
@@ -324,10 +329,38 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Determine mcNumber for the new customer
+      const isAdmin = (session?.user as any)?.role === 'ADMIN';
+      const mcState = await McStateManager.getMcState(session, request);
+      let customerMcNumber: string | null = validated.mcNumber || null;
+      
+      if (!isAdmin) {
+        // Non-admins automatically assign to their default MC
+        const userMcNumber = (session.user as any)?.mcNumber || null;
+        // Ensure non-admins cannot explicitly set mcNumber in the request body
+        if (validated.mcNumber && validated.mcNumber !== userMcNumber) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'FORBIDDEN',
+                message: 'Employees can only create customers under their assigned MC number.',
+              },
+            },
+            { status: 403 }
+          );
+        }
+        customerMcNumber = userMcNumber;
+      } else if (!customerMcNumber) {
+        // Admin didn't specify MC, use their current selection
+        customerMcNumber = mcState.mcNumber;
+      }
+      
       const customer = await prisma.customer.create({
         data: {
           ...validated,
           companyId: session.user.companyId,
+          mcNumber: customerMcNumber,
         },
       });
       

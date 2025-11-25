@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     // Set cookies for multi-MC selection
     McStateManager.setMcStateCookies(response, {
       mcNumberIds,
-      viewMode: 'multi',
+      viewMode: 'filtered',
     });
 
     return response;

@@ -52,7 +52,9 @@ import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import GlobalSearch from '@/components/search/GlobalSearch';
 import CompanySwitcher from '@/components/layout/CompanySwitcher';
+import McViewSelector from '@/components/mc-numbers/McViewSelector';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
+import { FontSizeToggle } from '@/components/theme/FontSizeToggle';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { Permission } from '@/lib/permissions';
 import { useSession } from 'next-auth/react';
@@ -72,6 +74,7 @@ interface NavigationItem {
 const mainNavigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: undefined },
   { name: 'Load Management', href: '/dashboard/loads', icon: Package, permission: 'loads.view' },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, permission: 'analytics.view' },
   { name: 'Fleet Department', href: '/dashboard/fleet', icon: Truck, permission: 'departments.fleet.view' },
   { name: 'Accounting Department', href: '/dashboard/accounting', icon: DollarSign, permission: 'departments.accounting.view' },
   { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
@@ -460,8 +463,11 @@ export default function DashboardLayout({
               <Menu className="h-5 w-5" />
             </Button>
             <div className="flex-1" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <McViewSelector />
+              <div className="h-6 w-px bg-border" />
               <GlobalSearch />
+              <FontSizeToggle />
               <ThemeToggle />
               <NotificationBell />
             </div>

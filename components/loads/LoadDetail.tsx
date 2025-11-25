@@ -142,8 +142,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
   
-  // Get MC parameter from URL for trailer search
-  const mcParam = searchParams.get('mc') || null;
+  // MC state is managed via cookies, not URL params
   
   // Form state for editable fields
   const [formData, setFormData] = useState({
@@ -417,7 +416,6 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
                             value={formData.trailerNumber || ''}
                             onValueChange={(value) => setFormData({ ...formData, trailerNumber: value })}
                             placeholder="Search trailer..."
-                            mcParam={mcParam}
                           />
                         </div>
                         <div>

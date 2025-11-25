@@ -95,7 +95,7 @@ async function fetchTrailers(params: {
   if (params.page) queryParams.set('page', params.page.toString());
   if (params.limit) queryParams.set('limit', params.limit.toString());
   if (params.search) queryParams.set('search', params.search);
-  if (params.mc) queryParams.set('mc', params.mc);
+  // MC filtering handled server-side via cookies
 
   const response = await fetch(apiUrl(`/api/trailers?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch trailers');
@@ -130,7 +130,7 @@ export default function TrailerList() {
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const mcParam = searchParams?.get('mc');
+  // MC state is managed via cookies, not URL params
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -155,13 +155,13 @@ export default function TrailerList() {
   });
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['trailers', page, searchQuery, mcParam, JSON.stringify(advancedFilters)],
+    queryKey: ['trailers', page, searchQuery, JSON.stringify(advancedFilters)],
     queryFn: () =>
       fetchTrailers({
         page,
         limit: 20,
         search: searchQuery || undefined,
-        mc: mcParam || undefined,
+        // MC filtering handled server-side via cookies
         ...advancedFilters,
       }),
   });

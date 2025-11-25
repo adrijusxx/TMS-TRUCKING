@@ -20,14 +20,41 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filter (respects admin "all" view, user MC access, current selection)
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // Convert mcNumberId to mcNumber string for Customer model (Customer still uses mcNumber string)
+    let customerWhere: any = {
+      companyId: mcWhere.companyId,
+      isActive: true,
+      deletedAt: null,
+    };
+
+    // If filtering by MC, convert mcNumberId to mcNumber string
+    if (mcWhere.mcNumberId) {
+      if (typeof mcWhere.mcNumberId === 'string') {
+        const mcNumber = await prisma.mcNumber.findUnique({
+          where: { id: mcWhere.mcNumberId },
+          select: { number: true },
+        });
+        if (mcNumber) {
+          customerWhere.mcNumber = mcNumber.number;
+        }
+      } else if (typeof mcWhere.mcNumberId === 'object' && 'in' in mcWhere.mcNumberId) {
+        const mcNumbers = await prisma.mcNumber.findMany({
+          where: { id: { in: mcWhere.mcNumberId.in }, companyId: mcWhere.companyId },
+          select: { number: true },
+        });
+        const mcNumberValues = mcNumbers.map(mc => mc.number?.trim()).filter((n): n is string => !!n);
+        if (mcNumberValues.length > 0) {
+          customerWhere.mcNumber = { in: mcNumberValues };
+        }
+      }
+    }
 
     // Build where clause from filters
     const where: any = {
-      ...baseFilter,
-      isActive: true,
-      deletedAt: null,
+      ...customerWhere,
     };
 
     // Apply filters
@@ -39,6 +66,16 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // Build load filter (Load uses mcNumberId)
+    let loadWhere: any = {
+      deletedAt: null,
+    };
+    if (mcWhere.mcNumberId) {
+      loadWhere.mcNumberId = mcWhere.mcNumberId;
+    } else if (mcWhere.companyId) {
+      loadWhere.companyId = mcWhere.companyId;
+    }
+
     // Get stats
     const [totalCustomers, customerLoads] = await Promise.all([
       prisma.customer.count({ where }),
@@ -46,9 +83,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           loads: {
-            where: {
-              deletedAt: null,
-            },
+            where: loadWhere,
             select: {
               revenue: true,
             },

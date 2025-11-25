@@ -1,4 +1,4 @@
-import TruckList from '@/components/trucks/TruckList';
+import TruckListNew from '@/components/trucks/TruckListNew';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function TrucksPage() {
@@ -9,7 +9,7 @@ export default function TrucksPage() {
         <div>
           <h1 className="text-3xl font-bold">Trucks</h1>
         </div>
-        <TruckList />
+        <TruckListNew />
       </div>
     </>
   );

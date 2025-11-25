@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
 
 /**
  * Get upcoming deadlines for the dashboard
@@ -31,15 +31,17 @@ export async function GET(request: NextRequest) {
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-    // Build base filter with MC number if applicable
-    // Load uses mcNumber (string), Driver uses mcNumberId (relation)
-    const loadFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filters - Load uses mcNumberId, Customer/Invoice use mcNumber string
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const driverFilter = await buildMcNumberIdWhereClause(session, request);
+    
+    // Convert for Customer/Invoice (uses mcNumber string)
+    const customerMcWhere = await convertMcNumberIdToMcNumberString(loadMcWhere);
 
-    // Upcoming load pickups (next 7 days)
+    // Upcoming load pickups (next 7 days) - Load uses mcNumberId
     const upcomingPickups = await prisma.load.findMany({
       where: {
-        ...loadFilter,
+        ...loadMcWhere,
         pickupDate: {
           gte: now,
           lte: sevenDaysFromNow,
@@ -83,10 +85,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Upcoming load deliveries (next 7 days)
+    // Upcoming load deliveries (next 7 days) - Load uses mcNumberId
     const upcomingDeliveries = await prisma.load.findMany({
       where: {
-        ...loadFilter,
+        ...loadMcWhere,
         deliveryDate: {
           gte: now,
           lte: sevenDaysFromNow,
@@ -131,10 +133,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Overdue and upcoming invoice due dates (next 7 days)
-    // Filter customers by MC number first
-    const customerFilter = loadFilter.mcNumber 
-      ? { ...loadFilter, isActive: true }
-      : { companyId: session.user.companyId, isActive: true };
+    // Filter customers by MC number first (Customer uses mcNumber string)
+    const customerFilter: any = {
+      ...customerMcWhere,
+      isActive: true,
+      deletedAt: null,
+    };
+    
+    // If filtering by MC number, include both matching MC number and null MC numbers
+    if (customerMcWhere.mcNumber) {
+      customerFilter.AND = [
+        {
+          OR: [
+            { mcNumber: customerMcWhere.mcNumber },
+            { mcNumber: null },
+          ],
+        },
+      ];
+      const { mcNumber, ...customerFilterWithoutMc } = customerFilter;
+      Object.assign(customerFilter, customerFilterWithoutMc);
+    }
     
     const companyCustomers = await prisma.customer.findMany({
       where: customerFilter,
@@ -142,10 +160,15 @@ export async function GET(request: NextRequest) {
     });
     const customerIds = companyCustomers.map((c) => c.id);
 
+    // Invoice uses mcNumber string
+    const invoiceMcWhere = customerMcWhere.mcNumber 
+      ? { mcNumber: customerMcWhere.mcNumber }
+      : {};
+
     const upcomingInvoices = await prisma.invoice.findMany({
       where: {
         customerId: { in: customerIds },
-        ...(loadFilter.mcNumber ? { mcNumber: loadFilter.mcNumber } : {}),
+        ...invoiceMcWhere,
         dueDate: {
           lte: sevenDaysFromNow,
         },

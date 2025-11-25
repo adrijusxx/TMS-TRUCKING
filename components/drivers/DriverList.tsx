@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -24,13 +24,17 @@ import {
 import { Users, Plus, Search, Filter, Edit, Trash2 } from 'lucide-react';
 import { DriverStatus, PayType } from '@prisma/client';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import AdvancedFilters from '@/components/filters/AdvancedFilters';
 import SavedFilters from '@/components/filters/SavedFilters';
+import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
+import { DeletedRecordBadge } from '@/components/common/DeletedRecordBadge';
 import DriverListStats from '@/components/drivers/DriverListStats';
 import DriverQuickView from '@/components/drivers/DriverQuickView';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
+import McBadge from '@/components/mc-numbers/McBadge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -73,6 +77,12 @@ interface Driver {
   totalLoads: number;
   totalMiles: number;
   onTimePercentage: number;
+  deletedAt?: Date | null; // For admin visibility
+  isActive?: boolean;
+  mcNumber?: {
+    number: string;
+    companyName: string;
+  } | null;
   currentTruck?: {
     id: string;
     truckNumber: string;
@@ -156,6 +166,7 @@ async function fetchDrivers(params: {
 
 export default function DriverList() {
   const { can } = usePermissions();
+  const isAdmin = useIsAdmin();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -168,8 +179,17 @@ export default function DriverList() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [editDriverId, setEditDriverId] = useState<string | null>(null);
 
+  // Get includeDeleted from URL params (admins only)
+  const [includeDeleted, setIncludeDeleted] = useState(false);
+  
+  // Check URL params on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setIncludeDeleted(params.get('includeDeleted') === 'true');
+  }, []);
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['drivers', page, statusFilter, searchQuery, advancedFilters],
+    queryKey: ['drivers', page, statusFilter, searchQuery, advancedFilters, includeDeleted],
     queryFn: () =>
       fetchDrivers({
         page,
@@ -177,6 +197,7 @@ export default function DriverList() {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery || undefined,
         ...advancedFilters,
+        ...(isAdmin && includeDeleted && { includeDeleted: 'true' }),
       }),
   });
 
@@ -336,6 +357,9 @@ export default function DriverList() {
               setPage(1);
             }}
           />
+          {isAdmin && (
+            <ShowDeletedToggle className="ml-2" />
+          )}
         </div>
       </div>
 
@@ -449,8 +473,16 @@ export default function DriverList() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">
-                          {driver.user.firstName} {driver.user.lastName}
+                        <div className="font-medium flex items-center gap-2 flex-wrap">
+                          <span>{driver.user.firstName} {driver.user.lastName}</span>
+                          {driver.mcNumber && (
+                            <McBadge 
+                              mcNumber={driver.mcNumber.number} 
+                              companyName={driver.mcNumber.companyName}
+                              size="sm" 
+                            />
+                          )}
+                          <DeletedRecordBadge deletedAt={driver.deletedAt} />
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {driver.user.email}

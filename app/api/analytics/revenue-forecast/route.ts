@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +16,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check analytics permission
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!hasPermission(role, 'analytics.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const months = parseInt(searchParams.get('months') || '6');
     const forecastMonths = parseInt(searchParams.get('forecastMonths') || '3');
@@ -24,13 +34,13 @@ export async function GET(request: NextRequest) {
     startDate.setMonth(startDate.getMonth() - months);
     const endDate = new Date();
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filter - Load uses mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
 
     // Include ALL loads for revenue forecast, not just completed ones
     const loads = await prisma.load.findMany({
       where: {
-        ...baseFilter,
+        ...loadMcWhere,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: startDate, lte: endDate } },
@@ -60,7 +70,7 @@ export async function GET(request: NextRequest) {
       
       if (date) {
         const month = date.toISOString().slice(0, 7); // YYYY-MM
-        monthlyRevenue[month] = (monthlyRevenue[month] || 0) + (load.revenue || 0);
+        monthlyRevenue[month] = (monthlyRevenue[month] || 0) + (Number(load.revenue) || 0);
       }
     });
 

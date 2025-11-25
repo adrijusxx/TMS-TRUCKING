@@ -1,4 +1,4 @@
-import BreakdownHistory from '@/components/fleet/BreakdownHistory';
+import BreakdownHistoryNew from '@/components/fleet/BreakdownHistoryNew';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function BreakdownHistoryPage() {
@@ -15,7 +15,7 @@ export default function BreakdownHistoryPage() {
         <div>
           <h1 className="text-3xl font-bold">Breakdown History</h1>
         </div>
-        <BreakdownHistory />
+        <BreakdownHistoryNew />
       </div>
     </>
   );

@@ -62,7 +62,7 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
   assignedDispatcherId: z.string().optional(),
   hrManagerId: z.string().optional(),
   safetyManagerId: z.string().optional(),
-  mcNumberId: z.string().min(1, 'MC number is required').optional(),
+  mcNumberId: z.string().min(1, 'MC number is required').nullable().optional(),
   teamDriver: z.boolean().optional(),
   otherId: z.string().optional(),
   tags: z.array(z.string()).optional(),

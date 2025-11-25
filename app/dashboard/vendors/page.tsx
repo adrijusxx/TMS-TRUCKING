@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import VendorList from '@/components/vendors/VendorList';
+import VendorListNew from '@/components/vendors/VendorListNew';
 
 export default function VendorsPage() {
   return (
@@ -9,7 +9,7 @@ export default function VendorsPage() {
         <div>
           <h1 className="text-3xl font-bold">Vendors</h1>
         </div>
-        <VendorList />
+        <VendorListNew />
       </div>
     </>
   );

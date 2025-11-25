@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import SettlementList from '@/components/settlements/SettlementList';
+import SettlementListNew from '@/components/settlements/SettlementListNew';
 
 export default function SalaryPage() {
   return (
@@ -9,7 +9,7 @@ export default function SalaryPage() {
         <div>
           <h1 className="text-3xl font-bold">Salary</h1>
         </div>
-        <SettlementList />
+        <SettlementListNew />
       </div>
     </>
   );

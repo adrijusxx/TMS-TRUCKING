@@ -116,37 +116,33 @@ export default function CompanySwitcher() {
           },
         });
         
-        // Update URL params - use the MC ID that was switched to
-        const params = new URLSearchParams(searchParams.toString());
-        
         if (isMcNumber && mcNumberId) {
-          // Switching to a specific MC - set the MC ID in URL (remove 'all' if it was set)
+          // Switching to a specific MC - set cookies only (no URL params)
           const mcParam = `mc:${mcNumberId}`;
-          params.set('mc', mcParam);
           setMcViewMode(mcParam);
-          setIsInitialized(true); // Mark as initialized so selection persists
+          setIsInitialized(true);
           // Set cookie for API routes
           document.cookie = `currentMcNumberId=${mcNumberId}; path=/; max-age=${60 * 60 * 24 * 30}`;
           if (mcNumber) {
             document.cookie = `currentMcNumber=${encodeURIComponent(mcNumber)}; path=/; max-age=${60 * 60 * 24 * 30}`;
           }
+          document.cookie = `mcViewMode=filtered; path=/; max-age=${60 * 60 * 24 * 30}`;
         } else {
-          // Regular company switch - check if 'all' was selected
-          const currentMcParam = searchParams.get('mc');
-          if (currentMcParam === 'all' && isAdmin) {
-            params.set('mc', 'all');
-            setMcViewMode('all');
-            document.cookie = `mcViewMode=all; path=/; max-age=${60 * 60 * 24 * 30}`;
-            document.cookie = `currentMcNumberId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-            document.cookie = `currentMcNumber=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-          } else {
-            params.set('mc', 'all');
-            setMcViewMode('all');
-          }
+          // Regular company switch
+          setMcViewMode('all');
+          setIsInitialized(true);
+          document.cookie = `mcViewMode=all; path=/; max-age=${60 * 60 * 24 * 30}`;
+          document.cookie = `currentMcNumberId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+          document.cookie = `currentMcNumber=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
         }
         
-        // Update URL without full page reload
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+        // Remove MC param from URL if it exists
+        const params = new URLSearchParams(searchParams.toString());
+        if (params.has('mc')) {
+          params.delete('mc');
+          const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+          router.replace(newUrl, { scroll: false });
+        }
         
         // Debounced query invalidation to prevent excessive re-renders
         debouncedInvalidate();
@@ -172,28 +168,36 @@ export default function CompanySwitcher() {
   const handleMcViewModeChange = useCallback((mode: string) => {
     if (isSwitching) return; // Prevent multiple simultaneous switches
     
-    const params = new URLSearchParams(searchParams.toString());
-    
     if (mode === 'all') {
-      params.set('mc', 'all');
       setMcViewMode('all');
-      setIsInitialized(true); // Mark as initialized
-      // Set cookie to indicate "all MCs" mode
+      setIsInitialized(true);
+      // Set cookie to indicate "all MCs" mode (no URL params)
       document.cookie = `mcViewMode=all; path=/; max-age=${60 * 60 * 24 * 30}`;
       // Clear MC number cookies so API knows to show all
       document.cookie = `currentMcNumberId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
       document.cookie = `currentMcNumber=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      // Remove MC param from URL if it exists
+      const params = new URLSearchParams(searchParams.toString());
+      if (params.has('mc')) {
+        params.delete('mc');
+        const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+        router.replace(newUrl, { scroll: false });
+      }
       // Debounced query invalidation
       debouncedInvalidate();
     } else {
-      // Specific MC selected - switch to that MC and remove 'all' state
-      params.set('mc', mode);
+      // Specific MC selected - switch to that MC (no URL params)
       setMcViewMode(mode);
-      setIsInitialized(true); // Mark as initialized so we preserve this selection
+      setIsInitialized(true);
       // Clear "all" mode cookie
-      document.cookie = `mcViewMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      document.cookie = `mcViewMode=filtered; path=/; max-age=${60 * 60 * 24 * 30}`;
+      // Remove MC param from URL if it exists
+      const params = new URLSearchParams(searchParams.toString());
+      if (params.has('mc')) {
+        params.delete('mc');
+        const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+        router.replace(newUrl, { scroll: false });
+      }
       // Switch to the MC number (updates session)
       switchMutation.mutate(mode);
       return;
@@ -278,18 +282,22 @@ export default function CompanySwitcher() {
       try {
         const { mcNumberIds } = response.data || {};
         
-        // Update URL params
-        const params = new URLSearchParams(searchParams.toString());
+        // Update state (no URL params)
         if (mcNumberIds && mcNumberIds.length > 0) {
-          params.set('mc', 'multi');
           setMcViewMode('multi');
           setSelectedMcIds(mcNumberIds);
         } else {
-          params.delete('mc');
-          setMcViewMode('current');
+          setMcViewMode('all');
           setSelectedMcIds([]);
         }
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+        
+        // Remove MC param from URL if it exists
+        const params = new URLSearchParams(searchParams.toString());
+        if (params.has('mc')) {
+          params.delete('mc');
+          const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+          router.replace(newUrl, { scroll: false });
+        }
         
         // Invalidate queries
         debouncedInvalidate();
@@ -359,78 +367,63 @@ export default function CompanySwitcher() {
     }
   }, [selectedMcIds.length, mcNumbers, multiSelectMutation, handleMcViewModeChange]);
 
-  // Check URL params for MC view mode - preserve selection across navigation
+  // Initialize MC view mode from cookies (no URL params)
   useEffect(() => {
-    if (isAdmin) {
-      const mcParam = searchParams.get('mc');
+    if (typeof window === 'undefined') return;
+    
+    if (!isInitialized) {
+      // First load - check cookies for last selected MC
+      const cookieMcId = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('currentMcNumberId='))
+        ?.split('=')[1];
       
-      // If URL has mc param, use it
-      if (mcParam === 'all') {
-        if (mcViewMode !== 'all') {
-          setMcViewMode('all');
-          setIsInitialized(true);
-        }
-      } else if (mcParam === 'multi') {
-        if (mcViewMode !== 'multi') {
-          setMcViewMode('multi');
-          setIsInitialized(true);
-        }
-      } else if (mcParam && mcParam.startsWith('mc:')) {
-        // It's an MC ID with prefix
-        if (mcViewMode !== mcParam) {
-          setMcViewMode(mcParam);
-          setIsInitialized(true);
-        }
-      } else if (mcParam && mcParam.startsWith('c')) {
-        // It's an MC ID (CUID starts with 'c') - add prefix
-        const mcParamWithPrefix = `mc:${mcParam}`;
-        if (mcViewMode !== mcParamWithPrefix) {
-          setMcViewMode(mcParamWithPrefix);
-          setIsInitialized(true);
-        }
-      } else if (!mcParam && isInitialized && mcViewMode && mcViewMode !== 'all' && mcViewMode !== 'multi' && mcViewMode.startsWith('mc:')) {
-        // No URL param but we have a selected MC - preserve it and update URL
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('mc', mcViewMode);
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      } else if (!mcParam && !isInitialized) {
-        // First load - check cookies/session for last selected MC
-        const cookieMcId = document.cookie
-          .split('; ')
-          .find((row) => row.startsWith('currentMcNumberId='))
-          ?.split('=')[1];
-        
-        if (cookieMcId) {
-          const mcParamFromCookie = `mc:${cookieMcId}`;
-          setMcViewMode(mcParamFromCookie);
-          setIsInitialized(true);
-          // Update URL to reflect cookie value
-          const params = new URLSearchParams(searchParams.toString());
-          params.set('mc', mcParamFromCookie);
-          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-        } else {
-          // Last resort - default to all
-          setMcViewMode('all');
-          setIsInitialized(true);
+      const cookieViewMode = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('mcViewMode='))
+        ?.split('=')[1];
+      
+      const cookieSelectedIds = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('selectedMcNumberIds='));
+      
+      if (cookieSelectedIds) {
+        try {
+          const ids = JSON.parse(decodeURIComponent(cookieSelectedIds.split('=')[1]));
+          if (Array.isArray(ids) && ids.length > 0) {
+            setSelectedMcIds(ids);
+            setMcViewMode('multi');
+            setIsInitialized(true);
+            return;
+          }
+        } catch {
+          // Invalid cookie
         }
       }
-    } else {
-      // Non-admin users use current MC from session
-      const mcParam = searchParams.get('mc');
-      if (mcParam && mcParam.startsWith('mc:')) {
-        if (mcViewMode !== mcParam) {
-          setMcViewMode(mcParam);
-        }
-      } else if (!mcParam && mcViewMode && mcViewMode.startsWith('mc:')) {
-        // Preserve current selection and update URL
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('mc', mcViewMode);
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      } else if (!mcParam && (!mcViewMode || mcViewMode === 'current')) {
+      
+      if (cookieMcId) {
+        setMcViewMode(`mc:${cookieMcId}`);
+        setIsInitialized(true);
+      } else if (cookieViewMode === 'all' && isAdmin) {
+        setMcViewMode('all');
+        setIsInitialized(true);
+      } else if (isAdmin) {
+        setMcViewMode('all');
+        setIsInitialized(true);
+      } else {
         setMcViewMode('current');
+        setIsInitialized(true);
+      }
+      
+      // Remove MC param from URL if it exists (cleanup)
+      const params = new URLSearchParams(searchParams.toString());
+      if (params.has('mc')) {
+        params.delete('mc');
+        const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+        router.replace(newUrl, { scroll: false });
       }
     }
-  }, [searchParams, isAdmin, pathname, router, mcViewMode, isInitialized]);
+  }, [isAdmin, isInitialized, pathname, router, searchParams]);
 
 
   return (
@@ -666,3 +659,4 @@ export default function CompanySwitcher() {
     </div>
   );
 }
+

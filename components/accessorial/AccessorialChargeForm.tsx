@@ -24,6 +24,7 @@ import {
 import { AccessorialChargeType } from '@prisma/client';
 import { formatCurrency, apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
+import LoadCombobox from '@/components/loads/LoadCombobox';
 
 interface AccessorialChargeFormProps {
   open: boolean;
@@ -51,12 +52,6 @@ const chargeTypeLabels: Record<AccessorialChargeType, string> = {
   AFTER_HOURS: 'After Hours',
   OTHER: 'Other',
 };
-
-async function fetchLoad(loadId: string) {
-  const response = await fetch(apiUrl(`/api/loads/${loadId}`));
-  if (!response.ok) throw new Error('Failed to fetch load');
-  return response.json();
-}
 
 async function fetchCharge(chargeId: string) {
   const response = await fetch(apiUrl(`/api/accessorial-charges/${chargeId}`));
@@ -94,12 +89,6 @@ export default function AccessorialChargeForm({
     enabled: isEditing && !!chargeId,
   });
 
-  // Fetch load details if loadId provided
-  const { data: loadData } = useQuery({
-    queryKey: ['load', formData.loadId],
-    queryFn: () => fetchLoad(formData.loadId),
-    enabled: !!formData.loadId,
-  });
 
   // Populate form when editing
   useEffect(() => {
@@ -237,24 +226,21 @@ export default function AccessorialChargeForm({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
-            {/* Load Selection (if not provided) */}
-            {!loadId && (
-              <div className="space-y-2">
-                <Label htmlFor="loadId">Load *</Label>
-                <Input
-                  id="loadId"
-                  value={formData.loadId}
-                  onChange={(e) => setFormData({ ...formData, loadId: e.target.value })}
-                  placeholder="Enter load ID"
-                  required
-                />
-                {loadData?.data && (
-                  <p className="text-sm text-muted-foreground">
-                    Load: {loadData.data.loadNumber} - {loadData.data.customer?.name}
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Load Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="loadId">Load *</Label>
+              <LoadCombobox
+                value={formData.loadId}
+                onValueChange={(value) => setFormData({ ...formData, loadId: value })}
+                placeholder="Search or select a load..."
+                disabled={isEditing} // Disable when editing - load cannot be changed for existing charges
+              />
+              {!formData.loadId && (
+                <p className="text-sm text-muted-foreground">
+                  Search by load number, customer name, or location (e.g., "Dallas", "TX")
+                </p>
+              )}
+            </div>
 
             {/* Charge Type */}
             <div className="space-y-2">

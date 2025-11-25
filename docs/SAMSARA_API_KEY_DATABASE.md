@@ -125,3 +125,5 @@ After storing the API key in the database:
 - **Development**: Use environment variables (`.env.local`)
 - **Production**: Use database (per-company keys, better security)
 
+
+

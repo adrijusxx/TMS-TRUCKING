@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { LoadStatus } from '@prisma/client';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * Get load status distribution
@@ -17,11 +18,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Build MC filter - Load uses mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
+
     // Get counts for each status
     const statusCounts = await prisma.load.groupBy({
       by: ['status'],
       where: {
-        companyId: session.user.companyId,
+        ...loadMcWhere,
         deletedAt: null,
       },
       _count: {

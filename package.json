@@ -10,6 +10,7 @@
     "lint": "next lint",
     "check-errors": "node scripts/check-errors.js",
     "type-check": "tsc --noEmit",
+    "type-check:filtered": "node scripts/type-check-filtered.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "bash scripts/migrate-deploy.sh",
@@ -22,6 +23,9 @@
     "db:test-direct": "bash scripts/test-direct-connection.sh",
     "db:get-neon-connection": "bash scripts/get-neon-connection.sh",
     "db:studio": "prisma studio",
+    "db:soft-delete": "tsx scripts/soft-delete-records.ts",
+    "db:diagnose-imports": "tsx scripts/diagnose-blocked-driver-imports.ts",
+    "db:cleanup-drivers": "tsx scripts/cleanup-soft-deleted-drivers.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "tsx scripts/reset-database.ts",
     "db:migrate-demo": "tsx scripts/migrate-demo-to-fourways.ts",
@@ -38,7 +42,8 @@
     "audit:schema": "tsx scripts/extract-schema-reference.ts",
     "audit:mappings": "tsx scripts/audit-database-mappings.ts",
     "audit:validate": "tsx scripts/validate-database-mappings.ts",
-    "audit:imports": "tsx scripts/audit-import-mappings.ts"
+    "audit:imports": "tsx scripts/audit-import-mappings.ts",
+    "test:mc-system": "tsx scripts/test-mc-system.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -65,6 +70,8 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-pdf/renderer": "^4.3.1",
     "@tanstack/react-query": "^5.90.8",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.12",
     "@types/bcryptjs": "^2.4.6",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.2.4",

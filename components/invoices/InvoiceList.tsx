@@ -109,7 +109,7 @@ async function fetchInvoices(params: {
   if (params.limit) queryParams.set('limit', params.limit.toString());
   if (params.status) queryParams.set('status', params.status);
   if (params.search) queryParams.set('search', params.search);
-  if (params.mc) queryParams.set('mc', params.mc); // Pass MC view mode
+  // MC filtering handled server-side via cookies
   
   // Add advanced filters
   Object.keys(params).forEach((key) => {
@@ -136,13 +136,7 @@ export default function InvoiceList() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
   const [createBatchDialogOpen, setCreateBatchDialogOpen] = useState(false);
   
-  // Get MC view mode from URL (set by CompanySwitcher)
-  // Use useMemo to stabilize the searchParams value
-  const searchParamsObj = useSearchParams();
-  const mcViewMode = useMemo(() => {
-    const mc = searchParamsObj?.get('mc');
-    return mc || null;
-  }, [searchParamsObj?.toString()]); // Use toString() to get stable reference
+  // MC state is managed via cookies, not URL params
   
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState({
@@ -172,8 +166,8 @@ export default function InvoiceList() {
 
   // Memoize query key to prevent unnecessary refetches
   const queryKey = useMemo(
-    () => ['invoices', page, statusFilter, factoringFilter, paymentMethodFilter, searchQuery, JSON.stringify(advancedFilters), mcViewMode],
-    [page, statusFilter, factoringFilter, paymentMethodFilter, searchQuery, advancedFilters, mcViewMode]
+    () => ['invoices', page, statusFilter, factoringFilter, paymentMethodFilter, searchQuery, JSON.stringify(advancedFilters)],
+    [page, statusFilter, factoringFilter, paymentMethodFilter, searchQuery, advancedFilters]
   );
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -186,7 +180,7 @@ export default function InvoiceList() {
         factoringStatus: factoringFilter !== 'all' ? factoringFilter : undefined,
         paymentMethod: paymentMethodFilter !== 'all' ? paymentMethodFilter : undefined,
         search: searchQuery || undefined,
-        mc: mcViewMode || undefined, // Pass MC view mode to API (from CompanySwitcher)
+        // MC filtering handled server-side via cookies
         ...advancedFilters,
       }),
     staleTime: 30000, // Consider data fresh for 30 seconds

@@ -1,11 +1,11 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, TrendingUp, DollarSign, Award } from 'lucide-react';
 import { DriverPerformanceMetrics } from '@/components/hr/DriverPerformanceMetrics';
 import { SettlementSummary } from '@/components/hr/SettlementSummary';
 import { DriverRetention } from '@/components/hr/DriverRetention';
 import { BonusCalculations } from '@/components/hr/BonusCalculations';
+import { HRDashboardMetrics } from '@/components/hr/HRDashboardMetrics';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TrendingUp, DollarSign, Award, Users } from 'lucide-react';
 
 export default function HRDashboardPage() {
   return (
@@ -17,51 +17,7 @@ export default function HRDashboardPage() {
         </div>
 
         {/* Key Metrics */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Drivers</CardTitle>
-              <Users className="h-4 w-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">45</div>
-              <p className="text-xs text-muted-foreground">+3 from last month</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Settlement</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">$3,250</div>
-              <p className="text-xs text-muted-foreground">Per week</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Retention Rate</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">92%</div>
-              <p className="text-xs text-muted-foreground">Last 12 months</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bonuses Paid</CardTitle>
-              <Award className="h-4 w-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">$12,500</div>
-              <p className="text-xs text-muted-foreground">This month</p>
-            </CardContent>
-          </Card>
-        </div>
+        <HRDashboardMetrics />
 
         {/* Tabs for different sections */}
         <Tabs defaultValue="performance" className="space-y-4">

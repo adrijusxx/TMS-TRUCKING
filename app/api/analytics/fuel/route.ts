@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +16,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check analytics permission
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!hasPermission(role, 'analytics.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate')
       ? new Date(searchParams.get('startDate')!)
@@ -24,12 +34,12 @@ export async function GET(request: NextRequest) {
       : new Date();
     const truckId = searchParams.get('truckId');
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filter - Truck uses mcNumberId
+    const truckMcWhere = await buildMcNumberIdWhereClause(session, request);
 
     const where: any = {
       truck: {
-        ...baseFilter,
+        ...truckMcWhere,
       },
       date: {
         gte: startDate,
@@ -72,9 +82,11 @@ export async function GET(request: NextRequest) {
     const averageCostPerGallon = fuelEntries.length > 0 ? totalCost / totalGallons : 0;
 
     // Get loads for the period to calculate fuel efficiency - include ALL loads
+    // Load uses mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const loads = await prisma.load.findMany({
       where: {
-        ...baseFilter,
+        ...loadMcWhere,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: startDate, lte: endDate } },

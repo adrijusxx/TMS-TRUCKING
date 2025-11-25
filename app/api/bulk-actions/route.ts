@@ -2,26 +2,60 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { buildMcNumberWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const bulkActionSchema = z.object({
-  entityType: z.enum([
-    'load',
-    'truck',
-    'driver',
-    'customer',
-    'invoice',
-    'user',
-    'trailer',
-    'inspection',
-    'breakdown',
-    'document',
-  ]),
+  entityType: z.string(), // Accept any string, we'll validate and map it
   action: z.enum(['update', 'delete', 'status', 'assign', 'archive', 'export']),
   ids: z.array(z.string().min(1)).min(1, 'At least one ID is required'),
   updates: z.record(z.string(), z.any()).optional(),
   status: z.string().optional(),
 });
+
+// Map plural entity types to singular Prisma model names
+const entityTypeMap: Record<string, string> = {
+  loads: 'load',
+  trucks: 'truck',
+  drivers: 'driver',
+  customers: 'customer',
+  invoices: 'invoice',
+  users: 'user',
+  trailers: 'trailer',
+  inspections: 'inspection',
+  breakdowns: 'breakdown',
+  documents: 'document',
+  settlements: 'settlement',
+  batches: 'batch',
+  vendors: 'vendor',
+  locations: 'location',
+  maintenance: 'maintenance',
+  'rate-confirmations': 'rateConfirmation',
+  'factoring-companies': 'factoringCompany',
+  expenses: 'loadExpense',
+  'load-expenses': 'loadExpense',
+  'accessorial-charges': 'accessorialCharge',
+  accessorials: 'accessorialCharge',
+  // Also support singular forms
+  load: 'load',
+  truck: 'truck',
+  driver: 'driver',
+  customer: 'customer',
+  invoice: 'invoice',
+  user: 'user',
+  trailer: 'trailer',
+  inspection: 'inspection',
+  breakdown: 'breakdown',
+  document: 'document',
+  settlement: 'settlement',
+  batch: 'batch',
+  vendor: 'vendor',
+  location: 'location',
+  expense: 'loadExpense',
+  'load-expense': 'loadExpense',
+  'accessorial-charge': 'accessorialCharge',
+  accessorial: 'accessorialCharge',
+};
 
 /**
  * POST /api/bulk-actions
@@ -40,33 +74,68 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = bulkActionSchema.parse(body);
 
+    // Map entity type to singular Prisma model name
+    const modelName = entityTypeMap[validated.entityType];
+    if (!modelName) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'INVALID_ENTITY', message: `Invalid entity type: ${validated.entityType}` },
+        },
+        { status: 400 }
+      );
+    }
+
     // Map entity types to Prisma models and permission checks
+    // Note: model names here are internal identifiers, actual Prisma model names are handled in delete logic
     const entityConfig: Record<string, { model: string; permission: string }> = {
       load: { model: 'load', permission: 'loads.edit' },
       truck: { model: 'truck', permission: 'trucks.edit' },
       driver: { model: 'driver', permission: 'drivers.edit' },
       customer: { model: 'customer', permission: 'customers.edit' },
       invoice: { model: 'invoice', permission: 'invoices.edit' },
-      user: { model: 'user', permission: 'settings.view' }, // Users need special permission
-      trailer: { model: 'trailer', permission: 'trucks.edit' },
-      inspection: { model: 'inspection', permission: 'trucks.edit' },
-      breakdown: { model: 'breakdown', permission: 'trucks.edit' },
+      user: { model: 'user', permission: 'users.edit' },
+      trailer: { model: 'trailer', permission: 'trailers.edit' },
+      inspection: { model: 'inspection', permission: 'inspections.edit' },
+      breakdown: { model: 'breakdown', permission: 'breakdowns.edit' },
       document: { model: 'document', permission: 'documents.delete' },
+      settlement: { model: 'settlement', permission: 'settlements.edit' },
+      batch: { model: 'batch', permission: 'batches.edit' }, // Prisma: invoiceBatch
+      vendor: { model: 'vendor', permission: 'vendors.edit' },
+      location: { model: 'location', permission: 'locations.edit' },
+      maintenance: { model: 'maintenance', permission: 'maintenance.edit' }, // Prisma: maintenanceRecord
+      rateConfirmation: { model: 'rateConfirmation', permission: 'rate_confirmations.edit' },
+      factoringCompany: { model: 'factoringCompany', permission: 'factoring_companies.edit' },
+      loadExpense: { model: 'loadExpense', permission: 'loads.edit' },
+      accessorialCharge: { model: 'accessorialCharge', permission: 'loads.edit' },
     };
 
-    const config = entityConfig[validated.entityType];
+    const config = entityConfig[modelName];
     if (!config) {
       return NextResponse.json(
         {
           success: false,
-          error: { code: 'INVALID_ENTITY', message: 'Invalid entity type' },
+          error: { code: 'INVALID_ENTITY', message: `Entity type not supported: ${validated.entityType}` },
         },
         { status: 400 }
       );
     }
 
     // Check permissions
-    if (!hasPermission(session.user.role, config.permission as any)) {
+    let permissionToCheck = config.permission;
+    
+    // For delete action, check delete permission
+    if (validated.action === 'delete') {
+      if (modelName === 'user') {
+        permissionToCheck = 'users.delete';
+      } else {
+        // Extract entity name from permission (e.g., 'loads.edit' -> 'loads.delete')
+        const entityName = config.permission.split('.')[0];
+        permissionToCheck = `${entityName}.delete` as any;
+      }
+    }
+    
+    if (!hasPermission(session.user.role, permissionToCheck as any)) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
         { status: 403 }
@@ -77,25 +146,245 @@ export async function POST(request: NextRequest) {
 
     // Handle delete action
     if (validated.action === 'delete') {
-      const deletePermission = `${config.permission.replace('.edit', '')}.delete` as any;
-      if (!hasPermission(session.user.role, deletePermission)) {
-        return NextResponse.json(
-          { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
-          { status: 403 }
-        );
-      }
-
-      // Soft delete
-      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice' | 'user' | 'document' | 'breakdown' | 'trailer';
-      result = await (prisma[model] as any).updateMany({
-        where: {
+      const model = config.model;
+      
+      // Handle Invoice soft delete (mark as CANCELLED)
+      if (model === 'invoice') {
+        // Build MC filter for invoices (uses mcNumber string field)
+        const mcWhere = await buildMcNumberWhereClause(session, request);
+        const invoiceMcWhere = await convertMcNumberIdToMcNumberString(mcWhere);
+        
+        // Build base where clause
+        const baseWhereClause: any = {
           id: { in: validated.ids },
+          customer: {
+            companyId: session.user.companyId,
+          },
+        };
+        
+        // Add MC filter if applicable
+        if (invoiceMcWhere.mcNumber) {
+          baseWhereClause.mcNumber = invoiceMcWhere.mcNumber;
+        }
+        
+        // Get all selected invoices to check their status
+        const allInvoices = await prisma.invoice.findMany({
+          where: baseWhereClause,
+          select: { id: true, status: true, invoiceNumber: true },
+        });
+        
+        // Separate deletable vs non-deletable
+        const deletableInvoices = allInvoices.filter(i => !['PAID', 'POSTED'].includes(i.status));
+        const nonDeletableInvoices = allInvoices.filter(i => ['PAID', 'POSTED'].includes(i.status));
+        
+        if (deletableInvoices.length === 0) {
+          const reasons = nonDeletableInvoices.length > 0
+            ? `All ${nonDeletableInvoices.length} selected invoice(s) are PAID or POSTED and cannot be cancelled.`
+            : 'No valid invoices found in your selection.';
+          
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'NO_VALID_RECORDS',
+                message: reasons,
+              },
+            },
+            { status: 400 }
+          );
+        }
+        
+        // Soft delete by marking as CANCELLED
+        result = await prisma.invoice.updateMany({
+          where: {
+            id: { in: deletableInvoices.map(i => i.id) },
+          },
+          data: {
+            status: 'CANCELLED',
+          },
+        });
+
+        const message = nonDeletableInvoices.length > 0
+          ? `Cancelled ${result.count} invoice(s). ${nonDeletableInvoices.length} invoice(s) could not be cancelled (PAID/POSTED).`
+          : `Successfully cancelled ${result.count} invoice(s)`;
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            deleted: result.count,
+            skipped: nonDeletableInvoices.length,
+            message,
+          },
+        });
+      }
+      
+      // Handle Settlement delete (only PENDING settlements can be deleted)
+      if (model === 'settlement') {
+        // Build MC filter (settlements linked through drivers with mcNumberId)
+        const mcWhere = await buildMcNumberWhereClause(session, request);
+        
+        // Build base where clause with company filter
+        const driverWhere: any = {
           companyId: session.user.companyId,
-          deletedAt: null,
-        },
-        data: {
-          deletedAt: new Date(),
-        },
+        };
+        
+        // Add MC filter if applicable (settlements through driver.mcNumberId)
+        if (mcWhere.mcNumberId) {
+          driverWhere.mcNumberId = mcWhere.mcNumberId;
+        }
+        
+        // Get all selected settlements to check their status
+        const allSettlements = await prisma.settlement.findMany({
+          where: {
+            id: { in: validated.ids },
+            driver: driverWhere,
+          },
+          select: { id: true, status: true, settlementNumber: true },
+        });
+        
+        // Separate deletable vs non-deletable
+        const deletableSettlements = allSettlements.filter(s => s.status === 'PENDING');
+        const nonDeletableSettlements = allSettlements.filter(s => s.status !== 'PENDING');
+        
+        if (deletableSettlements.length === 0) {
+          const statusCounts = nonDeletableSettlements.reduce((acc: Record<string, number>, s) => {
+            acc[s.status] = (acc[s.status] || 0) + 1;
+            return acc;
+          }, {});
+          const statusInfo = Object.entries(statusCounts).map(([status, count]) => `${count} ${status}`).join(', ');
+          
+          const reasons = nonDeletableSettlements.length > 0
+            ? `Cannot delete settlements: ${statusInfo}. Only PENDING settlements can be deleted.`
+            : 'No valid settlements found in your selection.';
+          
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'NO_VALID_RECORDS',
+                message: reasons,
+              },
+            },
+            { status: 400 }
+          );
+        }
+        
+        // Hard delete pending settlements (since they haven't been approved/paid yet)
+        result = await prisma.settlement.deleteMany({
+          where: {
+            id: { in: deletableSettlements.map(s => s.id) },
+          },
+        });
+
+        const message = nonDeletableSettlements.length > 0
+          ? `Deleted ${result.count} settlement(s). ${nonDeletableSettlements.length} settlement(s) could not be deleted (not PENDING).`
+          : `Successfully deleted ${result.count} settlement(s)`;
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            deleted: result.count,
+            skipped: nonDeletableSettlements.length,
+            message,
+          },
+        });
+      }
+      
+      // Models without deletedAt field - use hard delete
+      // These include: loadExpense, accessorialCharge, invoiceBatch (batch), 
+      // maintenanceRecord (maintenance), factoringCompany, rateConfirmation
+      const modelsWithoutDeletedAt = [
+        'loadExpense', 
+        'accessorialCharge', 
+        'batch', // InvoiceBatch
+        'maintenance', // MaintenanceRecord
+        'factoringCompany',
+        'rateConfirmation',
+      ];
+      
+      if (modelsWithoutDeletedAt.includes(model)) {
+        // Map model names to actual Prisma model names
+        const prismaModelMap: Record<string, string> = {
+          batch: 'invoiceBatch',
+          maintenance: 'maintenanceRecord',
+          factoringCompany: 'factoringCompany',
+          rateConfirmation: 'rateConfirmation',
+          loadExpense: 'loadExpense',
+          accessorialCharge: 'accessorialCharge',
+        };
+        
+        const actualModel = prismaModelMap[model] || model;
+        
+        // Build where clause
+        let whereClause: any = {
+          id: { in: validated.ids },
+        };
+        
+        // Handle models with companyId
+        if (['invoiceBatch', 'maintenanceRecord', 'factoringCompany', 'rateConfirmation', 'accessorialCharge'].includes(actualModel)) {
+          whereClause.companyId = session.user.companyId;
+        } else if (actualModel === 'loadExpense') {
+          // LoadExpense is linked through Load
+          const expenses = await prisma.loadExpense.findMany({
+            where: {
+              id: { in: validated.ids },
+              load: {
+                companyId: session.user.companyId,
+                deletedAt: null,
+              },
+            },
+            select: { id: true },
+          });
+          
+          if (expenses.length === 0) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: {
+                  code: 'NO_VALID_RECORDS',
+                  message: 'No valid expenses found to delete',
+                },
+              },
+              { status: 400 }
+            );
+          }
+          
+          whereClause = { id: { in: expenses.map(e => e.id) } };
+        }
+        
+        // Hard delete
+        result = await (prisma[actualModel as keyof typeof prisma] as any).deleteMany({
+          where: whereClause,
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            deleted: result.count,
+            message: `Successfully deleted ${result.count} ${validated.entityType}(s)`,
+          },
+        });
+      }
+      
+      // For users, also set isActive to false
+      const deleteData: any = {
+        deletedAt: new Date(),
+      };
+      if (model === 'user') {
+        deleteData.isActive = false;
+      }
+      
+      // Build where clause for models with deletedAt (soft delete)
+      const whereClause: any = {
+        id: { in: validated.ids },
+        companyId: session.user.companyId,
+        deletedAt: null,
+      };
+      
+      // Use companyId filtering for security (soft delete)
+      result = await (prisma[model as keyof typeof prisma] as any).updateMany({
+        where: whereClause,
+        data: deleteData,
       });
 
       return NextResponse.json({
@@ -110,14 +399,107 @@ export async function POST(request: NextRequest) {
     // Handle status update
     if (validated.action === 'status' && validated.status) {
       const updateData: any = { status: validated.status };
+      const model = config.model;
       
-      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice';
-      result = await (prisma[model] as any).updateMany({
-        where: {
-          id: { in: validated.ids },
-          companyId: session.user.companyId,
-          deletedAt: null,
-        },
+      // Models without deletedAt field
+      const modelsWithoutDeletedAt = [
+        'settlement', 'invoice', 'loadExpense', 'accessorialCharge',
+        'batch', 'maintenance', 'factoringCompany', 'rateConfirmation',
+      ];
+      
+      // Map internal model names to Prisma model names
+      const prismaModelMap: Record<string, string> = {
+        batch: 'invoiceBatch',
+        maintenance: 'maintenanceRecord',
+      };
+      const actualModel = prismaModelMap[model] || model;
+      
+      // Build where clause based on model structure
+      const whereClause: any = {
+        id: { in: validated.ids },
+      };
+      
+      // Add deletedAt filter only for models that have it
+      if (!modelsWithoutDeletedAt.includes(model)) {
+        whereClause.deletedAt = null;
+      }
+      
+      // Models with companyId or linked through relations
+      if (model === 'accessorialCharge' || model === 'batch' || model === 'maintenance' || 
+          model === 'factoringCompany' || model === 'rateConfirmation') {
+        whereClause.companyId = session.user.companyId;
+      } else if (model === 'loadExpense') {
+        // LoadExpense is linked through Load, filter by Load's companyId
+        const expenses = await prisma.loadExpense.findMany({
+          where: {
+            id: { in: validated.ids },
+            load: {
+              companyId: session.user.companyId,
+              deletedAt: null,
+            },
+          },
+          select: { id: true },
+        });
+        
+        if (expenses.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: { code: 'NO_VALID_RECORDS', message: 'No valid expenses found to update' },
+            },
+            { status: 400 }
+          );
+        }
+        
+        whereClause.id = { in: expenses.map(e => e.id) };
+      } else if (model === 'invoice') {
+        // Invoice is linked through Customer, filter by Customer's companyId
+        const invoices = await prisma.invoice.findMany({
+          where: {
+            id: { in: validated.ids },
+            customer: { companyId: session.user.companyId },
+          },
+          select: { id: true },
+        });
+        
+        if (invoices.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: { code: 'NO_VALID_RECORDS', message: 'No valid invoices found to update' },
+            },
+            { status: 400 }
+          );
+        }
+        
+        whereClause.id = { in: invoices.map(i => i.id) };
+      } else if (model === 'settlement') {
+        // Settlement is linked through Driver, filter by Driver's companyId
+        const settlements = await prisma.settlement.findMany({
+          where: {
+            id: { in: validated.ids },
+            driver: { companyId: session.user.companyId },
+          },
+          select: { id: true },
+        });
+        
+        if (settlements.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: { code: 'NO_VALID_RECORDS', message: 'No valid settlements found to update' },
+            },
+            { status: 400 }
+          );
+        }
+        
+        whereClause.id = { in: settlements.map(s => s.id) };
+      } else {
+        whereClause.companyId = session.user.companyId;
+      }
+      
+      result = await (prisma[actualModel as keyof typeof prisma] as any).updateMany({
+        where: whereClause,
         data: updateData,
       });
 
@@ -141,13 +523,104 @@ export async function POST(request: NextRequest) {
       delete updateData.createdAt;
       delete updateData.updatedAt;
 
-      const model = config.model as 'load' | 'truck' | 'driver' | 'customer' | 'invoice';
-      result = await (prisma[model] as any).updateMany({
-        where: {
-          id: { in: validated.ids },
-          companyId: session.user.companyId,
-          deletedAt: null,
-        },
+      const model = config.model;
+      
+      // Models without deletedAt field
+      const modelsWithoutDeletedAt = [
+        'settlement', 'invoice', 'loadExpense', 'accessorialCharge',
+        'batch', 'maintenance', 'factoringCompany', 'rateConfirmation',
+      ];
+      
+      // Map internal model names to Prisma model names
+      const prismaModelMap: Record<string, string> = {
+        batch: 'invoiceBatch',
+        maintenance: 'maintenanceRecord',
+      };
+      const actualModel = prismaModelMap[model] || model;
+      
+      // Build where clause based on model structure
+      const whereClause: any = {
+        id: { in: validated.ids },
+      };
+      
+      // Add deletedAt filter only for models that have it
+      if (!modelsWithoutDeletedAt.includes(model)) {
+        whereClause.deletedAt = null;
+      }
+      
+      // Models with companyId or linked through relations
+      if (model === 'accessorialCharge' || model === 'batch' || model === 'maintenance' || 
+          model === 'factoringCompany' || model === 'rateConfirmation') {
+        whereClause.companyId = session.user.companyId;
+      } else if (model === 'loadExpense') {
+        // LoadExpense is linked through Load
+        const expenses = await prisma.loadExpense.findMany({
+          where: {
+            id: { in: validated.ids },
+            load: { companyId: session.user.companyId, deletedAt: null },
+          },
+          select: { id: true },
+        });
+        
+        if (expenses.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: { code: 'NO_VALID_RECORDS', message: 'No valid expenses found to update' },
+            },
+            { status: 400 }
+          );
+        }
+        
+        whereClause.id = { in: expenses.map(e => e.id) };
+      } else if (model === 'invoice') {
+        // Invoice is linked through Customer
+        const invoices = await prisma.invoice.findMany({
+          where: {
+            id: { in: validated.ids },
+            customer: { companyId: session.user.companyId },
+          },
+          select: { id: true },
+        });
+        
+        if (invoices.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: { code: 'NO_VALID_RECORDS', message: 'No valid invoices found to update' },
+            },
+            { status: 400 }
+          );
+        }
+        
+        whereClause.id = { in: invoices.map(i => i.id) };
+      } else if (model === 'settlement') {
+        // Settlement is linked through Driver
+        const settlements = await prisma.settlement.findMany({
+          where: {
+            id: { in: validated.ids },
+            driver: { companyId: session.user.companyId },
+          },
+          select: { id: true },
+        });
+        
+        if (settlements.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: { code: 'NO_VALID_RECORDS', message: 'No valid settlements found to update' },
+            },
+            { status: 400 }
+          );
+        }
+        
+        whereClause.id = { in: settlements.map(s => s.id) };
+      } else {
+        whereClause.companyId = session.user.companyId;
+      }
+      
+      result = await (prisma[actualModel as keyof typeof prisma] as any).updateMany({
+        where: whereClause,
         data: updateData,
       });
 

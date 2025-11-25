@@ -35,18 +35,16 @@ interface TrailerComboboxProps {
   className?: string;
   trailers?: Trailer[]; // Optional: pre-loaded trailers
   disabled?: boolean;
-  mcParam?: string | null; // MC parameter from URL for filtering
+  // MC filtering handled server-side via cookies
 }
 
-async function fetchTrailers(search?: string, mcParam?: string | null) {
+async function fetchTrailers(search?: string) {
   const queryParams = new URLSearchParams();
   queryParams.set('limit', '100');
   if (search) {
     queryParams.set('search', search);
   }
-  if (mcParam) {
-    queryParams.set('mc', mcParam);
-  }
+  // MC filtering handled server-side via cookies
   const url = apiUrl(`/api/trailers?${queryParams.toString()}`);
   const response = await fetch(url);
   if (!response.ok) throw new Error('Failed to fetch trailers');
@@ -60,7 +58,6 @@ export default function TrailerCombobox({
   className,
   trailers: preloadedTrailers,
   disabled,
-  mcParam,
 }: TrailerComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -69,8 +66,8 @@ export default function TrailerCombobox({
   const shouldUseApi = open && (searchQuery.length > 0 || !preloadedTrailers);
   
   const { data: trailersData, isLoading } = useQuery({
-    queryKey: ['trailers', searchQuery, mcParam],
-    queryFn: () => fetchTrailers(searchQuery, mcParam),
+    queryKey: ['trailers', searchQuery],
+    queryFn: () => fetchTrailers(searchQuery),
     enabled: shouldUseApi,
   });
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +13,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
         { status: 401 }
+      );
+    }
+
+    // Check analytics permission
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!hasPermission(role, 'analytics.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
 
@@ -25,15 +35,14 @@ export async function GET(request: NextRequest) {
     const truckId = searchParams.get('truckId');
     const driverId = searchParams.get('driverId');
 
-    // Build base filter with MC number if applicable
-    // Load uses mcNumber (string), Truck uses mcNumberId (relation)
-    const loadFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filters - Load uses mcNumberId, Truck uses mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const truckFilter = await buildMcNumberIdWhereClause(session, request);
 
     // Get all loads in the period - include ALL loads, use pickupDate or deliveryDate
     const loads = await prisma.load.findMany({
       where: {
-        ...loadFilter,
+        ...loadMcWhere,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: startDate, lte: endDate } },

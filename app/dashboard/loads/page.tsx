@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import LoadList from '@/components/loads/LoadList';
+import LoadListNew from '@/components/loads/LoadListNew';
 
 export default function LoadsPage() {
   return (
@@ -9,7 +9,7 @@ export default function LoadsPage() {
         <div>
           <h1 className="text-3xl font-bold">Load Management</h1>
         </div>
-        <LoadList />
+        <LoadListNew />
       </div>
     </>
   );

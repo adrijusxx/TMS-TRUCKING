@@ -21,11 +21,16 @@ export interface ImportValidationResult {
 
 /**
  * Validates import data against schema requirements
+ * @param modelName - The model name to validate against
+ * @param csvHeaders - Original CSV/Excel column headers
+ * @param sampleData - Optional sample data row
+ * @param columnMapping - Optional mapping of CSV columns to system fields (e.g., { "Pickup Address": "pickupAddress" })
  */
 export function validateImportData(
   modelName: string,
   csvHeaders: string[],
-  sampleData?: Record<string, any>
+  sampleData?: Record<string, any>,
+  columnMapping?: Record<string, string>
 ): ImportValidationResult {
   const model = schemaReference.models[modelName];
   if (!model) {
@@ -49,6 +54,17 @@ export function validateImportData(
     h.toLowerCase().trim().replace(/[_\s-]/g, '')
   );
 
+  // Create reverse mapping: system field -> CSV column
+  // This allows us to check if a system field is mapped to a CSV column
+  const reverseMapping: Record<string, string> = {};
+  if (columnMapping) {
+    Object.entries(columnMapping).forEach(([csvCol, systemField]) => {
+      if (systemField) {
+        reverseMapping[systemField.toLowerCase().replace(/[_\s-]/g, '')] = csvCol;
+      }
+    });
+  }
+
   // Check each field in the schema
   for (const field of fields) {
     // Skip auto-generated fields
@@ -61,9 +77,12 @@ export function validateImportData(
       continue;
     }
 
-    // Check if field is in CSV headers
+    // Check if field is mapped via column mapping
     const normalizedFieldName = field.name.toLowerCase().replace(/[_\s-]/g, '');
-    const isInCsv = normalizedHeaders.some(h => 
+    const isMapped = reverseMapping[normalizedFieldName] !== undefined;
+    
+    // Check if field is in CSV headers (either directly or via mapping)
+    const isInCsv = isMapped || normalizedHeaders.some(h => 
       h === normalizedFieldName || 
       h.includes(normalizedFieldName) || 
       normalizedFieldName.includes(h)

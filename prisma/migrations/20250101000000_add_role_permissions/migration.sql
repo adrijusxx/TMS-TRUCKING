@@ -1,3 +1,10 @@
+-- CreateEnum (if not exists)
+DO $$ BEGIN
+    CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'DISPATCHER', 'DRIVER', 'CUSTOMER', 'ACCOUNTANT', 'HR', 'SAFETY', 'FLEET');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "RolePermission" (
     "id" TEXT NOT NULL,
@@ -18,6 +25,7 @@ CREATE INDEX IF NOT EXISTS "RolePermission_role_idx" ON "RolePermission"("role")
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "RolePermission_permission_idx" ON "RolePermission"("permission");
+
 
 
 

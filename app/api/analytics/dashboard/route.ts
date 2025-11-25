@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +13,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
         { status: 401 }
+      );
+    }
+
+    // Check analytics permission
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!hasPermission(role, 'analytics.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
       );
     }
 
@@ -32,9 +42,11 @@ export async function GET(request: NextRequest) {
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
     lastMonthEnd.setHours(23, 59, 59, 999);
 
-    // Build filters with MC number if applicable
-    // Load uses mcNumber (string), Driver and Truck use mcNumberId (relation)
-    const loadFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filters
+    const isAdmin = (session.user as any)?.role === 'ADMIN';
+    const viewingAll = isAdmin;
+    
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const driverTruckFilter = await buildMcNumberIdWhereClause(session, request);
 
     // Revenue calculations
@@ -55,14 +67,24 @@ export async function GET(request: NextRequest) {
       onLeaveDrivers,
     ] = await Promise.all([
       // Today's revenue - include ALL loads, use pickupDate or deliveryDate
+      // Also include loads with no date set (fallback to show all recent loads)
       prisma.load.aggregate({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           deletedAt: null,
           OR: [
             { pickupDate: { gte: todayStart, lte: todayEnd } },
             { deliveryDate: { gte: todayStart, lte: todayEnd } },
             { deliveredAt: { gte: todayStart, lte: todayEnd } },
+            // Include loads created today if no date is set
+            { 
+              AND: [
+                { createdAt: { gte: todayStart, lte: todayEnd } },
+                { pickupDate: null },
+                { deliveryDate: null },
+                { deliveredAt: null },
+              ],
+            },
           ],
         },
         _sum: { revenue: true },
@@ -70,12 +92,21 @@ export async function GET(request: NextRequest) {
       // This week's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           deletedAt: null,
           OR: [
             { pickupDate: { gte: weekStart } },
             { deliveryDate: { gte: weekStart } },
             { deliveredAt: { gte: weekStart } },
+            // Include loads created this week if no date is set
+            { 
+              AND: [
+                { createdAt: { gte: weekStart } },
+                { pickupDate: null },
+                { deliveryDate: null },
+                { deliveredAt: null },
+              ],
+            },
           ],
         },
         _sum: { revenue: true },
@@ -83,12 +114,21 @@ export async function GET(request: NextRequest) {
       // This month's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           deletedAt: null,
           OR: [
             { pickupDate: { gte: monthStart } },
             { deliveryDate: { gte: monthStart } },
             { deliveredAt: { gte: monthStart } },
+            // Include loads created this month if no date is set
+            { 
+              AND: [
+                { createdAt: { gte: monthStart } },
+                { pickupDate: null },
+                { deliveryDate: null },
+                { deliveredAt: null },
+              ],
+            },
           ],
         },
         _sum: { revenue: true },
@@ -96,7 +136,7 @@ export async function GET(request: NextRequest) {
       // Last month's revenue - include ALL loads
       prisma.load.aggregate({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           deletedAt: null,
           OR: [
             { 
@@ -124,7 +164,7 @@ export async function GET(request: NextRequest) {
       // Active loads
       prisma.load.count({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           status: {
             in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
           },
@@ -134,7 +174,7 @@ export async function GET(request: NextRequest) {
       // Pending loads
       prisma.load.count({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           status: 'PENDING',
           deletedAt: null,
         },
@@ -142,7 +182,7 @@ export async function GET(request: NextRequest) {
       // Completed loads
       prisma.load.count({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
           deletedAt: null,
         },
@@ -150,7 +190,7 @@ export async function GET(request: NextRequest) {
       // Cancelled loads
       prisma.load.count({
         where: {
-          ...loadFilter,
+          ...loadMcWhere,
           status: 'CANCELLED',
           deletedAt: null,
         },
@@ -211,10 +251,10 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    const todayRev = todayRevenue._sum.revenue || 0;
-    const weekRev = weekRevenue._sum.revenue || 0;
-    const monthRev = monthRevenue._sum.revenue || 0;
-    const lastMonthRev = lastMonthRevenue._sum.revenue || 0;
+    const todayRev = Number(todayRevenue._sum.revenue) || 0;
+    const weekRev = Number(weekRevenue._sum.revenue) || 0;
+    const monthRev = Number(monthRevenue._sum.revenue) || 0;
+    const lastMonthRev = Number(lastMonthRevenue._sum.revenue) || 0;
     const percentChange = lastMonthRev > 0
       ? ((monthRev - lastMonthRev) / lastMonthRev) * 100
       : 0;

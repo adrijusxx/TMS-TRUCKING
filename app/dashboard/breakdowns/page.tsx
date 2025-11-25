@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import BreakdownList from '@/components/breakdowns/BreakdownList';
+import BreakdownListNew from '@/components/breakdowns/BreakdownListNew';
 
 export default function BreakdownsPage() {
   return (
@@ -9,7 +9,7 @@ export default function BreakdownsPage() {
         <div>
           <h1 className="text-3xl font-bold">Breakdowns</h1>
         </div>
-        <BreakdownList />
+        <BreakdownListNew />
       </div>
     </>
   );

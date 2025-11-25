@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { IFTAManager } from '@/lib/managers/IFTAManager';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,6 +12,20 @@ export async function GET(request: NextRequest) {
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
         { status: 401 }
       );
+    }
+
+    // Build MC filter for loads
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+    // Extract MC number ID(s) - can be string or array
+    let mcNumberId: string | string[] | undefined;
+    if (mcWhere.mcNumberId) {
+      if (typeof mcWhere.mcNumberId === 'string') {
+        mcNumberId = mcWhere.mcNumberId;
+      } else if (Array.isArray(mcWhere.mcNumberId)) {
+        mcNumberId = mcWhere.mcNumberId;
+      } else if (mcWhere.mcNumberId.in && Array.isArray(mcWhere.mcNumberId.in)) {
+        mcNumberId = mcWhere.mcNumberId.in;
+      }
     }
 
     const { searchParams } = new URL(request.url);
@@ -70,7 +85,9 @@ export async function GET(request: NextRequest) {
       year,
       quarter,
       month,
-      driverId || undefined
+      driverId || undefined,
+      true, // autoCalculate
+      mcNumberId // MC filter
     );
 
     // Aggregate data by driver/truck
@@ -163,6 +180,8 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

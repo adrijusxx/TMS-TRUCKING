@@ -121,14 +121,13 @@ export default function MultiMcSelector({ trigger, onSelectionChange }: MultiMcS
           document.cookie = `mcViewMode=current; path=/; max-age=${60 * 60 * 24 * 30}`;
         }
 
-        // Update URL
+        // Remove MC param from URL if it exists (MC state managed via cookies)
         const params = new URLSearchParams(searchParams.toString());
-        if (mcNumberIds && mcNumberIds.length > 0) {
-          params.set('mc', 'multi');
-        } else {
+        if (params.has('mc')) {
           params.delete('mc');
+          const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+          router.replace(newUrl, { scroll: false });
         }
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
 
         // Invalidate queries
         queryClient.invalidateQueries();

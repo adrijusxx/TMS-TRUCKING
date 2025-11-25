@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 
 interface DriverPerformance {
   driverNumber: string;
@@ -21,6 +22,7 @@ interface DriverPerformance {
 export function DriverPerformanceTable() {
   const [drivers, setDrivers] = useState<DriverPerformance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDriverPerformance();
@@ -28,46 +30,38 @@ export function DriverPerformanceTable() {
 
   const fetchDriverPerformance = async () => {
     try {
-      // TODO: Implement API endpoint
-      // For now, using mock data
-      const mockData: DriverPerformance[] = [
-        {
-          driverNumber: 'D-001',
-          driverName: 'John Smith',
-          loadsCompleted: 45,
-          totalRevenue: 125000,
-          totalMiles: 62500,
-          revenuePerMile: 2.0,
-          onTimePercentage: 98,
-          profitability: 22,
-          rank: 1,
-        },
-        {
-          driverNumber: 'D-002',
-          driverName: 'Jane Doe',
-          loadsCompleted: 42,
-          totalRevenue: 118000,
-          totalMiles: 59000,
-          revenuePerMile: 2.0,
-          onTimePercentage: 95,
-          profitability: 20,
-          rank: 2,
-        },
-        {
-          driverNumber: 'D-003',
-          driverName: 'Mike Johnson',
-          loadsCompleted: 38,
-          totalRevenue: 98000,
-          totalMiles: 56000,
-          revenuePerMile: 1.75,
-          onTimePercentage: 92,
-          profitability: 18,
-          rank: 3,
-        },
-      ];
-      setDrivers(mockData);
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(apiUrl('/api/analytics/drivers/performance'));
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch driver performance data');
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to fetch driver performance data');
+      }
+      
+      // Map API response to component format
+      const performanceData: DriverPerformance[] = result.data.map((driver: any, index: number) => ({
+        driverNumber: driver.driverNumber || `D-${String(index + 1).padStart(3, '0')}`,
+        driverName: driver.driverName,
+        loadsCompleted: driver.metrics?.completedLoads || 0,
+        totalRevenue: driver.metrics?.totalRevenue || 0,
+        totalMiles: driver.metrics?.totalMiles || 0,
+        revenuePerMile: driver.rates?.revenuePerMile || 0,
+        onTimePercentage: driver.rates?.onTimeRate || 0,
+        profitability: driver.rates?.profitMargin || 0,
+        rank: index + 1,
+      }));
+      
+      setDrivers(performanceData);
     } catch (error) {
       console.error('Error fetching driver performance:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load driver performance data');
     } finally {
       setLoading(false);
     }
@@ -89,6 +83,44 @@ export function DriverPerformanceTable() {
         </CardHeader>
         <CardContent>
           <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Driver Performance Metrics</CardTitle>
+          <CardDescription>Error loading data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <p className="text-sm text-destructive mb-2">{error}</p>
+            <button
+              onClick={fetchDriverPerformance}
+              className="text-sm text-primary hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (drivers.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Driver Performance Metrics</CardTitle>
+          <CardDescription>No driver performance data available</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            No driver performance data found for the selected period.
+          </div>
         </CardContent>
       </Card>
     );
@@ -192,6 +224,8 @@ export function DriverPerformanceTable() {
     </Card>
   );
 }
+
+
 
 
 

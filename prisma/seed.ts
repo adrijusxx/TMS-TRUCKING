@@ -182,6 +182,9 @@ async function main() {
     for (const role of roles) {
       for (let i = 1; i <= 3; i++) {
         const email = `${role.toLowerCase()}${i}@${company.name.toLowerCase().replace(/\s+/g, '')}.com`;
+        // Set mcAccess: empty array for admins (all access), or [mcNumberId] for others
+        const mcAccess = role === 'ADMIN' ? [] : [defaultMcNumber.id];
+        
         const user = await prisma.user.upsert({
           where: { email },
           update: {},
@@ -194,6 +197,7 @@ async function main() {
             role: role as any, // Type assertion - regenerate Prisma client if needed
             companyId: company.id,
             mcNumberId: defaultMcNumber.id,
+            mcAccess: mcAccess, // Array of MC IDs user can access
             isActive: true,
           },
         });
@@ -418,7 +422,7 @@ async function main() {
         truckId: truck?.id,
         trailerId: trailer?.id,
         dispatcherId: dispatcher?.id,
-        mcNumber: defaultMcNumber?.number,
+        mcNumberId: defaultMcNumber?.id, // Use mcNumberId instead of mcNumber string
         status: (i === 1 ? 'ASSIGNED' : i === 2 ? 'EN_ROUTE_PICKUP' : 'LOADED') as any,
         loadType: 'FTL' as any,
         equipmentType: 'DRY_VAN' as any,

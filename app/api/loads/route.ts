@@ -8,11 +8,12 @@ import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNu
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { getLoadFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
 
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
-
     if (!session?.user?.companyId) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
@@ -20,11 +21,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 2. Permission Check
+    if (!hasPermission(session.user.role as any, 'loads.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
+    // New logic: buildMcNumberWhereClause handles all cases (admin all/filtered, employee assigned)
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const skip = (page - 1) * limit;
-    const statusParams = searchParams.getAll('status'); // Get all status params
+    const statusParams = searchParams.getAll('status');
     const customerId = searchParams.get('customerId');
     const driverId = searchParams.get('driverId');
     const search = searchParams.get('search');
@@ -34,81 +48,10 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const revenue = searchParams.get('revenue');
-    const dispatcherId = searchParams.get('dispatcherId'); // Filter by dispatcher ID
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', 'multi', or specific MC ID
-    const isAdmin = session.user?.role === 'ADMIN';
+    const dispatcherId = searchParams.get('dispatcherId');
+    const mcNumberIdFilter = searchParams.get('mcNumberId');
 
-    // Check if multi-MC mode is active
-    const mcState = await McStateManager.getMcState(session, request);
-    const isMultiMode = mcState.viewMode === 'multi' || mcViewMode === 'multi';
-
-    // Build base where clause with MC number filtering if applicable
-    let baseFilter: any;
-    if (isMultiMode && mcState.mcNumberIds.length > 0) {
-      // Use multi-MC filtering
-      baseFilter = await buildMultiMcNumberWhereClause(session, request);
-    } else {
-      // Use single MC or all MCs filtering
-      baseFilter = await buildMcNumberWhereClause(session, request);
-    }
-    
-    // Admin-only: Override MC filter based on view mode
-    if (isAdmin && mcViewMode === 'all') {
-      // Remove MC number filter to show all MCs (admin only)
-      if (baseFilter.mcNumber) {
-        delete baseFilter.mcNumber;
-      }
-    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== 'multi' && mcViewMode !== null) {
-      // Filter by specific MC number ID (admin selecting specific MC)
-      // Handle both "mc:ID" format and plain ID format
-      const mcId = mcViewMode.startsWith('mc:') ? mcViewMode.substring(3) : mcViewMode;
-      const mcNumberRecord = await prisma.mcNumber.findUnique({
-        where: { id: mcId },
-        select: { number: true, companyId: true, companyName: true },
-      });
-      if (mcNumberRecord) {
-        const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { companyId: true, userCompanies: { select: { companyId: true } } },
-        });
-        const accessibleCompanyIds = [
-          user?.companyId,
-          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
-        ].filter(Boolean) as string[];
-        
-        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
-          const trimmedMcNumber = mcNumberRecord.number?.trim();
-          const trimmedCompanyName = mcNumberRecord.companyName?.trim();
-          
-          // Build OR conditions to match both MC number value AND company name
-          const orConditions: any[] = [];
-          
-          if (trimmedMcNumber) {
-            orConditions.push({ mcNumber: trimmedMcNumber });
-          }
-          
-          if (trimmedCompanyName) {
-            orConditions.push({ mcNumber: { contains: trimmedCompanyName, mode: 'insensitive' } });
-          }
-          
-          if (orConditions.length > 1) {
-            baseFilter = {
-              ...baseFilter,
-              OR: orConditions,
-            };
-            delete baseFilter.mcNumber;
-          } else if (orConditions.length === 1) {
-            baseFilter = {
-              ...baseFilter,
-              ...orConditions[0],
-            };
-          }
-        }
-      }
-    }
-    // Non-admin users: always use baseFilter (their assigned MC)
-
-    // Apply role-based filtering
+    // 4. Apply role-based filtering (separate from MC filtering)
     const roleFilter = await getLoadFilter(
       createFilterContext(
         session.user.id,
@@ -117,13 +60,29 @@ export async function GET(request: NextRequest) {
       )
     );
 
-    // Merge role filter with base filter
-    // Note: MC number filtering is already handled in baseFilter via buildMcNumberWhereClause
+    // Parse includeDeleted parameter (admins only)
+    const includeDeleted = parseIncludeDeleted(request);
+    
+    // Build deleted records filter (admins can include deleted records if requested)
+    const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
+    
+    // 5. Merge MC filter with role filter and deleted filter
+    // MC filter includes companyId and mcNumberId (if applicable)
+    // Role filter includes role-specific constraints (e.g., dispatcher sees their loads)
     const where: any = {
-      ...baseFilter,
+      ...mcWhere,
       ...roleFilter,
-      deletedAt: null,
+      ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
     };
+
+    // Handle explicit MC number filter from table filter (overrides default MC view)
+    if (mcNumberIdFilter) {
+      if (mcNumberIdFilter === 'null' || mcNumberIdFilter === 'unassigned') {
+        where.mcNumberId = null;
+      } else {
+        where.mcNumberId = mcNumberIdFilter;
+      }
+    }
 
     // Handle multiple status values
     if (statusParams.length > 0) {
@@ -182,8 +141,9 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Handle date range filter - combine with existing OR if search exists
     if (startDate && endDate) {
-      where.OR = [
+      const dateRangeOr = [
         {
           pickupDate: {
             gte: new Date(startDate),
@@ -197,6 +157,17 @@ export async function GET(request: NextRequest) {
           },
         },
       ];
+      
+      if (where.OR) {
+        // If OR already exists (from search), combine them with AND
+        where.AND = [
+          { OR: where.OR },
+          { OR: dateRangeOr },
+        ];
+        delete where.OR;
+      } else {
+        where.OR = dateRangeOr;
+      }
     }
 
     if (revenue) {
@@ -208,13 +179,34 @@ export async function GET(request: NextRequest) {
       where.assignedDispatcherId = dispatcherId;
     }
 
+    // Handle search filter - combine with existing OR if date range exists
     if (search) {
-      where.OR = [
+      const searchOr = [
         { loadNumber: { contains: search, mode: 'insensitive' } },
         { commodity: { contains: search, mode: 'insensitive' } },
       ];
+      
+      if (where.OR) {
+        // If OR already exists (from date range), combine them with AND
+        where.AND = [
+          { OR: where.OR },
+          { OR: searchOr },
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchOr;
+      }
     }
 
+
+    // Log the where clause for debugging (remove sensitive data)
+    console.log('[Loads API] Query where clause:', {
+      companyId: where.companyId,
+      mcNumberId: where.mcNumberId,
+      hasOR: !!where.OR,
+      hasAND: !!where.AND,
+      deletedAt: where.deletedAt,
+    });
 
     const [loads, total, sums, allLoadsForStats] = await Promise.all([
       prisma.load.findMany({
@@ -243,6 +235,7 @@ export async function GET(request: NextRequest) {
           serviceFee: true,
           createdAt: true,
           updatedAt: true,
+          deletedAt: true, // Include deletedAt for UI indicators
           customer: {
             select: {
               id: true,
@@ -274,6 +267,13 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true,
               email: true,
+            },
+          },
+          mcNumber: {
+            select: {
+              id: true,
+              number: true,
+              companyName: true,
             },
           },
           stops: {
@@ -377,13 +377,13 @@ export async function GET(request: NextRequest) {
       serviceFee: serviceFeeSum,
     };
 
-
-    // Filter sensitive fields based on role
+    // 5. Filter Sensitive Fields based on role
     const filteredLoads = loads.map((load) =>
       filterSensitiveFields(load, session.user.role as any)
     );
     const filteredStats = filterSensitiveFields(stats, session.user.role as any);
 
+    // 6. Return Success Response
     return NextResponse.json({
       success: true,
       data: filteredLoads,
@@ -397,10 +397,18 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Load list error:', error);
+    // Log more details for debugging
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     return NextResponse.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+        error: { 
+          code: 'INTERNAL_ERROR', 
+          message: error instanceof Error ? error.message : 'Something went wrong' 
+        },
       },
       { status: 500 }
     );
@@ -550,6 +558,35 @@ export async function POST(request: NextRequest) {
         : null;
     }
 
+    // Determine MC number assignment
+    // Rule: Only admins can choose MC; employees use their default MC
+    const isAdmin = session.user.role === 'ADMIN';
+    let assignedMcNumberId: string | null = null;
+
+    // Check if mcNumberId was provided (from request body, not validation schema)
+    const bodyMcNumberId = (body as any).mcNumberId;
+    
+    if (isAdmin && bodyMcNumberId) {
+      // Admin provided mcNumberId - validate they have access
+      if (McStateManager.canAccessMc(session, bodyMcNumberId)) {
+        assignedMcNumberId = bodyMcNumberId;
+      } else {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'You do not have access to the selected MC number',
+            },
+          },
+          { status: 403 }
+        );
+      }
+    } else {
+      // Employee or admin without explicit mcNumberId - use user's default MC
+      assignedMcNumberId = (session.user as any).mcNumberId || null;
+    }
+
     // Prepare load data (remove stops from main load data)
     const { stops, loadedMiles, emptyMiles, totalMiles, ...loadData } = validated;
 
@@ -583,7 +620,8 @@ export async function POST(request: NextRequest) {
       driverId: loadData.driverId || null,
       truckId: loadData.truckId || null,
       trailerId: loadData.trailerId || null,
-      mcNumber: loadData.mcNumber || null,
+      // Assign mcNumberId: Admin can choose, employee uses their default
+      mcNumberId: assignedMcNumberId,
       // Ensure all numeric fields are properly set
       weight: loadData.weight || 0,
       revenue: loadData.revenue || 0,

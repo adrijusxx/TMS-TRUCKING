@@ -31,22 +31,57 @@ export default function McNumberToggle() {
     queryFn: fetchMcNumbers,
   });
 
+  // MC state is managed via cookies, not URL params
+  // Initialize from cookies on mount
   useEffect(() => {
-    const mcParam = searchParams.get('mc');
-    if (mcParam) {
-      setMcNumberFilter(mcParam);
+    if (typeof window !== 'undefined') {
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+        return null;
+      };
+      
+      const viewMode = getCookie('mcViewMode');
+      const mcId = getCookie('currentMcNumberId');
+      
+      if (viewMode === 'all') {
+        setMcNumberFilter('all');
+      } else if (mcId) {
+        setMcNumberFilter(mcId);
+      } else {
+        setMcNumberFilter('current');
+      }
     }
-  }, [searchParams]);
+  }, []);
 
   const handleMcNumberChange = (value: string) => {
     setMcNumberFilter(value);
-    const params = new URLSearchParams(searchParams.toString());
-    if (value === 'current') {
-      params.delete('mc');
+    // Use the MC set-view API instead of URL params
+    if (value === 'current' || value === 'all') {
+      fetch(apiUrl('/api/mc-numbers/set-view'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          mcNumberId: value === 'all' ? null : undefined,
+          mcNumberIds: []
+        }),
+      });
     } else {
-      params.set('mc', value);
+      fetch(apiUrl('/api/mc-numbers/set-view'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mcNumberId: value }),
+      });
     }
-    router.push(`${pathname}?${params.toString()}`);
+    
+    // Remove MC param from URL if it exists
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.has('mc')) {
+      params.delete('mc');
+      const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+      router.replace(newUrl, { scroll: false });
+    }
   };
 
   return (

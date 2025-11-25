@@ -17,10 +17,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build base filter with MC number if applicable
-    // Driver uses mcNumberId (relation), Load uses mcNumber (string)
+    // Build MC filters - Driver uses mcNumberId, Load uses mcNumberId
     const driverFilter = await buildMcNumberIdWhereClause(session, request);
-    const loadFilter = await buildMcNumberWhereClause(session, request);
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
 
     // Get all active drivers
     const drivers = await prisma.driver.findMany({
@@ -38,7 +37,7 @@ export async function GET(request: NextRequest) {
         },
         loads: {
           where: {
-            ...loadFilter,
+            ...loadMcWhere,
             deletedAt: null,
           },
           select: {

@@ -18,7 +18,7 @@ export const authOptions: NextAuthConfig = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials, request): Promise<{ id: string; email: string; name: string; role: UserRole; companyId: string } | null> {
+      async authorize(credentials, request): Promise<{ id: string; email: string; name: string; role: UserRole; companyId: string; mcAccess: string[] } | null> {
         try {
           if (!credentials?.email || !credentials?.password) {
             console.log('[Auth] Missing credentials');
@@ -36,7 +36,23 @@ export const authOptions: NextAuthConfig = {
 
           const user = await prisma.user.findUnique({
             where: { email },
-            include: { company: true }
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              role: true,
+              companyId: true,
+              mcAccess: true,
+              isActive: true,
+              password: true,
+              company: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
           });
 
           if (!user) {
@@ -86,7 +102,8 @@ export const authOptions: NextAuthConfig = {
             email: user.email,
             name: `${user.firstName} ${user.lastName}`,
             role: user.role,
-            companyId: user.companyId
+            companyId: user.companyId,
+            mcAccess: user.mcAccess || []
           };
         } catch (error) {
           console.error('[Auth] Error during authorization:', error);
@@ -96,11 +113,12 @@ export const authOptions: NextAuthConfig = {
     })
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session: sessionData, request }: { token: any; user?: any; trigger?: string; session?: any; request?: any }) {
+      async jwt({ token, user, trigger, session: sessionData, request }: { token: any; user?: any; trigger?: string; session?: any; request?: any }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.companyId = user.companyId;
+        token.mcAccess = user.mcAccess || [];
       }
       
       // Read MC number from cookies if available (for persistence across requests)
@@ -129,6 +147,9 @@ export const authOptions: NextAuthConfig = {
         if (sessionData.user?.mcNumber !== undefined) {
           token.mcNumber = sessionData.user.mcNumber;
         }
+        if (sessionData.user?.mcAccess !== undefined) {
+          token.mcAccess = sessionData.user.mcAccess;
+        }
       }
       
       return token;
@@ -146,6 +167,11 @@ export const authOptions: NextAuthConfig = {
         }
         if (token.mcNumber) {
           session.user.mcNumber = token.mcNumber as string;
+        }
+        if (token.mcAccess) {
+          session.user.mcAccess = token.mcAccess as string[];
+        } else {
+          session.user.mcAccess = [];
         }
       }
       return session;

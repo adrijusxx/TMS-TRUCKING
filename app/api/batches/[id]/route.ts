@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
 
 const updateBatchSchema = z.object({
@@ -203,6 +204,21 @@ export async function DELETE(
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
         { status: 401 }
+      );
+    }
+
+    // Check permission to delete batches
+    const role = session.user.role as 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER';
+    if (!hasPermission(role, 'invoices.delete')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to delete batches',
+          },
+        },
+        { status: 403 }
       );
     }
 

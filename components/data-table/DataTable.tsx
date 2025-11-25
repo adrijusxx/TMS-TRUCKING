@@ -1,0 +1,508 @@
+'use client';
+
+import * as React from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  flexRender,
+  type ColumnDef,
+  type RowSelectionState,
+  type SortingState,
+  type ColumnFiltersState,
+  type VisibilityState,
+  type PaginationState,
+} from '@tanstack/react-table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import type { DataTableProps, ExtendedColumnDef } from './types';
+
+/**
+ * Core DataTable component built on TanStack Table
+ * Provides sorting, filtering, pagination, row selection, and column visibility
+ */
+export function DataTable<TData extends Record<string, any>>({
+  columns,
+  data,
+  isLoading = false,
+  error = null,
+  rowSelection: controlledRowSelection,
+  onRowSelectionChange,
+  sorting: controlledSorting,
+  onSortingChange,
+  columnFilters: controlledColumnFilters,
+  onColumnFiltersChange,
+  columnVisibility: controlledColumnVisibility,
+  onColumnVisibilityChange,
+  pagination: controlledPagination,
+  onPaginationChange,
+  enableRowSelection = true,
+  rowActions,
+  onRowClick,
+  emptyMessage = 'No data available',
+  showLoadingSkeleton = true,
+  inlineEditComponent: InlineEditComponent,
+  onInlineEditSave,
+}: DataTableProps<TData>) {
+  const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
+  const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
+
+  const toggleRow = React.useCallback((rowId: string) => {
+    setExpandedRows((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(rowId)) {
+        newSet.delete(rowId);
+      } else {
+        newSet.add(rowId);
+      }
+      return newSet;
+    });
+  }, []);
+  const [internalSorting, setInternalSorting] = React.useState<SortingState>([]);
+  const [internalColumnFilters, setInternalColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [internalColumnVisibility, setInternalColumnVisibility] = React.useState<VisibilityState>({});
+  const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
+
+  // Use controlled or internal state
+  const rowSelection = controlledRowSelection ?? internalRowSelection;
+  
+  // Use refs to avoid dependency issues
+  const onRowSelectionChangeRef = React.useRef(onRowSelectionChange);
+  React.useEffect(() => {
+    onRowSelectionChangeRef.current = onRowSelectionChange;
+  }, [onRowSelectionChange]);
+  
+  const rowSelectionRef = React.useRef(rowSelection);
+  React.useEffect(() => {
+    rowSelectionRef.current = rowSelection;
+  }, [rowSelection]);
+  
+  const handleRowSelectionChangeInternal = React.useCallback((updater: any) => {
+    const currentSelection = rowSelectionRef.current;
+    const newSelection = typeof updater === 'function' ? updater(currentSelection) : updater;
+    console.log('DataTable handleRowSelectionChangeInternal:', { updater, newSelection, selectedCount: Object.keys(newSelection).filter(k => newSelection[k]).length });
+    if (onRowSelectionChangeRef.current) {
+      onRowSelectionChangeRef.current(newSelection);
+    } else {
+      setInternalRowSelection(newSelection);
+    }
+  }, []); // No dependencies - use refs instead
+  
+  // Create a stable setter for useEffect
+  const setRowSelectionStable = React.useCallback((selection: RowSelectionState) => {
+    if (onRowSelectionChangeRef.current) {
+      onRowSelectionChangeRef.current(selection);
+    } else {
+      setInternalRowSelection(selection);
+    }
+  }, []); // No dependencies - use refs instead
+  const sorting = controlledSorting ?? internalSorting;
+  const setSorting = onSortingChange
+    ? (updater: any) => {
+        const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
+        onSortingChange(newSorting);
+      }
+    : (updater: any) => {
+        const newSorting = typeof updater === 'function' ? updater(internalSorting) : updater;
+        setInternalSorting(newSorting);
+      };
+  const columnFilters = controlledColumnFilters ?? internalColumnFilters;
+  const setColumnFilters = onColumnFiltersChange
+    ? (updater: any) => {
+        const newFilters = typeof updater === 'function' ? updater(columnFilters) : updater;
+        onColumnFiltersChange(newFilters);
+      }
+    : (updater: any) => {
+        const newFilters = typeof updater === 'function' ? updater(internalColumnFilters) : updater;
+        setInternalColumnFilters(newFilters);
+      };
+  const columnVisibility = controlledColumnVisibility ?? internalColumnVisibility;
+  const setColumnVisibility = onColumnVisibilityChange
+    ? (updater: any) => {
+        const newVisibility = typeof updater === 'function' ? updater(columnVisibility) : updater;
+        onColumnVisibilityChange(newVisibility);
+      }
+    : (updater: any) => {
+        const newVisibility = typeof updater === 'function' ? updater(internalColumnVisibility) : updater;
+        setInternalColumnVisibility(newVisibility);
+      };
+  const pagination = controlledPagination
+    ? {
+        pageIndex: controlledPagination.pageIndex,
+        pageSize: controlledPagination.pageSize,
+      }
+    : internalPagination;
+  const setPagination = onPaginationChange
+    ? (updater: any) => {
+        const newPagination =
+          typeof updater === 'function' ? updater(pagination) : updater;
+        onPaginationChange(newPagination);
+      }
+    : setInternalPagination;
+
+  // Add selection column if enabled
+  const tableColumns = React.useMemo<ColumnDef<TData>[]>(() => {
+    if (!enableRowSelection) return columns as ColumnDef<TData>[];
+
+    const selectionColumn: ColumnDef<TData> = {
+      id: 'select',
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+      size: 50,
+    };
+
+    return [selectionColumn, ...(columns as ColumnDef<TData>[])];
+  }, [columns, enableRowSelection]);
+
+  const table = useReactTable({
+    data,
+    columns: tableColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getRowId: (row) => {
+      // Try to get ID from row object, then from original data, fallback to index
+      const id = row.id || row.original?.id || String(row.index);
+      return id;
+    }, // Use actual row ID for selection
+    onRowSelectionChange: handleRowSelectionChangeInternal,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: setPagination,
+    enableRowSelection,
+    state: {
+      rowSelection,
+      sorting,
+      columnFilters,
+      columnVisibility,
+      pagination,
+    },
+    manualPagination: !!controlledPagination,
+    manualSorting: !!controlledSorting,
+    manualFiltering: !!controlledColumnFilters,
+    pageCount: controlledPagination?.totalPages,
+  });
+
+  // Update row selection when data changes
+  React.useEffect(() => {
+    if (data.length === 0 && Object.keys(rowSelection).length > 0) {
+      setRowSelectionStable({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.length]); // Clear selection when data is empty - only clear if there's actually a selection
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <p className="text-destructive mb-2">Error loading data</p>
+          <p className="text-sm text-muted-foreground">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading && showLoadingSkeleton) {
+    return (
+      <div className="space-y-4">
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {tableColumns.slice(0, 5).map((_, index) => (
+                  <TableHead key={index}>
+                    <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, rowIndex) => (
+                <TableRow key={rowIndex}>
+                  {tableColumns.slice(0, 5).map((_, colIndex) => (
+                    <TableCell key={colIndex}>
+                      <div className="h-4 w-full bg-muted animate-pulse rounded" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const canSort = header.column.getCanSort();
+                    const isSorted = header.column.getIsSorted();
+
+                    return (
+                      <TableHead
+                        key={header.id}
+                        className={cn(
+                          'relative',
+                          header.column.getCanResize() && 'resizable'
+                        )}
+                        style={{
+                          width: header.getSize() !== 150 ? header.getSize() : undefined,
+                        }}
+                      >
+                        {header.isPlaceholder ? null : (
+                          <div
+                            className={cn(
+                              'flex items-center gap-2',
+                              canSort && 'cursor-pointer select-none hover:text-foreground'
+                            )}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {canSort && (
+                              <span className="text-muted-foreground">
+                                {isSorted === 'asc' ? '↑' : isSorted === 'desc' ? '↓' : '⇅'}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </TableHead>
+                    );
+                  })}
+                  {(rowActions || InlineEditComponent) && <TableHead className="w-[100px]">Actions</TableHead>}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => {
+                  const isExpanded = expandedRows.has(row.id);
+                  const hasInlineEdit = InlineEditComponent !== undefined;
+                  return (
+                    <React.Fragment key={row.id}>
+                      <TableRow
+                        data-state={row.getIsSelected() && 'selected'}
+                        className={cn(
+                          row.getIsSelected() && 'bg-muted/50',
+                          onRowClick && 'cursor-pointer hover:bg-muted/50',
+                          // Visual distinction for soft-deleted records
+                          row.original?.deletedAt && 'opacity-60 bg-muted/30'
+                        )}
+                        onClick={(e) => {
+                          // Don't trigger row click if clicking on checkbox, button, or link
+                          const target = e.target as HTMLElement;
+                          if (
+                            target.closest('button') ||
+                            target.closest('a') ||
+                            target.closest('input[type="checkbox"]') ||
+                            target.closest('[role="button"]')
+                          ) {
+                            return;
+                          }
+                          onRowClick?.(row.original);
+                        }}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
+                        {(rowActions || hasInlineEdit) && (
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {rowActions && rowActions(row.original)}
+                              {hasInlineEdit && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleRow(row.id);
+                                  }}
+                                  type="button"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                      {hasInlineEdit && isExpanded && InlineEditComponent && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={row.getVisibleCells().length + (rowActions ? 1 : 1)}
+                            className="p-0 bg-muted/30"
+                          >
+                            <div className="animate-in slide-in-from-top-1 duration-200">
+                              <InlineEditComponent
+                                row={row.original}
+                                onSave={() => {
+                                  toggleRow(row.id);
+                                  onInlineEditSave?.();
+                                }}
+                                onCancel={() => toggleRow(row.id)}
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={tableColumns.length + (rowActions ? 1 : 0)}
+                    className="h-24 text-center"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-muted-foreground">Loading...</span>
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground">{emptyMessage}</div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {!controlledPagination || controlledPagination.totalCount !== undefined ? (
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
+              {Math.min(
+                (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                controlledPagination?.totalCount ?? data.length
+              )}{' '}
+              of {controlledPagination?.totalCount ?? data.length} results
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-1">
+              <span className="text-sm">Page</span>
+              <Input
+                type="number"
+                min={1}
+                max={table.getPageCount()}
+                value={table.getState().pagination.pageIndex + 1}
+                onChange={(e) => {
+                  const page = e.target.value ? Number(e.target.value) - 1 : 0;
+                  table.setPageIndex(page);
+                }}
+                className="w-16 h-8"
+              />
+              <span className="text-sm">of {table.getPageCount()}</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+            <Select
+              value={String(table.getState().pagination.pageSize)}
+              onValueChange={(value) => {
+                table.setPageSize(Number(value));
+              }}
+            >
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 20, 30, 50, 100].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+

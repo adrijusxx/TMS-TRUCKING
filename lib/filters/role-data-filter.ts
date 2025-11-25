@@ -4,23 +4,30 @@ import { prisma } from '@/lib/prisma';
 /**
  * Role-based data filtering utilities
  * These functions return Prisma where clauses to filter data based on user role and assignments
+ * 
+ * NOTE: These filters handle role-based access (e.g., dispatcher sees their loads)
+ * MC filtering should be applied separately using buildMcNumberWhereClause
+ * The filters returned here should be combined with MC filters in API routes
  */
 
 export interface RoleFilterContext {
   userId: string;
   role: UserRole;
   companyId: string;
-  mcNumberId?: string;
+  mcNumberId?: string | { in: string[] }; // Can be single ID or array for multi-MC
 }
 
 /**
  * Get load filter based on role and assignments
- * DISPATCHER: Loads where dispatcherId = userId OR loads for drivers where assignedDispatcherId = userId
- * DRIVER: Loads where driverId = driver.id
- * ACCOUNTANT: All loads (filtered by MC number if applicable)
- * FLEET: All loads (filtered by MC number if applicable)
- * SAFETY: All loads (filtered by MC number if applicable)
- * HR: Loads for drivers they manage
+ * 
+ * Role-based filtering:
+ * - DISPATCHER: Loads where dispatcherId = userId OR loads for drivers where assignedDispatcherId = userId
+ * - DRIVER: Loads where driverId = driver.id
+ * - HR: Loads for drivers they manage
+ * - ACCOUNTANT/FLEET/SAFETY/ADMIN: All loads (within company)
+ * 
+ * NOTE: MC filtering is NOT included here - apply it separately using buildMcNumberWhereClause
+ * This filter only handles role-based access control
  */
 export async function getLoadFilter(context: RoleFilterContext): Promise<any> {
   const { userId, role, companyId } = context;
@@ -29,9 +36,6 @@ export async function getLoadFilter(context: RoleFilterContext): Promise<any> {
     companyId,
     deletedAt: null,
   };
-
-  // Note: MC number filtering for loads is handled separately via buildMcNumberWhereClause
-  // Loads use mcNumber (string field), not mcNumberId (relation)
 
   switch (role) {
     case 'DISPATCHER': {
@@ -131,23 +135,29 @@ export async function getLoadFilter(context: RoleFilterContext): Promise<any> {
 
 /**
  * Get driver filter based on role and assignments
- * DISPATCHER: Drivers where assignedDispatcherId = userId
- * HR: Drivers where hrManagerId = userId
- * SAFETY: Drivers where safetyManagerId = userId
- * FLEET: All drivers (filtered by MC number if applicable)
+ * 
+ * Role-based filtering:
+ * - DISPATCHER: Drivers where assignedDispatcherId = userId
+ * - HR: Drivers where hrManagerId = userId
+ * - SAFETY: Drivers where safetyManagerId = userId
+ * - FLEET/ACCOUNTANT/ADMIN/DRIVER/CUSTOMER: All drivers (within company)
+ * 
+ * NOTE: MC filtering should be applied separately using buildMcNumberWhereClause
+ * This filter only handles role-based access control
  */
 export async function getDriverFilter(context: RoleFilterContext): Promise<any> {
-  const { userId, role, companyId, mcNumberId } = context;
+  const { userId, role, companyId } = context;
 
   const baseFilter: any = {
-    companyId,
     deletedAt: null,
   };
 
-  // Add MC number filter if provided
-  if (mcNumberId) {
-    baseFilter.mcNumberId = mcNumberId;
+  // Only add companyId if provided and not admin placeholder
+  if (companyId && companyId !== 'ADMIN_ALL_COMPANIES') {
+    baseFilter.companyId = companyId;
   }
+
+  // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
 
   switch (role) {
     case 'DISPATCHER':
@@ -181,88 +191,98 @@ export async function getDriverFilter(context: RoleFilterContext): Promise<any> 
 
 /**
  * Get truck filter based on role and assignments
- * FLEET: All trucks (filtered by MC number if applicable)
- * SAFETY: All trucks (filtered by MC number if applicable)
- * Others: All trucks (filtered by MC number if applicable)
+ * 
+ * Currently all roles see all trucks within their company
+ * Can be extended later for role-specific filtering if needed
+ * 
+ * NOTE: MC filtering should be applied separately using buildMcNumberWhereClause
+ * This filter only handles role-based access control
  */
 export function getTruckFilter(context: RoleFilterContext): any {
-  const { companyId, mcNumberId } = context;
+  const { companyId } = context;
 
   const baseFilter: any = {
-    companyId,
     deletedAt: null,
   };
 
-  // Add MC number filter if provided
-  if (mcNumberId) {
-    baseFilter.mcNumberId = mcNumberId;
+  // Only add companyId if provided and not admin placeholder
+  if (companyId && companyId !== 'ADMIN_ALL_COMPANIES') {
+    baseFilter.companyId = companyId;
   }
 
-  // For now, all roles see all trucks (filtered by MC number)
-  // Can be extended later if needed
+  // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
+
   return baseFilter;
 }
 
 /**
  * Get trailer filter based on role and assignments
+ * 
+ * Currently all roles see all trailers within their company
  * Similar to truck filter
+ * 
+ * NOTE: MC filtering should be applied separately using buildMcNumberWhereClause
+ * This filter only handles role-based access control
  */
 export function getTrailerFilter(context: RoleFilterContext): any {
-  const { companyId, mcNumberId } = context;
+  const { companyId } = context;
 
   const baseFilter: any = {
-    companyId,
     deletedAt: null,
   };
 
-  // Add MC number filter if provided
-  if (mcNumberId) {
-    baseFilter.mcNumberId = mcNumberId;
+  // Only add companyId if provided and not admin placeholder
+  if (companyId && companyId !== 'ADMIN_ALL_COMPANIES') {
+    baseFilter.companyId = companyId;
   }
 
-  // For now, all roles see all trailers (filtered by MC number)
+  // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
+
   return baseFilter;
 }
 
 /**
  * Get customer filter based on role
- * Most roles see all customers (filtered by MC number if applicable)
+ * 
+ * Currently all roles see all customers within their company
+ * 
+ * NOTE: MC filtering should be applied separately using buildMcNumberWhereClause
+ * This filter only handles role-based access control
  */
 export function getCustomerFilter(context: RoleFilterContext): any {
-  const { companyId, mcNumberId } = context;
+  const { companyId } = context;
 
   const baseFilter: any = {
     companyId,
     deletedAt: null,
   };
 
-  // Add MC number filter if provided
-  if (mcNumberId) {
-    baseFilter.mcNumberId = mcNumberId;
-  }
+  // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
 
   return baseFilter;
 }
 
 /**
  * Get invoice filter based on role
- * ACCOUNTANT: All invoices (filtered by MC number if applicable)
- * Others: Based on load access
+ * 
+ * Role-based filtering:
+ * - ACCOUNTANT/ADMIN: All invoices (within company)
+ * - Others: Invoices for loads they have access to
+ * 
+ * NOTE: MC filtering should be applied separately using buildMcNumberWhereClause
+ * This filter only handles role-based access control
  */
 export async function getInvoiceFilter(context: RoleFilterContext): Promise<any> {
-  const { userId, role, companyId, mcNumberId } = context;
+  const { userId, role, companyId } = context;
 
   const baseFilter: any = {
     companyId,
     deletedAt: null,
   };
 
-  // Add MC number filter if provided
-  if (mcNumberId) {
-    baseFilter.mcNumberId = mcNumberId;
-  }
+  // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
 
-  // Accountants see all invoices
+  // Accountants and admins see all invoices
   if (role === 'ACCOUNTANT' || role === 'ADMIN') {
     return baseFilter;
   }
@@ -342,12 +362,17 @@ export async function getSettlementFilter(context: RoleFilterContext): Promise<a
 
 /**
  * Helper to create filter context from session
+ * 
+ * NOTE: mcNumberId is optional and should typically NOT be passed
+ * MC filtering should be done separately using buildMcNumberWhereClause
+ * 
+ * @deprecated The mcNumberId parameter is deprecated - use buildMcNumberWhereClause separately
  */
 export function createFilterContext(
   userId: string,
   role: UserRole,
   companyId: string,
-  mcNumberId?: string
+  mcNumberId?: string | { in: string[] }
 ): RoleFilterContext {
   return {
     userId,

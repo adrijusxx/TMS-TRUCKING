@@ -12,6 +12,7 @@ const updateUserSchema = z.object({
   password: z.string().min(8).optional(),
   isActive: z.boolean().optional(),
   mcNumberId: z.string().min(1, 'MC number is required').optional(),
+  mcAccess: z.array(z.string()).optional(), // Array of MC IDs user can access
 });
 
 export async function PATCH(
@@ -51,11 +52,10 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateUserSchema.parse(body);
 
-    // Verify user belongs to company
+    // Verify user exists - filter by MC number only (MC-based organization)
     const existingUser = await prisma.user.findFirst({
       where: {
         id: userId,
-        companyId: session.user.companyId,
         deletedAt: null,
       },
     });
@@ -70,20 +70,19 @@ export async function PATCH(
       );
     }
 
-    // Non-admins can't change role, active status, or MC number
+    // Non-admins can't change role, active status, MC number, or MC access
     if (!isAdmin) {
-      delete validated.role;
-      delete validated.isActive;
-      delete validated.mcNumberId;
+      const { role, isActive, mcNumberId, mcAccess, ...validatedWithoutRestricted } = validated;
+      Object.assign(validated, validatedWithoutRestricted);
     }
 
     // Validate MC number if being updated (for non-CUSTOMER roles)
     if (validated.mcNumberId !== undefined && existingUser.role !== 'CUSTOMER') {
       if (validated.mcNumberId) {
+        // Validate MC number exists (MC-based organization)
         const mcNumber = await prisma.mcNumber.findFirst({
           where: {
             id: validated.mcNumberId,
-            companyId: session.user.companyId,
             deletedAt: null,
           },
         });
@@ -94,7 +93,7 @@ export async function PATCH(
               success: false,
               error: {
                 code: 'INVALID_MC_NUMBER',
-                message: 'MC number not found or does not belong to your company',
+                message: 'MC number not found',
               },
             },
             { status: 400 }
@@ -118,7 +117,8 @@ export async function PATCH(
 
     // Handle mcNumberId - if undefined or null, don't change (mcNumberId is required)
     if (validated.mcNumberId === undefined || validated.mcNumberId === null) {
-      delete updateData.mcNumberId;
+      const { mcNumberId, ...updateDataWithoutMc } = updateData;
+      Object.assign(updateData, updateDataWithoutMc);
     }
 
     // If user is a driver and mcNumberId is being set, also update driver.mcNumberId
@@ -136,6 +136,46 @@ export async function PATCH(
             mcNumberId: validated.mcNumberId,
           },
         });
+      }
+    }
+
+    // Handle mcAccess update
+    if (validated.mcAccess !== undefined) {
+      if (existingUser.role === 'ADMIN') {
+        // Admins: empty array = access to all MCs
+        updateData.mcAccess = validated.mcAccess;
+      } else {
+        // Validate MC access (MC-based organization)
+        if (validated.mcAccess.length > 0) {
+          const validMcNumbers = await prisma.mcNumber.findMany({
+            where: {
+              id: { in: validated.mcAccess },
+              deletedAt: null,
+            },
+            select: { id: true },
+          });
+          
+          const validMcIds = validMcNumbers.map(mc => mc.id);
+          const invalidIds = validated.mcAccess.filter(id => !validMcIds.includes(id));
+          
+          if (invalidIds.length > 0) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: {
+                  code: 'INVALID_MC_ACCESS',
+                  message: `Invalid MC number IDs: ${invalidIds.join(', ')}`,
+                },
+              },
+              { status: 400 }
+            );
+          }
+          
+          updateData.mcAccess = validated.mcAccess;
+        } else {
+          // Empty array for non-admins means no access (use their mcNumberId as default)
+          updateData.mcAccess = existingUser.mcNumberId ? [existingUser.mcNumberId] : [];
+        }
       }
     }
 
@@ -165,6 +205,7 @@ export async function PATCH(
             companyName: true,
           },
         },
+        mcAccess: true,
       },
     });
 

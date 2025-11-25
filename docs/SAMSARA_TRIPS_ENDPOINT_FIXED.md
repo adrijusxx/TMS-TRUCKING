@@ -174,3 +174,5 @@ After these fixes:
 
 The `/trips` endpoint now correctly includes the required `vehicleIds` or `driverIds` filter, preventing "Bad Request" errors. The function automatically batches large numbers of vehicle IDs and gracefully handles cases where no filter can be provided.
 
+
+

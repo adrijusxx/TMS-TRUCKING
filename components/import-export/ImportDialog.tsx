@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, AlertCircle, CheckCircle2, X, Loader2, Clock, Settings2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle2, X, Loader2, Clock, Settings2, Maximize2, Minimize2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 import { csvFileToJSON, parseCSV, CSVImportResult } from '@/lib/import-export/csv-import';
@@ -13,7 +14,10 @@ import { excelFileToJSON, ExcelImportResult } from '@/lib/import-export/excel-im
 import { apiUrl } from '@/lib/utils';
 import ColumnMappingDialog from './ColumnMappingDialog';
 import ImportFieldWarnings from './ImportFieldWarnings';
+import ValueResolutionDialog from './ValueResolutionDialog';
 import { validateImportData, getModelNameFromEntityType } from '@/lib/validations/import-field-validator';
+import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
+import { useSession } from 'next-auth/react';
 
 interface ImportDialogProps {
   entityType: string;
@@ -37,6 +41,10 @@ export default function ImportDialog({
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [importErrors, setImportErrors] = useState<Array<{ row?: number; field?: string; error: string }>>([]);
+  const [unresolvedValues, setUnresolvedValues] = useState<Array<{ row: number; field: string; value: string; error: string }>>([]);
+  const [showValueResolution, setShowValueResolution] = useState(false);
+  const [valueResolutions, setValueResolutions] = useState<Record<string, Record<string, string>>>({});
+  const [isMaximized, setIsMaximized] = useState(false);
   const [fieldValidation, setFieldValidation] = useState<{
     missingRequiredFields: any[];
     missingOptionalFields: any[];
@@ -52,6 +60,22 @@ export default function ImportDialog({
     message: '',
     progress: 0,
   });
+  const [selectedMcNumberId, setSelectedMcNumberId] = useState<string>('');
+  const [updateExisting, setUpdateExisting] = useState<boolean>(false);
+  const { data: session } = useSession();
+
+  // Re-validate when column mapping changes
+  useEffect(() => {
+    if (importResult && importResult.success && importResult.data && importResult.data.length > 0) {
+      const csvHeaders = Object.keys(importResult.data[0] || {});
+      const modelName = getModelNameFromEntityType(entityType);
+      const validation = validateImportData(modelName, csvHeaders, importResult.data[0], columnMapping);
+      setFieldValidation({
+        missingRequiredFields: validation.missingRequiredFields,
+        missingOptionalFields: validation.missingOptionalFields,
+      });
+    }
+  }, [columnMapping, importResult, entityType]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -82,8 +106,34 @@ export default function ImportDialog({
       // Validate fields against schema
       if (result.success && result.data && result.data.length > 0) {
         const csvHeaders = Object.keys(result.data[0] || {});
+        
+        // Auto-map columns when file is parsed
+        const systemFields = getSystemFieldsForEntity(entityType);
+        const autoMapping: Record<string, string> = {};
+        
+        csvHeaders.forEach((excelCol) => {
+          const normalizedExcel = excelCol.toLowerCase().trim().replace(/[_\s-]/g, '');
+          
+          // Try to find matching system field
+          for (const field of systemFields) {
+            const normalizedField = field.key.toLowerCase().replace(/[_\s-]/g, '');
+            
+            // Exact match or contains
+            if (
+              normalizedExcel === normalizedField ||
+              normalizedExcel.includes(normalizedField) ||
+              normalizedField.includes(normalizedExcel)
+            ) {
+              autoMapping[excelCol] = field.key;
+              break;
+            }
+          }
+        });
+        
+        setColumnMapping(autoMapping);
+        
         const modelName = getModelNameFromEntityType(entityType);
-        const validation = validateImportData(modelName, csvHeaders, result.data[0]);
+        const validation = validateImportData(modelName, csvHeaders, result.data[0], autoMapping);
         setFieldValidation({
           missingRequiredFields: validation.missingRequiredFields,
           missingOptionalFields: validation.missingOptionalFields,
@@ -95,6 +145,12 @@ export default function ImportDialog({
             `Missing ${validation.missingRequiredFields.filter(f => f.severity === 'error').length} required field(s). Import may fail.`,
             { duration: 6000 }
           );
+        }
+        
+        // Show success message for auto-mapping
+        const mappedCount = Object.keys(autoMapping).length;
+        if (mappedCount > 0) {
+          toast.success(`${mappedCount} column(s) automatically mapped. Review and adjust if needed.`, { duration: 4000 });
         }
       } else {
         setFieldValidation(null);
@@ -144,6 +200,25 @@ export default function ImportDialog({
       // Send column mapping if it exists
       if (Object.keys(columnMapping).length > 0) {
         formData.append('columnMapping', JSON.stringify(columnMapping));
+      }
+      
+      // Send value resolutions if they exist
+      if (Object.keys(valueResolutions).length > 0) {
+        formData.append('valueResolutions', JSON.stringify(valueResolutions));
+      }
+      
+      // Send MC number ID if selected
+      if (selectedMcNumberId) {
+        formData.append('mcNumberId', selectedMcNumberId);
+      }
+      
+      // Send import mode (update existing drivers)
+      if (entityType === 'drivers' && updateExisting) {
+        formData.append('importMode', 'upsert');
+        formData.append('updateExisting', 'true'); // Also send legacy parameter for compatibility
+        console.log('[ImportDialog] Sending importMode=upsert and updateExisting=true for drivers');
+      } else if (entityType === 'drivers') {
+        console.log('[ImportDialog] updateExisting is false, not sending upsert mode');
       }
       
       setImportProgress({
@@ -218,6 +293,34 @@ export default function ImportDialog({
       
       setImportErrors(detailedErrors);
       
+      // Extract unresolved values for value resolution dialog
+      if (result.data?.unresolvedValues && Array.isArray(result.data.unresolvedValues) && result.data.unresolvedValues.length > 0) {
+        setUnresolvedValues(result.data.unresolvedValues);
+        // Don't auto-open, let user see the prominent section first
+      } else {
+        // Also check errors for unresolved value patterns
+        const unresolvedFromErrors: Array<{ row: number; field: string; value: string; error: string }> = [];
+        detailedErrors.forEach((error: any) => {
+          if (error.error?.includes('could not be resolved') || error.error?.includes('not found')) {
+            // Try to extract field and value from error message
+            const mcMatch = error.error?.match(/MC number "([^"]+)" could not be resolved/);
+            if (mcMatch) {
+              unresolvedFromErrors.push({
+                row: error.row || 0,
+                field: 'MC Number',
+                value: mcMatch[1],
+                error: error.error,
+              });
+            }
+          }
+        });
+        if (unresolvedFromErrors.length > 0) {
+          setUnresolvedValues(unresolvedFromErrors);
+        } else {
+          setUnresolvedValues([]);
+        }
+      }
+      
       const createdCount = result.data?.created || result.data?.details?.created?.length || 0;
       const errorsCount = result.data?.errors || result.data?.details?.errors?.length || detailedErrors.length || 0;
       
@@ -248,17 +351,27 @@ export default function ImportDialog({
         responseData: data.data 
       });
       
-      if (errorsCount > 0) {
+      // Check for specific message from API
+      const apiMessage = data.data?.message;
+      
+      if (errorsCount > 0 && createdCount === 0) {
+        // All imports failed - show error toast with helpful message
+        toast.error(apiMessage || `Import failed: ${errorsCount} error(s) prevented import. Check error details below.`, {
+          duration: 8000, // Show longer for errors
+        });
+      } else if (errorsCount > 0) {
+        // Some succeeded, some failed
         toast.warning(`Import completed with ${createdCount} item(s) created and ${errorsCount} error(s)`, {
-          duration: 5000, // Show for 5 seconds
+          duration: 5000,
         });
       } else if (createdCount > 0) {
         toast.success(`Successfully imported ${createdCount} item(s)`, {
-          duration: 5000, // Show for 5 seconds
+          duration: 5000,
         });
       } else {
-        toast.warning('Import completed but no items were created. Check for errors.', {
-          duration: 5000,
+        // No items created and no errors (shouldn't happen, but handle it)
+        toast.warning(apiMessage || 'Import completed but no items were created. Check for errors.', {
+          duration: 8000,
         });
       }
       
@@ -357,18 +470,53 @@ export default function ImportDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-none w-[calc(100vw-0.5rem)] h-[calc(100vh-3rem)] max-h-[calc(100vh-3rem)] m-1 overflow-y-auto !translate-x-[-50%] !translate-y-[-50%] !top-[50%] !left-[50%]">
-        <DialogHeader>
-          <DialogTitle>Import {entityType.charAt(0).toUpperCase() + entityType.slice(1)}</DialogTitle>
-          <DialogDescription>
-            Upload a CSV or Excel file to import {entityType}. The first row should contain column headers.
-          </DialogDescription>
+      <DialogContent 
+        className={`${isMaximized ? '!max-w-[100vw] !w-[100vw] !max-h-[100vh] !h-[100vh] !m-0 sm:!max-w-[100vw]' : '!max-w-[95vw] !w-[95vw] !max-h-[95vh] !h-[95vh] !m-4 sm:!max-w-[95vw]'} overflow-hidden flex flex-col !translate-x-[-50%] !translate-y-[-50%] !top-[50%] !left-[50%] transition-all duration-200`}
+        style={isMaximized ? {
+          maxWidth: '100vw',
+          width: '100vw',
+          maxHeight: '100vh',
+          height: '100vh',
+          margin: 0,
+        } : {
+          maxWidth: '95vw',
+          width: '95vw',
+          maxHeight: '95vh',
+          height: '95vh',
+          margin: '1rem',
+        }}
+      >
+        <DialogHeader className="flex-shrink-0 flex flex-row items-start justify-between gap-4 pb-2">
+          <div className="flex-1">
+            <DialogTitle>Import {entityType.charAt(0).toUpperCase() + entityType.slice(1)}</DialogTitle>
+            <DialogDescription>
+              Upload a CSV or Excel file to import {entityType}. The first row should contain column headers.
+            </DialogDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsMaximized(!isMaximized)}
+            className="h-8 w-8 flex-shrink-0"
+            title={isMaximized ? 'Minimize' : 'Maximize'}
+          >
+            {isMaximized ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
+          </Button>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* File Upload */}
-          <div className="space-y-2">
-            <Label htmlFor="import-file">Select File</Label>
+        <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+          {/* Step 1: File Upload */}
+          <div className="border rounded-lg p-4 space-y-3 bg-card">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                1
+              </div>
+              <Label htmlFor="import-file" className="text-base font-semibold">Select File</Label>
+            </div>
             <div className="flex items-center gap-4">
               <input
                 id="import-file"
@@ -379,7 +527,7 @@ export default function ImportDialog({
                 disabled={isProcessing}
               />
               <label htmlFor="import-file">
-                <Button variant="outline" asChild disabled={isProcessing}>
+                <Button variant="outline" asChild disabled={isProcessing} className="h-10">
                   <span>
                     <FileText className="h-4 w-4 mr-2" />
                     {selectedFile ? selectedFile.name : 'Choose File'}
@@ -393,6 +541,9 @@ export default function ImportDialog({
                   onClick={() => {
                     setSelectedFile(null);
                     setImportResult(null);
+                    setUnresolvedValues([]);
+                    setValueResolutions({});
+                    setUpdateExisting(false);
                   }}
                 >
                   <X className="h-4 w-4" />
@@ -402,35 +553,53 @@ export default function ImportDialog({
             <p className="text-xs text-muted-foreground">
               Supported formats: CSV, Excel (.xlsx, .xls)
             </p>
+            
+            {/* MC Number Selection */}
+            <div className="pt-2 border-t space-y-3">
+              <McNumberSelector
+                value={selectedMcNumberId}
+                onValueChange={setSelectedMcNumberId}
+                label="Assign to MC Number"
+                required={false}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Select an MC number to assign all imported records to. Leave empty to use your current MC selection.
+              </p>
+              
+              {/* Update Existing Option (for drivers only) */}
+              {entityType === 'drivers' && (
+                <div className="pt-2 border-t space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="update-existing"
+                      checked={updateExisting}
+                      onCheckedChange={(checked) => setUpdateExisting(checked === true)}
+                    />
+                    <label htmlFor="update-existing" className="text-sm font-medium cursor-pointer">
+                      Update existing drivers
+                    </label>
+                  </div>
+                  {updateExisting && (
+                    <p className="text-xs text-muted-foreground ml-6">
+                      If a driver with the same driver number or email already exists, update their information instead of skipping.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Field Validation Warnings */}
-          {importResult && importResult.data.length > 0 && fieldValidation && (
-            <div id="field-warnings-section" className="space-y-3">
-              <ImportFieldWarnings
-                missingRequiredFields={fieldValidation.missingRequiredFields}
-                missingOptionalFields={fieldValidation.missingOptionalFields}
-                csvHeaders={Object.keys(importResult.data[0] || {})}
-                onFieldMapping={(fieldName, csvHeader) => {
-                  // Update column mapping
-                  setColumnMapping(prev => ({
-                    ...prev,
-                    [csvHeader]: fieldName,
-                  }));
-                  toast.success(`Mapped "${csvHeader}" to "${fieldName}"`);
-                }}
-              />
-            </div>
-          )}
-
-          {/* Column Mapping Section - More Prominent */}
+          {/* Step 2: Column Mapping */}
           {importResult && importResult.data.length > 0 && (
-            <div id="column-mapping-section" className="border rounded-lg p-4 space-y-3 bg-blue-50 dark:bg-blue-950/20">
+            <div id="column-mapping-section" className="border rounded-lg p-4 space-y-3 bg-card">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Settings2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold text-sm">
+                    2
+                  </div>
                   <div>
-                    <h4 className="font-medium text-sm">Column Mapping</h4>
+                    <h4 className="font-semibold text-base">Column Mapping</h4>
                     <p className="text-xs text-muted-foreground">
                       Map your Excel/CSV columns to system fields for accurate import
                     </p>
@@ -439,7 +608,7 @@ export default function ImportDialog({
                 <Button
                   variant="outline"
                   onClick={() => setShowColumnMapping(true)}
-                  className="gap-2 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                  className="gap-2"
                 >
                   <Settings2 className="h-4 w-4" />
                   {Object.keys(columnMapping).length > 0 ? `${Object.keys(columnMapping).length} Mapped` : 'Map Columns'}
@@ -448,7 +617,7 @@ export default function ImportDialog({
               {Object.keys(columnMapping).length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(columnMapping).slice(0, 5).map(([excelCol, systemField]) => (
-                    <div key={excelCol} className="text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded flex items-center gap-1">
+                    <div key={excelCol} className="text-xs bg-muted px-2 py-1 rounded flex items-center gap-1">
                       <span className="font-medium">{excelCol}</span>
                       <span className="text-muted-foreground">→</span>
                       <span className="font-medium">{systemField}</span>
@@ -461,37 +630,96 @@ export default function ImportDialog({
                   )}
                 </div>
               )}
+              {fieldValidation && (
+                <ImportFieldWarnings
+                  missingRequiredFields={fieldValidation.missingRequiredFields}
+                  missingOptionalFields={fieldValidation.missingOptionalFields}
+                  csvHeaders={Object.keys(importResult.data[0] || {})}
+                  onFieldMapping={(fieldName, csvHeader) => {
+                    setColumnMapping(prev => ({
+                      ...prev,
+                      [csvHeader]: fieldName,
+                    }));
+                    toast.success(`Mapped "${csvHeader}" to "${fieldName}"`);
+                  }}
+                />
+              )}
             </div>
           )}
 
-          {/* Import Summary */}
-          {importResult && (
-            <div className="border rounded-lg p-3 space-y-2">
+          {/* Step 3: Value Resolution - Prominent */}
+          {unresolvedValues.length > 0 && (
+            <div className="border-2 border-yellow-500 rounded-lg p-4 space-y-3 bg-yellow-50 dark:bg-yellow-950/20">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium text-sm">Import Summary</h4>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-500 text-white font-semibold text-sm">
+                    3
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-base text-yellow-900 dark:text-yellow-100">
+                      Resolve Unmapped Values
+                    </h4>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                      {unresolvedValues.length} value(s) need manual resolution (e.g., MC numbers)
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="default"
+                  onClick={() => setShowValueResolution(true)}
+                  className="gap-2 bg-yellow-600 hover:bg-yellow-700 text-white"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Resolve Values
+                </Button>
+              </div>
+              <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                <p className="mb-2">The following values could not be automatically resolved:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  {Array.from(new Set(unresolvedValues.map(uv => `${uv.field}: "${uv.value}"`))).slice(0, 5).map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                  {unresolvedValues.length > 5 && (
+                    <li className="text-muted-foreground">... and {unresolvedValues.length - 5} more</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Import Summary */}
+          {importResult && (
+            <div className="border rounded-lg p-4 space-y-3 bg-card">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted font-semibold text-sm">
+                    4
+                  </div>
+                  <h4 className="font-semibold text-base">Import Summary</h4>
+                </div>
                 {importResult.success ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <AlertCircle className="h-5 w-5 text-yellow-600" />
                 )}
               </div>
               
-              <div className="grid grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-muted-foreground">Total Rows:</span>
-                  <p className="font-medium">{importResult.summary.totalRows}</p>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <span className="text-xs text-muted-foreground block mb-1">Total Rows</span>
+                  <p className="text-lg font-semibold">{importResult.summary.totalRows}</p>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Valid:</span>
-                  <p className="font-medium text-green-600">{importResult.summary.validRows}</p>
+                <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                  <span className="text-xs text-muted-foreground block mb-1">Valid</span>
+                  <p className="text-lg font-semibold text-green-600">{importResult.summary.validRows}</p>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Invalid:</span>
-                  <p className="font-medium text-red-600">{importResult.summary.invalidRows}</p>
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                  <span className="text-xs text-muted-foreground block mb-1">Invalid</span>
+                  <p className="text-lg font-semibold text-red-600">{importResult.summary.invalidRows}</p>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Skipped:</span>
-                  <p className="font-medium text-gray-600">{importResult.summary.skippedRows}</p>
+                <div className="p-3 bg-gray-50 dark:bg-gray-950/20 rounded-lg">
+                  <span className="text-xs text-muted-foreground block mb-1">Skipped</span>
+                  <p className="text-lg font-semibold text-gray-600">{importResult.summary.skippedRows}</p>
                 </div>
               </div>
 
@@ -671,8 +899,10 @@ export default function ImportDialog({
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2">
+        </div>
+
+        {/* Actions - Fixed at bottom */}
+        <div className="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2">
             <Button 
               variant="outline" 
               onClick={() => {
@@ -681,6 +911,8 @@ export default function ImportDialog({
                 setImportResult(null);
                 setImportErrors([]);
                 setColumnMapping({});
+                setSelectedMcNumberId('');
+                setUpdateExisting(false);
                 setImportProgress({
                   status: 'idle',
                   message: '',
@@ -707,7 +939,6 @@ export default function ImportDialog({
                 `Import ${importResult?.summary.validRows || 0} Item(s)`
               )}
             </Button>
-          </div>
         </div>
 
         {/* Column Mapping Dialog */}
@@ -720,7 +951,21 @@ export default function ImportDialog({
             initialMapping={columnMapping}
             onMappingComplete={(mapping) => {
               setColumnMapping(mapping);
-              toast.success('Column mapping saved. It will be applied during import.');
+              toast.success('Column mapping saved. Validation updated.');
+            }}
+          />
+        )}
+
+        {/* Value Resolution Dialog */}
+        {unresolvedValues.length > 0 && (
+          <ValueResolutionDialog
+            open={showValueResolution}
+            onOpenChange={setShowValueResolution}
+            unresolvedValues={unresolvedValues}
+            entityType={entityType}
+            onResolutionsComplete={(resolutions) => {
+              setValueResolutions(resolutions);
+              toast.success('Value resolutions saved. Retry the import to apply them.');
             }}
           />
         )}
@@ -834,6 +1079,120 @@ function getSystemFieldsForEntity(entityType: string): Array<{ key: string; labe
       { key: 'Last Note', label: 'Last Note' },
       { key: 'Dispatch Notes', label: 'Dispatch Notes' },
       { key: 'Driver Notes', label: 'Driver Notes' },
+    ];
+  }
+  
+  if (entityType === 'drivers') {
+    return [
+      // Required Fields - with variations
+      { key: 'email', label: 'Email *', required: true },
+      { key: 'first_name', label: 'First Name *', required: true },
+      { key: 'FirstName', label: 'First Name *', required: true },
+      { key: 'first name', label: 'First Name *', required: true },
+      { key: 'last_name', label: 'Last Name *', required: true },
+      { key: 'LastName', label: 'Last Name *', required: true },
+      { key: 'last name', label: 'Last Name *', required: true },
+      
+      // Driver Identification
+      { key: 'driver_number', label: 'Driver Number' },
+      { key: 'driverNumber', label: 'Driver Number' },
+      { key: 'Driver Number', label: 'Driver Number' },
+      { key: 'driver_id', label: 'Driver ID' },
+      { key: 'license_number', label: 'License Number' },
+      { key: 'licenseNumber', label: 'License Number' },
+      { key: 'License Number', label: 'License Number' },
+      { key: 'license_state', label: 'License State' },
+      { key: 'licenseState', label: 'License State' },
+      { key: 'License State', label: 'License State' },
+      { key: 'license_expiry', label: 'License Expiry' },
+      
+      // Contact Information
+      { key: 'phone', label: 'Phone' },
+      { key: 'Phone', label: 'Phone' },
+      { key: 'contact_number', label: 'Contact Number' },
+      { key: 'contactNumber', label: 'Contact Number' },
+      { key: 'Contact Number', label: 'Contact Number' },
+      { key: 'mobile', label: 'Mobile' },
+      
+      // Status Fields - with variations
+      { key: 'assign_status', label: 'Assign Status' },
+      { key: 'assignment_status', label: 'Assignment Status' },
+      { key: 'assignmentStatus', label: 'Assignment Status' },
+      { key: 'Assignment Status', label: 'Assignment Status' },
+      { key: 'employee_status', label: 'Employee Status' },
+      { key: 'employeeStatus', label: 'Employee Status' },
+      { key: 'Employee Status', label: 'Employee Status' },
+      { key: 'driver_status', label: 'Driver Status' },
+      { key: 'driverStatus', label: 'Driver Status' },
+      { key: 'Driver Status', label: 'Driver Status' },
+      { key: 'status', label: 'Status' },
+      { key: 'Status', label: 'Status' },
+      { key: 'dispatch_status', label: 'Dispatch Status' },
+      { key: 'dispatchStatus', label: 'Dispatch Status' },
+      { key: 'Dispatch Status', label: 'Dispatch Status' },
+      
+      // Driver Details
+      { key: 'driver_type', label: 'Driver Type' },
+      { key: 'driverType', label: 'Driver Type' },
+      { key: 'Driver Type', label: 'Driver Type' },
+      { key: 'team_driver', label: 'Team Driver' },
+      { key: 'teamDriver', label: 'Team Driver' },
+      { key: 'Team Driver', label: 'Team Driver' },
+      { key: 'mc_number', label: 'MC Number' },
+      { key: 'mcNumber', label: 'MC Number' },
+      { key: 'MC Number', label: 'MC Number' },
+      
+      // Equipment Assignment
+      { key: 'truck', label: 'Truck' },
+      { key: 'Truck', label: 'Truck' },
+      { key: 'trailer', label: 'Trailer' },
+      { key: 'Trailer', label: 'Trailer' },
+      
+      // Payment Information
+      { key: 'pay_to', label: 'Pay To' },
+      { key: 'payTo', label: 'Pay To' },
+      { key: 'Pay To', label: 'Pay To' },
+      { key: 'driver_tariff', label: 'Driver Tariff' },
+      { key: 'driverTariff', label: 'Driver Tariff' },
+      { key: 'Driver Tariff', label: 'Driver Tariff' },
+      { key: 'pay_type', label: 'Pay Type' },
+      { key: 'payType', label: 'Pay Type' },
+      { key: 'Pay Type', label: 'Pay Type' },
+      { key: 'pay_rate', label: 'Pay Rate' },
+      { key: 'payRate', label: 'Pay Rate' },
+      { key: 'Pay Rate', label: 'Pay Rate' },
+      
+      // Additional Fields
+      { key: 'note', label: 'Note' },
+      { key: 'Note', label: 'Note' },
+      { key: 'notes', label: 'Notes' },
+      { key: 'Notes', label: 'Notes' },
+      { key: 'warnings', label: 'Warnings' },
+      { key: 'Warnings', label: 'Warnings' },
+      { key: 'home_terminal', label: 'Home Terminal' },
+      { key: 'homeTerminal', label: 'Home Terminal' },
+      { key: 'Home Terminal', label: 'Home Terminal' },
+      { key: 'emergency_contact', label: 'Emergency Contact' },
+      { key: 'emergencyContact', label: 'Emergency Contact' },
+      { key: 'Emergency Contact', label: 'Emergency Contact' },
+      { key: 'emergency_phone', label: 'Emergency Phone' },
+      { key: 'emergencyPhone', label: 'Emergency Phone' },
+      { key: 'Emergency Phone', label: 'Emergency Phone' },
+      { key: 'hire_date', label: 'Hire Date' },
+      { key: 'hireDate', label: 'Hire Date' },
+      { key: 'Hire Date', label: 'Hire Date' },
+      { key: 'termination_date', label: 'Termination Date' },
+      { key: 'terminationDate', label: 'Termination Date' },
+      { key: 'Termination Date', label: 'Termination Date' },
+      { key: 'drug_test_date', label: 'Drug Test Date' },
+      { key: 'drugTestDate', label: 'Drug Test Date' },
+      { key: 'Drug Test Date', label: 'Drug Test Date' },
+      { key: 'background_check', label: 'Background Check' },
+      { key: 'backgroundCheck', label: 'Background Check' },
+      { key: 'Background Check', label: 'Background Check' },
+      { key: 'medical_card_expiry', label: 'Medical Card Expiry' },
+      { key: 'medicalCardExpiry', label: 'Medical Card Expiry' },
+      { key: 'Medical Card Expiry', label: 'Medical Card Expiry' },
     ];
   }
   

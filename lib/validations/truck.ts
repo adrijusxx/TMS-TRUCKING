@@ -24,7 +24,7 @@ export const createTruckSchema = z.object({
 export const updateTruckSchema = createTruckSchema.partial().extend({
   status: z.nativeEnum(TruckStatus).optional(),
   currentDriverId: z.string().optional(),
-  mcNumberId: z.string().min(1, 'MC number is required').optional(),
+  mcNumberId: z.string().min(1, 'MC number is required').nullable().optional(),
 });
 
 export type CreateTruckInput = z.infer<typeof createTruckSchema>;

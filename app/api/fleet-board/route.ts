@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberIdWhereClause, buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
 
 /**
@@ -18,16 +18,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Build base filter with MC number ID for trucks (Truck uses mcNumberId relation)
+    // Build MC filters - Truck uses mcNumberId, Load uses mcNumberId
     const truckFilter = await buildMcNumberIdWhereClause(session, request);
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     
-    // Get MC state to get MC number string for Load filtering (Load uses mcNumber string)
-    const mcState = await McStateManager.getMcState(session, request);
-    const loadMcFilter = mcState.viewMode === 'all' 
-      ? {} 
-      : mcState.mcNumber 
-        ? { mcNumber: mcState.mcNumber } 
-        : {};
+    // Build load filter for include (Load uses mcNumberId)
+    // For admin "all" view, loadMcWhere only has companyId (no mcNumberId)
+    // For single MC view, loadMcWhere has both companyId and mcNumberId
+    const loadWhere: any = {
+      ...loadMcWhere, // This includes companyId, and mcNumberId if not "all" view
+      status: {
+        in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
+      },
+      deletedAt: null,
+    };
 
     // Get all trucks with their current loads
     const trucks = await prisma.truck.findMany({
@@ -50,13 +54,7 @@ export async function GET(request: NextRequest) {
           },
         },
         loads: {
-          where: {
-            ...loadMcFilter,
-            status: {
-              in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
-            },
-            deletedAt: null,
-          },
+          where: loadWhere,
           select: {
             id: true,
             loadNumber: true,

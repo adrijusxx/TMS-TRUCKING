@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency, apiUrl } from '@/lib/utils';
 import {
@@ -33,19 +34,26 @@ export default function AnalyticsDashboard() {
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['analytics-dashboard'],
     queryFn: fetchDashboardStats,
+    staleTime: 5 * 60 * 1000, // 5 minutes - prevent excessive refetching
   });
 
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const today = new Date();
+  // Memoize dates to prevent recalculation on every render
+  const { startDate, endDate } = useMemo(() => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    // Use date strings (YYYY-MM-DD) for stable query keys
+    const start = thirtyDaysAgo.toISOString().split('T')[0];
+    const end = today.toISOString().split('T')[0];
+    
+    return { startDate: start, endDate: end };
+  }, []); // Empty deps - only calculate once on mount
 
   const { data: revenueData, isLoading: revenueLoading } = useQuery({
-    queryKey: ['revenue-report', thirtyDaysAgo.toISOString(), today.toISOString()],
-    queryFn: () =>
-      fetchRevenueReport(
-        thirtyDaysAgo.toISOString().split('T')[0],
-        today.toISOString().split('T')[0]
-      ),
+    queryKey: ['revenue-report', startDate, endDate],
+    queryFn: () => fetchRevenueReport(startDate, endDate),
+    staleTime: 5 * 60 * 1000, // 5 minutes - prevent excessive refetching
   });
 
   const stats = statsData?.data;

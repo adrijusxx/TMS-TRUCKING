@@ -23,6 +23,7 @@ model User {
   company    Company   @relation(fields: [companyId], references: [id])
   mcNumberId String // MC Number assignment (required for all users; for DRIVER role, synced from Driver record)
   mcNumber   McNumber  @relation(fields: [mcNumberId], references: [id])
+  mcAccess   String[]  @default([]) // Array of MC IDs user can access (empty for admins = access to all)
   isActive   Boolean   @default(true)
   lastLogin  DateTime?
   createdAt  DateTime  @default(now())
@@ -64,6 +65,8 @@ model User {
   // AI Relations
   reviewedAISuggestions      AISuggestion[]           @relation("AISuggestionReviewer")
   appliedAISuggestions       AISuggestion[]           @relation("AISuggestionApplier")
+  // User Preferences
+  columnPreferences          UserColumnPreference[]
 
   @@index([companyId])
   @@index([email])
@@ -219,25 +222,26 @@ model Company {
 // ============================================
 
 model Load {
-  id            String   @id @default(cuid())
-  loadNumber    String   @unique
+  id            String    @id @default(cuid())
+  loadNumber    String    @unique
   companyId     String
-  company       Company  @relation(fields: [companyId], references: [id])
+  company       Company   @relation(fields: [companyId], references: [id])
   customerId    String
-  customer      Customer @relation(fields: [customerId], references: [id])
+  customer      Customer  @relation(fields: [customerId], references: [id])
   driverId      String?
-  driver        Driver?  @relation(fields: [driverId], references: [id])
+  driver        Driver?   @relation(fields: [driverId], references: [id])
   coDriverId    String?
-  coDriver      Driver?  @relation("CoDriver", fields: [coDriverId], references: [id])
+  coDriver      Driver?   @relation("CoDriver", fields: [coDriverId], references: [id])
   truckId       String?
-  truck         Truck?   @relation(fields: [truckId], references: [id])
+  truck         Truck?    @relation(fields: [truckId], references: [id])
   trailerNumber String?
   dispatcherId  String?
-  dispatcher    User?    @relation("LoadDispatcher", fields: [dispatcherId], references: [id])
+  dispatcher    User?     @relation("LoadDispatcher", fields: [dispatcherId], references: [id])
   createdById   String?
-  createdBy     User?    @relation("LoadCreatedBy", fields: [createdById], references: [id])
+  createdBy     User?     @relation("LoadCreatedBy", fields: [createdById], references: [id])
   tripId        String? // Trip ID from Excel
-  mcNumber      String? // MC Number (can be on load level)
+  mcNumberId    String? // MC Number assignment
+  mcNumber      McNumber? @relation(fields: [mcNumberId], references: [id])
 
   // Load Details
   status        LoadStatus    @default(PENDING)
@@ -360,8 +364,8 @@ model Load {
   @@index([pickupDate])
   @@index([deliveryDate])
   @@index([loadNumber])
-  @@index([mcNumber])
-  @@index([companyId, mcNumber])
+  @@index([mcNumberId])
+  @@index([companyId, mcNumberId])
 }
 
 model LoadStop {
@@ -621,14 +625,14 @@ model Driver {
 
   // Assignments
   assignedDispatcherId String?
-  assignedDispatcher   User?    @relation("DriverDispatcher", fields: [assignedDispatcherId], references: [id])
+  assignedDispatcher   User?     @relation("DriverDispatcher", fields: [assignedDispatcherId], references: [id])
   hrManagerId          String?
-  hrManager            User?    @relation("DriverHRManager", fields: [hrManagerId], references: [id])
+  hrManager            User?     @relation("DriverHRManager", fields: [hrManagerId], references: [id])
   safetyManagerId      String?
-  safetyManager        User?    @relation("DriverSafetyManager", fields: [safetyManagerId], references: [id])
-  mcNumberId           String
-  mcNumber             McNumber @relation(fields: [mcNumberId], references: [id])
-  teamDriver           Boolean  @default(false)
+  safetyManager        User?     @relation("DriverSafetyManager", fields: [safetyManagerId], references: [id])
+  mcNumberId           String?
+  mcNumber             McNumber? @relation(fields: [mcNumberId], references: [id])
+  teamDriver           Boolean   @default(false)
   otherId              String?
   driverTags           String[] // Array of tags
   notes                String?
@@ -887,15 +891,15 @@ model Truck {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Truck Details
-  truckNumber  String   @unique
-  vin          String   @unique
+  truckNumber  String    @unique
+  vin          String    @unique
   make         String
   model        String
   year         Int
   licensePlate String
   state        String
-  mcNumberId   String
-  mcNumber     McNumber @relation(fields: [mcNumberId], references: [id])
+  mcNumberId   String?
+  mcNumber     McNumber? @relation(fields: [mcNumberId], references: [id])
 
   // Specifications
   equipmentType EquipmentType
@@ -977,15 +981,15 @@ model Trailer {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Trailer Details
-  trailerNumber String   @unique // Unit number from Excel
-  vin           String?  @unique
+  trailerNumber String    @unique // Unit number from Excel
+  vin           String?   @unique
   make          String
   model         String
   year          Int?
   licensePlate  String? // Plate number from Excel
   state         String?
-  mcNumberId    String
-  mcNumber      McNumber @relation(fields: [mcNumberId], references: [id])
+  mcNumberId    String?
+  mcNumber      McNumber? @relation(fields: [mcNumberId], references: [id])
   type          String? // Type from Excel (could be EquipmentType)
 
   // Ownership
@@ -4861,6 +4865,7 @@ model McNumber {
   drivers               Driver[] // Drivers assigned to this MC number
   trucks                Truck[] // Trucks assigned to this MC number
   trailers              Trailer[] // Trailers assigned to this MC number
+  loads                 Load[] // Loads assigned to this MC number
   paymentConfigurations PaymentConfiguration[]
   orderPaymentTypes     OrderPaymentType[]
   dynamicStatuses       DynamicStatus[]
@@ -5681,4 +5686,22 @@ enum AISuggestionStatus {
   REJECTED
   APPLIED
   EXPIRED
+}
+
+// ============================================
+// USER PREFERENCES
+// ============================================
+
+model UserColumnPreference {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType        String // 'trucks', 'loads', 'invoices', etc.
+  columnPreferences Json // { columnId: { visible: boolean, width?: number, order?: number } }
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, entityType])
+  @@index([userId])
+  @@index([entityType])
 }

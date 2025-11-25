@@ -1,5 +1,5 @@
 import { auth } from '@/app/api/auth/[...nextauth]/route';
-import FactoringCompanyList from '@/components/factoring/FactoringCompanyList';
+import FactoringCompanyListNew from '@/components/factoring/FactoringCompanyListNew';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +25,7 @@ export default async function FactoringCompaniesPage() {
         <div>
           <h1 className="text-3xl font-bold">Factoring Companies</h1>
         </div>
-        <FactoringCompanyList />
+        <FactoringCompanyListNew />
       </div>
     </>
   );

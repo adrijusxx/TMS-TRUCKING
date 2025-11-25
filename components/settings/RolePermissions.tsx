@@ -1,13 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Save, RotateCcw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Shield, Save, RotateCcw, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getAllPermissions,
@@ -215,35 +222,61 @@ function getPermissionLabel(permission: Permission): string {
     'loads.edit': 'Edit Loads',
     'loads.delete': 'Delete Loads',
     'loads.assign': 'Assign Loads',
+    'loads.bulk_edit': 'Bulk Edit Loads',
+    'loads.bulk_delete': 'Bulk Delete Loads',
     'drivers.view': 'View Drivers',
     'drivers.create': 'Create Drivers',
     'drivers.edit': 'Edit Drivers',
     'drivers.delete': 'Delete Drivers',
     'drivers.manage_compliance': 'Manage Driver Compliance',
+    'drivers.bulk_edit': 'Bulk Edit Drivers',
+    'drivers.bulk_delete': 'Bulk Delete Drivers',
     'trucks.view': 'View Trucks',
     'trucks.create': 'Create Trucks',
     'trucks.edit': 'Edit Trucks',
     'trucks.delete': 'Delete Trucks',
+    'trucks.bulk_edit': 'Bulk Edit Trucks',
+    'trucks.bulk_delete': 'Bulk Delete Trucks',
     'trailers.view': 'View Trailers',
     'trailers.create': 'Create Trailers',
     'trailers.edit': 'Edit Trailers',
     'trailers.delete': 'Delete Trailers',
+    'trailers.bulk_edit': 'Bulk Edit Trailers',
+    'trailers.bulk_delete': 'Bulk Delete Trailers',
     'customers.view': 'View Customers',
     'customers.create': 'Create Customers',
     'customers.edit': 'Edit Customers',
     'customers.delete': 'Delete Customers',
+    'customers.bulk_edit': 'Bulk Edit Customers',
+    'customers.bulk_delete': 'Bulk Delete Customers',
     'invoices.view': 'View Invoices',
     'invoices.create': 'Create Invoices',
     'invoices.edit': 'Edit Invoices',
     'invoices.delete': 'Delete Invoices',
     'invoices.generate': 'Generate Invoices',
+    'invoices.bulk_edit': 'Bulk Edit Invoices',
+    'invoices.bulk_delete': 'Bulk Delete Invoices',
     'settlements.view': 'View Settlements',
     'settlements.create': 'Create Settlements',
     'settlements.edit': 'Edit Settlements',
     'settlements.delete': 'Delete Settlements',
     'settlements.approve': 'Approve Settlements',
+    'settlements.bulk_edit': 'Bulk Edit Settlements',
+    'settlements.bulk_delete': 'Bulk Delete Settlements',
     'expenses.view': 'View Expenses',
     'expenses.approve': 'Approve Expenses',
+    'factoring_companies.view': 'View Factoring Companies',
+    'factoring_companies.create': 'Create Factoring Companies',
+    'factoring_companies.edit': 'Edit Factoring Companies',
+    'factoring_companies.delete': 'Delete Factoring Companies',
+    'factoring_companies.bulk_edit': 'Bulk Edit Factoring Companies',
+    'factoring_companies.bulk_delete': 'Bulk Delete Factoring Companies',
+    'rate_confirmations.view': 'View Rate Confirmations',
+    'rate_confirmations.create': 'Create Rate Confirmations',
+    'rate_confirmations.edit': 'Edit Rate Confirmations',
+    'rate_confirmations.delete': 'Delete Rate Confirmations',
+    'rate_confirmations.bulk_edit': 'Bulk Edit Rate Confirmations',
+    'rate_confirmations.bulk_delete': 'Bulk Delete Rate Confirmations',
     'users.view': 'View Users',
     'users.create': 'Create Users',
     'users.edit': 'Edit Users',
@@ -262,6 +295,8 @@ function getPermissionLabel(permission: Permission): string {
     'documents.view': 'View Documents',
     'documents.upload': 'Upload Documents',
     'documents.delete': 'Delete Documents',
+    'documents.bulk_edit': 'Bulk Edit Documents',
+    'documents.bulk_delete': 'Bulk Delete Documents',
     'safety.view': 'View Safety',
     'safety.manage': 'Manage Safety',
     'compliance.view': 'View Compliance',
@@ -272,6 +307,8 @@ function getPermissionLabel(permission: Permission): string {
     'batches.edit': 'Edit Batches',
     'batches.delete': 'Delete Batches',
     'batches.post': 'Post Batches',
+    'batches.bulk_edit': 'Bulk Edit Batches',
+    'batches.bulk_delete': 'Bulk Delete Batches',
     'deduction_rules.view': 'View Deduction Rules',
     'deduction_rules.create': 'Create Deduction Rules',
     'deduction_rules.edit': 'Edit Deduction Rules',
@@ -285,14 +322,20 @@ function getPermissionLabel(permission: Permission): string {
     'maintenance.create': 'Create Maintenance',
     'maintenance.edit': 'Edit Maintenance',
     'maintenance.delete': 'Delete Maintenance',
+    'maintenance.bulk_edit': 'Bulk Edit Maintenance',
+    'maintenance.bulk_delete': 'Bulk Delete Maintenance',
     'breakdowns.view': 'View Breakdowns',
     'breakdowns.create': 'Create Breakdowns',
     'breakdowns.edit': 'Edit Breakdowns',
     'breakdowns.delete': 'Delete Breakdowns',
+    'breakdowns.bulk_edit': 'Bulk Edit Breakdowns',
+    'breakdowns.bulk_delete': 'Bulk Delete Breakdowns',
     'inspections.view': 'View Inspections',
     'inspections.create': 'Create Inspections',
     'inspections.edit': 'Edit Inspections',
     'inspections.delete': 'Delete Inspections',
+    'inspections.bulk_edit': 'Bulk Edit Inspections',
+    'inspections.bulk_delete': 'Bulk Delete Inspections',
     'fuel.view': 'View Fuel',
     'fuel.create': 'Create Fuel Entries',
     'fuel.edit': 'Edit Fuel Entries',
@@ -301,6 +344,8 @@ function getPermissionLabel(permission: Permission): string {
     'vendors.create': 'Create Vendors',
     'vendors.edit': 'Edit Vendors',
     'vendors.delete': 'Delete Vendors',
+    'vendors.bulk_edit': 'Bulk Edit Vendors',
+    'vendors.bulk_delete': 'Bulk Delete Vendors',
     // Extended Fleet Operations
     'fleet.reports': 'Fleet Reports',
     'fleet.costs': 'Fleet Costs',
@@ -320,8 +365,15 @@ function getPermissionLabel(permission: Permission): string {
     'locations.create': 'Create Locations',
     'locations.edit': 'Edit Locations',
     'locations.delete': 'Delete Locations',
+    'locations.bulk_edit': 'Bulk Edit Locations',
+    'locations.bulk_delete': 'Bulk Delete Locations',
     // Extended Data Management
     'data.bulk_actions': 'Bulk Actions',
+    'data.bulk_edit': 'Bulk Edit Data',
+    'data.bulk_delete': 'Bulk Delete Data',
+    'data.import': 'Import Data',
+    'data.export': 'Export Data',
+    'data.column_visibility': 'Column Visibility',
     'data.backup': 'Data Backup',
     'data.restore': 'Data Restore',
     // System Features
@@ -375,6 +427,8 @@ export default function RolePermissions() {
   const [customPermissions, setCustomPermissions] = useState<Record<UserRole, Permission[]>>(
     defaultRolePermissions
   );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   // Fetch role permissions from API
   const { data: rolePermissionsData, isLoading } = useQuery({
@@ -492,121 +546,227 @@ export default function RolePermissions() {
 
   const currentRolePerms = customPermissions[selectedRole] || [];
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-5 w-5" />
-          Role Permissions
-        </CardTitle>
-        <CardDescription>
-          Configure permissions for each role. Default permissions are shown but can be customized.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Role Selector */}
-        <div className="flex gap-2 flex-wrap">
-          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-            <Button
-              key={role}
-              variant={selectedRole === role ? 'default' : 'outline'}
-              onClick={() => setSelectedRole(role)}
-            >
-              {roleLabels[role]}
-            </Button>
-          ))}
-        </div>
+  // Filter categories and permissions based on search
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return Object.entries(permissionCategories);
+    }
+    
+    const query = searchQuery.toLowerCase();
+    return Object.entries(permissionCategories)
+      .map(([category, perms]) => {
+        const filteredPerms = perms.filter((perm) => {
+          const label = getPermissionLabel(perm).toLowerCase();
+          return label.includes(query) || perm.toLowerCase().includes(query);
+        });
+        return [category, filteredPerms] as [string, Permission[]];
+      })
+      .filter(([_, perms]) => perms.length > 0);
+  }, [searchQuery]);
 
-        {/* Role Description */}
-        <div className="p-4 bg-muted rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">{roleLabels[selectedRole]}</h3>
+  // Expand all categories when searching
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      const expanded: Record<string, boolean> = {};
+      filteredCategories.forEach(([category]) => {
+        expanded[category] = true;
+      });
+      setExpandedCategories(expanded);
+    }
+  }, [searchQuery, filteredCategories]);
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [category]: !prev[category],
+    }));
+  };
+
+  const hasUnsavedChanges = useMemo(() => {
+    const defaultPerms = defaultRolePermissions[selectedRole] || [];
+    const currentPerms = customPermissions[selectedRole] || [];
+    return JSON.stringify([...defaultPerms].sort()) !== JSON.stringify([...currentPerms].sort());
+  }, [selectedRole, customPermissions]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div>
+        <h3 className="text-xl font-semibold mb-2">Role Permissions</h3>
+        <p className="text-muted-foreground text-sm">
+          Configure permissions for each role. Default permissions are shown but can be customized.
+        </p>
+      </div>
+
+      {/* Role Selector - Tabs Style */}
+      <Card>
+        <CardContent className="pt-6">
+          <Tabs value={selectedRole} onValueChange={(value) => setSelectedRole(value as UserRole)}>
+            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+              {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+                <TabsTrigger key={role} value={role} className="text-xs sm:text-sm">
+                  {roleLabels[role]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Role Info Card */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <h4 className="text-lg font-semibold">{roleLabels[selectedRole]}</h4>
+                {hasUnsavedChanges && (
+                  <Badge variant="outline" className="text-xs">
+                    Unsaved Changes
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {roleDescriptions[selectedRole]}
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               {rolePermissionsData?.roles?.[selectedRole]?.customPermissions?.length > 0 && (
                 <Badge variant="secondary" className="text-xs">
                   {rolePermissionsData.roles[selectedRole].customPermissions.length} custom
                 </Badge>
               )}
-              <Badge variant="outline">{currentRolePerms.length} permissions</Badge>
+              <Badge variant="outline">
+                {currentRolePerms.length} permissions
+              </Badge>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {roleDescriptions[selectedRole]}
-          </p>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Permissions by Category */}
-        <div className="space-y-6">
-          {Object.entries(permissionCategories).map(([category, perms]) => {
+      {/* Search Bar */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search permissions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Permissions by Category - Collapsible */}
+      <div className="space-y-3">
+        {filteredCategories.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6 text-center text-muted-foreground">
+              No permissions found matching "{searchQuery}"
+            </CardContent>
+          </Card>
+        ) : (
+          filteredCategories.map(([category, perms]) => {
             const selectedCount = perms.filter((p) => currentRolePerms.includes(p)).length;
             const allSelected = selectedCount === perms.length;
             const someSelected = selectedCount > 0 && selectedCount < perms.length;
+            const isExpanded = expandedCategories[category] ?? false;
 
             return (
-              <div key={category} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={allSelected}
-                      ref={(el) => {
-                        if (el) {
-                          (el as any).indeterminate = someSelected;
-                        }
-                      }}
-                      onCheckedChange={() => handleCategoryToggle(selectedRole, perms as Permission[])}
-                    />
-                    <Label className="font-semibold cursor-pointer">
-                      {category}
-                      <span className="text-sm font-normal text-muted-foreground ml-2">
-                        ({selectedCount}/{perms.length})
-                      </span>
-                    </Label>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 ml-6">
-                  {perms.map((permission) => (
-                    <div key={permission} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`${selectedRole}-${permission}`}
-                        checked={currentRolePerms.includes(permission)}
-                        onCheckedChange={() =>
-                          handlePermissionToggle(selectedRole, permission as Permission)
-                        }
-                      />
-                      <Label
-                        htmlFor={`${selectedRole}-${permission}`}
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {getPermissionLabel(permission)}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <Collapsible
+                key={category}
+                open={isExpanded}
+                onOpenChange={() => toggleCategory(category)}
+              >
+                <Card>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={allSelected}
+                              ref={(el) => {
+                                if (el) {
+                                  (el as any).indeterminate = someSelected;
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onCheckedChange={(checked) => {
+                                handleCategoryToggle(selectedRole, perms as Permission[]);
+                              }}
+                            />
+                            <CardTitle className="text-base font-semibold">
+                              {category}
+                            </CardTitle>
+                            <Badge variant="secondary" className="text-xs">
+                              {selectedCount}/{perms.length}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pl-8">
+                        {perms.map((permission) => (
+                          <div key={permission} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${selectedRole}-${permission}`}
+                              checked={currentRolePerms.includes(permission)}
+                              onCheckedChange={() =>
+                                handlePermissionToggle(selectedRole, permission as Permission)
+                              }
+                            />
+                            <Label
+                              htmlFor={`${selectedRole}-${permission}`}
+                              className="text-sm font-normal cursor-pointer flex-1"
+                            >
+                              {getPermissionLabel(permission)}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
             );
-          })}
-        </div>
+          })
+        )}
+      </div>
 
-        {/* Actions */}
-        <div className="flex justify-between items-center pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={() => handleReset(selectedRole)}
-            disabled={resetMutation.isPending || isLoading}
-          >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reset to Default
-          </Button>
-          <Button 
-            onClick={handleSave}
-            disabled={saveMutation.isPending || isLoading}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Actions */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center">
+            <Button
+              variant="outline"
+              onClick={() => handleReset(selectedRole)}
+              disabled={resetMutation.isPending || isLoading}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset to Default
+            </Button>
+            <Button 
+              onClick={handleSave}
+              disabled={saveMutation.isPending || isLoading || !hasUnsavedChanges}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

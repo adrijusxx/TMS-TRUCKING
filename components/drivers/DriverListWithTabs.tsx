@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Filter, Download, Save, Columns } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import DriverTable from './DriverTable';
+import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { apiUrl } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +26,9 @@ import {
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkUpdatePayDialog from './BulkUpdatePayDialog';
+import { BulkActionBar } from '@/components/data-table/BulkActionBar';
+import { driversTableConfig } from '@/lib/config/entities/drivers';
+import AdvancedFilters from '@/components/filters/AdvancedFilters';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,8 +53,12 @@ interface Driver {
   employeeStatus: any;
   assignmentStatus: any;
   dispatchStatus: any;
-  truck?: { truckNumber: string } | null;
-  trailer?: { trailerNumber: string } | null;
+  truck?: { id: string; truckNumber: string } | null;
+  trailer?: { id: string; trailerNumber: string } | null;
+  currentTruckId?: string | null;
+  currentTrailerId?: string | null;
+  mcNumberId?: string | null;
+  userId?: string;
   teamDriver: boolean;
   payTo: string | null;
   driverTariff: string | null;
@@ -57,6 +67,8 @@ interface Driver {
   hireDate: Date | null;
   terminationDate: Date | null;
   driverTags: string[];
+  deletedAt?: Date | null; // For admin visibility
+  isActive?: boolean;
 }
 
 async function fetchDrivers(params: {
@@ -77,6 +89,11 @@ async function fetchDrivers(params: {
       queryParams.set(key, params[key].toString());
     }
   });
+  
+  // Add includeDeleted if provided
+  if (params.includeDeleted) {
+    queryParams.set('includeDeleted', params.includeDeleted);
+  }
 
   const response = await fetch(apiUrl(`/api/drivers?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch drivers');
@@ -85,33 +102,41 @@ async function fetchDrivers(params: {
 
 export default function DriverListWithTabs() {
   const { can } = usePermissions();
+  const isAdmin = useIsAdmin();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  // Get includeDeleted from URL params (admins only)
+  const includeDeleted = searchParams.get('includeDeleted') === 'true';
+  
   const [activeTab, setActiveTab] = useState<DriverTab>('active');
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDriverIds, setSelectedDriverIds] = useState<string[]>([]);
   const [rowsPerPage, setRowsPerPage] = useState(500);
   
-  // Column visibility state
+  // Column visibility state - default to essential columns only
   const [visibleColumns, setVisibleColumns] = useState({
     checkbox: true,
-    driverNumber: true,
+    driverNumber: false, // Hidden by default
     name: true,
     email: true,
     phone: true,
     status: true,
     employeeStatus: true,
     assignmentStatus: true,
-    dispatchStatus: true,
-    driverType: true,
+    dispatchStatus: false, // Hidden by default
+    driverType: false, // Hidden by default
     mcNumber: true,
-    teamDriver: true,
+    teamDriver: false, // Hidden by default
     truck: true,
-    trailer: true,
-    payTo: true,
-    driverTariff: true,
-    warnings: true,
-    tags: true,
+    trailer: false, // Hidden by default
+    payTo: false, // Hidden by default
+    driverTariff: false, // Hidden by default
+    warnings: false, // Hidden by default
+    tags: false, // Hidden by default
     actions: true,
   });
 
@@ -132,13 +157,14 @@ export default function DriverListWithTabs() {
   }, []);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['drivers', activeTab, page, rowsPerPage, searchQuery],
+    queryKey: ['drivers', activeTab, page, rowsPerPage, searchQuery, includeDeleted],
     queryFn: () =>
       fetchDrivers({
         page,
         limit: rowsPerPage,
         tab: activeTab,
         search: searchQuery || undefined,
+        ...(isAdmin && includeDeleted && { includeDeleted: 'true' }),
       }),
   });
 
@@ -194,13 +220,40 @@ export default function DriverListWithTabs() {
       {/* Secondary Action Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
+          <AdvancedFilters
+            filters={[
+              { field: 'licenseState', label: 'License State', type: 'text' },
+              { field: 'homeTerminal', label: 'Home Terminal', type: 'text' },
+              { field: 'mcNumberId', label: 'MC Number', type: 'text' },
+            ]}
+            onApply={(filters) => {
+              // Filters are handled by the search/fetch function
+              // This is a placeholder - you may want to add filter state management
+              console.log('Applied filters:', filters);
+            }}
+            onClear={() => {
+              console.log('Cleared filters');
+            }}
+          />
+          {isAdmin && (
+            <ShowDeletedToggle className="ml-2" />
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog entityType="drivers" />
+          <ImportDialog 
+            entityType="drivers" 
+            onImportComplete={() => {
+              // Invalidate and refetch drivers query
+              queryClient.invalidateQueries({ queryKey: ['drivers'] });
+              // Switch to 'all' tab to show all drivers (including newly imported ones)
+              setActiveTab('all');
+              setPage(1); // Reset to first page to show newly imported drivers
+              // Refetch after a short delay to ensure state updates
+              setTimeout(() => {
+                refetch();
+              }, 100);
+            }}
+          />
           <BulkUpdatePayDialog
             selectedDriverIds={selectedDriverIds.length > 0 ? selectedDriverIds : undefined}
             trigger={
@@ -452,7 +505,28 @@ export default function DriverListWithTabs() {
             canEdit={can('drivers.edit')}
             canDelete={can('drivers.delete')}
             visibleColumns={visibleColumns}
+            onDriverUpdate={() => {
+              refetch();
+            }}
           />
+
+          {/* Bulk Action Bar */}
+          {selectedDriverIds.length > 0 && (
+            <BulkActionBar
+              selectedIds={selectedDriverIds}
+              onClearSelection={() => setSelectedDriverIds([])}
+              entityType="drivers"
+              bulkEditFields={driversTableConfig.bulkEditFields}
+              customBulkActions={driversTableConfig.customBulkActions}
+              enableBulkEdit={can('drivers.bulk_edit') || can('data.bulk_edit')}
+              enableBulkDelete={can('drivers.bulk_delete') || can('data.bulk_delete')}
+              enableBulkExport={can('data.export') || can('export.execute')}
+              onActionComplete={() => {
+                setSelectedDriverIds([]);
+                refetch();
+              }}
+            />
+          )}
 
           {/* Pagination */}
           {meta && (

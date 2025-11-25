@@ -1,61 +1,27 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
-  Settings,
-  Users,
-  Shield,
-  CreditCard,
-  Plug,
-  RefreshCw,
-  FileText,
-  Hash,
-  ShoppingBag,
-  DollarSign,
-  Calculator,
-  Palette,
-  Tag,
-  FolderTree,
-  FileCheck,
-  ChartBar,
-  Layers,
   ChevronRight,
   ChevronLeft,
-  Building2,
-  Bell,
+  Settings,
 } from 'lucide-react';
 import { useSidebarToggle } from '@/hooks/useSidebarToggle';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
   SIDEBAR_WIDTHS,
-  NAV_PADDING,
   NAV_SPACING,
   NAV_ICON_SIZES,
   NAV_TYPOGRAPHY,
-  NAV_STATES,
-  NAV_ROUNDED,
   NAV_CLASSES,
   NAV_BORDERS,
   NAV_TOGGLE_BUTTONS,
   NAV_BACKGROUNDS,
 } from '@/lib/navigation-constants';
-
-interface NavItem {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  query?: string;
-  adminOnly?: boolean;
-  category?: string;
-}
-
-interface NavCategory {
-  name: string;
-  items: NavItem[];
-  adminOnly?: boolean;
-}
+import { getSettingsNavigationCategories, type NavItem, type NavCategory } from '@/lib/config/settings-navigation';
 
 export default function SettingsNav() {
   const pathname = usePathname();
@@ -67,60 +33,68 @@ export default function SettingsNav() {
   // Determine base settings path based on role
   const baseSettingsPath = isAdmin ? '/dashboard/settings/admin' : '/dashboard/settings/employee';
   
-  const navCategories: NavCategory[] = [
-    {
-      name: 'Main Settings',
-      adminOnly: false,
-      items: [
-        { name: 'Company & Organization', href: baseSettingsPath, icon: Building2, query: 'tab=company', category: 'Main Settings', adminOnly: true },
-        { name: 'Team & Users', href: baseSettingsPath, icon: Users, query: 'tab=team', category: 'Main Settings', adminOnly: true },
-        { name: 'System Configuration', href: baseSettingsPath, icon: Settings, query: 'tab=system', category: 'Main Settings', adminOnly: true },
-        { name: 'General', href: baseSettingsPath, icon: Settings, category: 'Main Settings' },
-        { name: 'Appearance', href: baseSettingsPath, icon: Palette, query: 'tab=appearance', category: 'Main Settings' },
-        { name: 'Notifications', href: baseSettingsPath, icon: Bell, query: 'tab=notifications', category: 'Main Settings' },
-        { name: 'Security & Privacy', href: baseSettingsPath, icon: Shield, query: 'tab=security', category: 'Main Settings' },
-      ],
-    },
-    {
-      name: 'Customizations',
-      adminOnly: true,
-      items: [
-        { name: 'Customizations', href: baseSettingsPath, icon: Layers, query: 'tab=customizations', category: 'Customizations', adminOnly: true },
-        { name: 'Dynamic Statuses', href: '/dashboard/settings/customizations/statuses', icon: Layers, category: 'Customizations', adminOnly: true },
-        { name: 'Tag Management', href: '/dashboard/settings/customizations/tags', icon: Tag, category: 'Customizations', adminOnly: true },
-        { name: 'Classifications', href: '/dashboard/settings/customizations/classifications', icon: FolderTree, category: 'Customizations', adminOnly: true },
-        { name: 'Templates', href: '/dashboard/settings/customizations/templates', icon: FileText, category: 'Customizations', adminOnly: true },
-        { name: 'Default Configurations', href: '/dashboard/settings/customizations/defaults', icon: Settings, category: 'Customizations', adminOnly: true },
-        { name: 'Task Management Projects', href: '/dashboard/settings/customizations/tasks', icon: Layers, category: 'Customizations', adminOnly: true },
-      ],
-    },
-    {
-      name: 'Integrations & Billing',
-      adminOnly: true,
-      items: [
-        { name: 'Integrations', href: baseSettingsPath, icon: Plug, query: 'tab=integrations', category: 'Integrations & Billing', adminOnly: true },
-        { name: 'Billing & Subscription', href: baseSettingsPath, icon: CreditCard, query: 'tab=billing', category: 'Integrations & Billing', adminOnly: true },
-      ],
-    },
-    {
-      name: 'Other',
-      adminOnly: false,
-      items: [
-        { name: 'EDI', href: '/dashboard/edi', icon: FileText, category: 'Other' },
-        { name: 'MC Numbers', href: '/dashboard/mc-numbers', icon: Hash, category: 'Other' },
-        { name: 'Apps & Marketplace', href: '/dashboard/apps/marketplace', icon: ShoppingBag, category: 'Other' },
-      ],
-    },
-  ];
+  // Get navigation categories from config
+  const navCategories = getSettingsNavigationCategories(baseSettingsPath);
+
+  // Helper function to create unique key for items
+  const getItemKey = (item: NavItem): string => {
+    return `${item.name}:${item.href}:${item.query || ''}`;
+  };
 
   // Filter categories and items based on admin status
   const visibleCategories = navCategories
     .filter(cat => !cat.adminOnly || isAdmin)
     .map(cat => ({
       ...cat,
-      items: cat.items.filter(item => !item.adminOnly || isAdmin),
+      items: cat.items.filter(item => {
+        // "General" is employee-only (admins use "System Configuration")
+        if (item.name === 'General' && isAdmin) {
+          return false;
+        }
+        // Other items follow normal adminOnly logic
+        return !item.adminOnly || isAdmin;
+      }),
     }))
     .filter(cat => cat.items.length > 0);
+
+  // Deduplicate items using Set-based approach
+  const seenItems = new Set<string>();
+  const deduplicatedCategories = visibleCategories.map(cat => {
+    const uniqueItems: NavItem[] = [];
+    
+    for (const item of cat.items) {
+      const key = getItemKey(item);
+      if (!seenItems.has(key)) {
+        seenItems.add(key);
+        uniqueItems.push(item);
+      }
+    }
+    
+    return {
+      ...cat,
+      items: uniqueItems,
+    };
+  }).filter(cat => cat.items.length > 0);
+
+  // Ensure "Team & Users" is positioned correctly in Main Settings for admins
+  if (isAdmin) {
+    const mainSettingsCategory = deduplicatedCategories.find(cat => cat.name === 'Main Settings');
+    const teamUsersItem = mainSettingsCategory?.items.find(item => item.name === 'Team & Users');
+    
+    if (mainSettingsCategory && teamUsersItem) {
+      // Remove from current position
+      mainSettingsCategory.items = mainSettingsCategory.items.filter(item => item.name !== 'Team & Users');
+      
+      // Insert after "Company & Organization"
+      const companyOrgIndex = mainSettingsCategory.items.findIndex(item => item.name === 'Company & Organization');
+      if (companyOrgIndex >= 0) {
+        mainSettingsCategory.items.splice(companyOrgIndex + 1, 0, teamUsersItem);
+      } else {
+        mainSettingsCategory.items.unshift(teamUsersItem);
+      }
+    }
+  }
+
 
   const isActive = (item: NavItem) => {
     // For settings pages with query params
@@ -138,7 +112,8 @@ export default function SettingsNav() {
         'security': 'security',
         'billing': 'billing',
         'appearance': 'appearance',
-        'general': isAdmin ? 'company' : 'general',
+        'profile': 'profile',
+        'general': isAdmin ? 'company' : 'profile',
       };
       const mappedTab = tabMap[currentTab || ''] || currentTab;
       return (pathname === '/dashboard/settings/admin' || pathname === '/dashboard/settings/employee') && mappedTab === expectedTab;
@@ -147,7 +122,7 @@ export default function SettingsNav() {
     // For settings page without query (default)
     if (item.href === baseSettingsPath && !item.query) {
       const currentTab = searchParams.get('tab');
-      const defaultTab = isAdmin ? 'company' : 'general';
+      const defaultTab = isAdmin ? 'company' : 'profile';
       return (pathname === '/dashboard/settings/admin' || pathname === '/dashboard/settings/employee') && (!currentTab || currentTab === defaultTab);
     }
     
@@ -201,19 +176,19 @@ export default function SettingsNav() {
         </div>
       </div>
       <nav className={NAV_SPACING.items}>
-        {visibleCategories.map((category, categoryIndex) => (
+        {deduplicatedCategories.map((category, categoryIndex) => (
           <div key={category.name} className={categoryIndex > 0 ? 'mt-6' : ''}>
             <h3 className={cn(NAV_TYPOGRAPHY.sectionHeader, 'text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2')}>
               {category.name}
             </h3>
             <div className="space-y-1">
-              {category.items.map((item) => {
+              {category.items.map((item, itemIndex) => {
                 const Icon = item.icon;
                 const active = isActive(item);
                 
                 return (
                   <button
-                    key={item.name}
+                    key={`${category.name}-${item.name}-${itemIndex}`}
                     onClick={() => handleNavigation(item)}
                     className={cn(
                       'w-full flex items-center justify-between px-2 py-1.5 rounded-md',

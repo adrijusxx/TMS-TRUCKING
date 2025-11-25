@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +16,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check analytics permission
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!hasPermission(role, 'analytics.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate')
       ? new Date(searchParams.get('startDate')!)
@@ -24,13 +34,13 @@ export async function GET(request: NextRequest) {
       : new Date();
     const groupBy = searchParams.get('groupBy') || 'customer'; // customer, lane
 
-    // Build base filter with MC number if applicable
-    const baseFilter = await buildMcNumberWhereClause(session, request);
+    // Build MC filter - Load uses mcNumberId
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
 
     // Get all loads in date range - include ALL loads, not just completed ones
     const loads = await prisma.load.findMany({
       where: {
-        ...baseFilter,
+        ...loadMcWhere,
         deletedAt: null,
         OR: [
           { pickupDate: { gte: startDate, lte: endDate } },
@@ -91,11 +101,11 @@ export async function GET(request: NextRequest) {
         }
 
         acc[customerId].totalLoads += 1;
-        acc[customerId].totalRevenue += load.revenue;
+        acc[customerId].totalRevenue += Number(load.revenue) || 0;
         acc[customerId].totalDriverPay += calculatedDriverPay;
-        acc[customerId].totalExpenses += load.expenses || 0;
+        acc[customerId].totalExpenses += Number(load.expenses) || 0;
         acc[customerId].totalProfit +=
-          load.revenue - calculatedDriverPay - (load.expenses || 0);
+          (Number(load.revenue) || 0) - calculatedDriverPay - (Number(load.expenses) || 0);
         
         return acc;
       }, {} as Record<string, any>);
@@ -166,11 +176,11 @@ export async function GET(request: NextRequest) {
         }
 
         acc[lane].totalLoads += 1;
-        acc[lane].totalRevenue += load.revenue;
+        acc[lane].totalRevenue += Number(load.revenue) || 0;
         acc[lane].totalDriverPay += calculatedDriverPay;
-        acc[lane].totalExpenses += load.expenses || 0;
+        acc[lane].totalExpenses += Number(load.expenses) || 0;
         acc[lane].totalProfit +=
-          load.revenue - calculatedDriverPay - (load.expenses || 0);
+          (Number(load.revenue) || 0) - calculatedDriverPay - (Number(load.expenses) || 0);
         
         return acc;
       }, {} as Record<string, any>);

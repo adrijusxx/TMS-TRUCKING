@@ -1,4 +1,4 @@
-import BatchList from '@/components/batches/BatchList';
+import BatchListNew from '@/components/batches/BatchListNew';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function BatchesPage() {
@@ -12,7 +12,7 @@ export default function BatchesPage() {
         <div>
           <h1 className="text-3xl font-bold">Accounting Batches</h1>
         </div>
-        <BatchList />
+        <BatchListNew />
       </div>
     </>
   );

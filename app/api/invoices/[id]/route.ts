@@ -301,3 +301,79 @@ export async function PATCH(
   }
 }
 
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+
+    if (!session?.user?.companyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
+        { status: 401 }
+      );
+    }
+
+    const resolvedParams = await params;
+    
+    // Check permission to delete invoices
+    const role = session.user.role as 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER';
+    if (!hasPermission(role, 'invoices.delete')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to delete invoices',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: {
+        id: resolvedParams.id,
+        customer: {
+          companyId: session.user.companyId,
+        },
+      },
+    });
+
+    if (!existingInvoice) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Invoice not found' },
+        },
+        { status: 404 }
+      );
+    }
+
+    // Invoices are financial records - they should NOT be deleted
+    // Instead, mark them as written off or disputed
+    // For accounting compliance, invoices must be preserved
+    
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'INVALID_ACTION',
+          message: 'Invoices cannot be deleted. They are financial records and must be preserved for accounting purposes. Use "Write Off" or "Dispute" status instead.',
+        },
+      },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('Invoice deletion error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+      },
+      { status: 500 }
+    );
+  }
+}
+

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Globe, Info } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 
 async function fetchGeneralSettings() {
@@ -33,7 +33,7 @@ export default function EmployeeGeneralSettings() {
             <CardTitle>General Preferences</CardTitle>
           </div>
           <CardDescription>
-            Your personal preferences and company information
+            Your personal preferences and display settings
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -65,37 +65,11 @@ export default function EmployeeGeneralSettings() {
           </div>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Info className="h-5 w-5" />
-            <CardTitle>Company Information</CardTitle>
-          </div>
-          <CardDescription>
-            Read-only company settings (contact an administrator to change)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Business Hours</label>
-              <div className="text-sm text-muted-foreground">
-                {settings?.businessHoursStart} - {settings?.businessHoursEnd}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Business Days</label>
-              <div className="text-sm text-muted-foreground">
-                {settings?.businessDays?.length || 0} days per week
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
+
+
 
 
 

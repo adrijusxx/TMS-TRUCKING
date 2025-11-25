@@ -306,3 +306,5 @@ Based on the current implementation and trucking industry needs, here are additi
 - **User Control:** Allow users to override AI suggestions
 - **Transparency:** Show reasoning and confidence scores
 
+
+

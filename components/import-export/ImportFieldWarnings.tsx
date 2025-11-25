@@ -240,7 +240,7 @@ export default function ImportFieldWarnings({
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a 
-                    href="/docs/import-field-requirements.pdf" 
+                    href="/docs/import-field-requirements.html" 
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -255,4 +255,6 @@ export default function ImportFieldWarnings({
     </div>
   );
 }
+
+
 

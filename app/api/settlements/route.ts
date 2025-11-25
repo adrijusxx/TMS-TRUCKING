@@ -8,8 +8,8 @@ import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
-
     if (!session?.user?.companyId) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
@@ -17,89 +17,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 2. Permission Check
+    // Note: Add hasPermission import and check if needed
+
+    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
+    const isAdmin = (session?.user as any)?.role === 'ADMIN';
+    const viewingAll = isAdmin;
+    
+    let mcWhere: { companyId?: string; mcNumberId?: string | { in: string[] } };
+    
+    if (!viewingAll) {
+      mcWhere = await buildMcNumberWhereClause(session, request);
+    } else {
+      // Admin viewing all - no filtering
+      mcWhere = {};
+    }
+
+    // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const skip = (page - 1) * limit;
     const driverId = searchParams.get('driverId');
     const status = searchParams.get('status');
-    const mcViewMode = searchParams.get('mc'); // 'all', 'current', or specific MC ID
-    const isAdmin = session.user?.role === 'ADMIN';
 
-    // Build base filter with MC number if applicable
-    let baseFilter = await buildMcNumberWhereClause(session, request);
-    
-    // Admin-only: Override MC filter based on view mode
-    if (isAdmin && mcViewMode === 'all') {
-      // Remove MC number filter to show all MCs (admin only)
-      if (baseFilter.mcNumber) {
-        delete baseFilter.mcNumber;
-      }
-    } else if (isAdmin && mcViewMode && mcViewMode !== 'current' && mcViewMode !== null) {
-      // Filter by specific MC number ID (admin selecting specific MC)
-      const mcNumberRecord = await prisma.mcNumber.findUnique({
-        where: { id: mcViewMode },
-        select: { number: true, companyId: true },
-      });
-      if (mcNumberRecord) {
-        const user = await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { companyId: true, userCompanies: { select: { companyId: true } } },
-        });
-        const accessibleCompanyIds = [
-          user?.companyId,
-          ...(user?.userCompanies?.map((uc) => uc.companyId) || []),
-        ].filter(Boolean) as string[];
-        
-        if (accessibleCompanyIds.includes(mcNumberRecord.companyId)) {
-          baseFilter = {
-            ...baseFilter,
-            mcNumber: mcNumberRecord.number,
-          };
-        }
-      }
-    }
-    // Non-admin users: always use baseFilter (their assigned MC)
-
-    // Convert mcNumber string to mcNumberId for driver relation filter
-    // Driver.mcNumber is a relation, not a string field, so we need to use mcNumberId
-    let driverFilter: any = {
-      companyId: baseFilter.companyId,
-    };
-
-    if (baseFilter.mcNumber) {
-      // Look up the MC number record to get its ID
-      const mcRecord = await prisma.mcNumber.findFirst({
-        where: {
-          companyId: session.user.companyId,
-          OR: [
-            { number: baseFilter.mcNumber },
-            { companyName: { contains: baseFilter.mcNumber, mode: 'insensitive' } },
-          ],
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-
-      if (mcRecord) {
-        driverFilter.mcNumberId = mcRecord.id;
-      }
-    }
-
-    // Apply role-based filtering
+    // Apply role-based filtering with MC context
     const roleFilter = await getSettlementFilter(
       createFilterContext(
         session.user.id,
         session.user.role as any,
-        session.user.companyId
+        viewingAll ? 'ADMIN_ALL_COMPANIES' : session.user.companyId,
+        mcWhere.mcNumberId
       )
     );
 
-    // Merge role filter with driver filter
-    const where: any = {
-      ...roleFilter,
-      driver: driverFilter,
-    };
+    // Build where clause
+    const where: any = viewingAll ? {} : { ...roleFilter, ...mcWhere };
 
     if (driverId) {
       where.driverId = driverId;
@@ -133,11 +86,12 @@ export async function GET(request: NextRequest) {
       prisma.settlement.count({ where }),
     ]);
 
-    // Filter sensitive fields based on role
+    // 5. Filter Sensitive Fields based on role
     const filteredSettlements = settlements.map((settlement) =>
       filterSensitiveFields(settlement, session.user.role as any)
     );
 
+    // 6. Return Success Response
     return NextResponse.json({
       success: true,
       data: filteredSettlements,

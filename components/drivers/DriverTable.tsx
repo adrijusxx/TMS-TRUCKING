@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DeletedRecordBadge } from '@/components/common/DeletedRecordBadge';
 import {
   Table,
   TableBody,
@@ -19,9 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Edit, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { Edit, CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { DriverStatus, EmployeeStatus, AssignmentStatus, DispatchStatus, DriverType } from '@prisma/client';
 import { formatDate } from '@/lib/utils';
+import DriverInlineEdit from './DriverInlineEdit';
 
 interface Driver {
   id: string;
@@ -36,8 +40,12 @@ interface Driver {
   employeeStatus: EmployeeStatus;
   assignmentStatus: AssignmentStatus;
   dispatchStatus: DispatchStatus | null;
-  truck?: { truckNumber: string } | null;
-  trailer?: { trailerNumber: string } | null;
+  truck?: { id: string; truckNumber: string } | null;
+  trailer?: { id: string; trailerNumber: string } | null;
+  currentTruckId?: string | null;
+  currentTrailerId?: string | null;
+  mcNumberId?: string | null;
+  userId?: string;
   teamDriver: boolean;
   payTo: string | null;
   driverTariff: string | null;
@@ -46,6 +54,8 @@ interface Driver {
   hireDate: Date | null;
   terminationDate: Date | null;
   driverTags: string[];
+  deletedAt?: Date | null; // For admin visibility
+  isActive?: boolean;
 }
 
 interface DriverTableProps {
@@ -168,36 +178,56 @@ export default function DriverTable({
   canEdit,
   canDelete,
   visibleColumns = {},
-}: DriverTableProps) {
-  // Default all columns to visible if not specified
+  onDriverUpdate,
+}: DriverTableProps & { onDriverUpdate?: () => void }) {
+  // Track expanded rows - all collapsed by default
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (driverId: string) => {
+    setExpandedRows((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(driverId)) {
+        newSet.delete(driverId);
+      } else {
+        newSet.add(driverId);
+      }
+      return newSet;
+    });
+  };
+
+  // Default to essential columns only, allow override via visibleColumns prop
   const cols = {
     checkbox: true,
-    driverNumber: true,
+    driverNumber: false, // Hidden by default
     name: true,
     email: true,
     phone: true,
     status: true,
     employeeStatus: true,
     assignmentStatus: true,
-    dispatchStatus: true,
-    driverType: true,
+    dispatchStatus: false, // Hidden by default
+    driverType: false, // Hidden by default
     mcNumber: true,
-    teamDriver: true,
+    teamDriver: false, // Hidden by default
     truck: true,
-    trailer: true,
-    payTo: true,
-    driverTariff: true,
-    warnings: true,
-    tags: true,
+    trailer: false, // Hidden by default
+    payTo: false, // Hidden by default
+    driverTariff: false, // Hidden by default
+    warnings: false, // Hidden by default
+    tags: false, // Hidden by default
     actions: true,
-    ...visibleColumns,
+    ...visibleColumns, // Override with provided visibleColumns
   };
+
+  // Calculate column count for colspan
+  const columnCount = Object.values(cols).filter(Boolean).length + (canEdit || canDelete ? 1 : 0);
+
   return (
     <div className="border rounded-lg overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            {(canEdit || canDelete) && (
+            {(canEdit || canDelete) && cols.checkbox && (
               <TableHead className="w-12">
                 <Checkbox
                   checked={allSelected}
@@ -206,142 +236,185 @@ export default function DriverTable({
                 />
               </TableHead>
             )}
-            <TableHead>Assign status</TableHead>
-            <TableHead>Employee stat...</TableHead>
-            <TableHead>First name</TableHead>
-            <TableHead>Last name</TableHead>
-            <TableHead>Driver Type</TableHead>
-            <TableHead>MC number</TableHead>
-            <TableHead>Contact numb...</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Driver status</TableHead>
-            <TableHead>Truck</TableHead>
-            <TableHead>Trailer</TableHead>
-            <TableHead>Team driver</TableHead>
-            <TableHead>Pay to</TableHead>
-            <TableHead>Driver tariff</TableHead>
-            <TableHead>Dispatch sta...</TableHead>
-            <TableHead>Note</TableHead>
-            <TableHead>Warnings</TableHead>
-            <TableHead>Hire date</TableHead>
-            <TableHead>Termination date</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {cols.assignmentStatus && <TableHead>Assign status</TableHead>}
+            {cols.employeeStatus && <TableHead>Employee status</TableHead>}
+            {cols.driverNumber && <TableHead>Driver #</TableHead>}
+            {cols.name && <TableHead>Name</TableHead>}
+            {cols.driverType && <TableHead>Driver Type</TableHead>}
+            {cols.mcNumber && <TableHead>MC number</TableHead>}
+            {cols.phone && <TableHead>Contact</TableHead>}
+            {cols.email && <TableHead>Email</TableHead>}
+            {cols.status && <TableHead>Driver status</TableHead>}
+            {cols.truck && <TableHead>Truck</TableHead>}
+            {cols.trailer && <TableHead>Trailer</TableHead>}
+            {cols.teamDriver && <TableHead>Team driver</TableHead>}
+            {cols.payTo && <TableHead>Pay to</TableHead>}
+            {cols.driverTariff && <TableHead>Driver tariff</TableHead>}
+            {cols.dispatchStatus && <TableHead>Dispatch status</TableHead>}
+            {cols.warnings && <TableHead>Warnings</TableHead>}
+            {cols.actions && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {drivers.map((driver) => (
-            <TableRow key={driver.id}>
-              {(canEdit || canDelete) && cols.checkbox && (
-                <TableCell>
-                  <Checkbox
-                    checked={selectedDriverIds.includes(driver.id)}
-                    onCheckedChange={(checked) =>
-                      onSelectDriver(driver.id, checked as boolean)
-                    }
-                    aria-label={`Select driver ${driver.driverNumber}`}
-                  />
-                </TableCell>
-              )}
-              {cols.assignmentStatus && (
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {getAssignmentStatusIcon(driver.assignmentStatus)}
-                    <span className="text-sm">
-                      {getAssignmentStatusText(driver.assignmentStatus)}
-                    </span>
-                  </div>
-                </TableCell>
-              )}
-              {cols.employeeStatus && (
-                <TableCell>
-                  {getEmployeeStatusBadge(driver.employeeStatus)}
-                </TableCell>
-              )}
-              {cols.name && <TableCell className="font-medium">{driver.firstName}</TableCell>}
-              {cols.name && <TableCell className="font-medium">{driver.lastName}</TableCell>}
-              {cols.driverType && <TableCell>{formatDriverType(driver.driverType)}</TableCell>}
-              {cols.mcNumber && <TableCell>{driver.mcNumber?.number || '-'}</TableCell>}
-              {cols.phone && <TableCell>{driver.phone || '-'}</TableCell>}
-              {cols.email && (
-                <TableCell className="max-w-[200px] truncate">
-                  {driver.email}
-                </TableCell>
-              )}
-              {cols.status && (
-                <TableCell>
-                  {getDriverStatusBadge(driver.status)}
-                </TableCell>
-              )}
-              {cols.truck && (
-                <TableCell>
-                  {driver.truck ? driver.truck.truckNumber : '-'}
-                </TableCell>
-              )}
-              {cols.trailer && (
-                <TableCell>
-                  {driver.trailer ? driver.trailer.trailerNumber : '-'}
-                </TableCell>
-              )}
-              {cols.teamDriver && <TableCell>{driver.teamDriver ? 'Yes' : 'No'}</TableCell>}
-              {cols.payTo && <TableCell>{driver.payTo || '-'}</TableCell>}
-              {cols.driverTariff && (
-                <TableCell className="max-w-[200px] truncate">
-                  {driver.driverTariff || '-'}
-                </TableCell>
-              )}
-              {cols.dispatchStatus && (
-                <TableCell>
-                  <Select
-                    value={driver.dispatchStatus || ''}
-                    onValueChange={(value) => {
-                      // Handle dispatch status change
-                      console.log('Change dispatch status', driver.id, value);
-                    }}
-                  >
-                    <SelectTrigger className="w-[120px] h-8">
-                      <SelectValue>
-                        {driver.dispatchStatus ? (
-                          getDispatchStatusBadge(driver.dispatchStatus)
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DISPATCHED">DISPATCHED</SelectItem>
-                      <SelectItem value="ENROUTE">ENROUTE</SelectItem>
-                      <SelectItem value="TERMINATION">TERMINATION</SelectItem>
-                      <SelectItem value="REST">REST</SelectItem>
-                      <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-              )}
-              <TableCell className="max-w-[200px] truncate">
-                {driver.notes || '-'}
-              </TableCell>
-              {cols.warnings && <TableCell>{driver.warnings || '-'}</TableCell>}
-              <TableCell>
-                {driver.hireDate ? formatDate(driver.hireDate) : '-'}
-              </TableCell>
-              <TableCell>
-                {driver.terminationDate
-                  ? formatDate(driver.terminationDate)
-                  : '-'}
-              </TableCell>
-              {cols.actions && (
-                <TableCell className="text-right">
-                  {canEdit && (
-                    <Link href={`/dashboard/drivers/${driver.id}/edit`}>
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </Link>
+          {drivers.map((driver) => {
+            const isExpanded = expandedRows.has(driver.id);
+            return (
+              <React.Fragment key={driver.id}>
+                <TableRow 
+                  className={driver.deletedAt ? 'opacity-60 bg-muted/30' : ''}
+                >
+                  {(canEdit || canDelete) && cols.checkbox && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedDriverIds.includes(driver.id)}
+                        onCheckedChange={(checked) =>
+                          onSelectDriver(driver.id, checked as boolean)
+                        }
+                        aria-label={`Select driver ${driver.driverNumber}`}
+                      />
+                    </TableCell>
                   )}
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
+                  {cols.assignmentStatus && (
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getAssignmentStatusIcon(driver.assignmentStatus)}
+                        <span className="text-sm">
+                          {getAssignmentStatusText(driver.assignmentStatus)}
+                        </span>
+                      </div>
+                    </TableCell>
+                  )}
+                  {cols.employeeStatus && (
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getEmployeeStatusBadge(driver.employeeStatus)}
+                        <DeletedRecordBadge deletedAt={driver.deletedAt} />
+                      </div>
+                    </TableCell>
+                  )}
+                  {cols.driverNumber && (
+                    <TableCell className="font-medium">
+                      {driver.driverNumber}
+                    </TableCell>
+                  )}
+                  {cols.name && (
+                    <TableCell className="font-medium">
+                      {driver.firstName} {driver.lastName}
+                    </TableCell>
+                  )}
+                  {cols.driverType && <TableCell>{formatDriverType(driver.driverType)}</TableCell>}
+                  {cols.mcNumber && <TableCell>{driver.mcNumber?.number || '-'}</TableCell>}
+                  {cols.phone && <TableCell>{driver.phone || '-'}</TableCell>}
+                  {cols.email && (
+                    <TableCell className="max-w-[200px] truncate">
+                      {driver.email}
+                    </TableCell>
+                  )}
+                  {cols.status && (
+                    <TableCell>
+                      {getDriverStatusBadge(driver.status)}
+                    </TableCell>
+                  )}
+                  {cols.truck && (
+                    <TableCell>
+                      {driver.truck ? driver.truck.truckNumber : '-'}
+                    </TableCell>
+                  )}
+                  {cols.trailer && (
+                    <TableCell>
+                      {driver.trailer ? driver.trailer.trailerNumber : '-'}
+                    </TableCell>
+                  )}
+                  {cols.teamDriver && <TableCell>{driver.teamDriver ? 'Yes' : 'No'}</TableCell>}
+                  {cols.payTo && <TableCell>{driver.payTo || '-'}</TableCell>}
+                  {cols.driverTariff && (
+                    <TableCell className="max-w-[200px] truncate">
+                      {driver.driverTariff || '-'}
+                    </TableCell>
+                  )}
+                  {cols.dispatchStatus && (
+                    <TableCell>
+                      <Select
+                        value={driver.dispatchStatus || ''}
+                        onValueChange={(value) => {
+                          // Handle dispatch status change
+                          console.log('Change dispatch status', driver.id, value);
+                        }}
+                      >
+                        <SelectTrigger className="w-[120px] h-8">
+                          <SelectValue>
+                            {driver.dispatchStatus ? (
+                              getDispatchStatusBadge(driver.dispatchStatus)
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DISPATCHED">DISPATCHED</SelectItem>
+                          <SelectItem value="ENROUTE">ENROUTE</SelectItem>
+                          <SelectItem value="TERMINATION">TERMINATION</SelectItem>
+                          <SelectItem value="REST">REST</SelectItem>
+                          <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                  )}
+                  {cols.warnings && <TableCell>{driver.warnings || '-'}</TableCell>}
+                  {cols.actions && (
+                    <TableCell className="text-right">
+                      {canEdit && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => toggleRow(driver.id)}
+                          type="button"
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                    </TableCell>
+                  )}
+                </TableRow>
+                {isExpanded && (
+                  <TableRow>
+                    <TableCell colSpan={columnCount} className="p-0 bg-muted/30">
+                      <div className="animate-in slide-in-from-top-1 duration-200">
+                        <DriverInlineEdit
+                          driver={{
+                            id: driver.id,
+                            firstName: driver.firstName,
+                            lastName: driver.lastName,
+                            email: driver.email,
+                            phone: driver.phone,
+                            status: driver.status,
+                            employeeStatus: driver.employeeStatus,
+                            assignmentStatus: driver.assignmentStatus,
+                            dispatchStatus: driver.dispatchStatus,
+                            driverType: driver.driverType,
+                            currentTruckId: driver.currentTruckId || driver.truck?.id || null,
+                            currentTrailerId: driver.currentTrailerId || driver.trailer?.id || null,
+                            mcNumberId: driver.mcNumberId || driver.mcNumber?.id || null,
+                            teamDriver: driver.teamDriver,
+                            userId: driver.userId || driver.id,
+                          }}
+                          onSave={() => {
+                            toggleRow(driver.id);
+                            onDriverUpdate?.();
+                          }}
+                          onCancel={() => toggleRow(driver.id)}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

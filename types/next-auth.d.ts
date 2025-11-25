@@ -14,6 +14,7 @@ declare module 'next-auth' {
       currentCompanyId?: string;
       mcNumberId?: string;
       mcNumber?: string;
+      mcAccess?: string[]; // Array of MC IDs user can access (empty for admins = access to all)
     };
   }
 
@@ -24,6 +25,7 @@ declare module 'next-auth' {
     lastName?: string;
     mcNumberId?: string;
     mcNumber?: string;
+    mcAccess?: string[];
   }
 }
 
@@ -35,6 +37,7 @@ declare module 'next-auth/jwt' {
     currentCompanyId?: string;
     mcNumberId?: string;
     mcNumber?: string;
+    mcAccess?: string[];
     firstName?: string;
     lastName?: string;
   }
