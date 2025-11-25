@@ -74,18 +74,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user with mcAccess (default to [mcNumberId] for non-admins)
+    // Note: Regenerate Prisma client with `npm run db:generate` if this causes type errors
+    const userData = {
+      email: validated.email,
+      password: hashedPassword,
+      firstName: validated.firstName,
+      lastName: validated.lastName,
+      phone: validated.phone && validated.phone.trim() !== '' ? validated.phone : null,
+      role: 'DISPATCHER' as const, // Default role for new registrations
+      companyId: company.id,
+      mcNumberId: mcNumber.id,
+      mcAccess: [mcNumber.id], // Default: access to their assigned MC
+    };
+    
     const user = await prisma.user.create({
-      data: {
-        email: validated.email,
-        password: hashedPassword,
-        firstName: validated.firstName,
-        lastName: validated.lastName,
-        phone: validated.phone && validated.phone.trim() !== '' ? validated.phone : null,
-        role: 'DISPATCHER', // Default role for new registrations
-        companyId: company.id,
-        mcNumberId: mcNumber.id,
-        mcAccess: [mcNumber.id], // Default: access to their assigned MC
-      },
+      data: userData as any, // Type assertion needed until Prisma client is regenerated
     });
 
     return NextResponse.json(
