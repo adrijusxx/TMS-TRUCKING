@@ -317,6 +317,30 @@ export async function getSamsaraVehicles(companyId?: string): Promise<SamsaraVeh
 }
 
 /**
+ * Get all assets (trailers) in the fleet
+ * @param companyId Optional company ID to check database for API key first
+ */
+export async function getSamsaraAssets(companyId?: string): Promise<SamsaraVehicle[] | null> {
+  try {
+    const result = await samsaraRequest<SamsaraVehicle[] | { data?: SamsaraVehicle[] }>(
+      '/fleet/assets',
+      {},
+      companyId
+    );
+
+    if (!result) return null;
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result.data)) return result.data;
+
+    return null;
+  } catch (error) {
+    // Assets endpoint might not be available for all accounts
+    console.debug('[Samsara] Assets endpoint not available:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/**
  * Get vehicle by ID
  */
 export async function getSamsaraVehicle(vehicleId: string): Promise<SamsaraVehicle | null> {
@@ -621,36 +645,95 @@ export async function getSamsaraVehicleDiagnostics(
     // Use faultCodes stat type (checkEngineLightOn doesn't exist)
     // faultCodes includes milStatus field which indicates check engine light
     let endpoint = '/fleet/vehicles/stats';
+    const params = new URLSearchParams();
+    // Use valid stat types: faultCodes (includes milStatus for check engine light)
+    params.append('types', 'faultCodes');
+    // Only add vehicleIds if provided, otherwise fetch all (like diagnostics endpoint does)
     if (vehicleIds && vehicleIds.length > 0) {
-      const params = new URLSearchParams();
       params.append('vehicleIds', vehicleIds.join(','));
-      // Use valid stat types: faultCodes (includes milStatus for check engine light)
-      params.append('types', 'faultCodes');
-      endpoint = `${endpoint}?${params.toString()}`;
     }
+    endpoint = `${endpoint}?${params.toString()}`;
     
+    console.log('[Samsara] Fetching diagnostics from:', endpoint);
     const statsResult = await samsaraRequest<any>(endpoint, {}, companyId);
     
+    // Samsara API returns { data: [...] } wrapper, not direct array
+    const dataArray = Array.isArray(statsResult) 
+      ? statsResult 
+      : (statsResult?.data && Array.isArray(statsResult.data) 
+          ? statsResult.data 
+          : (statsResult?.data ? [statsResult.data] : []));
+    
     // If stats endpoint works, convert to diagnostics format
-    if (statsResult && Array.isArray(statsResult)) {
-      return statsResult.map((entry: any) => {
-        // faultCodes response includes milStatus (Malfunction Indicator Lamp)
-        // milStatus indicates if check engine light is on
-        const faultCodes = entry.faultCodes || [];
-        const milStatus = entry.milStatus || entry.faultCodes?.milStatus;
-        const checkEngineLightOn = milStatus === 'On' || milStatus === true || (faultCodes.length > 0 && faultCodes.some((f: any) => f.milStatus === 'On'));
+    if (dataArray && dataArray.length > 0) {
+      console.log('[Samsara] Diagnostics: Got', dataArray.length, 'entries from', endpoint);
+      // Log first entry structure for debugging
+      if (dataArray[0]) {
+        console.log('[Samsara] Diagnostics first entry keys:', Object.keys(dataArray[0]));
+      }
+      return dataArray
+        .map((entry: any) => {
+        // Extract vehicleId FIRST - Samsara stats API returns 'id' at top level
+        // Check multiple possible fields
+        const vehicleId = entry.id || entry.vehicleId || entry.vehicle?.id;
+        
+        if (!vehicleId) {
+          // Only log occasionally to reduce spam
+          if (Math.random() < 0.01) {
+            console.warn('[Samsara] Diagnostics entry missing vehicleId. Entry structure:', {
+              keys: Object.keys(entry).slice(0, 10),
+              hasFaultCodes: !!entry.faultCodes,
+            });
+          }
+          return null;
+        }
+        
+        // faultCodes can be an object with nested structure: {j1939: {diagnosticTroubleCodes: [...]}}
+        // OR it can be a direct array
+        let faultCodesArray: any[] = [];
+        let milStatus: any = null;
+        let checkEngineLights: any = null;
+        
+        if (entry.faultCodes) {
+          // Check if it's the nested structure (j1939 format)
+          if (entry.faultCodes.j1939) {
+            const j1939 = entry.faultCodes.j1939;
+            // Extract diagnostic trouble codes
+            if (Array.isArray(j1939.diagnosticTroubleCodes)) {
+              faultCodesArray = j1939.diagnosticTroubleCodes.map((dtc: any) => ({
+                code: dtc.spnId ? `SPN${dtc.spnId}` : dtc.code,
+                description: dtc.spnDescription || dtc.fmiDescription || dtc.description,
+                severity: dtc.milStatus === 1 ? 'high' : 'medium',
+                active: dtc.occurrenceCount > 0,
+                occurredAt: entry.time || dtc.time,
+              }));
+            }
+            // Extract check engine lights
+            checkEngineLights = j1939.checkEngineLights;
+            milStatus = checkEngineLights?.warningIsOn || checkEngineLights?.emissionsIsOn || 
+                       checkEngineLights?.protectIsOn || checkEngineLights?.stopIsOn;
+          } else if (Array.isArray(entry.faultCodes)) {
+            // Direct array format
+            faultCodesArray = entry.faultCodes;
+          }
+        }
+        
+        // Determine check engine light status
+        const checkEngineLightOn = milStatus === true || milStatus === 'On' || 
+          (checkEngineLights && (checkEngineLights.warningIsOn || checkEngineLights.emissionsIsOn));
         
         return {
-          vehicleId: entry.vehicleId,
+          vehicleId, // Already extracted at the top of the function
           checkEngineLightOn: checkEngineLightOn || false,
-          faults: Array.isArray(faultCodes) ? faultCodes : [],
+          faults: faultCodesArray,
           lastUpdatedTime: entry.time || new Date().toISOString(),
         };
-      });
+        })
+        .filter((entry: { vehicleId: string; checkEngineLightOn: boolean; faults: any[]; lastUpdatedTime: string } | null): entry is { vehicleId: string; checkEngineLightOn: boolean; faults: any[]; lastUpdatedTime: string } => entry !== null);
     }
     
-    // Diagnostics endpoint doesn't exist - use stats with faultCodes instead
-    // No fallback needed - stats endpoint is the correct way to get diagnostics
+    // No data returned
+    console.warn('[Samsara] Diagnostics: No data from endpoint', endpoint, '- response type:', typeof statsResult, 'keys:', statsResult ? Object.keys(statsResult) : 'null');
     return null;
   } catch (error: any) {
     // Suppress "invalid id" errors - diagnostics might not be available for all configurations
@@ -708,23 +791,28 @@ export async function getSamsaraVehicleStats(companyId?: string): Promise<Samsar
     const stats1 = Array.isArray(result1) ? result1 : (result1?.data || []);
     const stats2 = Array.isArray(result2) ? result2 : (result2?.data || []);
     
-    // Merge stats by vehicleId
+    // Merge stats by vehicleId (Samsara API returns 'id' at top level, not 'vehicleId')
     const statsMap = new Map<string, any>();
     
     // Add stats from first request
     stats1.forEach((entry: any) => {
-      if (entry?.vehicleId) {
-        statsMap.set(entry.vehicleId, { ...entry });
+      // Samsara API returns 'id' at top level, not 'vehicleId'
+      const vehicleId = entry?.id || entry?.vehicleId;
+      if (vehicleId) {
+        statsMap.set(vehicleId, { ...entry, vehicleId: vehicleId });
       }
     });
     
     // Merge stats from second request
     stats2.forEach((entry: any) => {
-      if (entry?.vehicleId) {
-        const existing = statsMap.get(entry.vehicleId) || {};
-        statsMap.set(entry.vehicleId, {
+      // Samsara API returns 'id' at top level, not 'vehicleId'
+      const vehicleId = entry?.id || entry?.vehicleId;
+      if (vehicleId) {
+        const existing = statsMap.get(vehicleId) || {};
+        statsMap.set(vehicleId, {
           ...existing,
           ...entry,
+          vehicleId: vehicleId, // Ensure vehicleId is set for downstream code
           // Merge fuelPercents and obdOdometerMeters
           fuelPercents: entry.fuelPercents ?? existing.fuelPercents,
           obdOdometerMeters: entry.obdOdometerMeters ?? existing.obdOdometerMeters,
@@ -735,7 +823,10 @@ export async function getSamsaraVehicleStats(companyId?: string): Promise<Samsar
     const combinedStats = Array.from(statsMap.values());
     
     if (combinedStats.length > 0) {
+      console.log('[Samsara] Stats API returned', combinedStats.length, 'vehicles with telemetry');
       return combinedStats;
+    } else {
+      console.log('[Samsara] Stats API returned no data - stats1:', stats1.length, 'stats2:', stats2.length);
     }
   } catch (error: any) {
     if (error?.message?.includes('Invalid stat type') || 

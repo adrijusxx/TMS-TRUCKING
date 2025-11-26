@@ -224,7 +224,7 @@ export async function buildMcNumberIdWhereClause(session: any, request?: any): P
   // Only include mcNumberId if it has a value and user has access
   // For required fields (Driver, Truck), we don't filter by MC number if none is selected
   // For nullable fields (Settings), the caller can add mcNumberId: null if needed
-  if (mcNumberId && McStateManager.canAccessMc(session, mcNumberId)) {
+  if (mcNumberId && (await McStateManager.canAccessMc(session, mcNumberId))) {
     whereClause.mcNumberId = mcNumberId;
   }
   // If mcNumberId is null or user doesn't have access, don't include it in the filter

@@ -183,9 +183,9 @@ async function testMcFiltering() {
     };
 
     const mcAccess = McStateManager.getMcAccess(mockSession as any);
-    const canAccessFirst = McStateManager.canAccessMc(mockSession as any, nonAdmin.mcAccess[0]);
+    const canAccessFirst = await McStateManager.canAccessMc(mockSession as any, nonAdmin.mcAccess[0]);
     const canAccessOther = mcNumbers.length > 1 
-      ? McStateManager.canAccessMc(mockSession as any, mcNumbers[1].id)
+      ? await McStateManager.canAccessMc(mockSession as any, mcNumbers[1].id)
       : true;
 
     logTest(

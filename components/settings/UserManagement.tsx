@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Users, Plus, Edit, Trash2, Search, Settings2, Upload, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { formatDate, apiUrl } from '@/lib/utils';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -62,7 +63,10 @@ import { toast } from 'sonner';
 
 const userSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters').optional().or(z.literal('')),
+  password: z.union([
+    z.string().min(8, 'Password must be at least 8 characters'),
+    z.literal(''),
+  ]).optional(),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   phone: z.string().optional(),
@@ -89,6 +93,8 @@ async function fetchUsers(params?: {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  excludeDrivers?: boolean;
+  role?: string;
   [key: string]: any;
 }) {
   const queryParams = new URLSearchParams();
@@ -97,10 +103,12 @@ async function fetchUsers(params?: {
   if (params?.limit) queryParams.set('limit', params.limit.toString());
   if (params?.sortBy) queryParams.set('sortBy', params.sortBy);
   if (params?.sortOrder) queryParams.set('sortOrder', params.sortOrder);
+  if (params?.excludeDrivers) queryParams.set('excludeDrivers', 'true');
+  if (params?.role) queryParams.set('role', params.role);
   
   // Add advanced filters
   Object.keys(params || {}).forEach((key) => {
-    if (!['search', 'page', 'limit', 'sortBy', 'sortOrder'].includes(key) && params?.[key]) {
+    if (!['search', 'page', 'limit', 'sortBy', 'sortOrder', 'excludeDrivers', 'role'].includes(key) && params?.[key]) {
       queryParams.set(key, params[key].toString());
     }
   });
@@ -212,12 +220,14 @@ export default function UserManagement({
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [activeTab, setActiveTab] = useState<'employees' | 'drivers'>('employees');
   
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState({
     checkbox: true,
     name: true,
     email: true,
+    password: true, // Show password column for admins
     phone: true,
     role: true,
     mcAccess: true,
@@ -227,7 +237,7 @@ export default function UserManagement({
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['users', searchQuery, advancedFilters, page, sortField, sortDirection],
+    queryKey: ['users', searchQuery, advancedFilters, page, sortField, sortDirection, activeTab],
     queryFn: () => fetchUsers({
       search: searchQuery || undefined,
       page,
@@ -235,6 +245,8 @@ export default function UserManagement({
       ...advancedFilters,
       sortBy: sortField || undefined,
       sortOrder: sortDirection || undefined,
+      excludeDrivers: activeTab === 'employees', // Exclude drivers when on employees tab
+      role: activeTab === 'drivers' ? 'DRIVER' : undefined, // Only show drivers when on drivers tab
     }),
   });
 
@@ -446,9 +458,14 @@ export default function UserManagement({
     setError(null);
     
     // Auto-set mcNumberId from first MC in mcAccess if not set
-    const submitData = { ...data };
+    const submitData: Partial<UserFormData> = { ...data };
     if (submitData.mcAccess && submitData.mcAccess.length > 0 && !submitData.mcNumberId) {
       submitData.mcNumberId = submitData.mcAccess[0];
+    }
+    
+    // Remove password from submit data if it's empty (to keep current password)
+    if (submitData.password === '' || !submitData.password) {
+      delete submitData.password;
     }
     
     updateMutation.mutate({ userId: editingUser.id, data: submitData });
@@ -473,6 +490,8 @@ export default function UserManagement({
       mcAccess: initialMcAccess,
     });
     setIsEditDialogOpen(true);
+    // Refresh user data to get latest tempPassword
+    queryClient.invalidateQueries({ queryKey: ['users'] });
   };
 
   const handleDeleteClick = (userId: string) => {
@@ -734,6 +753,14 @@ export default function UserManagement({
         </div>
       </CardHeader>
       <CardContent>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'employees' | 'drivers')} className="mb-4">
+          <TabsList>
+            <TabsTrigger value="employees">Employees</TabsTrigger>
+            <TabsTrigger value="drivers">Drivers</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {/* Search and Filters */}
         <div className="space-y-4 mb-4">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -786,6 +813,14 @@ export default function UserManagement({
                     }
                   >
                     Email
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={visibleColumns.password}
+                    onCheckedChange={(checked) =>
+                      setVisibleColumns({ ...visibleColumns, password: checked })
+                    }
+                  >
+                    Password
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={visibleColumns.phone}
@@ -900,6 +935,9 @@ export default function UserManagement({
                       </Button>
                     </TableHead>
                   )}
+                  {visibleColumns.password && (
+                    <TableHead>Password</TableHead>
+                  )}
                   {visibleColumns.phone && (
                     <TableHead>Phone</TableHead>
                   )}
@@ -985,6 +1023,17 @@ export default function UserManagement({
                       )}
                       {visibleColumns.email && (
                         <TableCell>{user.email}</TableCell>
+                      )}
+                      {visibleColumns.password && (
+                        <TableCell>
+                          {user.tempPassword ? (
+                            <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
+                              {user.tempPassword}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">••••••••</span>
+                          )}
+                        </TableCell>
                       )}
                       {visibleColumns.phone && (
                         <TableCell>{user.phone || '-'}</TableCell>
@@ -1157,22 +1206,42 @@ export default function UserManagement({
                 id="edit-email" 
                 type="email" 
                 {...editForm.register('email')}
-                disabled
               />
-              <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+              {editForm.formState.errors.email && (
+                <p className="text-sm text-destructive">
+                  {editForm.formState.errors.email.message}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Changing email will require the user to sign in with the new email
+              </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
+              <Label htmlFor="edit-password">Password</Label>
               <Input
                 id="edit-password"
                 type="password"
-                placeholder="Enter new password or leave blank"
+                placeholder="Enter new password to reset (leave blank to keep current)"
                 {...editForm.register('password')}
               />
               {editForm.formState.errors.password && (
                 <p className="text-sm text-destructive">
                   {editForm.formState.errors.password.message}
+                </p>
+              )}
+              {editingUser?.tempPassword && (
+                <div className="p-3 bg-muted rounded-md border">
+                  <p className="text-xs font-medium mb-1">Current Password (Admin View):</p>
+                  <p className="text-sm font-mono bg-background p-2 rounded border">{editingUser.tempPassword}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This password will be cleared after the user logs in successfully.
+                  </p>
+                </div>
+              )}
+              {!editingUser?.tempPassword && (
+                <p className="text-xs text-muted-foreground">
+                  Enter a new password to reset it (minimum 8 characters). Password will be visible here after setting.
                 </p>
               )}
             </div>

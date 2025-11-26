@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { LiveMapService } from '@/lib/maps/live-map-service';
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
   try {
     const session = await auth();
     if (!session?.user?.companyId) {
@@ -13,15 +14,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log('[API] Starting live map snapshot for company:', session.user.companyId);
     const service = new LiveMapService(session.user.companyId);
     const data = await service.getSnapshot();
+    const duration = Date.now() - startTime;
+
+    console.log('[API] Live map snapshot completed:', {
+      duration: `${duration}ms`,
+      loads: data.loads?.length || 0,
+      trucks: data.trucks?.length || 0,
+      trailers: data.trailers?.length || 0,
+      trailersWithLocations: data.trailers?.filter(t => t.location).length || 0,
+    });
 
     return NextResponse.json({
       success: true,
       data,
     });
   } catch (error) {
-    console.error('Live map error:', error);
+    const duration = Date.now() - startTime;
+    console.error('[API] Live map error after', `${duration}ms:`, error);
     return NextResponse.json(
       {
         success: false,

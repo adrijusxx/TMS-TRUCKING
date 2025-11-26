@@ -95,6 +95,10 @@ interface DataTableWrapperProps<TData extends Record<string, any>> {
     onSave: () => void;
     onCancel: () => void;
   }>;
+  /**
+   * Function to get custom className for a row
+   */
+  getRowClassName?: (row: TData) => string;
 }
 
 /**
@@ -116,6 +120,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   enableSearch = true,
   searchPlaceholder,
   inlineEditComponent,
+  getRowClassName,
 }: DataTableWrapperProps<TData>) {
   const { can } = usePermissions();
   const isAdmin = useIsAdmin();
@@ -469,6 +474,12 @@ export function DataTableWrapper<TData extends Record<string, any>>({
         emptyMessage={emptyMessage || 'No data available'}
         inlineEditComponent={inlineEditComponent}
         onInlineEditSave={() => {
+          refetch();
+        }}
+        getRowClassName={getRowClassName}
+        entityType={config.entityType}
+        onColumnFilterChange={() => {
+          // Trigger refetch when column filter changes
           refetch();
         }}
       />

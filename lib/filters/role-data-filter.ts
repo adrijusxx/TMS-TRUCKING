@@ -39,6 +39,21 @@ export async function getLoadFilter(context: RoleFilterContext): Promise<any> {
 
   switch (role) {
     case 'DISPATCHER': {
+      // Check company setting for dispatcher load visibility
+      const companySettings = await prisma.companySettings.findUnique({
+        where: { companyId },
+        select: { generalSettings: true },
+      });
+
+      const generalSettings = (companySettings?.generalSettings as any) || {};
+      const dispatcherSeeAllLoads = generalSettings.dispatcherSeeAllLoads !== false; // Default to true
+
+      // If setting allows dispatchers to see all loads, return base filter (no role restrictions)
+      if (dispatcherSeeAllLoads) {
+        return baseFilter;
+      }
+
+      // Otherwise, apply restrictive filter (only their loads and assigned drivers' loads)
       // Get drivers assigned to this dispatcher
       const assignedDrivers = await prisma.driver.findMany({
         where: {
@@ -275,15 +290,27 @@ export function getCustomerFilter(context: RoleFilterContext): any {
 export async function getInvoiceFilter(context: RoleFilterContext): Promise<any> {
   const { userId, role, companyId } = context;
 
+  // Invoices don't have companyId - they're linked through Customer
+  // Filter through customer relationship
   const baseFilter: any = {
-    companyId,
-    deletedAt: null,
+    customer: {
+      companyId: companyId === 'ADMIN_ALL_COMPANIES' ? undefined : companyId,
+      deletedAt: null,
+    },
   };
 
   // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
 
-  // Accountants and admins see all invoices
+  // Accountants and admins see all invoices (filtered by company through customer)
   if (role === 'ACCOUNTANT' || role === 'ADMIN') {
+    // If viewing all companies (admin), remove company filter
+    if (companyId === 'ADMIN_ALL_COMPANIES') {
+      return {
+        customer: {
+          deletedAt: null,
+        },
+      };
+    }
     return baseFilter;
   }
 

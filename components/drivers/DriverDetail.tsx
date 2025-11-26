@@ -8,6 +8,7 @@ import { formatDate, formatDateTime } from '@/lib/utils';
 import { DriverStatus, PayType } from '@prisma/client';
 import HOSStatusCard from '@/components/hos/HOSStatusCard';
 import DriverPaymentsActivity from './DriverPaymentsActivity';
+import DriverDocuments from './DriverDocuments';
 import {
   ArrowLeft,
   User,
@@ -290,6 +291,9 @@ export default function DriverDetail({ driver }: DriverDetailProps) {
 
       {/* Payments & Activity Documents */}
       <DriverPaymentsActivity driverId={driver.id} />
+
+      {/* Driver Documents */}
+      <DriverDocuments driverId={driver.id} />
     </div>
   );
 }

@@ -288,16 +288,49 @@ export async function POST(request: NextRequest) {
       : new Date(validated.inspectionExpiry);
 
     // Determine MC number assignment
-    // Rule: Only admins can choose MC; employees use their default MC
+    // Rule: Admins and users with multiple MC access can choose MC; others use their default MC
     const isAdmin = session.user.role === 'ADMIN';
+    const userMcAccess = McStateManager.getMcAccess(session);
     let assignedMcNumberId: string | null = null;
 
-    if (isAdmin && validated.mcNumberId) {
-      // Admin provided mcNumberId - use it
-      assignedMcNumberId = validated.mcNumberId;
+    if (validated.mcNumberId) {
+      // User provided mcNumberId - validate they have access
+      if (await McStateManager.canAccessMc(session, validated.mcNumberId)) {
+        assignedMcNumberId = validated.mcNumberId;
+      } else {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'You do not have access to the selected MC number',
+            },
+          },
+          { status: 403 }
+        );
+      }
     } else {
-      // Employee or admin without explicit mcNumberId - use user's default MC
+      // No mcNumberId provided - use user's default MC
       assignedMcNumberId = (session.user as any).mcNumberId || null;
+      
+      // Validate default MC is accessible
+      if (assignedMcNumberId && !(await McStateManager.canAccessMc(session, assignedMcNumberId))) {
+        // If default MC is not accessible, try to use first accessible MC
+        if (userMcAccess.length > 0) {
+          assignedMcNumberId = userMcAccess[0];
+        } else {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'FORBIDDEN',
+                message: 'No accessible MC number found. Please contact an administrator.',
+              },
+            },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     const truck = await prisma.truck.create({

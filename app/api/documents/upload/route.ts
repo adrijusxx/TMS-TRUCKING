@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
 import { validateFileUpload, sanitizeFileName, getFileSizeLimit } from '@/lib/utils/file-upload-validation';
+import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
 
 const uploadSchema = z.object({
   loadId: z.string().cuid().optional(),
@@ -163,10 +164,87 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Handle accounting sync for critical documents (BOL, POD, RATE_CONFIRMATION)
+    // These documents are essential for driver settlements and accounting workflows
+    if (validated.loadId && ['BOL', 'POD', 'RATE_CONFIRMATION'].includes(validated.type)) {
+      try {
+        const load = await prisma.load.findFirst({
+          where: {
+            id: validated.loadId,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            status: true,
+            deliveredAt: true,
+          },
+        });
+
+        if (load) {
+          const completionManager = new LoadCompletionManager();
+
+          // For POD: Use the dedicated POD upload handler
+          if (validated.type === 'POD') {
+            await completionManager.handlePODUpload(validated.loadId, document.id);
+            
+            // If load is delivered, trigger full completion workflow
+            if (load.status === 'DELIVERED') {
+              await completionManager.handleLoadCompletion(validated.loadId);
+            }
+          }
+          // For BOL and RATE_CONFIRMATION: Trigger accounting sync if load is delivered
+          else if (load.status === 'DELIVERED') {
+            // Trigger accounting sync to ensure documents are included in settlement calculations
+            await completionManager.handleLoadCompletion(validated.loadId);
+          }
+
+          // For RATE_CONFIRMATION: Link to RateConfirmation model if it exists
+          if (validated.type === 'RATE_CONFIRMATION' && validated.loadId) {
+            // Check if RateConfirmation exists for this load
+            const rateConfirmation = await prisma.rateConfirmation.findUnique({
+              where: { loadId: validated.loadId },
+            });
+
+            if (rateConfirmation) {
+              // Update RateConfirmation with document reference
+              await prisma.rateConfirmation.update({
+                where: { id: rateConfirmation.id },
+                data: {
+                  documentId: document.id,
+                },
+              });
+            } else {
+              // Create RateConfirmation record linked to the document
+              // Note: This creates a basic record - rate details should be entered separately
+              await prisma.rateConfirmation.create({
+                data: {
+                  companyId: session.user.companyId,
+                  loadId: validated.loadId,
+                  documentId: document.id,
+                  baseRate: 0, // Will be updated when rate details are entered
+                  fuelSurcharge: 0,
+                  accessorialCharges: 0,
+                  totalRate: 0,
+                  paymentTerms: 30,
+                },
+              });
+            }
+          }
+        }
+      } catch (syncError: any) {
+        // Log error but don't fail the document upload
+        // The document is still created, sync can be retried
+        console.error('Accounting sync error after document upload:', syncError);
+        // Continue with successful document creation response
+      }
+    }
+
     return NextResponse.json(
       {
         success: true,
         data: document,
+        accountingSyncTriggered: validated.loadId && ['BOL', 'POD', 'RATE_CONFIRMATION'].includes(validated.type),
       },
       { status: 201 }
     );

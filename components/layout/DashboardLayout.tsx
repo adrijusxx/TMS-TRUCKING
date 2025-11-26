@@ -46,12 +46,13 @@ import {
   ShoppingBag,
   ChevronLeft,
   ChevronRight,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import GlobalSearch from '@/components/search/GlobalSearch';
-import CompanySwitcher from '@/components/layout/CompanySwitcher';
 import McViewSelector from '@/components/mc-numbers/McViewSelector';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { FontSizeToggle } from '@/components/theme/FontSizeToggle';
@@ -61,6 +62,13 @@ import { useSession } from 'next-auth/react';
 import { getDepartmentForRoute, hasRouteAccess } from '@/lib/department-access';
 import type { UserRole } from '@/lib/permissions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { MenuVisibilityManager } from '@/lib/managers/MenuVisibilityManager';
+import type { MenuItemId } from '@/lib/managers/MenuVisibilityManager';
+import SafetyHeaderNav from '@/components/safety/SafetyHeaderNav';
+import AccountingHeaderNav from '@/components/accounting/AccountingHeaderNav';
+import FleetHeaderNav from '@/components/fleet/FleetHeaderNav';
+import LoadHeaderNav from '@/components/loads/LoadHeaderNav';
+import HRHeaderNav from '@/components/hr/HRHeaderNav';
 
 interface NavigationItem {
   name: string;
@@ -138,19 +146,38 @@ export default function DashboardLayout({
   const session = serverSession || clientSessionResult?.data || null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mainSidebarCollapsed, setMainSidebarCollapsed] = useState(false); // Default to expanded
+  const [mainSidebarHidden, setMainSidebarHidden] = useState(false); // Toggle to completely hide/show
+  const [mainSidebarAlwaysShow, setMainSidebarAlwaysShow] = useState(false); // Toggle to always show vs auto-hide
   const [isHovering, setIsHovering] = useState(false);
   const [justManuallyToggled, setJustManuallyToggled] = useState(false);
   const { can, isAdmin } = usePermissions();
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load main sidebar preference from localStorage
+  // Load main sidebar preferences from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('mainSidebarCollapsed');
-    if (saved !== null) {
-      setMainSidebarCollapsed(saved === 'true');
+    const savedCollapsed = localStorage.getItem('mainSidebarCollapsed');
+    const savedHidden = localStorage.getItem('mainSidebarHidden');
+    const savedAlwaysShow = localStorage.getItem('mainSidebarAlwaysShow');
+    
+    if (savedCollapsed !== null) {
+      setMainSidebarCollapsed(savedCollapsed === 'true');
     } else {
       // First time - default to expanded
       setMainSidebarCollapsed(false);
+    }
+    
+    if (savedHidden !== null) {
+      setMainSidebarHidden(savedHidden === 'true');
+    } else {
+      // First time - default to visible
+      setMainSidebarHidden(false);
+    }
+    
+    if (savedAlwaysShow !== null) {
+      setMainSidebarAlwaysShow(savedAlwaysShow === 'true');
+    } else {
+      // First time - default to auto-hide (current behavior)
+      setMainSidebarAlwaysShow(false);
     }
   }, []);
 
@@ -163,6 +190,24 @@ export default function DashboardLayout({
     };
   }, []);
 
+  // When "always show" is enabled, ensure sidebar stays expanded and clear any pending timeouts
+  useEffect(() => {
+    if (mainSidebarAlwaysShow) {
+      // Clear any pending collapse timeout
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      // Ensure sidebar is expanded
+      if (mainSidebarCollapsed) {
+        setMainSidebarCollapsed(false);
+        localStorage.setItem('mainSidebarCollapsed', 'false');
+      }
+      // Lock it open
+      localStorage.setItem('mainSidebarManuallyLocked', 'true');
+    }
+  }, [mainSidebarAlwaysShow, mainSidebarCollapsed]);
+
   // Save main sidebar preference to localStorage
   const toggleMainSidebar = () => {
     const newState = !mainSidebarCollapsed;
@@ -170,15 +215,73 @@ export default function DashboardLayout({
     localStorage.setItem('mainSidebarCollapsed', String(newState));
   };
 
-  // Only hide main nav if explicitly requested via hideMainNav prop
+  // Toggle to completely hide/show sidebar
+  const toggleMainSidebarVisibility = () => {
+    const newState = !mainSidebarHidden;
+    setMainSidebarHidden(newState);
+    localStorage.setItem('mainSidebarHidden', String(newState));
+  };
+
+  // Toggle to always show vs auto-hide after 10 seconds
+  const toggleMainSidebarAlwaysShow = () => {
+    const newState = !mainSidebarAlwaysShow;
+    setMainSidebarAlwaysShow(newState);
+    localStorage.setItem('mainSidebarAlwaysShow', String(newState));
+    
+    // If enabling "always show", clear any pending timeout and ensure sidebar is expanded
+    if (newState) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      // Lock it open
+      localStorage.setItem('mainSidebarManuallyLocked', 'true');
+      setMainSidebarCollapsed(false);
+      localStorage.setItem('mainSidebarCollapsed', 'false');
+    } else {
+      // If disabling "always show", unlock for auto-hide behavior
+      localStorage.setItem('mainSidebarManuallyLocked', 'false');
+    }
+  };
+
+  // Hide main nav if explicitly requested via hideMainNav prop
+  // Note: mainSidebarHidden only affects desktop, mobile always allows sidebar
   const shouldHideMainNav = hideMainNav;
 
-  // Check if we're in Fleet Department section (has its own sidebar)
-  const isFleetSection = pathname?.startsWith('/dashboard/fleet');
-  // Check if we're in Safety section (has its own sidebar)
+  // Check if we're in Load Management section
+  const isLoadManagementSection = pathname?.startsWith('/dashboard/loads') ||
+    pathname?.startsWith('/dashboard/loadboard') ||
+    pathname?.startsWith('/dashboard/dispatch') ||
+    pathname?.startsWith('/dashboard/calendar') ||
+    pathname?.startsWith('/dashboard/map');
+  
+  // Check if we're in HR Management section
+  const isHRSection = pathname?.startsWith('/dashboard/hr') ||
+    pathname?.startsWith('/dashboard/drivers');
+  
+  // Check if we're in Fleet Department section
+  const isFleetSection = pathname?.startsWith('/dashboard/fleet') ||
+    pathname?.startsWith('/dashboard/trucks') ||
+    pathname?.startsWith('/dashboard/trailers') ||
+    pathname?.startsWith('/dashboard/fleet-board');
+  
+  // Check if we're in Accounting section
+  const isAccountingSection = pathname?.startsWith('/dashboard/invoices') ||
+    pathname?.startsWith('/dashboard/settlements') ||
+    pathname?.startsWith('/dashboard/salary') ||
+    pathname?.startsWith('/dashboard/bills') ||
+    pathname?.startsWith('/dashboard/customers') ||
+    pathname?.startsWith('/dashboard/vendors') ||
+    pathname?.startsWith('/dashboard/locations') ||
+    pathname?.startsWith('/dashboard/analytics') ||
+    pathname?.startsWith('/dashboard/automation') ||
+    pathname?.startsWith('/dashboard/accounting') ||
+    pathname?.startsWith('/dashboard/batches');
+  
+  // Check if we're in Safety section
   const isSafetySection = pathname?.startsWith('/dashboard/safety');
 
-  // Filter navigation items based on permissions and department access
+  // Filter navigation items based on permissions, department access, and menu visibility config
   const role = (session?.user?.role || 'CUSTOMER') as UserRole;
   const visibleNavigation = mainNavigation.filter((item) => {
     // Dashboard is always visible
@@ -187,8 +290,16 @@ export default function DashboardLayout({
     // Check both the permission and department access
     const hasPermission = can(item.permission);
     const hasDeptAccess = hasRouteAccess(role, item.href);
+    const baseVisibility = hasPermission && hasDeptAccess;
     
-    return hasPermission && hasDeptAccess;
+    // Apply menu visibility configuration
+    const menuVisibility = MenuVisibilityManager.isMenuItemVisible(
+      item.href as MenuItemId,
+      role,
+      baseVisibility
+    );
+    
+    return menuVisibility;
   });
 
   // Debug: Log visible navigation items (only once on mount)
@@ -211,15 +322,15 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Sidebar - Hide when hideMainNav is true */}
+      {/* Sidebar - Hide when hideMainNav is true, or when mainSidebarHidden is true on desktop */}
       {!shouldHideMainNav && (
       <aside
         className={cn(
           'fixed top-0 left-0 z-50 h-full bg-slate-900 dark:bg-secondary text-slate-100 dark:text-foreground transform transition-all duration-300 ease-in-out',
-          // Mobile: slide in/out
+          // Mobile: slide in/out (always available)
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          // Desktop: always visible, just change width
-          'lg:translate-x-0',
+          // Desktop: hide if mainSidebarHidden is true, otherwise show
+          mainSidebarHidden ? 'lg:-translate-x-full' : 'lg:translate-x-0',
           mainSidebarCollapsed ? 'w-16 lg:w-16' : 'w-64 lg:w-64'
         )}
         onMouseEnter={() => {
@@ -236,8 +347,8 @@ export default function DashboardLayout({
             return;
           }
           
-          // Auto-expand on hover when collapsed (unless manually locked)
-          if (mainSidebarCollapsed) {
+          // Auto-expand on hover when collapsed (unless manually locked or "always show" is enabled)
+          if (mainSidebarCollapsed && !mainSidebarAlwaysShow) {
             const manualLock = localStorage.getItem('mainSidebarManuallyLocked');
             if (!manualLock || manualLock === 'false') {
               setMainSidebarCollapsed(false);
@@ -247,19 +358,22 @@ export default function DashboardLayout({
         onMouseLeave={() => {
           setIsHovering(false);
           
-          // Auto-collapse after 10 seconds when mouse leaves (unless manually locked)
-          const manualLock = localStorage.getItem('mainSidebarManuallyLocked');
-          if (!manualLock || manualLock === 'false') {
-            // Clear any existing timeout
-            if (hoverTimeoutRef.current) {
-              clearTimeout(hoverTimeoutRef.current);
+          // Only auto-collapse if "always show" is disabled
+          if (!mainSidebarAlwaysShow) {
+            // Auto-collapse after 10 seconds when mouse leaves (unless manually locked)
+            const manualLock = localStorage.getItem('mainSidebarManuallyLocked');
+            if (!manualLock || manualLock === 'false') {
+              // Clear any existing timeout
+              if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+              }
+              
+              // Set new timeout for 10 seconds
+              hoverTimeoutRef.current = setTimeout(() => {
+                setMainSidebarCollapsed(true);
+                hoverTimeoutRef.current = null;
+              }, 10000); // 10 seconds
             }
-            
-            // Set new timeout for 10 seconds
-            hoverTimeoutRef.current = setTimeout(() => {
-              setMainSidebarCollapsed(true);
-              hoverTimeoutRef.current = null;
-            }, 10000); // 10 seconds
           }
         }}
       >
@@ -276,6 +390,29 @@ export default function DashboardLayout({
               <span className="font-bold text-lg dark:text-foreground whitespace-nowrap">TMS</span>
             </div>
             <div className="flex items-center gap-2">
+              {/* Always Show / Auto-Hide Toggle */}
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hidden lg:flex text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent"
+                      onClick={toggleMainSidebarAlwaysShow}
+                    >
+                      {mainSidebarAlwaysShow ? (
+                        <Pin className="h-4 w-4" />
+                      ) : (
+                        <PinOff className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{mainSidebarAlwaysShow ? 'Always show (click to auto-hide)' : 'Auto-hide after 10s (click to always show)'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
               <Button
                 variant="ghost"
                 size="icon"
@@ -295,16 +432,19 @@ export default function DashboardLayout({
                   setJustManuallyToggled(true);
                   
                   // Toggle lock state - if expanding manually, lock it open; if collapsing, unlock for hover
-                  if (!newState) {
-                    // Expanding - lock it open
-                    localStorage.setItem('mainSidebarManuallyLocked', 'true');
-                  } else {
-                    // Collapsing - unlock for hover behavior, but prevent immediate re-expansion
-                    localStorage.setItem('mainSidebarManuallyLocked', 'false');
-                    // Reset the flag after a short delay to allow hover behavior again
-                    setTimeout(() => {
-                      setJustManuallyToggled(false);
-                    }, 500); // 500ms delay before hover can expand again
+                  // But only if "always show" is disabled
+                  if (!mainSidebarAlwaysShow) {
+                    if (!newState) {
+                      // Expanding - lock it open
+                      localStorage.setItem('mainSidebarManuallyLocked', 'true');
+                    } else {
+                      // Collapsing - unlock for hover behavior, but prevent immediate re-expansion
+                      localStorage.setItem('mainSidebarManuallyLocked', 'false');
+                      // Reset the flag after a short delay to allow hover behavior again
+                      setTimeout(() => {
+                        setJustManuallyToggled(false);
+                      }, 500); // 500ms delay before hover can expand again
+                    }
                   }
                   
                   // Reset flag when expanding
@@ -384,8 +524,6 @@ export default function DashboardLayout({
             </TooltipProvider>
           </nav>
 
-          {/* Company Switcher - Hidden when collapsed */}
-          {!mainSidebarCollapsed && <CompanySwitcher />}
 
           {/* User Profile & Logout */}
           <div className={cn(
@@ -448,22 +586,68 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <div className={cn(
-        !shouldHideMainNav && mainSidebarCollapsed && 'lg:pl-16',
-        !shouldHideMainNav && !mainSidebarCollapsed && 'lg:pl-64'
+        shouldHideMainNav && 'lg:pl-0',
+        !shouldHideMainNav && mainSidebarHidden && 'lg:pl-0',
+        !shouldHideMainNav && !mainSidebarHidden && mainSidebarCollapsed && 'lg:pl-16',
+        !shouldHideMainNav && !mainSidebarHidden && !mainSidebarCollapsed && 'lg:pl-64'
       )}>
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-background border-b border-border dark:bg-card">
-          <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2 px-4 py-3">
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
+              className="lg:hidden flex-shrink-0"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <div className="flex-1" />
-            <div className="flex items-center gap-3">
+            
+            {/* Toggle sidebar visibility button (desktop only) */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden lg:flex flex-shrink-0"
+              onClick={toggleMainSidebarVisibility}
+              title={mainSidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            
+            {/* Department Header Navigation - shown only on respective routes */}
+            {isLoadManagementSection && (
+              <>
+                <LoadHeaderNav />
+                <div className="h-6 w-px bg-border flex-shrink-0" />
+              </>
+            )}
+            {isHRSection && (
+              <>
+                <HRHeaderNav />
+                <div className="h-6 w-px bg-border flex-shrink-0" />
+              </>
+            )}
+            {isSafetySection && (
+              <>
+                <SafetyHeaderNav />
+                <div className="h-6 w-px bg-border flex-shrink-0" />
+              </>
+            )}
+            {isAccountingSection && (
+              <>
+                <AccountingHeaderNav />
+                <div className="h-6 w-px bg-border flex-shrink-0" />
+              </>
+            )}
+            {isFleetSection && (
+              <>
+                <FleetHeaderNav />
+                <div className="h-6 w-px bg-border flex-shrink-0" />
+              </>
+            )}
+            
+            <div className="flex-1 min-w-0" />
+            <div className="flex items-center gap-3 flex-shrink-0">
               <McViewSelector />
               <div className="h-6 w-px bg-border" />
               <GlobalSearch />

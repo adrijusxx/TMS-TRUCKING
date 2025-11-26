@@ -33,27 +33,21 @@ export const safetyStandaloneItems = [
     icon: LayoutDashboard,
     description: 'Comprehensive safety dashboard providing real-time visibility into key safety metrics, active alerts, and compliance status.',
   },
-  {
-    name: 'Documents',
-    href: '/dashboard/safety/documents',
-    icon: FolderOpen,
-    description: 'Centralized document management system for all safety-related records.',
-  },
-  {
-    name: 'Work Orders',
-    href: '/dashboard/safety/work-orders',
-    icon: Wrench,
-    description: 'Manage safety-related work orders and maintenance requests.',
-  },
 ];
 
 // Navigation sections configuration
 export const safetyNavigationSections = [
   {
-    title: 'Incidents & Alerts',
-    icon: AlertTriangle,
-    colorScheme: 'red' as const,
+    title: 'Vehicle Safety',
+    icon: Car,
+    colorScheme: 'green' as const,
     items: [
+      {
+        name: 'Work Orders',
+        href: '/dashboard/safety/work-orders',
+        icon: Wrench,
+        description: 'Manage safety-related work orders and maintenance requests.',
+      },
       {
         name: 'Incidents',
         href: '/dashboard/safety/incidents',
@@ -66,68 +60,6 @@ export const safetyNavigationSections = [
         icon: Bell,
         description: 'View and manage active safety alerts and notifications in real-time.',
       },
-    ],
-  },
-  {
-    title: 'Driver Compliance',
-    icon: Users,
-    colorScheme: 'blue' as const,
-    items: [
-      {
-        name: 'DQF Management',
-        href: '/dashboard/safety/dqf',
-        icon: FileCheck,
-        description: 'Manage complete Driver Qualification Files (DQF) to ensure DOT compliance.',
-      },
-      {
-        name: 'Medical Cards',
-        href: '/dashboard/safety/medical-cards',
-        icon: FileText,
-        description: 'Track and manage driver medical card expiration dates and certifications.',
-      },
-      {
-        name: 'CDL Records',
-        href: '/dashboard/safety/cdl',
-        icon: FileCheck,
-        description: 'Manage Commercial Driver\'s License records for all drivers.',
-      },
-      {
-        name: 'MVR Tracking',
-        href: '/dashboard/safety/mvr',
-        icon: Search,
-        description: 'Monitor Motor Vehicle Records (MVR) for all drivers.',
-      },
-      {
-        name: 'Drug Tests',
-        href: '/dashboard/safety/drug-tests',
-        icon: TestTube,
-        description: 'Manage comprehensive drug and alcohol testing program per DOT regulations.',
-      },
-      {
-        name: 'HOS Monitoring',
-        href: '/dashboard/safety/hos',
-        icon: Clock,
-        description: 'Monitor Hours of Service (HOS) compliance for all drivers.',
-      },
-      {
-        name: 'Annual Reviews',
-        href: '/dashboard/safety/annual-reviews',
-        icon: Calendar,
-        description: 'Schedule and track annual driver performance reviews and evaluations.',
-      },
-      {
-        name: 'Training Records',
-        href: '/dashboard/safety/trainings',
-        icon: GraduationCap,
-        description: 'Manage comprehensive driver training records and certifications.',
-      },
-    ],
-  },
-  {
-    title: 'Vehicle Safety',
-    icon: Car,
-    colorScheme: 'green' as const,
-    items: [
       {
         name: 'DVIR',
         href: '/dashboard/safety/dvir',
@@ -165,6 +97,24 @@ export const safetyNavigationSections = [
     icon: BarChart3,
     colorScheme: 'purple' as const,
     items: [
+      {
+        name: 'Documents',
+        href: '/dashboard/safety/documents',
+        icon: FolderOpen,
+        description: 'Centralized document management system for all safety-related records.',
+      },
+      {
+        name: 'Driver Compliance',
+        href: '/dashboard/safety/driver-compliance',
+        icon: FileCheck,
+        description: 'Unified driver compliance management - DQF, Medical Cards, CDL, MVR, Drug Tests, HOS, and Annual Reviews all in one place.',
+      },
+      {
+        name: 'Training Records',
+        href: '/dashboard/safety/trainings',
+        icon: GraduationCap,
+        description: 'Manage comprehensive driver training records and certifications.',
+      },
       {
         name: 'CSA Scores',
         href: '/dashboard/safety/compliance/csa-scores',

@@ -427,6 +427,18 @@ export const updateLoadSchema = createLoadSchema.partial().extend({
     'PAID',
     'CANCELLED',
   ]).optional(),
+  dispatchStatus: z.enum([
+    'BOOKED',
+    'ON_ROUTE_TO_PICKUP',
+    'AT_PICKUP',
+    'LOADED',
+    'ON_ROUTE_TO_DELIVERY',
+    'AT_DELIVERY',
+    'DELIVERED',
+    'PENDING_DISPATCH',
+    'DISPATCHED',
+    'CANCELLED',
+  ]).optional(),
   driverId: z.string().optional(),
   truckId: z.string().optional(),
 });

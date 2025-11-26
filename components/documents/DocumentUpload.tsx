@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ interface DocumentUploadProps {
   truckId?: string;
   onSuccess?: () => void;
   onFileSelected?: (file: File) => void; // For collecting files before load creation
+  defaultType?: string; // Pre-select document type
 }
 
 const documentTypes = [
@@ -29,12 +30,14 @@ const documentTypes = [
   { value: 'BOL', label: 'Bill of Lading' },
   { value: 'POD', label: 'Proof of Delivery' },
   { value: 'INVOICE', label: 'Invoice' },
-  { value: 'SETTLEMENT', label: 'Settlement' },
-  { value: 'LICENSE', label: 'License' },
+  { value: 'DRIVER_LICENSE', label: 'Driver License' },
   { value: 'MEDICAL_CARD', label: 'Medical Card' },
   { value: 'INSURANCE', label: 'Insurance' },
+  { value: 'COI', label: 'Certificate of Insurance' },
+  { value: 'REGISTRATION', label: 'Registration' },
   { value: 'INSPECTION', label: 'Inspection' },
-  { value: 'MAINTENANCE', label: 'Maintenance' },
+  { value: 'LEASE_AGREEMENT', label: 'Lease Agreement' },
+  { value: 'W9', label: 'W9 Form' },
   { value: 'OTHER', label: 'Other' },
 ];
 
@@ -56,13 +59,21 @@ export default function DocumentUpload({
   truckId,
   onSuccess,
   onFileSelected,
+  defaultType,
 }: DocumentUploadProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [documentType, setDocumentType] = useState<string>('');
+  const [documentType, setDocumentType] = useState<string>(defaultType || '');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Update documentType when defaultType changes
+  useEffect(() => {
+    if (defaultType) {
+      setDocumentType(defaultType);
+    }
+  }, [defaultType]);
 
   const uploadMutation = useMutation({
     mutationFn: uploadDocument,

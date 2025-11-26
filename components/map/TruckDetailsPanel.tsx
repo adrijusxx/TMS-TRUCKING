@@ -46,6 +46,11 @@ interface TruckDetailsPanelProps {
   onCenterMap?: () => void;
 }
 
+/** Validate fuel percent is a finite number */
+function isValidFuelPercent(value: unknown): value is number {
+  return typeof value === 'number' && isFinite(value);
+}
+
 function SeatbeltIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -204,11 +209,11 @@ export function TruckDetailsPanel({ truck, onClose, onCenterMap }: TruckDetailsP
                   <div className="text-xs uppercase text-muted-foreground">Fuel Level</div>
                 </div>
                 <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                  {truck.sensors?.fuelPercent !== undefined
+                  {isValidFuelPercent(truck.sensors?.fuelPercent)
                     ? `${Math.round(truck.sensors.fuelPercent)}%`
                     : 'No data'}
                 </div>
-                {truck.sensors?.fuelPercent !== undefined ? (
+                {isValidFuelPercent(truck.sensors?.fuelPercent) ? (
                   <div className="mt-2">
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
@@ -330,8 +335,8 @@ export function TruckDetailsPanel({ truck, onClose, onCenterMap }: TruckDetailsP
                   icon={<Fuel className="h-4 w-4 text-lime-500" />}
                   label="Fuel"
                   value={
-                    truck.sensors.fuelPercent !== undefined
-                      ? `${truck.sensors.fuelPercent}%`
+                    isValidFuelPercent(truck.sensors.fuelPercent)
+                      ? `${Math.round(truck.sensors.fuelPercent)}%`
                       : '—'
                   }
                 />

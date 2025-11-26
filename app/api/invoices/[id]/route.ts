@@ -148,11 +148,18 @@ export async function PATCH(
       writtenOffReason,
     } = body;
 
-    const existingInvoice = await prisma.invoice.findFirst({
+    // First check if invoice exists
+    const existingInvoice = await prisma.invoice.findUnique({
       where: {
         id: resolvedParams.id,
+      },
+      include: {
         customer: {
-          companyId: session.user.companyId,
+          select: {
+            id: true,
+            companyId: true,
+            name: true,
+          },
         },
       },
     });
@@ -164,6 +171,44 @@ export async function PATCH(
           error: { code: 'NOT_FOUND', message: 'Invoice not found' },
         },
         { status: 404 }
+      );
+    }
+
+    // Verify invoice belongs to user's company through customer
+    if (!existingInvoice.customer) {
+      console.error('Invoice missing customer:', {
+        invoiceId: resolvedParams.id,
+        invoiceNumber: existingInvoice.invoiceNumber,
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: { 
+            code: 'INVALID_RECORD', 
+            message: 'Invoice is missing customer information. Please contact support.' 
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    if (existingInvoice.customer.companyId !== session.user.companyId) {
+      console.error('Invoice access denied - company mismatch:', {
+        invoiceId: resolvedParams.id,
+        invoiceNumber: existingInvoice.invoiceNumber,
+        customerId: existingInvoice.customer.id,
+        customerCompanyId: existingInvoice.customer.companyId,
+        userCompanyId: session.user.companyId,
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: { 
+            code: 'FORBIDDEN', 
+            message: 'Invoice does not belong to your company' 
+          },
+        },
+        { status: 403 }
       );
     }
 

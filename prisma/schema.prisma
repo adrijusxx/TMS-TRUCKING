@@ -15,6 +15,7 @@ model User {
   id         String    @id @default(cuid())
   email      String    @unique
   password   String
+  tempPassword String? // Temporary plaintext password for admin viewing (cleared after first login)
   firstName  String
   lastName   String
   phone      String?
@@ -245,6 +246,7 @@ model Load {
 
   // Load Details
   status        LoadStatus    @default(PENDING)
+  dispatchStatus LoadDispatchStatus? // Dispatcher-specific status tracking
   loadType      LoadType      @default(FTL)
   equipmentType EquipmentType
 
@@ -361,6 +363,7 @@ model Load {
   @@index([coDriverId])
   @@index([dispatcherId])
   @@index([status])
+  @@index([dispatchStatus])
   @@index([pickupDate])
   @@index([deliveryDate])
   @@index([loadNumber])
@@ -447,6 +450,19 @@ enum LoadStatus {
   DELIVERED
   INVOICED
   PAID
+  CANCELLED
+}
+
+enum LoadDispatchStatus {
+  BOOKED
+  ON_ROUTE_TO_PICKUP
+  AT_PICKUP
+  LOADED
+  ON_ROUTE_TO_DELIVERY
+  AT_DELIVERY
+  DELIVERED
+  PENDING_DISPATCH
+  DISPATCHED
   CANCELLED
 }
 

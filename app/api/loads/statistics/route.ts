@@ -71,23 +71,34 @@ export async function GET(request: NextRequest) {
     const totalProfit = loads.reduce((sum, load) => sum + (load.profit || 0), 0);
 
     // Calculate loaded and empty miles
+    // Empty miles = total miles - loaded miles (includes deadhead to pickup + empty miles after delivery)
     // First try to use direct fields from Load model, then fall back to segments
     let loadedMiles = 0;
     let emptyMiles = 0;
     loads.forEach((load) => {
-      if (load.loadedMiles !== null && load.emptyMiles !== null) {
-        // Use direct fields if available
-        loadedMiles += load.loadedMiles || 0;
-        emptyMiles += load.emptyMiles || 0;
+      const totalMiles = load.totalMiles || 0;
+      
+      if (load.loadedMiles !== null && load.loadedMiles !== undefined) {
+        // Use direct loadedMiles field if available
+        const loadLoadedMiles = load.loadedMiles || 0;
+        loadedMiles += loadLoadedMiles;
+        // Empty miles = total miles - loaded miles (includes deadhead to pickup)
+        emptyMiles += Math.max(totalMiles - loadLoadedMiles, 0);
       } else if (load.segments && load.segments.length > 0) {
         // Calculate from segments
+        let segmentLoadedMiles = 0;
+        let segmentEmptyMiles = 0;
         load.segments.forEach((segment) => {
-          loadedMiles += segment.loadedMiles || 0;
-          emptyMiles += segment.emptyMiles || 0;
+          segmentLoadedMiles += segment.loadedMiles || 0;
+          segmentEmptyMiles += segment.emptyMiles || 0;
         });
+        loadedMiles += segmentLoadedMiles;
+        // For segments, use calculated empty miles or total - loaded
+        emptyMiles += segmentEmptyMiles > 0 ? segmentEmptyMiles : Math.max(totalMiles - segmentLoadedMiles, 0);
       } else {
         // Fallback: if no segments and no direct fields, assume all miles are loaded
-        loadedMiles += load.totalMiles || 0;
+        loadedMiles += totalMiles;
+        // No empty miles in this case
       }
     });
 
@@ -99,11 +110,18 @@ export async function GET(request: NextRequest) {
     // Calculate utilization rate (loaded miles / total miles)
     const utilizationRate = totalMiles > 0 ? (loadedMiles / totalMiles) * 100 : 0;
 
+    // Calculate RPM (Revenue Per Mile)
+    // Empty miles includes both stored emptyMiles AND loadedMiles (which are deadhead miles in this context)
+    const totalEmptyMiles = emptyMiles + loadedMiles;
+    const rpmLoadedMiles = loadedMiles > 0 ? totalRevenue / loadedMiles : null;
+    const rpmEmptyMiles = totalEmptyMiles > 0 ? totalRevenue / totalEmptyMiles : null;
+    const rpmTotalMiles = totalMiles > 0 ? totalRevenue / totalMiles : null;
+
     const statistics = {
       totalLoads,
       totalMiles,
       loadedMiles,
-      emptyMiles,
+      emptyMiles: totalEmptyMiles, // Empty miles includes loaded miles (deadhead)
       totalRevenue,
       totalDriverPay,
       totalProfit,
@@ -111,6 +129,9 @@ export async function GET(request: NextRequest) {
       averageRevenuePerLoad: Math.round(averageRevenuePerLoad * 100) / 100,
       averageProfitPerLoad: Math.round(averageProfitPerLoad * 100) / 100,
       utilizationRate: Math.round(utilizationRate * 10) / 10,
+      rpmLoadedMiles: rpmLoadedMiles ? Math.round(rpmLoadedMiles * 100) / 100 : null,
+      rpmEmptyMiles: rpmEmptyMiles ? Math.round(rpmEmptyMiles * 100) / 100 : null,
+      rpmTotalMiles: rpmTotalMiles ? Math.round(rpmTotalMiles * 100) / 100 : null,
     };
 
     return NextResponse.json({

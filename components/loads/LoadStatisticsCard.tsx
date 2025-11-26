@@ -19,6 +19,9 @@ interface LoadStatistics {
   averageRevenuePerLoad: number;
   averageProfitPerLoad: number;
   utilizationRate: number; // Percentage of loaded miles vs total miles
+  rpmLoadedMiles?: number | null;
+  rpmEmptyMiles?: number | null;
+  rpmTotalMiles?: number | null;
 }
 
 async function fetchLoadStatistics(): Promise<LoadStatistics> {
@@ -144,6 +147,39 @@ export default function LoadStatisticsCard() {
             <div className="text-lg font-semibold">{formatCurrency(stats.totalDriverPay)}</div>
           </div>
         </div>
+
+        {/* RPM Metrics */}
+        {(stats.rpmLoadedMiles !== null || stats.rpmEmptyMiles !== null || stats.rpmTotalMiles !== null) && (
+          <div className="mt-6 pt-6 border-t grid grid-cols-1 md:grid-cols-3 gap-4">
+            {stats.rpmLoadedMiles !== null && stats.rpmLoadedMiles !== undefined && (
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">RPM (Loaded Miles)</div>
+                <div className="text-lg font-semibold">{formatCurrency(stats.rpmLoadedMiles)}</div>
+                <div className="text-xs text-muted-foreground">
+                  {(stats.loadedMiles || 0).toLocaleString()} loaded miles
+                </div>
+              </div>
+            )}
+            {stats.rpmEmptyMiles !== null && stats.rpmEmptyMiles !== undefined && (
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">RPM (Empty Miles)</div>
+                <div className="text-lg font-semibold">{formatCurrency(stats.rpmEmptyMiles)}</div>
+                <div className="text-xs text-muted-foreground">
+                  {(stats.emptyMiles || 0).toLocaleString()} empty miles
+                </div>
+              </div>
+            )}
+            {stats.rpmTotalMiles !== null && stats.rpmTotalMiles !== undefined && (
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">RPM (Total Miles)</div>
+                <div className="text-lg font-semibold">{formatCurrency(stats.rpmTotalMiles)}</div>
+                <div className="text-xs text-muted-foreground">
+                  {(stats.totalMiles || 0).toLocaleString()} total miles
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

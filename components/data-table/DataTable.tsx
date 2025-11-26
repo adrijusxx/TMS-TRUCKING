@@ -36,6 +36,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DataTableProps, ExtendedColumnDef } from './types';
+import { ColumnFilter } from './ColumnFilter';
 
 /**
  * Core DataTable component built on TanStack Table
@@ -63,6 +64,9 @@ export function DataTable<TData extends Record<string, any>>({
   showLoadingSkeleton = true,
   inlineEditComponent: InlineEditComponent,
   onInlineEditSave,
+  getRowClassName,
+  entityType,
+  onColumnFilterChange,
 }: DataTableProps<TData>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
@@ -296,18 +300,57 @@ export function DataTable<TData extends Record<string, any>>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div
-                            className={cn(
-                              'flex items-center gap-2',
-                              canSort && 'cursor-pointer select-none hover:text-foreground'
-                            )}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {canSort && (
-                              <span className="text-muted-foreground">
-                                {isSorted === 'asc' ? '↑' : isSorted === 'desc' ? '↓' : '⇅'}
-                              </span>
+                          <div className="flex items-center justify-between w-full">
+                            <div
+                              className={cn(
+                                'flex items-center gap-2 flex-1',
+                                canSort && 'cursor-pointer select-none hover:text-foreground'
+                              )}
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {canSort && (
+                                <span className="text-muted-foreground">
+                                  {isSorted === 'asc' ? '↑' : isSorted === 'desc' ? '↓' : '⇅'}
+                                </span>
+                              )}
+                            </div>
+                            {(header.column.columnDef as ExtendedColumnDef<TData>).enableColumnFilter && entityType && onColumnFilterChange && (
+                              <div className="ml-2" onClick={(e) => e.stopPropagation()}>
+                                <ColumnFilter
+                                  columnId={header.column.id}
+                                  filterKey={(header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id}
+                                  entityType={entityType}
+                                  value={
+                                    columnFilters
+                                      .filter((f) => f.id === ((header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id))
+                                      .map((f) => {
+                                        try {
+                                          const parsed = JSON.parse(String(f.value));
+                                          return Array.isArray(parsed) ? parsed : [String(f.value)];
+                                        } catch {
+                                          return [String(f.value)];
+                                        }
+                                      })
+                                      .flat() || []
+                                  }
+                                  onChange={(values) => {
+                                    const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
+                                    const newFilters = columnFilters.filter((f) => f.id !== filterKey);
+                                    if (values.length > 0) {
+                                      newFilters.push({ id: filterKey, value: JSON.stringify(values) });
+                                    }
+                                    setColumnFilters(newFilters);
+                                    onColumnFilterChange(header.column.id, values);
+                                  }}
+                                  onClear={() => {
+                                    const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
+                                    const newFilters = columnFilters.filter((f) => f.id !== filterKey);
+                                    setColumnFilters(newFilters);
+                                    onColumnFilterChange(header.column.id, []);
+                                  }}
+                                />
+                              </div>
                             )}
                           </div>
                         )}
@@ -331,7 +374,9 @@ export function DataTable<TData extends Record<string, any>>({
                           row.getIsSelected() && 'bg-muted/50',
                           onRowClick && 'cursor-pointer hover:bg-muted/50',
                           // Visual distinction for soft-deleted records
-                          row.original?.deletedAt && 'opacity-60 bg-muted/30'
+                          row.original?.deletedAt && 'opacity-60 bg-muted/30',
+                          // Custom row className from prop
+                          getRowClassName?.(row.original)
                         )}
                         onClick={(e) => {
                           // Don't trigger row click if clicking on checkbox, button, or link

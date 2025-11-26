@@ -13,16 +13,16 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
 
   // Determine which side nav to show based on pathname
   const getSideNav = () => {
-    // Load Management pages
+    // Load Management pages - handled by header navigation
     if (pathname.startsWith('/dashboard/loads') || 
         pathname.startsWith('/dashboard/loadboard') ||
         pathname.startsWith('/dashboard/dispatch') ||
         pathname.startsWith('/dashboard/calendar') ||
         pathname.startsWith('/dashboard/map')) {
-      return <LoadManagementNav />;
+      return null;
     }
 
-    // Accounting pages (including batches)
+    // Accounting pages - handled by header navigation
     if (pathname.startsWith('/dashboard/invoices') ||
         pathname.startsWith('/dashboard/settlements') ||
         pathname.startsWith('/dashboard/salary') ||
@@ -34,10 +34,10 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
         pathname.startsWith('/dashboard/automation') ||
         pathname.startsWith('/dashboard/accounting') ||
         pathname.startsWith('/dashboard/batches')) {
-      return <AccountingNav />;
+      return null;
     }
 
-    // Safety pages - handled by SafetyLayout with its own comprehensive sidebar
+    // Safety pages - handled by header navigation
     if (pathname.startsWith('/dashboard/safety')) {
       return null;
     }
@@ -60,18 +60,18 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       return <SettingsNav />;
     }
 
-    // Fleet Department pages
+    // Fleet Department pages - handled by header navigation
     if (pathname.startsWith('/dashboard/fleet') ||
         pathname.startsWith('/dashboard/trucks') ||
         pathname.startsWith('/dashboard/trailers') ||
         pathname.startsWith('/dashboard/fleet-board')) {
-      return <FleetManagementSidebar />;
+      return null;
     }
 
-    // HR Management pages
+    // HR Management pages - handled by header navigation
     if (pathname.startsWith('/dashboard/hr') ||
         pathname.startsWith('/dashboard/drivers')) {
-      return <HRManagementNav />;
+      return null;
     }
 
 

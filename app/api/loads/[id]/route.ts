@@ -157,6 +157,7 @@ export async function PATCH(
     // Track if driver was newly assigned
     const wasDriverAssigned = !existingLoad.driverId && validated.driverId;
     const oldStatus = existingLoad.status;
+    const oldDispatchStatus = existingLoad.dispatchStatus;
 
     // Calculate driver pay if driver is being assigned and driverPay is not manually set
     if (wasDriverAssigned && validated.driverId) {
@@ -193,6 +194,18 @@ export async function PATCH(
           status: validated.status as any,
           createdBy: session.user.id,
           notes: `Status changed from ${existingLoad.status} to ${validated.status}`,
+        },
+      });
+    }
+
+    // Create status history entry if dispatch status changed
+    if (validated.dispatchStatus && validated.dispatchStatus !== existingLoad.dispatchStatus) {
+      await prisma.loadStatusHistory.create({
+        data: {
+          loadId: loadId,
+          status: existingLoad.status, // Keep the main status
+          createdBy: session.user.id,
+          notes: `Dispatch status changed from ${existingLoad.dispatchStatus || 'none'} to ${validated.dispatchStatus}`,
         },
       });
     }

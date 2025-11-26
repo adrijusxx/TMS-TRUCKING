@@ -25,7 +25,7 @@ import { Shield, AlertTriangle, GraduationCap, Plus, Filter, Download, Upload } 
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
-import BulkActionBar from '@/components/import-export/BulkActionBar';
+import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 
@@ -429,7 +429,10 @@ export default function SafetyPage() {
                 <BulkActionBar
                   selectedIds={selectedIncidentIds}
                   onClearSelection={() => setSelectedIncidentIds([])}
-                  entityType="safety-incident"
+                  entityType="safety-incidents"
+                  enableBulkEdit={false}
+                  enableBulkDelete={true}
+                  enableBulkExport={true}
                   onActionComplete={() => {
                     refetchIncidents();
                     setSelectedIncidentIds([]);
@@ -617,7 +620,10 @@ export default function SafetyPage() {
                 <BulkActionBar
                   selectedIds={selectedTrainingIds}
                   onClearSelection={() => setSelectedTrainingIds([])}
-                  entityType="safety-training"
+                  entityType="safety-trainings"
+                  enableBulkEdit={false}
+                  enableBulkDelete={true}
+                  enableBulkExport={true}
                   onActionComplete={() => {
                     refetchTrainings();
                     setSelectedTrainingIds([]);

@@ -57,7 +57,30 @@ export default function McNumberSelector({
     enabled: !!effectiveCompanyId,
   });
 
-  const mcNumbers: McNumber[] = data?.data || [];
+  const allMcNumbers: McNumber[] = data?.data || [];
+
+  // Filter MC numbers based on user's mcAccess permissions
+  const userRole = session?.user?.role;
+  const userMcAccess = (session?.user as any)?.mcAccess || [];
+  const isAdmin = userRole === 'ADMIN';
+  
+  let mcNumbers: McNumber[] = [];
+  
+  if (isAdmin && userMcAccess.length === 0) {
+    // Admin with empty mcAccess array can see all MCs
+    mcNumbers = allMcNumbers;
+  } else if (userMcAccess.length > 0) {
+    // User with mcAccess array can only see MCs they have access to
+    mcNumbers = allMcNumbers.filter(mc => userMcAccess.includes(mc.id));
+  } else {
+    // User with no mcAccess (non-admin) - show only their default MC if available
+    const defaultMcId = (session?.user as any)?.mcNumberId;
+    if (defaultMcId) {
+      mcNumbers = allMcNumbers.filter(mc => mc.id === defaultMcId);
+    } else {
+      mcNumbers = [];
+    }
+  }
 
   // Sort: default first, then by company name
   const sortedMcNumbers = [...mcNumbers].sort((a, b) => {

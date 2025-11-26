@@ -18,6 +18,7 @@ import { Save, X } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import LoadDocumentWarnings from './LoadDocumentWarnings';
 
 interface LoadInlineEditProps {
   row: {
@@ -47,28 +48,32 @@ async function fetchCustomers() {
   const response = await fetch(apiUrl('/api/customers?limit=1000'));
   if (!response.ok) throw new Error('Failed to fetch customers');
   const result = await response.json();
-  return result.data || [];
+  // Ensure we always return an array
+  return Array.isArray(result.data) ? result.data : [];
 }
 
 async function fetchDrivers() {
   const response = await fetch(apiUrl('/api/drivers?limit=1000'));
   if (!response.ok) throw new Error('Failed to fetch drivers');
   const result = await response.json();
-  return result.data || [];
+  // Ensure we always return an array
+  return Array.isArray(result.data) ? result.data : [];
 }
 
 async function fetchTrucks() {
   const response = await fetch(apiUrl('/api/trucks?limit=1000'));
   if (!response.ok) throw new Error('Failed to fetch trucks');
   const result = await response.json();
-  return result.data || [];
+  // Ensure we always return an array
+  return Array.isArray(result.data) ? result.data : [];
 }
 
 async function fetchTrailers() {
   const response = await fetch(apiUrl('/api/trailers?limit=1000'));
   if (!response.ok) throw new Error('Failed to fetch trailers');
   const result = await response.json();
-  return result.data || [];
+  // Ensure we always return an array
+  return Array.isArray(result.data) ? result.data : [];
 }
 
 async function updateLoad(loadId: string, data: any) {
@@ -88,25 +93,31 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
 
-  const { data: customers = [] } = useQuery({
+  const { data: customersData } = useQuery({
     queryKey: ['customers'],
     queryFn: fetchCustomers,
   });
 
-  const { data: drivers = [] } = useQuery({
+  const { data: driversData } = useQuery({
     queryKey: ['drivers'],
     queryFn: fetchDrivers,
   });
 
-  const { data: trucks = [] } = useQuery({
+  const { data: trucksData } = useQuery({
     queryKey: ['trucks'],
     queryFn: fetchTrucks,
   });
 
-  const { data: trailers = [] } = useQuery({
+  const { data: trailersData } = useQuery({
     queryKey: ['trailers'],
     queryFn: fetchTrailers,
   });
+
+  // Ensure all data is always an array
+  const customers = Array.isArray(customersData) ? customersData : [];
+  const drivers = Array.isArray(driversData) ? driversData : [];
+  const trucks = Array.isArray(trucksData) ? trucksData : [];
+  const trailers = Array.isArray(trailersData) ? trailersData : [];
 
   const { register, handleSubmit, setValue, watch } = useForm({
     defaultValues: {
@@ -283,8 +294,13 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
             </div>
             <div className="space-y-2">
               <Label htmlFor="totalMiles">Total Miles</Label>
-              <Input id="totalMiles" type="number" {...register('totalMiles')} />
+              <Input id="totalMiles" type="number" step="0.1" {...register('totalMiles')} />
             </div>
+          </div>
+
+          {/* Document Warnings and Upload */}
+          <div className="pt-4 border-t">
+            <LoadDocumentWarnings loadId={row.id} loadNumber={row.loadNumber} />
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t">

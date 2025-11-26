@@ -96,9 +96,17 @@ export default function LoginPage() {
 
       if (result?.error) {
         console.error('Sign in error:', result.error);
-        setError(result.error === 'CredentialsSignin' 
-          ? 'Invalid email or password' 
-          : `Sign in error: ${result.error}`);
+        let errorMessage = 'An error occurred during sign in';
+        
+        if (result.error === 'CredentialsSignin') {
+          errorMessage = 'Invalid email or password';
+        } else if (result.error === 'Configuration') {
+          errorMessage = 'Authentication server configuration error. Please contact your administrator. (Missing NEXTAUTH_SECRET)';
+        } else {
+          errorMessage = `Sign in error: ${result.error}`;
+        }
+        
+        setError(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -145,6 +153,27 @@ export default function LoginPage() {
             {error && (
               <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md border border-destructive/20">
                 {error}
+                {error.includes('Configuration') && (
+                  <div className="mt-2 pt-2 border-t border-destructive/20">
+                    <p className="text-xs mb-2">Try clearing your browser cookies or:</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await fetch('/api/auth/clear-session', { method: 'POST' });
+                          window.location.reload();
+                        } catch (e) {
+                          console.error('Failed to clear session:', e);
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      Clear Session Cookies
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
             <div className="p-3 text-xs text-muted-foreground bg-muted/50 rounded-md border">

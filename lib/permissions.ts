@@ -288,16 +288,19 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'customers.view', 'customers.create', 'customers.edit',
     'invoices.view', 'invoices.generate',
     'settlements.view',
-    'documents.view', 'documents.upload',
+    'documents.view', 'documents.upload', 'documents.delete', // Allow deletion for BOL/POD/rate confirmations
     'analytics.view', 'reports.view',
     'settings.view',
     // Basic fleet operations
     'breakdowns.view', 'breakdowns.create',
     'calendar.view', 'calendar.edit',
     'loadboard.view', 'loadboard.post',
+    // Data Management
+    'data.column_visibility',
     // Department Access
     'departments.fleet.view',
     'departments.reports.view',
+    'departments.settings.view', // Allow access to settings (profile)
   ],
   ACCOUNTANT: [
     // Financial management and accounting
@@ -316,12 +319,15 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     // Department Access
     'departments.accounting.view',
     'departments.reports.view',
+    'departments.settings.view', // Allow access to settings (profile)
   ],
   DRIVER: [
     // Driver-specific access (only their assigned loads)
     'loads.view',
     'documents.view', 'documents.upload',
     'settings.view',
+    // Department Access
+    'departments.settings.view', // Allow access to settings (profile)
   ],
   CUSTOMER: [
     // Customer portal access (only their loads)
@@ -340,6 +346,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     // Department Access
     'departments.hr.view',
     'departments.reports.view',
+    'departments.settings.view', // Allow access to settings (profile)
   ],
   SAFETY: [
     // Safety and compliance management
@@ -366,6 +373,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     // Department Access
     'departments.safety.view',
     'departments.reports.view',
+    'departments.settings.view', // Allow access to settings (profile)
   ],
   FLEET: [
     // Fleet management - trucks, trailers, maintenance, breakdowns
@@ -388,6 +396,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     // Department Access
     'departments.fleet.view',
     'departments.reports.view',
+    'departments.settings.view', // Allow access to settings (profile)
   ],
 };
 

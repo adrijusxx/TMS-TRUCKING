@@ -4,8 +4,20 @@ import { prisma } from './prisma';
 import { UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
+// Validate and set NEXTAUTH_SECRET
+// If not set, generate a default one (for development only - NOT recommended for production)
+let nextAuthSecret = process.env.NEXTAUTH_SECRET;
+
+if (!nextAuthSecret) {
+  console.warn('⚠️  NEXTAUTH_SECRET is not set. Using a default secret (NOT SECURE FOR PRODUCTION!)');
+  // Generate a simple default secret for development
+  // In production, this should ALWAYS be set in environment variables
+  nextAuthSecret = 'dev-secret-key-change-in-production-min-32-chars';
+  console.warn('⚠️  Please set NEXTAUTH_SECRET in your .env.local file for production use.');
+}
+
 export const authOptions: NextAuthConfig = {
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: nextAuthSecret,
   trustHost: true, // Required for basePath/subdirectory deployments
   // CRITICAL: NextAuth v5 beta needs basePath set to the path it RECEIVES (after Next.js strips basePath)
   // Next.js strips /tms before passing to route handlers, so NextAuth receives /api/auth/session
@@ -46,6 +58,7 @@ export const authOptions: NextAuthConfig = {
               mcAccess: true,
               isActive: true,
               password: true,
+              tempPassword: true, // Include tempPassword to clear it after login
               company: {
                 select: {
                   id: true,
@@ -96,6 +109,15 @@ export const authOptions: NextAuthConfig = {
           }
 
           console.log('[Auth] Login successful for:', email);
+
+          // Clear tempPassword after successful login (security: password was used)
+          if (user.tempPassword) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { tempPassword: null },
+            });
+            console.log('[Auth] Cleared tempPassword for user:', email);
+          }
 
           return {
             id: user.id,

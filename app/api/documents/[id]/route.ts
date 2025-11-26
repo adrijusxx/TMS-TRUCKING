@@ -110,7 +110,24 @@ export async function DELETE(
 
     // Check permission to delete documents
     const role = session.user.role as 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER';
-    if (!hasPermission(role, 'documents.delete')) {
+    
+    // Dispatchers can only delete BOL, POD, and RATE_CONFIRMATION documents
+    // Other roles need full documents.delete permission
+    if (role === 'DISPATCHER') {
+      const allowedTypes = ['BOL', 'POD', 'RATE_CONFIRMATION'];
+      if (!allowedTypes.includes(existingDocument.type)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Dispatchers can only delete BOL, POD, and Rate Confirmation documents',
+            },
+          },
+          { status: 403 }
+        );
+      }
+    } else if (!hasPermission(role, 'documents.delete')) {
       return NextResponse.json(
         {
           success: false,
@@ -123,11 +140,57 @@ export async function DELETE(
       );
     }
 
+    // For critical documents (BOL, POD, RATE_CONFIRMATION), handle accounting sync implications
+    const isCriticalDocument = ['BOL', 'POD', 'RATE_CONFIRMATION'].includes(existingDocument.type);
+    const loadId = existingDocument.loadId;
+
     // Soft delete
     await prisma.document.update({
       where: { id: resolvedParams.id },
       data: { deletedAt: new Date() },
     });
+
+    // If deleting a rate confirmation, also remove the link from RateConfirmation model
+    if (existingDocument.type === 'RATE_CONFIRMATION' && loadId) {
+      try {
+        await prisma.rateConfirmation.updateMany({
+          where: {
+            loadId: loadId,
+            documentId: resolvedParams.id,
+          },
+          data: {
+            documentId: null,
+          },
+        });
+      } catch (error) {
+        // Log but don't fail - document is already deleted
+        console.error('Error updating RateConfirmation after document deletion:', error);
+      }
+    }
+
+    // If deleting POD and load is delivered, note that accounting sync may need review
+    if (existingDocument.type === 'POD' && loadId) {
+      try {
+        const load = await prisma.load.findFirst({
+          where: { id: loadId },
+          select: { status: true },
+        });
+        
+        if (load?.status === 'DELIVERED') {
+          // Update load to indicate POD was removed (accounting may need to review)
+          await prisma.load.update({
+            where: { id: loadId },
+            data: {
+              podUploadedAt: null,
+              accountingSyncStatus: 'REQUIRES_REVIEW', // Flag for accounting review
+            },
+          });
+        }
+      } catch (error) {
+        // Log but don't fail - document is already deleted
+        console.error('Error updating load after POD deletion:', error);
+      }
+    }
 
     return NextResponse.json({
       success: true,

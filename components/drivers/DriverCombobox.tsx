@@ -59,7 +59,9 @@ export default function DriverCombobox({
   const [searchQuery, setSearchQuery] = React.useState('');
 
   // Always use API search when there's a query, otherwise use preloaded drivers if available
-  const shouldUseApi = open && (searchQuery.length > 0 || !preloadedDrivers);
+  // Check if preloaded drivers array has items, not just if it exists (empty array is truthy)
+  const hasPreloadedDrivers = preloadedDrivers && preloadedDrivers.length > 0;
+  const shouldUseApi = open && (searchQuery.length > 0 || !hasPreloadedDrivers);
   
   const { data: driversData, isLoading } = useQuery({
     queryKey: ['drivers', searchQuery],
@@ -69,7 +71,7 @@ export default function DriverCombobox({
 
   // Filter preloaded drivers by search query if no API search
   const filteredPreloaded = React.useMemo(() => {
-    if (!preloadedDrivers || searchQuery.length === 0) return preloadedDrivers || [];
+    if (!hasPreloadedDrivers || searchQuery.length === 0) return preloadedDrivers || [];
     const query = searchQuery.toLowerCase();
     return preloadedDrivers.filter(
       (d) =>
@@ -77,7 +79,7 @@ export default function DriverCombobox({
         d.user.lastName.toLowerCase().includes(query) ||
         d.driverNumber.toLowerCase().includes(query)
     );
-  }, [preloadedDrivers, searchQuery]);
+  }, [preloadedDrivers, searchQuery, hasPreloadedDrivers]);
 
   const drivers: Driver[] = shouldUseApi
     ? driversData?.data || []

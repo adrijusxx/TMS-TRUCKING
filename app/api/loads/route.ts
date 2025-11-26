@@ -43,13 +43,33 @@ export async function GET(request: NextRequest) {
     const driverId = searchParams.get('driverId');
     const search = searchParams.get('search');
     const pickupCity = searchParams.get('pickupCity');
+    const pickupState = searchParams.get('pickupState');
     const deliveryCity = searchParams.get('deliveryCity');
+    const deliveryState = searchParams.get('deliveryState');
     const pickupDate = searchParams.get('pickupDate');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const revenue = searchParams.get('revenue');
+    const miles = searchParams.get('miles');
+    const truckNumber = searchParams.get('truckNumber');
     const dispatcherId = searchParams.get('dispatcherId');
     const mcNumberIdFilter = searchParams.get('mcNumberId');
+    const createdToday = searchParams.get('createdToday') === 'true';
+    const pickupToday = searchParams.get('pickupToday') === 'true';
+    const createdLast24h = searchParams.get('createdLast24h') === 'true';
+    const hasMissingDocuments = searchParams.get('hasMissingDocuments');
+    
+    // Debug: Log quick filter params
+    console.log('[Loads API] Quick filter params:', {
+      createdToday: searchParams.get('createdToday'),
+      createdTodayBool: createdToday,
+      pickupToday: searchParams.get('pickupToday'),
+      pickupTodayBool: pickupToday,
+      createdLast24h: searchParams.get('createdLast24h'),
+      createdLast24hBool: createdLast24h,
+    });
+    const sortBy = searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // 4. Apply role-based filtering (separate from MC filtering)
     const roleFilter = await getLoadFilter(
@@ -59,6 +79,13 @@ export async function GET(request: NextRequest) {
         session.user.companyId
       )
     );
+    
+    // Debug logging for role filter
+    console.log('[Loads API] Role Filter:', {
+      role: session.user.role,
+      userId: session.user.id,
+      roleFilter,
+    });
 
     // Parse includeDeleted parameter (admins only)
     const includeDeleted = parseIncludeDeleted(request);
@@ -69,11 +96,23 @@ export async function GET(request: NextRequest) {
     // 5. Merge MC filter with role filter and deleted filter
     // MC filter includes companyId and mcNumberId (if applicable)
     // Role filter includes role-specific constraints (e.g., dispatcher sees their loads)
+    // NOTE: When merging, roleFilter may have companyId and deletedAt which will override mcWhere
+    // This is intentional - roleFilter's companyId and deletedAt take precedence
     const where: any = {
       ...mcWhere,
       ...roleFilter,
       ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
     };
+    
+    // Debug: Log final where clause structure
+    console.log('[Loads API] Final Where Clause:', {
+      companyId: where.companyId,
+      mcNumberId: where.mcNumberId,
+      dispatcherId: where.dispatcherId,
+      driverId: where.driverId,
+      OR: where.OR,
+      deletedAt: where.deletedAt,
+    });
 
     // Handle explicit MC number filter from table filter (overrides default MC view)
     if (mcNumberIdFilter) {
@@ -82,6 +121,78 @@ export async function GET(request: NextRequest) {
       } else {
         where.mcNumberId = mcNumberIdFilter;
       }
+    }
+
+    // Handle missing documents filter
+    if (hasMissingDocuments === 'true') {
+      // Filter for loads that are missing at least one required document
+      // A load is missing documents if it doesn't have all of: BOL, POD, RATE_CONFIRMATION
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          // Missing BOL
+          {
+            documents: {
+              none: {
+                type: 'BOL',
+                deletedAt: null,
+              },
+            },
+          },
+          // Missing POD
+          {
+            documents: {
+              none: {
+                type: 'POD',
+                deletedAt: null,
+              },
+            },
+          },
+          // Missing RATE_CONFIRMATION
+          {
+            documents: {
+              none: {
+                type: 'RATE_CONFIRMATION',
+                deletedAt: null,
+              },
+            },
+          },
+        ],
+      });
+    } else if (hasMissingDocuments === 'false') {
+      // Filter for loads that have all required documents
+      where.AND = where.AND || [];
+      where.AND.push({
+        AND: [
+          // Has BOL
+          {
+            documents: {
+              some: {
+                type: 'BOL',
+                deletedAt: null,
+              },
+            },
+          },
+          // Has POD
+          {
+            documents: {
+              some: {
+                type: 'POD',
+                deletedAt: null,
+              },
+            },
+          },
+          // Has RATE_CONFIRMATION
+          {
+            documents: {
+              some: {
+                type: 'RATE_CONFIRMATION',
+                deletedAt: null,
+              },
+            },
+          },
+        ],
+      });
     }
 
     // Handle multiple status values
@@ -127,8 +238,26 @@ export async function GET(request: NextRequest) {
       where.pickupCity = { contains: pickupCity, mode: 'insensitive' };
     }
 
+    if (pickupState) {
+      where.pickupState = { contains: pickupState, mode: 'insensitive' };
+    }
+
     if (deliveryCity) {
       where.deliveryCity = { contains: deliveryCity, mode: 'insensitive' };
+    }
+
+    if (deliveryState) {
+      where.deliveryState = { contains: deliveryState, mode: 'insensitive' };
+    }
+
+    if (truckNumber) {
+      where.truck = {
+        truckNumber: { contains: truckNumber, mode: 'insensitive' },
+      };
+    }
+
+    if (miles) {
+      where.totalMiles = { gte: parseFloat(miles) };
     }
 
     if (pickupDate) {
@@ -179,6 +308,56 @@ export async function GET(request: NextRequest) {
       where.assignedDispatcherId = dispatcherId;
     }
 
+    // Handle date-based quick filters
+    // Note: createdToday and createdLast24h both filter on createdAt
+    // If both are set, createdToday takes precedence (more specific)
+    if (createdToday) {
+      const now = new Date();
+      // Set to start of today in local timezone
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      where.createdAt = {
+        gte: today,
+        lt: tomorrow,
+      };
+      console.log('[Loads API] Created Today filter:', { 
+        today: today.toISOString(), 
+        tomorrow: tomorrow.toISOString(), 
+        createdToday,
+        now: now.toISOString()
+      });
+    } else if (createdLast24h) {
+      // Only apply createdLast24h if createdToday is not set (to avoid conflict)
+      const now = new Date();
+      const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      where.createdAt = {
+        gte: last24h,
+      };
+      console.log('[Loads API] Created Last 24h filter:', { 
+        last24h: last24h.toISOString(), 
+        now: now.toISOString(), 
+        createdLast24h 
+      });
+    }
+
+    if (pickupToday) {
+      const now = new Date();
+      // Set to start of today in local timezone
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      where.pickupDate = {
+        gte: today,
+        lt: tomorrow,
+      };
+      console.log('[Loads API] Pickup Today filter:', { 
+        today: today.toISOString(), 
+        tomorrow: tomorrow.toISOString(), 
+        pickupToday 
+      });
+    }
+
     // Handle search filter - combine with existing OR if date range exists
     if (search) {
       const searchOr = [
@@ -200,9 +379,17 @@ export async function GET(request: NextRequest) {
 
 
     // Log the where clause for debugging (remove sensitive data)
+    const mcState = await McStateManager.getMcState(session, request);
     console.log('[Loads API] Query where clause:', {
+      userId: session.user.id,
+      role: session.user.role,
       companyId: where.companyId,
       mcNumberId: where.mcNumberId,
+      mcState: {
+        viewMode: mcState.viewMode,
+        mcNumberIds: mcState.mcNumberIds,
+        mcAccessFromDb: await McStateManager.getMcAccessFromDb(session.user.id),
+      },
       hasOR: !!where.OR,
       hasAND: !!where.AND,
       deletedAt: where.deletedAt,
@@ -215,6 +402,7 @@ export async function GET(request: NextRequest) {
           id: true,
           loadNumber: true,
           status: true,
+          dispatchStatus: true,
           pickupLocation: true,
           pickupCity: true,
           pickupState: true,
@@ -307,7 +495,7 @@ export async function GET(request: NextRequest) {
             take: 1,
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortBy]: sortOrder === 'desc' ? 'desc' : 'asc' },
         skip,
         take: limit,
       }),
@@ -377,8 +565,23 @@ export async function GET(request: NextRequest) {
       serviceFee: serviceFeeSum,
     };
 
-    // 5. Filter Sensitive Fields based on role
-    const filteredLoads = loads.map((load) =>
+    // 5. Add missing documents information to each load
+    const REQUIRED_DOCUMENTS = ['BOL', 'POD', 'RATE_CONFIRMATION'] as const;
+    const loadsWithDocumentStatus = loads.map((load) => {
+      const documentTypes = load.documents?.map((doc: any) => doc.type) || [];
+      const missingDocuments = REQUIRED_DOCUMENTS.filter(
+        (type) => !documentTypes.includes(type)
+      );
+      
+      return {
+        ...load,
+        missingDocuments,
+        hasMissingDocuments: missingDocuments.length > 0,
+      };
+    });
+
+    // 6. Filter Sensitive Fields based on role
+    const filteredLoads = loadsWithDocumentStatus.map((load) =>
       filterSensitiveFields(load, session.user.role as any)
     );
     const filteredStats = filterSensitiveFields(stats, session.user.role as any);
@@ -559,16 +762,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine MC number assignment
-    // Rule: Only admins can choose MC; employees use their default MC
+    // Rule: Admins and users with multiple MC access can choose MC; others use their default MC
     const isAdmin = session.user.role === 'ADMIN';
+    const userMcAccess = McStateManager.getMcAccess(session);
+    const hasMultipleMcAccess = userMcAccess.length > 1 || (isAdmin && userMcAccess.length === 0);
     let assignedMcNumberId: string | null = null;
 
     // Check if mcNumberId was provided (from request body, not validation schema)
     const bodyMcNumberId = (body as any).mcNumberId;
     
-    if (isAdmin && bodyMcNumberId) {
-      // Admin provided mcNumberId - validate they have access
-      if (McStateManager.canAccessMc(session, bodyMcNumberId)) {
+    if (bodyMcNumberId) {
+      // User provided mcNumberId - validate they have access
+      if (await McStateManager.canAccessMc(session, bodyMcNumberId)) {
         assignedMcNumberId = bodyMcNumberId;
       } else {
         return NextResponse.json(
@@ -583,8 +788,61 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // Employee or admin without explicit mcNumberId - use user's default MC
+      // No mcNumberId provided - use user's default MC
       assignedMcNumberId = (session.user as any).mcNumberId || null;
+      
+      // Validate default MC is accessible
+      if (assignedMcNumberId && !(await McStateManager.canAccessMc(session, assignedMcNumberId))) {
+        // If default MC is not accessible, try to use first accessible MC
+        if (userMcAccess.length > 0) {
+          assignedMcNumberId = userMcAccess[0];
+        } else {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'FORBIDDEN',
+                message: 'No accessible MC number found. Please contact an administrator.',
+              },
+            },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    // Validate driver has MC number if driver is assigned
+    if (validated.driverId) {
+      const driver = await prisma.driver.findUnique({
+        where: { id: validated.driverId },
+        select: { mcNumberId: true },
+      });
+
+      if (!driver) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'INVALID_DRIVER',
+              message: 'Driver not found',
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      if (!driver.mcNumberId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Selected driver must have an MC number assigned. Please assign an MC number to the driver first.',
+            },
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Prepare load data (remove stops from main load data)

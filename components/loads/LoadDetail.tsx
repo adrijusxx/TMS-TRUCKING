@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,8 @@ import DocumentUpload from '@/components/documents/DocumentUpload';
 import LoadMap from './LoadMap';
 import LoadSegments from './LoadSegments';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSession } from 'next-auth/react';
+import DispatchStatusSelector, { DispatchStatusBadge } from './DispatchStatusSelector';
 import DriverCombobox from '@/components/drivers/DriverCombobox';
 import TruckCombobox from '@/components/trucks/TruckCombobox';
 import TrailerCombobox from '@/components/trailers/TrailerCombobox';
@@ -126,11 +129,18 @@ async function updateLoad(loadId: string, data: any) {
   return response.json();
 }
 
+async function fetchCustomers() {
+  const response = await fetch(apiUrl('/api/customers?limit=1000'));
+  if (!response.ok) throw new Error('Failed to fetch customers');
+  return response.json();
+}
+
 export default function LoadDetail({ load, availableDrivers = [], availableTrucks = [] }: LoadDetailProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const { data: session } = useSession();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
@@ -141,6 +151,36 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
   const [showSegmentsDialog, setShowSegmentsDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [mapExpanded, setMapExpanded] = useState(false);
+
+  // Fetch customers for the combobox
+  const { data: customersData } = useQuery({
+    queryKey: ['customers'],
+    queryFn: fetchCustomers,
+  });
+
+  // Prepare customers list - include current customer if not already in list
+  const customers = React.useMemo(() => {
+    const fetchedCustomers = customersData?.data || [];
+    const currentCustomer = load.customer;
+    
+    // Check if current customer is already in the list
+    const hasCurrentCustomer = fetchedCustomers.some((c: any) => c.id === currentCustomer?.id);
+    
+    if (currentCustomer && !hasCurrentCustomer) {
+      // Add current customer to the list
+      return [
+        {
+          id: currentCustomer.id,
+          name: currentCustomer.name,
+          customerNumber: currentCustomer.customerNumber,
+          email: currentCustomer.email,
+        },
+        ...fetchedCustomers,
+      ];
+    }
+    
+    return fetchedCustomers;
+  }, [customersData, load.customer]);
   
   // MC state is managed via cookies, not URL params
   
@@ -282,6 +322,11 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
           <Badge variant="outline" className={statusColors[load.status as LoadStatus]}>
             {formatStatus(load.status)}
           </Badge>
+          <DispatchStatusBadge status={load.dispatchStatus} />
+          <DispatchStatusSelector
+            loadId={load.id}
+            currentDispatchStatus={load.dispatchStatus}
+          />
           {can('loads.edit') && (
             <Button
               variant="default"
@@ -705,7 +750,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
                           value={formData.customerId || ''}
                           onValueChange={(value) => setFormData({ ...formData, customerId: value })}
                           placeholder="Search customer..."
-                          customers={[]} // Will fetch from API
+                          customers={customers}
                         />
                       </div>
                     ) : (
@@ -1155,16 +1200,27 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
                       >
                         Download
                       </Button>
-                      {can('documents.delete') && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDocumentToDelete(doc.id)}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      {(() => {
+                        // Dispatchers can delete BOL, POD, and RATE_CONFIRMATION
+                        // Other roles need full documents.delete permission
+                        const isDispatcher = session?.user?.role === 'DISPATCHER';
+                        const isCriticalDoc = ['BOL', 'POD', 'RATE_CONFIRMATION'].includes(doc.type);
+                        const canDelete = isDispatcher 
+                          ? isCriticalDoc 
+                          : can('documents.delete');
+                        
+                        return canDelete ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDocumentToDelete(doc.id)}
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            title={isDispatcher && !isCriticalDoc ? 'Dispatchers can only delete BOL, POD, and Rate Confirmation documents' : 'Delete document'}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 ))}

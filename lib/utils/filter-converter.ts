@@ -24,7 +24,12 @@ export function convertFiltersToQueryParams(
     }
 
     const id = filter.id;
-    const value = filter.value;
+    let value = filter.value;
+    
+    // Handle boolean values - convert to string 'true' or 'false'
+    if (typeof value === 'boolean') {
+      value = value ? 'true' : 'false';
+    }
     
     // Handle date range filters (key_start, key_end)
     if (id.endsWith('_start')) {

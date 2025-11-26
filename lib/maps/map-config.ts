@@ -15,9 +15,9 @@ export interface MapColorScheme {
 
 export const MAP_COLORS: MapColorScheme = {
   healthy: '#16a34a', // Green
-  faulty: '#dc2626', // Red
+  faulty: '#dc2626', // Red - for when filter is active
   assigned: '#2563eb', // Blue
-  unassigned: '#f97316', // Orange
+  unassigned: '#6b7280', // Gray - neutral
   trailer: '#8b5cf6', // Purple
   pickup: '#1d4ed8', // Blue
   delivery: '#f97316', // Orange
@@ -31,9 +31,9 @@ export interface MarkerSizeConfig {
 }
 
 export const MARKER_SIZES: MarkerSizeConfig = {
-  small: 20,
-  medium: 26,
-  large: 32,
+  small: 28, // Increased for better text visibility
+  medium: 36,
+  large: 44,
 };
 
 export interface MapConfig {

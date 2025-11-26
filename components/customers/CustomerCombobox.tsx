@@ -58,7 +58,9 @@ export default function CustomerCombobox({
   const [selectedCustomerData, setSelectedCustomerData] = React.useState<Customer | null>(null);
 
   // Always use API search when there's a query, otherwise use preloaded customers if available
-  const shouldUseApi = open && (searchQuery.length > 0 || !preloadedCustomers);
+  // Check if preloaded customers array has items, not just if it exists (empty array is truthy)
+  const hasPreloadedCustomers = preloadedCustomers && preloadedCustomers.length > 0;
+  const shouldUseApi = open && (searchQuery.length > 0 || !hasPreloadedCustomers);
   
   const { data: customersData, isLoading } = useQuery({
     queryKey: ['customers', searchQuery],
@@ -68,7 +70,7 @@ export default function CustomerCombobox({
 
   // Filter preloaded customers by search query if no API search
   const filteredPreloaded = React.useMemo(() => {
-    if (!preloadedCustomers || searchQuery.length === 0) return preloadedCustomers || [];
+    if (!hasPreloadedCustomers || searchQuery.length === 0) return preloadedCustomers || [];
     const query = searchQuery.toLowerCase();
     return preloadedCustomers.filter(
       (c) =>
@@ -76,7 +78,7 @@ export default function CustomerCombobox({
         c.customerNumber.toLowerCase().includes(query) ||
         c.email?.toLowerCase().includes(query)
     );
-  }, [preloadedCustomers, searchQuery]);
+  }, [preloadedCustomers, searchQuery, hasPreloadedCustomers]);
 
   const customers: Customer[] = shouldUseApi
     ? customersData?.data || []

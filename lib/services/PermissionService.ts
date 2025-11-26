@@ -20,6 +20,7 @@ export class PermissionService {
 
   /**
    * Get all permissions for a role (from database with fallback to defaults)
+   * Merges database permissions with defaults to ensure new default permissions are included
    */
   static async getRolePermissions(role: UserRole): Promise<Permission[]> {
     try {
@@ -37,14 +38,28 @@ export class PermissionService {
       });
 
       const dbPermissionSet = new Set(dbPermissions.map((p) => p.permission as Permission));
+      const defaultPermissions = rolePermissions[role] || [];
+      const defaultPermissionSet = new Set(defaultPermissions);
 
-      // If we have custom permissions in DB, use them
+      // If we have custom permissions in DB, merge with defaults
+      // This ensures new permissions added to defaults are included
       if (dbPermissionSet.size > 0) {
-        return Array.from(dbPermissionSet);
+        // Start with database permissions
+        const merged = new Set(Array.from(dbPermissionSet));
+        
+        // Add any default permissions that aren't in the database
+        // This handles the case where new permissions are added to defaults
+        defaultPermissions.forEach((perm) => {
+          if (!dbPermissionSet.has(perm)) {
+            merged.add(perm);
+          }
+        });
+        
+        return Array.from(merged);
       }
 
       // Otherwise, fallback to defaults
-      return rolePermissions[role] || [];
+      return defaultPermissions;
     } catch (error) {
       console.error('Error fetching role permissions:', error);
       // Fallback to defaults on error

@@ -35,7 +35,11 @@ import EditableLoadStops from './EditableLoadStops';
 import AddStopDialog from './AddStopDialog';
 import CreateCustomerDialog from '@/components/customers/CreateCustomerDialog';
 import CustomerCombobox from '@/components/customers/CustomerCombobox';
+import DriverCombobox from '@/components/drivers/DriverCombobox';
+import TruckCombobox from '@/components/trucks/TruckCombobox';
+import TrailerCombobox from '@/components/trailers/TrailerCombobox';
 import DocumentUpload from '@/components/documents/DocumentUpload';
+import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 import {
   Collapsible,
   CollapsibleContent,
@@ -87,6 +91,7 @@ export default function CreateLoadForm() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isCalculatingMiles, setIsCalculatingMiles] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['basic', 'pickup', 'delivery', 'details'])); // All sections expanded by default
+  const [selectedMcNumberId, setSelectedMcNumberId] = useState<string | undefined>(undefined);
 
   // Get current user's MC number from session
   const currentMcNumber = session?.user?.mcNumber || null;
@@ -95,10 +100,15 @@ export default function CreateLoadForm() {
   const isDispatcher = userRole === 'DISPATCHER';
   // Dispatchers and admins can reassign drivers, but dispatchers are restricted to their MC number
   const canReassignDriver = isAdmin || isDispatcher;
+  
+  // Check if user has multiple MC access (can select MC when creating)
+  const userMcAccess = (session?.user as any)?.mcAccess || [];
+  const hasMultipleMcAccess = userMcAccess.length > 1 || (isAdmin && userMcAccess.length === 0);
 
   const { data: customersData, refetch: refetchCustomers } = useQuery({
     queryKey: ['customers'],
     queryFn: fetchCustomers,
+    enabled: !!session, // Only fetch when session is available
   });
 
   const { data: driversData } = useQuery({
@@ -424,15 +434,22 @@ export default function CreateLoadForm() {
       console.log('Normalized stops data:', JSON.stringify(normalizedStops, null, 2));
     }
     
+    // Include mcNumberId if user has multiple MC access and selected one
+    const submissionData = {
+      ...data,
+      ...(hasMultipleMcAccess && selectedMcNumberId && { mcNumberId: selectedMcNumberId }),
+    };
+    
     console.log('Form submitted with data:', {
       loadNumber: data.loadNumber,
       customerId: data.customerId,
       stopsCount: data.stops?.length || 0,
       hasPickup: !!data.pickupLocation,
       hasDelivery: !!data.deliveryLocation,
+      mcNumberId: submissionData.mcNumberId,
     });
     try {
-      createMutation.mutate(data as CreateLoadInput);
+      createMutation.mutate(submissionData as CreateLoadInput);
     } catch (err) {
       console.error('Form submission error:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit form');
@@ -1075,16 +1092,21 @@ export default function CreateLoadForm() {
                  <div className="space-y-1.5">
                    <div className="flex items-center justify-between">
                      <Label htmlFor="customerId" className="text-xs">Customer *</Label>
-                     <Button
-                       type="button"
-                       variant="ghost"
-                       size="sm"
-                       onClick={() => setIsCustomerDialogOpen(true)}
-                       className="h-6 text-xs px-2"
-                     >
-                       <Plus className="h-3 w-3 mr-1" />
-                       New
-                     </Button>
+                     <div className="flex items-center gap-2">
+                       <span className="text-[10px] text-muted-foreground">
+                         Type to search
+                       </span>
+                       <Button
+                         type="button"
+                         variant="ghost"
+                         size="sm"
+                         onClick={() => setIsCustomerDialogOpen(true)}
+                         className="h-6 text-xs px-2"
+                       >
+                         <Plus className="h-3 w-3 mr-1" />
+                         New
+                       </Button>
+                     </div>
                    </div>
                    <CustomerCombobox
                      key={`customer-${customers.length}-${watch('customerId')}`}
@@ -1109,36 +1131,44 @@ export default function CreateLoadForm() {
                    )}
                  </div>
 
-                 {currentMcNumber && (
+                 {hasMultipleMcAccess ? (
+                   <div className="space-y-1.5">
+                     <McNumberSelector
+                       value={selectedMcNumberId || ''}
+                       onValueChange={(mcNumberId) => setSelectedMcNumberId(mcNumberId)}
+                       label="MC Number"
+                       required={false}
+                       className="text-xs"
+                     />
+                   </div>
+                 ) : currentMcNumber ? (
                    <div className="space-y-1">
                      <Label className="text-xs">MC Number</Label>
                      <div className="p-1.5 bg-muted rounded text-xs">
                        {currentMcNumber}
                      </div>
                    </div>
-                 )}
+                 ) : null}
 
                  <div className="space-y-1.5">
-                   <Label htmlFor="driverId" className="text-xs">
-                     Driver {canReassignDriver && !isAdmin && '(MC only)'}
-                   </Label>
+                   <div className="flex items-center justify-between">
+                     <Label htmlFor="driverId" className="text-xs">
+                       Driver {canReassignDriver && !isAdmin && '(MC only)'}
+                     </Label>
+                     {canReassignDriver && (
+                       <span className="text-[10px] text-muted-foreground">
+                         Type to search
+                       </span>
+                     )}
+                   </div>
                    {canReassignDriver ? (
-                     <Select
+                     <DriverCombobox
                        value={watch('driverId') || ''}
                        onValueChange={handleDriverChange}
-                     >
-                       <SelectTrigger className="h-8 text-sm">
-                         <SelectValue placeholder="Select driver (optional)" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         {drivers.map((driver: any) => (
-                           <SelectItem key={driver.id} value={driver.id}>
-                             {driver.user?.firstName} {driver.user?.lastName} ({driver.driverNumber})
-                             {isAdmin && driver.mcNumber && ` - MC: ${typeof driver.mcNumber === 'object' ? driver.mcNumber.number : driver.mcNumber}`}
-                           </SelectItem>
-                         ))}
-                       </SelectContent>
-                     </Select>
+                       placeholder="Search driver by name or number..."
+                       className="h-8 text-sm"
+                       drivers={drivers}
+                     />
                    ) : (
                      <div className="p-1.5 bg-muted rounded text-xs text-muted-foreground">
                        Contact dispatcher to assign
@@ -1479,12 +1509,17 @@ export default function CreateLoadForm() {
                  />
                </div>
                <div className="space-y-1.5">
-                 <Label htmlFor="trailerNumber" className="text-xs">Trailer Number</Label>
-                 <Input
-                   id="trailerNumber"
-                   placeholder="TRL-001"
+                 <div className="flex items-center justify-between">
+                   <Label htmlFor="trailerNumber" className="text-xs">Trailer Number</Label>
+                   <span className="text-[10px] text-muted-foreground">
+                     Type to search
+                   </span>
+                 </div>
+                 <TrailerCombobox
+                   value={watch('trailerNumber') || ''}
+                   onValueChange={(value) => setValue('trailerNumber', value, { shouldValidate: true })}
+                   placeholder="Search trailer by number..."
                    className="h-8 text-sm"
-                   {...register('trailerNumber')}
                  />
                </div>
              </div>

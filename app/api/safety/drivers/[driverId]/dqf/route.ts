@@ -106,16 +106,24 @@ export async function POST(
         update: {
           documentId: body.documentId,
           status: body.status || 'COMPLETE',
-          expirationDate: body.expirationDate ? new Date(body.expirationDate) : null,
-          issueDate: body.issueDate ? new Date(body.issueDate) : null
+          expirationDate: body.expirationDate && body.expirationDate.trim() !== '' 
+            ? new Date(body.expirationDate) 
+            : null,
+          issueDate: body.issueDate && body.issueDate.trim() !== '' 
+            ? new Date(body.issueDate) 
+            : null
         },
         create: {
           dqfId: dqf.id,
           documentId: body.documentId,
           documentType: body.documentType,
           status: body.status || 'COMPLETE',
-          expirationDate: body.expirationDate ? new Date(body.expirationDate) : null,
-          issueDate: body.issueDate ? new Date(body.issueDate) : null
+          expirationDate: body.expirationDate && body.expirationDate.trim() !== '' 
+            ? new Date(body.expirationDate) 
+            : null,
+          issueDate: body.issueDate && body.issueDate.trim() !== '' 
+            ? new Date(body.issueDate) 
+            : null
         }
       });
 

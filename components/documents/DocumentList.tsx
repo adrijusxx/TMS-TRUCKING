@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   Table,
   TableBody,
@@ -55,12 +57,15 @@ const documentTypeLabels: Record<string, string> = {
   BOL: 'Bill of Lading',
   POD: 'Proof of Delivery',
   INVOICE: 'Invoice',
-  SETTLEMENT: 'Settlement',
-  LICENSE: 'License',
+  RATE_CONFIRMATION: 'Rate Confirmation',
+  DRIVER_LICENSE: 'Driver License',
   MEDICAL_CARD: 'Medical Card',
   INSURANCE: 'Insurance',
+  COI: 'Certificate of Insurance',
+  REGISTRATION: 'Registration',
   INSPECTION: 'Inspection',
-  MAINTENANCE: 'Maintenance',
+  LEASE_AGREEMENT: 'Lease Agreement',
+  W9: 'W9 Form',
   OTHER: 'Other',
 };
 
@@ -103,6 +108,9 @@ export default function DocumentList({
   driverId,
   truckId,
 }: DocumentListProps) {
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const { can } = usePermissions();
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
@@ -131,7 +139,16 @@ export default function DocumentList({
 
     if (response.ok) {
       // Invalidate queries to refresh the list
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      if (loadId) {
+        queryClient.invalidateQueries({ queryKey: ['loads', loadId] });
+      }
+      if (driverId) {
+        queryClient.invalidateQueries({ queryKey: ['drivers', driverId] });
+      }
+      if (truckId) {
+        queryClient.invalidateQueries({ queryKey: ['trucks', truckId] });
+      }
     }
   };
 
@@ -248,13 +265,26 @@ export default function DocumentList({
                         >
                           <Download className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(doc.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {(() => {
+                          // Dispatchers can delete BOL, POD, and RATE_CONFIRMATION
+                          // Other roles need full documents.delete permission
+                          const isDispatcher = session?.user?.role === 'DISPATCHER';
+                          const isCriticalDoc = ['BOL', 'POD', 'RATE_CONFIRMATION'].includes(doc.type);
+                          const canDelete = isDispatcher 
+                            ? isCriticalDoc 
+                            : can('documents.delete');
+                          
+                          return canDelete ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(doc.id)}
+                              title={isDispatcher && !isCriticalDoc ? 'Dispatchers can only delete BOL, POD, and Rate Confirmation documents' : 'Delete document'}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          ) : null;
+                        })()}
                       </div>
                     </TableCell>
                   </TableRow>

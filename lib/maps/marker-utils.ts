@@ -38,7 +38,7 @@ export function formatBadgeLabel(
 }
 
 /**
- * Build a truck marker icon with direction indicator
+ * Build a text-only truck marker (no icon, just bold text)
  */
 export function buildTruckMarkerIcon({
   label,
@@ -49,20 +49,23 @@ export function buildTruckMarkerIcon({
   showDirection = true,
   pulse = false,
 }: MarkerIconOptions): google.maps.Icon {
-  const cacheKey = `${fill}-${size}-${label}-${labelColor}-${heading}-${showDirection}-${pulse}`;
+  const cacheKey = `text-${fill}-${size}-${label}-${labelColor}-${heading}-${showDirection}-${pulse}`;
   if (badgeIconCache.has(cacheKey)) {
     return badgeIconCache.get(cacheKey)!;
   }
 
-  const labelSize = label.length > 4 ? 8 : label.length > 2 ? 9 : 11;
-  const iconSize = size;
-  const centerX = iconSize / 2;
-  const centerY = iconSize / 2;
-  const radius = iconSize / 2 - 2;
+  // Calculate text size based on label length
+  const labelSize = label.length > 4 ? 14 : label.length > 2 ? 16 : 18;
+  const padding = 8;
+  const textWidth = label.length * (labelSize * 0.6); // Approximate text width
+  const iconWidth = Math.max(size, textWidth + padding * 2);
+  const iconHeight = size;
+  const centerX = iconWidth / 2;
+  const centerY = iconHeight / 2;
 
-  // Create SVG with truck icon and direction arrow
+  // Create SVG with just text on colored background
   let svg = `
-    <svg width="${iconSize}" height="${iconSize}" viewBox="0 0 ${iconSize} ${iconSize}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${iconWidth}" height="${iconHeight}" viewBox="0 0 ${iconWidth} ${iconHeight}" xmlns="http://www.w3.org/2000/svg">
       <defs>
         ${pulse ? `
         <style>
@@ -70,31 +73,72 @@ export function buildTruckMarkerIcon({
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
           }
-          .pulse-circle {
+          .pulse-bg {
             animation: pulse 2s infinite;
           }
         </style>
         ` : ''}
+        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="1" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.5"/>
+        </filter>
       </defs>
-      <circle cx="${centerX}" cy="${centerY}" r="${iconSize / 2}" fill="${fill}" ${pulse ? 'class="pulse-circle"' : ''} />
-      <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="white" />
-      <text x="50%" y="55%" text-anchor="middle" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="${labelSize}" font-weight="600" fill="${labelColor}">${label}</text>
+      <!-- Background rectangle with rounded corners -->
+      <rect x="0" y="0" width="${iconWidth}" height="${iconHeight}" 
+            rx="4" ry="4" 
+            fill="${fill}" 
+            ${pulse ? 'class="pulse-bg"' : ''}
+            filter="url(#shadow)"
+            stroke="white" 
+            stroke-width="2" />
+      <!-- Truck number text -->
+      <text x="50%" y="50%" 
+            text-anchor="middle" 
+            dominant-baseline="central"
+            font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" 
+            font-size="${labelSize}" 
+            font-weight="700" 
+            fill="${labelColor}">${label}</text>
   `;
 
-  // Add direction arrow if heading is available
+  // Add corner direction indicator if heading is available
   if (showDirection && heading !== undefined && heading !== null) {
-    const arrowLength = radius * 0.6;
-    const arrowX = centerX + Math.sin((heading * Math.PI) / 180) * arrowLength;
-    const arrowY = centerY - Math.cos((heading * Math.PI) / 180) * arrowLength;
+    const triangleSize = 5; // Small triangle size (4-6px)
+    const cornerOffset = 2; // Distance from corner
+    
+    // Normalize heading to 0-360
+    const normalizedHeading = ((heading % 360) + 360) % 360;
+    
+    // Determine corner position based on heading angle
+    let cornerX: number, cornerY: number;
+    let trianglePoints: string;
+    
+    if (normalizedHeading >= 0 && normalizedHeading < 90) {
+      // Top-right corner (0-90°)
+      cornerX = iconWidth - cornerOffset;
+      cornerY = cornerOffset;
+      trianglePoints = `${cornerX},${cornerY} ${cornerX - triangleSize},${cornerY} ${cornerX},${cornerY + triangleSize}`;
+    } else if (normalizedHeading >= 90 && normalizedHeading < 180) {
+      // Top-left corner (90-180°)
+      cornerX = cornerOffset;
+      cornerY = cornerOffset;
+      trianglePoints = `${cornerX},${cornerY} ${cornerX + triangleSize},${cornerY} ${cornerX},${cornerY + triangleSize}`;
+    } else if (normalizedHeading >= 180 && normalizedHeading < 270) {
+      // Bottom-left corner (180-270°)
+      cornerX = cornerOffset;
+      cornerY = iconHeight - cornerOffset;
+      trianglePoints = `${cornerX},${cornerY} ${cornerX + triangleSize},${cornerY} ${cornerX},${cornerY - triangleSize}`;
+    } else {
+      // Bottom-right corner (270-360°)
+      cornerX = iconWidth - cornerOffset;
+      cornerY = iconHeight - cornerOffset;
+      trianglePoints = `${cornerX},${cornerY} ${cornerX - triangleSize},${cornerY} ${cornerX},${cornerY - triangleSize}`;
+    }
 
     svg += `
-      <path d="M ${centerX} ${centerY} L ${arrowX} ${arrowY}" 
-            stroke="${fill}" 
-            stroke-width="2" 
-            stroke-linecap="round" 
-            fill="none" 
-            opacity="0.8" />
-      <circle cx="${arrowX}" cy="${arrowY}" r="3" fill="${fill}" />
+      <polygon points="${trianglePoints}" 
+               fill="#1a1a1a" 
+               stroke="none" 
+               opacity="0.9" />
     `;
   }
 
@@ -102,7 +146,7 @@ export function buildTruckMarkerIcon({
 
   const icon: google.maps.Icon = {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new google.maps.Size(iconSize, iconSize),
+    scaledSize: new google.maps.Size(iconWidth, iconHeight),
     anchor: new google.maps.Point(centerX, centerY),
   };
 
@@ -145,18 +189,16 @@ export function buildBadgeIcon({
 
 /**
  * Determine truck marker color based on status
+ * Default: All trucks green
+ * When showFaultyOnly === true: Faulty trucks red, others hidden by filter
  */
-export function getTruckMarkerColor(status: TruckStatus): string {
-  if (status.hasActiveFaults) {
-    return MAP_COLORS.faulty;
+export function getTruckMarkerColor(status: TruckStatus, showFaultyOnly?: boolean): string {
+  // When filter is active, only show faulty trucks in red
+  if (showFaultyOnly && status.hasActiveFaults) {
+    return MAP_COLORS.faulty; // Red
   }
-  if (status.isAssigned) {
-    return MAP_COLORS.assigned;
-  }
-  if (status.isHealthy) {
-    return MAP_COLORS.healthy;
-  }
-  return MAP_COLORS.unassigned;
+  // Default: All trucks green (ignore assignment status)
+  return MAP_COLORS.healthy; // Green
 }
 
 /**
@@ -184,6 +226,35 @@ export function createTruckStatus(
     isAssigned,
     isHealthy: !hasActiveFaults && isAssigned,
   };
+}
+
+/**
+ * Build a Samsara-style truck marker (text-only, uses Samsara blue color)
+ * Same as regular truck marker but with Samsara branding color
+ */
+export function buildSamsaraMarkerIcon({
+  label,
+  fill,
+  size,
+  labelColor = '#ffffff',
+  heading = 0,
+  showDirection = true,
+  pulse = false,
+}: MarkerIconOptions): google.maps.Icon {
+  // Use Samsara blue (#00A0E3) if fill is the default healthy color
+  const samsaraBlue = '#00A0E3';
+  const finalFill = fill === '#16a34a' ? samsaraBlue : fill;
+  
+  // Reuse the text-only marker builder
+  return buildTruckMarkerIcon({
+    label,
+    fill: finalFill,
+    size,
+    labelColor,
+    heading,
+    showDirection,
+    pulse,
+  });
 }
 
 

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertTriangle, Users, Truck, Calendar, FileWarning, TrendingUp, Bell } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
+import { getMcContext } from '@/lib/utils/query-keys';
 import ActiveDriversTile from './ActiveDriversTile';
 import ActiveVehiclesTile from './ActiveVehiclesTile';
 import DaysSinceAccidentTile from './DaysSinceAccidentTile';
@@ -45,8 +46,10 @@ async function fetchSafetyDashboard() {
 }
 
 export default function SafetyDashboard() {
+  // Include MC context in query key so it refetches when MC selection changes
+  const mcContext = getMcContext();
   const { data, isLoading, error } = useQuery({
-    queryKey: ['safety-dashboard'],
+    queryKey: ['safety-dashboard', mcContext],
     queryFn: fetchSafetyDashboard,
     refetchInterval: 30000 // Refetch every 30 seconds
   });

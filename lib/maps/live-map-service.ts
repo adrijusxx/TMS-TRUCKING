@@ -7,6 +7,7 @@ import {
   getSamsaraVehicleStats,
   getSamsaraVehicles,
   getSamsaraTrips,
+  getSamsaraAssets,
 } from '@/lib/integrations/samsara';
 
 type LocationSource = 'route' | 'geocode' | 'samsara';
@@ -28,10 +29,16 @@ export interface LoadMapEntry {
   pickup?: MapLocation;
   delivery?: MapLocation;
   routeWaypoints?: Array<{ lat: number; lng: number }>;
+  routeDescription?: string; // "City, State → City, State"
   driver?: {
     id: string;
     driverNumber: string;
     name: string;
+  };
+  dispatcher?: {
+    id: string;
+    firstName: string;
+    lastName: string;
   };
   truck?: {
     id: string;
@@ -60,6 +67,15 @@ export interface TruckMapEntry {
   sensors?: TruckSensors;
   latestMedia?: TruckMedia;
   recentTrips?: TruckTrip[];
+  isSamsaraOnly?: boolean; // True if this vehicle exists in Samsara but not in database
+}
+
+export interface TrailerMapEntry {
+  id: string;
+  trailerNumber: string;
+  status: string;
+  location?: MapLocation;
+  matchSource?: string;
 }
 
 export interface TruckDiagnostics {
@@ -133,17 +149,36 @@ const ACTIVE_LOAD_STATUSES = [
 ] as const;
 
 const ACTIVE_TRUCK_STATUSES = ['IN_USE', 'AVAILABLE'] as const;
+// Include all non-deleted trailers for map display (not just IN_USE/AVAILABLE)
+// Trailers can have various statuses but we want to show them all if they're not deleted
+const ACTIVE_TRAILER_STATUSES = ['IN_USE', 'AVAILABLE', 'MAINTENANCE', 'OUT_OF_SERVICE', 'RESERVED'] as const;
 
 export class LiveMapService {
   private readonly companyId: string;
-  private geocodeCache = new Map<string, MapLocation>();
+  private geocodeCache = new Map<string, MapLocation>(); // Keep geocoding cache for Google Maps API
 
   constructor(companyId: string) {
     this.companyId = companyId;
   }
 
-  async getSnapshot(): Promise<{ loads: LoadMapEntry[]; trucks: TruckMapEntry[] }> {
-    const [loads, trucks] = await Promise.all([this.getLoadEntries(), this.getTruckEntries()]);
+  async getSnapshot(): Promise<{ loads: LoadMapEntry[]; trucks: TruckMapEntry[]; trailers: TrailerMapEntry[] }> {
+    // Get loads first (fast, no external API calls)
+    const loads = await this.getLoadEntries();
+    
+    // Get trucks and trailers in parallel (these call Samsara but we'll make them faster)
+    const [trucks, trailers] = await Promise.all([
+      this.getTruckEntries(),
+      this.getTrailerEntries(),
+    ]);
+
+    console.log('[LiveMapService] Snapshot summary:', {
+      loads: loads.length,
+      trucks: trucks.length,
+      trucksWithLocation: trucks.filter(t => t.location).length,
+      trucksWithoutLocation: trucks.filter(t => !t.location).length,
+      trailers: trailers.length,
+      trailersWithLocation: trailers.filter(t => t.location).length,
+    });
 
     const truckTelemetry = new Map<string, TruckMapEntry>();
     trucks.forEach((truck) => {
@@ -165,6 +200,7 @@ export class LiveMapService {
     return {
       loads: loadsWithTruckLocation,
       trucks,
+      trailers,
     };
   }
 
@@ -191,6 +227,13 @@ export class LiveMapService {
             },
           },
         },
+        dispatcher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
         truck: {
           select: {
             id: true,
@@ -213,6 +256,9 @@ export class LiveMapService {
         const pickup = await this.resolveLoadPoint(load, 'pickup');
         const delivery = await this.resolveLoadPoint(load, 'delivery');
         const routeWaypoints = this.getRouteWaypoints(load.route?.waypoints);
+        
+        // Generate route description
+        const routeDescription = this.generateRouteDescription(load);
 
         return {
           id: load.id,
@@ -221,11 +267,19 @@ export class LiveMapService {
           pickup,
           delivery,
           routeWaypoints,
+          routeDescription,
           driver: load.driver
             ? {
                 id: load.driver.id,
                 driverNumber: load.driver.driverNumber,
                 name: `${load.driver.user.firstName} ${load.driver.user.lastName}`,
+              }
+            : undefined,
+          dispatcher: load.dispatcher
+            ? {
+                id: load.dispatcher.id,
+                firstName: load.dispatcher.firstName,
+                lastName: load.dispatcher.lastName,
               }
             : undefined,
           truck: load.truck
@@ -348,14 +402,28 @@ export class LiveMapService {
         vin: true,
       },
       orderBy: { updatedAt: 'desc' },
-      take: 300,
+      // Removed limit to show all trucks (you have 133 total)
     });
+
+    console.log('[LiveMapService] Found', trucks.length, 'trucks in database');
 
     const samsaraVehicles = await this.getSamsaraVehiclesWithTelemetry();
 
-    return trucks.map((truck) => {
+    // Check how many vehicles have telemetry data
+    const vehiclesWithDiagnostics = samsaraVehicles.filter(v => v.diagnostics).length;
+    const vehiclesWithSensors = samsaraVehicles.filter(v => v.sensors).length;
+    console.log('[LiveMapService] Got', samsaraVehicles.length, 'Samsara vehicles:', {
+      withDiagnostics: vehiclesWithDiagnostics,
+      withSensors: vehiclesWithSensors,
+      withLocation: samsaraVehicles.filter(v => v.location).length,
+    });
+
+    const matchedTrucks = trucks.map((truck) => {
       const match = this.matchTruckWithSamsaraVehicle(truck, samsaraVehicles);
-      return {
+      if (!match?.location) {
+        console.debug('[LiveMapService] Truck', truck.truckNumber, 'has no location match');
+      }
+      const result = {
         id: truck.id,
         truckNumber: truck.truckNumber,
         status: truck.status,
@@ -366,82 +434,310 @@ export class LiveMapService {
         latestMedia: match?.latestMedia,
         recentTrips: match?.recentTrips,
       };
+      
+      
+      return result;
     });
+
+    const withLocation = matchedTrucks.filter(t => t.location).length;
+    const withoutLocation = matchedTrucks.filter(t => !t.location).length;
+    console.log('[LiveMapService] Truck matching results:', {
+      total: matchedTrucks.length,
+      withLocation,
+      withoutLocation,
+      withoutLocationNumbers: matchedTrucks.filter(t => !t.location).map(t => t.truckNumber),
+    });
+
+    // Find Samsara vehicles that aren't matched to any database truck
+    // Build a set of matched Samsara vehicle IDs by checking all trucks
+    const matchedSamsaraIds = new Set<string>();
+    trucks.forEach((truck) => {
+      samsaraVehicles.forEach((sv) => {
+        const match = this.matchTruckWithSamsaraVehicle(truck, [sv]);
+        if (match !== undefined) {
+          matchedSamsaraIds.add(sv.id);
+        }
+      });
+    });
+
+    const samsaraOnlyVehicles = samsaraVehicles
+      .filter((sv) => !matchedSamsaraIds.has(sv.id) && sv.location)
+      .map((sv) => {
+        // Use Samsara vehicle name or ID as truck number
+        const truckNumber = sv.name || sv.id.substring(0, 8) || 'UNKNOWN';
+        return {
+          id: `samsara-${sv.id}`, // Prefix to avoid conflicts
+          truckNumber,
+          status: 'SAMSARA_ONLY' as string,
+          location: sv.location
+            ? {
+                lat: sv.location.latitude,
+                lng: sv.location.longitude,
+                address: sv.location.address,
+                heading: sv.location.heading,
+                speed: sv.location.speedMilesPerHour,
+                lastUpdated: sv.location.vehicleTime,
+                source: 'samsara',
+              }
+            : undefined,
+          matchSource: 'samsara-only',
+          diagnostics: sv.diagnostics,
+          sensors: sv.sensors,
+          latestMedia: sv.latestMedia,
+          recentTrips: sv.recentTrips,
+          isSamsaraOnly: true, // Mark as Samsara-only vehicle
+        } as TruckMapEntry;
+      });
+
+    console.log('[LiveMapService] Samsara-only vehicles:', {
+      count: samsaraOnlyVehicles.length,
+      vehicles: samsaraOnlyVehicles.map((v) => ({
+        number: v.truckNumber,
+        hasLocation: !!v.location,
+      })),
+    });
+
+    // Combine database trucks with Samsara-only vehicles
+    return [...matchedTrucks, ...samsaraOnlyVehicles];
+  }
+
+  private async getTrailerEntries(): Promise<TrailerMapEntry[]> {
+    try {
+      // Get all non-deleted trailers (don't filter by status - show all active trailers)
+      // Trailers can have various status values, so we show all non-deleted ones
+      const trailers = await prisma.trailer.findMany({
+        where: {
+          companyId: this.companyId,
+          deletedAt: null,
+          isActive: true, // Only show active trailers
+        },
+        select: {
+          id: true,
+          trailerNumber: true,
+          status: true,
+          licensePlate: true,
+          vin: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 500, // Increased to handle large trailer fleets (you have 231)
+      });
+
+      // Get Samsara assets AND vehicles (trailers might be registered as vehicles, not assets)
+      const [samsaraAssets, samsaraVehicles] = await Promise.all([
+        this.getSamsaraAssetsWithLocation().catch((error) => {
+          console.warn('[Samsara] Failed to fetch assets for trailers:', error instanceof Error ? error.message : error);
+          return [];
+        }),
+        // Also get vehicles - trailers might be in the vehicles list
+        this.getSamsaraVehiclesWithTelemetry().catch((error) => {
+          console.warn('[Samsara] Failed to fetch vehicles for trailers:', error instanceof Error ? error.message : error);
+          return [];
+        }),
+      ]);
+
+      // Combine assets and vehicles for trailer matching
+      // Convert vehicles to asset-like format for matching
+      const allSamsaraDevices: Array<{
+        id: string;
+        name?: string;
+        licensePlate?: string;
+        vin?: string;
+        location?: SamsaraVehicleWithLocation['location'];
+      }> = [
+        ...samsaraAssets,
+        ...samsaraVehicles.map((v) => ({
+          id: v.id,
+          name: v.name,
+          licensePlate: v.licensePlate,
+          vin: v.vin,
+          location: v.location,
+        })),
+      ];
+
+      console.log('[LiveMap] Matching', trailers.length, 'trailers with', samsaraAssets.length, 'Samsara assets and', samsaraVehicles.length, 'Samsara vehicles (total devices:', allSamsaraDevices.length, ')');
+
+      const matchedTrailers = trailers.map((trailer) => {
+        // Try matching with all Samsara devices (assets + vehicles)
+        const match = this.matchTrailerWithSamsaraAsset(trailer, allSamsaraDevices);
+        if (match) {
+          console.log('[LiveMap] Matched trailer', trailer.trailerNumber, 'via', match.matchSource);
+        }
+        return {
+          id: trailer.id,
+          trailerNumber: trailer.trailerNumber,
+          status: trailer.status || 'UNKNOWN',
+          location: match?.location,
+          matchSource: match?.matchSource,
+        };
+      });
+
+      console.log('[LiveMap] Returning', matchedTrailers.filter(t => t.location).length, 'trailers with locations');
+      return matchedTrailers;
+    } catch (error) {
+      console.error('[LiveMap] Error fetching trailers:', error);
+      return [];
+    }
+  }
+
+  private async getSamsaraAssetsWithLocation(): Promise<SamsaraVehicleWithLocation[]> {
+    try {
+      // Get assets (trailers) from Samsara
+      const assets = await getSamsaraAssets(this.companyId);
+      
+      if (!assets || assets.length === 0) {
+        console.debug('[Samsara] No assets found - trailers may not be configured in Samsara');
+        return [];
+      }
+
+      console.log('[Samsara] Found', assets.length, 'assets from Samsara');
+
+      const assetIds = assets.map((a) => a.id).filter(Boolean) as string[];
+
+      if (assetIds.length === 0) {
+        console.debug('[Samsara] No asset IDs found');
+        return assets.map((asset: any) => ({
+          id: asset.id,
+          name: asset.name,
+          licensePlate: asset.licensePlate,
+          vin: asset.vin,
+          location: undefined,
+        }));
+      }
+
+      // Get locations for assets (this is the critical data we need)
+      const locations = await getSamsaraVehicleLocations(assetIds, this.companyId);
+
+      if (!locations || locations.length === 0) {
+        console.debug('[Samsara] No locations found for assets');
+        return assets.map((asset: any) => ({
+          id: asset.id,
+          name: asset.name,
+          licensePlate: asset.licensePlate,
+          vin: asset.vin,
+          location: undefined,
+        }));
+      }
+
+      console.log('[Samsara] Found', locations.length, 'asset locations');
+
+      const locationById = new Map<string, SamsaraVehicleWithLocation['location']>();
+      locations.forEach((entry: any) => {
+        if (entry.vehicleId && entry.location && entry.location.latitude && entry.location.longitude) {
+          locationById.set(entry.vehicleId, {
+            latitude: entry.location.latitude,
+            longitude: entry.location.longitude,
+            address: entry.location.address,
+            heading: entry.location.heading,
+            speedMilesPerHour: entry.location.speedMilesPerHour,
+            vehicleTime: entry.location.vehicleTime,
+          });
+        }
+      });
+
+      const result = assets.map((asset: any) => ({
+        id: asset.id,
+        name: asset.name,
+        licensePlate: asset.licensePlate,
+        vin: asset.vin,
+        location: locationById.get(asset.id),
+      }));
+
+      console.log('[Samsara] Returning', result.filter(a => a.location).length, 'assets with locations');
+      return result;
+    } catch (error) {
+      console.error('[Samsara] Error fetching assets:', error);
+      return [];
+    }
+  }
+
+  private matchTrailerWithSamsaraAsset(
+    trailer: { trailerNumber: string; licensePlate?: string | null; vin?: string | null },
+    samsaraDevices: Array<{
+      id: string;
+      name?: string;
+      licensePlate?: string;
+      vin?: string;
+      location?: SamsaraVehicleWithLocation['location'];
+    }>
+  ):
+    | {
+        location: MapLocation;
+        matchSource: string;
+      }
+    | undefined {
+    // Normalize identifiers - handle letters, numbers, and mixed formats
+    const normalizedTrailerNumber = this.normalize(trailer.trailerNumber);
+    const normalizedPlate = this.normalize(trailer.licensePlate);
+    const normalizedVin = this.normalize(trailer.vin);
+
+    for (const device of samsaraDevices) {
+      if (!device.location) continue;
+
+      const normalizedDevicePlate = this.normalize(device.licensePlate);
+      const normalizedDeviceName = this.normalize(device.name);
+      const normalizedDeviceVin = this.normalize(device.vin);
+
+      // Try exact match first
+      const nameMatches: boolean =
+        !!(normalizedDeviceName &&
+        normalizedTrailerNumber &&
+        normalizedDeviceName === normalizedTrailerNumber);
+
+      const plateMatches: boolean =
+        !!(normalizedDevicePlate && normalizedPlate && normalizedDevicePlate === normalizedPlate);
+
+      const vinMatches: boolean =
+        !!(normalizedDeviceVin && normalizedVin && normalizedDeviceVin === normalizedVin);
+
+      // Also try partial matches for trailer numbers (handles cases like "TRL-123" vs "123")
+      const namePartialMatch: boolean =
+        !!(normalizedDeviceName &&
+        normalizedTrailerNumber &&
+        (normalizedDeviceName.includes(normalizedTrailerNumber) ||
+         normalizedTrailerNumber.includes(normalizedDeviceName)));
+
+      if (nameMatches || plateMatches || vinMatches || namePartialMatch) {
+        return {
+          location: {
+            lat: device.location.latitude,
+            lng: device.location.longitude,
+            address: device.location.address,
+            heading: device.location.heading,
+            speed: device.location.speedMilesPerHour,
+            lastUpdated: device.location.vehicleTime,
+            source: 'samsara',
+          },
+          matchSource: this.resolveMatchSource({
+            plate: plateMatches,
+            name: nameMatches || namePartialMatch,
+            vin: vinMatches,
+          }),
+        };
+      }
+    }
+
+    return undefined;
   }
 
   private async getSamsaraVehiclesWithTelemetry(): Promise<SamsaraVehicleWithLocation[]> {
-    // Get vehicles first (we need their IDs for the new location-and-speed endpoint)
-    const vehiclesPromise = getSamsaraVehicles(this.companyId);
+    // Get vehicles and locations first (essential data - prioritize speed)
+    const [vehicles, locations] = await Promise.all([
+      getSamsaraVehicles(this.companyId),
+      // Get locations without waiting for vehicle IDs (faster)
+      getSamsaraVehicleLocations(undefined, this.companyId),
+    ]);
     
-    // Get vehicles first, then use their IDs for location call
-    const vehicles = await vehiclesPromise;
     const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
-    
-    // Get locations - pass vehicle IDs if available (enables new endpoint)
-    const locationsPromise = getSamsaraVehicleLocations(vehicleIds, this.companyId);
 
-    const locations = await locationsPromise;
-
-    // Check if API key is working - if both vehicles and locations are null, API key might be invalid
+    // Check if API key is working
     if (!vehicles && !locations) {
       console.warn('[Samsara] No vehicles or locations returned - API key may be invalid or missing');
-      console.warn('[Samsara] Verify SAMSARA_API_KEY is set correctly in .env.local and server was restarted');
       return [];
     }
 
-    // Try diagnostics with vehicle IDs if available
-    const diagnosticsPromise = (async () => {
-      try {
-        const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
-        if (vehicleIds && vehicleIds.length > 0) {
-          return await getSamsaraVehicleDiagnostics(vehicleIds, this.companyId);
-        }
-        return await getSamsaraVehicleDiagnostics(undefined, this.companyId);
-      } catch (error) {
-        // Diagnostics are optional - fail silently
-        return null;
-      }
-    })();
-
-    const diagnostics = await diagnosticsPromise;
-
-    const statsPromise = getSamsaraVehicleStats(this.companyId).catch((error) => {
-      console.info('[Samsara] Stats unavailable:', error instanceof Error ? error.message : error);
-      return null;
-    });
-
-    // Trips endpoint requires vehicleIds or driverIds filter
-    // Pass vehicle IDs if available
-    const tripsPromise = (async () => {
-      try {
-        const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
-        if (vehicleIds && vehicleIds.length > 0) {
-          return await getSamsaraTrips(vehicleIds, undefined, this.companyId);
-        }
-        // If no vehicle IDs, trips can't be fetched (endpoint requires filter)
-        return null;
-      } catch (error) {
-        console.info('[Samsara] Trips unavailable:', error instanceof Error ? error.message : error);
-        return null;
-      }
-    })();
-
-    const mediaPromise = getSamsaraCameraMedia(this.companyId).catch((error) => {
-      console.info(
-        '[Samsara] Camera media unavailable:',
-        error instanceof Error ? error.message : error
-      );
-      return null;
-    });
-
-    const [stats, trips, media] = await Promise.all([statsPromise, tripsPromise, mediaPromise]);
-
-    if (!vehicles || !locations) {
-      return [];
-    }
-
+    // Process locations immediately (don't wait for telemetry)
     const locationById = new Map<string, SamsaraVehicleWithLocation['location']>();
-    locations.forEach((entry: any) => {
+    locations?.forEach((entry: any) => {
       if (entry.vehicleId && entry.location && entry.location.latitude && entry.location.longitude) {
         locationById.set(entry.vehicleId, {
           latitude: entry.location.latitude,
@@ -454,52 +750,181 @@ export class LiveMapService {
       }
     });
 
+    if (!vehicles) {
+      return [];
+    }
+
+    // Get telemetry data - DON'T use timeout, let it complete (diagnostics endpoint shows it works)
+    // The issue was the timeout cutting off the requests before they complete
+    let diagnosticsResult: any = null;
+    let statsResult: any = null;
+    let tripsResult: any = null;
+    let mediaResult: any = null;
+
+    try {
+      console.log('[Samsara] Fetching telemetry data for all vehicles (NOT filtering by vehicleIds - API works better without)');
+      
+      // Fetch all telemetry in parallel - don't timeout, let them complete
+      // DON'T pass vehicleIds to diagnostics/stats - API returns all data without filter
+      // (The diagnostic test shows /fleet/vehicles/stats?types=faultCodes works and returns 248 items)
+      const telemetryResults = await Promise.allSettled([
+        // Diagnostics: DON'T pass vehicleIds - API works better without it
+        getSamsaraVehicleDiagnostics(undefined, this.companyId),
+        getSamsaraVehicleStats(this.companyId),
+        // Trips DOES require vehicleIds
+        vehicleIds && vehicleIds.length > 0
+          ? getSamsaraTrips(vehicleIds, undefined, this.companyId)
+          : Promise.resolve(null),
+        getSamsaraCameraMedia(this.companyId),
+      ]);
+
+      diagnosticsResult = telemetryResults[0]?.status === 'fulfilled' ? telemetryResults[0].value : null;
+      statsResult = telemetryResults[1]?.status === 'fulfilled' ? telemetryResults[1].value : null;
+      tripsResult = telemetryResults[2]?.status === 'fulfilled' ? telemetryResults[2].value : null;
+      mediaResult = telemetryResults[3]?.status === 'fulfilled' ? telemetryResults[3].value : null;
+      
+      if (diagnosticsResult?.length === 0 && statsResult?.length === 0) {
+        console.warn('[Samsara] ⚠️ No telemetry data received - diagnostics:', diagnosticsResult?.length || 0, 'stats:', statsResult?.length || 0);
+        if (telemetryResults[0]?.status === 'rejected') {
+          console.error('[Samsara] Diagnostics error:', telemetryResults[0].reason);
+        }
+        if (telemetryResults[1]?.status === 'rejected') {
+          console.error('[Samsara] Stats error:', telemetryResults[1].reason);
+        }
+      } else {
+        console.log('[Samsara] Telemetry:', { diagnostics: diagnosticsResult?.length || 0, stats: statsResult?.length || 0 });
+      }
+    } catch (error) {
+      // Telemetry failed - continue with just locations
+      console.error('[Samsara] Telemetry error:', error instanceof Error ? error.message : error);
+    }
+
     const diagnosticsById = new Map<string, TruckDiagnostics>();
-    diagnostics?.forEach((entry) => {
-      if (!entry || !entry.vehicleId) return;
-      const faults = entry.faults || [];
-      diagnosticsById.set(entry.vehicleId, {
-        totalFaults: faults.length,
-        activeFaults: faults.filter((fault) => fault.active !== false).length,
-        checkEngineLightOn: entry.checkEngineLightOn,
-        lastUpdated: entry.lastUpdatedTime,
-        faults: faults.map((fault) => ({
-          code: fault.code,
-          description: fault.description,
-          severity: fault.severity,
-          active: fault.active,
-          occurredAt: fault.occurredAt,
-        })),
+    if (diagnosticsResult && diagnosticsResult.length > 0) {
+      let vehiclesWithFaults = 0;
+      let totalActiveFaults = 0;
+      
+      diagnosticsResult.forEach((entry: { vehicleId: string; faults?: Array<{ code?: string; description?: string; severity?: string; active?: boolean; occurredAt?: string }>; checkEngineLightOn?: boolean; lastUpdatedTime?: string }) => {
+        if (!entry || !entry.vehicleId) {
+          return;
+        }
+        const faults = entry.faults || [];
+        const activeFaults = faults.filter((fault: { active?: boolean }) => fault.active !== false).length;
+        const diagnostics: TruckDiagnostics = {
+          totalFaults: faults.length,
+          activeFaults: activeFaults,
+          checkEngineLightOn: entry.checkEngineLightOn,
+          lastUpdated: entry.lastUpdatedTime,
+          faults: faults.map((fault: { code?: string; description?: string; severity?: string; active?: boolean; occurredAt?: string }) => ({
+            code: fault.code,
+            description: fault.description,
+            severity: fault.severity,
+            active: fault.active,
+            occurredAt: fault.occurredAt,
+          })),
+        };
+        diagnosticsById.set(entry.vehicleId, diagnostics);
+        
+        if (activeFaults > 0) {
+          vehiclesWithFaults++;
+          totalActiveFaults += activeFaults;
+        }
       });
-    });
+      
+      console.log('[Samsara] Diagnostics:', {
+        total: diagnosticsById.size,
+        withFaults: vehiclesWithFaults,
+        totalActiveFaults: totalActiveFaults,
+      });
+    } else {
+      console.warn('[Samsara] No diagnostics data received');
+    }
 
     const statsById = new Map<string, TruckSensors>();
     
     // If stats endpoint provided data, use it
-    if (stats && stats.length > 0) {
-      stats.forEach((entry: any) => {
-        if (!entry?.vehicleId) return;
+    if (statsResult && statsResult.length > 0) {
+      let vehiclesWithFuel = 0;
+      let vehiclesWithSpeed = 0;
+      
+      statsResult.forEach((entry: any) => {
+        // Samsara API returns 'id' at top level, not 'vehicleId'
+        const vehicleId = entry.id || entry.vehicleId;
+        if (!vehicleId) {
+          return;
+        }
         
         // Handle valid Samsara stat types
-        // Valid types: ecuSpeedMph, fuelPercents, obdOdometerMeters, engineRpm, engineStates
-        const speed = entry.ecuSpeedMph ?? entry.gpsSpeed ?? entry.currentSpeed ?? entry.speed;
+        // Note: ecuSpeedMph can be an object with {time, value} or a direct number
+        const speedObj = entry.ecuSpeedMph;
+        const speed = typeof speedObj === 'object' && speedObj?.value !== undefined
+          ? speedObj.value
+          : (typeof speedObj === 'number' ? speedObj : undefined);
         const speedLimit = entry.speedLimit;
-        // fuelPercents is an array, take the first value or average
-        const fuelPercent = Array.isArray(entry.fuelPercents) 
-          ? (entry.fuelPercents[0] ?? entry.fuelPercents.reduce((a: number, b: number) => a + b, 0) / entry.fuelPercents.length)
-          : (entry.fuelLevel ?? entry.fuelPercent ?? entry.fuel);
-        // obdOdometerMeters is in meters, convert to miles
-        const odometerMiles = entry.obdOdometerMeters 
-          ? entry.obdOdometerMeters * 0.000621371 // Convert meters to miles
+        
+        // fuelPercents can be:
+        // 1. Object with {time, value} (like ecuSpeedMph)
+        // 2. Array of objects with {time, value}
+        // 3. Array of numbers
+        // 4. Direct number
+        let fuelPercent: number | undefined = undefined;
+        const fuelData = entry.fuelPercents;
+        
+        if (fuelData !== undefined && fuelData !== null) {
+          // Case 1: Single object with {time, value} - like ecuSpeedMph
+          if (typeof fuelData === 'object' && !Array.isArray(fuelData) && fuelData.value !== undefined) {
+            fuelPercent = fuelData.value;
+          }
+          // Case 2 & 3: Array
+          else if (Array.isArray(fuelData) && fuelData.length > 0) {
+            const firstItem = fuelData[0];
+            if (typeof firstItem === 'object' && firstItem?.value !== undefined) {
+              fuelPercent = firstItem.value;
+            } else if (typeof firstItem === 'number') {
+              fuelPercent = firstItem;
+            }
+          }
+          // Case 4: Direct number
+          else if (typeof fuelData === 'number') {
+            fuelPercent = fuelData;
+          }
+        }
+        
+        // Fallback to other possible field names
+        if (fuelPercent === undefined) {
+          const fallbackFuel = entry.fuelLevel ?? entry.fuelPercent ?? entry.fuel;
+          if (typeof fallbackFuel === 'number' && isFinite(fallbackFuel)) {
+            fuelPercent = fallbackFuel;
+          }
+        }
+        
+        // Ensure fuelPercent is a valid number, otherwise undefined
+        if (fuelPercent !== undefined && (typeof fuelPercent !== 'number' || !isFinite(fuelPercent))) {
+          fuelPercent = undefined;
+        }
+        
+        // obdOdometerMeters can be an object with {time, value} or a direct number
+        const odometerObj = entry.obdOdometerMeters;
+        const odometerMeters = typeof odometerObj === 'object' && odometerObj?.value !== undefined
+          ? odometerObj.value
+          : (typeof odometerObj === 'number' ? odometerObj : undefined);
+        const odometerMiles = odometerMeters 
+          ? odometerMeters * 0.000621371 // Convert meters to miles
           : (entry.obdOdometerMiles ?? entry.odometerMiles ?? entry.odometer);
+        
         // engineStates is an object with state property
         const engineState = entry.engineStates?.state ?? entry.engineState;
-        // engineHours might be in obdEngineSeconds or syntheticEngineSeconds (convert to hours)
-        const engineHours = entry.obdEngineSeconds 
-          ? entry.obdEngineSeconds / 3600 
-          : (entry.syntheticEngineSeconds ? entry.syntheticEngineSeconds / 3600 : entry.engineHours);
         
-        statsById.set(entry.vehicleId, {
+        // engineHours might be in obdEngineSeconds or syntheticEngineSeconds (convert to hours)
+        const engineSecondsObj = entry.obdEngineSeconds ?? entry.syntheticEngineSeconds;
+        const engineSeconds = typeof engineSecondsObj === 'object' && engineSecondsObj?.value !== undefined
+          ? engineSecondsObj.value
+          : (typeof engineSecondsObj === 'number' ? engineSecondsObj : undefined);
+        const engineHours = engineSeconds 
+          ? engineSeconds / 3600 
+          : entry.engineHours;
+        
+        const sensors: TruckSensors = {
           speed:
             speed !== undefined || speedLimit !== undefined
               ? { value: speed, limit: speedLimit }
@@ -509,8 +934,21 @@ export class LiveMapService {
           engineHours: engineHours,
           engineState: engineState,
           seatbeltStatus: entry.seatbeltStatus,
-        });
+        };
+        statsById.set(vehicleId, sensors);
+        
+        // Track statistics
+        if (fuelPercent !== undefined) vehiclesWithFuel++;
+        if (speed !== undefined) vehiclesWithSpeed++;
       });
+      
+      console.log('[Samsara] Sensors:', {
+        total: statsById.size,
+        withFuel: vehiclesWithFuel,
+        withSpeed: vehiclesWithSpeed,
+      });
+    } else {
+      console.warn('[Samsara] No stats data received');
     }
     
     // Extract speed from location data if stats endpoint didn't provide it
@@ -543,7 +981,7 @@ export class LiveMapService {
     });
 
     const tripsByVehicle = new Map<string, TruckTrip[]>();
-    trips?.forEach((trip) => {
+    tripsResult?.forEach((trip: { id: string; vehicleId: string; startLocation?: { address?: string; time?: string }; endLocation?: { address?: string; time?: string }; distanceMiles?: number; durationSeconds?: number }) => {
       if (!trip?.vehicleId) return;
       const list = tripsByVehicle.get(trip.vehicleId) || [];
       list.push({
@@ -559,7 +997,7 @@ export class LiveMapService {
     });
 
     const mediaByVehicle = new Map<string, TruckMedia>();
-    media?.forEach((item) => {
+    mediaResult?.forEach((item: { url: string; createdAt: string; cameraType?: string; vehicleId?: string }) => {
       if (!item?.vehicleId || !item.url) return;
       const existing = mediaByVehicle.get(item.vehicleId);
       if (!existing || new Date(item.createdAt).getTime() > new Date(existing.capturedAt).getTime()) {
@@ -571,17 +1009,71 @@ export class LiveMapService {
       }
     });
 
-    return vehicles.map((vehicle: any) => ({
-      id: vehicle.id,
-      name: vehicle.name,
-      licensePlate: vehicle.licensePlate,
-      vin: vehicle.vin,
-      location: locationById.get(vehicle.id),
-      diagnostics: diagnosticsById.get(vehicle.id),
-      sensors: statsById.get(vehicle.id),
-      recentTrips: tripsByVehicle.get(vehicle.id),
-      latestMedia: mediaByVehicle.get(vehicle.id),
-    }));
+    const result = vehicles.map((vehicle: any) => {
+      const diagnostics = diagnosticsById.get(vehicle.id);
+      const sensors = statsById.get(vehicle.id);
+      
+      return {
+        id: vehicle.id,
+        name: vehicle.name,
+        licensePlate: vehicle.licensePlate,
+        vin: vehicle.vin,
+        location: locationById.get(vehicle.id),
+        diagnostics,
+        sensors,
+        recentTrips: tripsByVehicle.get(vehicle.id),
+        latestMedia: mediaByVehicle.get(vehicle.id),
+      };
+    });
+    
+    const telemetrySummary = {
+      withDiagnostics: result.filter(v => v.diagnostics).length,
+      withSensors: result.filter(v => v.sensors).length,
+      withLocation: result.filter(v => v.location).length,
+    };
+    
+    console.log('[Samsara] Returning', result.length, 'vehicles:', telemetrySummary);
+    
+    // If no telemetry, log a warning
+    if (telemetrySummary.withDiagnostics === 0 && telemetrySummary.withSensors === 0) {
+      console.warn('[Samsara] ⚠️ NO TELEMETRY DATA - diagnostics/stats may have failed or vehicle IDs don\'t match');
+    }
+    
+    return result;
+  }
+
+  private generateRouteDescription(load: any): string | undefined {
+    // Try to get route from stops first
+    if (load.stops && Array.isArray(load.stops) && load.stops.length > 0) {
+      const sortedStops = [...load.stops].sort((a: any, b: any) => a.sequence - b.sequence);
+      const pickupStop = sortedStops.find((s: any) => s.stopType === 'PICKUP') || sortedStops[0];
+      const deliveryStop = sortedStops.find((s: any) => s.stopType === 'DELIVERY') || sortedStops[sortedStops.length - 1];
+      
+      if (pickupStop && deliveryStop) {
+        const pickup = pickupStop.city && pickupStop.state 
+          ? `${pickupStop.city}, ${pickupStop.state}` 
+          : pickupStop.address;
+        const delivery = deliveryStop.city && deliveryStop.state 
+          ? `${deliveryStop.city}, ${deliveryStop.state}` 
+          : deliveryStop.address;
+        
+        if (pickup && delivery) {
+          return `${pickup} → ${delivery}`;
+        }
+      }
+    }
+
+    // Fallback to load fields
+    const pickupCity = load.pickupCity;
+    const pickupState = load.pickupState;
+    const deliveryCity = load.deliveryCity;
+    const deliveryState = load.deliveryState;
+
+    if (pickupCity && pickupState && deliveryCity && deliveryState) {
+      return `${pickupCity}, ${pickupState} → ${deliveryCity}, ${deliveryState}`;
+    }
+
+    return undefined;
   }
 
   private matchTruckWithSamsaraVehicle(
@@ -620,6 +1112,7 @@ export class LiveMapService {
         !!(normalizedVehicleVin && normalizedVin && normalizedVehicleVin === normalizedVin);
 
       if (nameMatches || plateMatches || vinMatches) {
+        
         return {
           location: {
             lat: vehicle.location.latitude,
@@ -655,6 +1148,8 @@ export class LiveMapService {
 
   private normalize(value?: string | null): string | undefined {
     if (!value) return undefined;
+    // Remove all non-alphanumeric characters and convert to lowercase
+    // This handles mixed letters/numbers like "TRL-123", "ABC456", "123-XYZ"
     return value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   }
 }

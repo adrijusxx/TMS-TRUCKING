@@ -3,6 +3,7 @@
 import { createRoot } from 'react-dom/client';
 import { Truck, Package, User, MapPin, Gauge, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { MinimalTruckInfo, type MinimalTruckInfoData } from './MinimalTruckInfo';
 import type { MapLocation, TruckDiagnostics, TruckSensors } from '@/lib/maps/live-map-service';
 
 export interface InfoWindowData {
@@ -15,6 +16,12 @@ export interface InfoWindowData {
   speed?: number;
   diagnostics?: TruckDiagnostics;
   sensors?: TruckSensors;
+  dispatcher?: {
+    firstName: string;
+    lastName: string;
+  };
+  routeDescription?: string;
+  minimal?: boolean; // Use minimal view mode
 }
 
 declare global {
@@ -43,7 +50,29 @@ export class CustomInfoWindow {
       this.root = createRoot(this.container);
     }
 
-    this.root.render(<InfoWindowContent data={data} />);
+    // Use minimal view if requested
+    if (data.minimal) {
+      // Extract truck number from title (remove "Truck " prefix if present)
+      const truckNumber = data.title.replace(/^Truck\s+/i, '').replace(/\s*\(Samsara Only\)/i, '').trim();
+      // Pass location with all its fields including speed
+      const locationData = data.location ? {
+        speed: data.location.speed ?? (data.location as any).speedMilesPerHour,
+        speedMilesPerHour: (data.location as any).speedMilesPerHour,
+        heading: data.location.heading,
+        address: data.location.address,
+      } : undefined;
+      
+      const minimalData: MinimalTruckInfoData = {
+        truckNumber,
+        status: data.status,
+        diagnostics: data.diagnostics,
+        sensors: data.sensors,
+        location: locationData,
+      };
+      this.root.render(<MinimalTruckInfo data={minimalData} />);
+    } else {
+      this.root.render(<InfoWindowContent data={data} />);
+    }
 
     this.infoWindow.open(map, marker);
   }
@@ -96,6 +125,13 @@ function InfoWindowContent({ data }: { data: InfoWindowData }) {
           </div>
         )}
 
+        {data.dispatcher && (
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <User className="h-3.5 w-3.5" />
+            <span>Dispatcher: {data.dispatcher.firstName} {data.dispatcher.lastName}</span>
+          </div>
+        )}
+
         {data.status && (
           <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground">Status:</span>
@@ -109,6 +145,18 @@ function InfoWindowContent({ data }: { data: InfoWindowData }) {
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Gauge className="h-3.5 w-3.5" />
             <span>{Math.round(speed)} mph</span>
+          </div>
+        )}
+
+        {typeof data.sensors?.fuelPercent === 'number' && isFinite(data.sensors.fuelPercent) && (
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <span>Fuel: {Math.round(data.sensors.fuelPercent)}%</span>
+          </div>
+        )}
+
+        {data.routeDescription && (
+          <div className="flex items-start gap-1.5 text-muted-foreground pt-1 border-t">
+            <span className="text-xs">{data.routeDescription}</span>
           </div>
         )}
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import UserProfileSettings from '@/components/settings/UserProfileSettings';
 import EmployeeGeneralSettings from '@/components/settings/EmployeeGeneralSettings';
 import EmployeeNotificationsSettings from '@/components/settings/EmployeeNotificationsSettings';
 import EmployeeSecuritySettings from '@/components/settings/EmployeeSecuritySettings';
@@ -11,7 +12,7 @@ import DriverSettings from '@/components/settings/role-specific/DriverSettings';
 import HRSettings from '@/components/settings/role-specific/HRSettings';
 import SafetySettings from '@/components/settings/role-specific/SafetySettings';
 import FleetSettings from '@/components/settings/role-specific/FleetSettings';
-import { Settings, Bell, Eye, Shield, Package, DollarSign, Truck, Users, AlertTriangle, Wrench } from 'lucide-react';
+import { User, Settings, Bell, Eye, Shield, Package, DollarSign, Truck, Users, AlertTriangle, Wrench } from 'lucide-react';
 import type { UserRole } from '@/lib/permissions';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -45,15 +46,19 @@ export default function MyProfileCategory() {
       <div>
         <h2 className="text-2xl font-bold mb-2">My Profile</h2>
         <p className="text-muted-foreground">
-          Manage your personal account settings, preferences, and role-specific configurations
+          Manage your account information, preferences, and settings
         </p>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-6">
+      <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="flex-wrap">
+          <TabsTrigger value="profile">
+            <User className="h-4 w-4 mr-2" />
+            Profile
+          </TabsTrigger>
           <TabsTrigger value="general">
             <Settings className="h-4 w-4 mr-2" />
-            General
+            Preferences
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="h-4 w-4 mr-2" />
@@ -65,7 +70,7 @@ export default function MyProfileCategory() {
           </TabsTrigger>
           <TabsTrigger value="security">
             <Shield className="h-4 w-4 mr-2" />
-            Security & Privacy
+            Security
           </TabsTrigger>
           {roleSpecificTab && (
             <TabsTrigger value={roleSpecificTab.value}>
@@ -75,54 +80,28 @@ export default function MyProfileCategory() {
           )}
         </TabsList>
 
+        <TabsContent value="profile" className="space-y-6">
+          <UserProfileSettings />
+        </TabsContent>
+
         <TabsContent value="general" className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold mb-2">General Settings</h3>
-            <p className="text-muted-foreground">
-              View your personal preferences and company information
-            </p>
-          </div>
           <EmployeeGeneralSettings />
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold mb-2">Notifications</h3>
-            <p className="text-muted-foreground">
-              Configure your notification preferences
-            </p>
-          </div>
           <EmployeeNotificationsSettings />
         </TabsContent>
 
         <TabsContent value="appearance" className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold mb-2">Appearance</h3>
-            <p className="text-muted-foreground">
-              Customize your interface appearance and theme
-            </p>
-          </div>
           <AppearanceSettings />
         </TabsContent>
 
         <TabsContent value="security" className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold mb-2">Security & Privacy</h3>
-            <p className="text-muted-foreground">
-              Manage your account security settings
-            </p>
-          </div>
           <EmployeeSecuritySettings />
         </TabsContent>
 
         {roleSpecificTab && (
           <TabsContent value={roleSpecificTab.value} className="space-y-6">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">{roleSpecificTab.name} Settings</h3>
-              <p className="text-muted-foreground">
-                Configure role-specific settings and preferences
-              </p>
-            </div>
             {roleSpecificTab.component}
           </TabsContent>
         )}

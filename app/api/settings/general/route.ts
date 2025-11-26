@@ -24,6 +24,7 @@ const generalSettingsSchema = z.object({
   loadNumberFormat: z.enum(['SEQUENTIAL', 'DATE_SEQUENTIAL', 'CUSTOM']).optional(),
   invoiceNumberPrefix: z.string().optional(),
   invoiceNumberFormat: z.enum(['SEQUENTIAL', 'DATE_SEQUENTIAL', 'CUSTOM']).optional(),
+  dispatcherSeeAllLoads: z.boolean().optional(), // Allow dispatchers to see all loads (default: true)
 });
 
 export async function GET(request: NextRequest) {
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest) {
             loadNumberFormat: 'DATE_SEQUENTIAL',
             invoiceNumberPrefix: '',
             invoiceNumberFormat: 'DATE_SEQUENTIAL',
+            dispatcherSeeAllLoads: true, // Default: dispatchers see all loads
           },
         },
       });

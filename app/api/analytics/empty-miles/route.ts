@@ -16,9 +16,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check analytics permission
+    // Check analytics permission (use database-backed check)
     const role = (session.user as any)?.role || 'CUSTOMER';
-    if (!hasPermission(role, 'analytics.view')) {
+    const { hasPermissionAsync } = await import('@/lib/permissions');
+    if (!(await hasPermissionAsync(role, 'analytics.view'))) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
         { status: 403 }

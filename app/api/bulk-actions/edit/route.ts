@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if user has access to this MC number
-      if (!McStateManager.canAccessMc(session, mcNumberId)) {
+      if (!(await McStateManager.canAccessMc(session, mcNumberId))) {
         return NextResponse.json(
           {
             success: false,

@@ -179,13 +179,24 @@ export class LoadCompletionManager {
       warnings.push('Total miles not recorded');
     }
 
-    // Check for POD if required
+    // Check for critical documents (BOL, POD) if required
+    const bolDocument = await prisma.document.findFirst({
+      where: {
+        loadId: load.id,
+        type: 'BOL',
+      },
+    });
+
     const podDocument = await prisma.document.findFirst({
       where: {
         loadId: load.id,
         type: 'POD',
       },
     });
+
+    if (!bolDocument) {
+      warnings.push('Bill of Lading (BOL) not uploaded');
+    }
 
     if (!podDocument) {
       warnings.push('Proof of Delivery (POD) not uploaded');

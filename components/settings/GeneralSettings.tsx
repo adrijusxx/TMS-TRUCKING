@@ -46,6 +46,7 @@ const generalSettingsSchema = z.object({
   autoAssignDrivers: z.boolean(),
   requirePOD: z.boolean(),
   enableLoadTemplates: z.boolean(),
+  dispatcherSeeAllLoads: z.boolean().optional(), // Allow dispatchers to see all loads (default: true)
   
   // Numbering
   loadNumberPrefix: z.string().optional(),
@@ -125,6 +126,7 @@ export default function GeneralSettings() {
       autoAssignDrivers: false,
       requirePOD: false,
       enableLoadTemplates: true,
+      dispatcherSeeAllLoads: true, // Default: dispatchers see all loads
       loadNumberPrefix: '',
       loadNumberFormat: 'DATE_SEQUENTIAL',
       invoiceNumberPrefix: '',
@@ -465,6 +467,21 @@ export default function GeneralSettings() {
             <Switch
               checked={watch('enableLoadTemplates')}
               onCheckedChange={(checked) => setValue('enableLoadTemplates', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Dispatchers See All Loads</Label>
+              <p className="text-sm text-muted-foreground">
+                When enabled, dispatchers can see all loads within their MC access. When disabled, dispatchers only see loads they dispatched or loads for their assigned drivers.
+              </p>
+            </div>
+            <Switch
+              checked={watch('dispatcherSeeAllLoads') ?? true}
+              onCheckedChange={(checked) => setValue('dispatcherSeeAllLoads', checked, { shouldDirty: true })}
             />
           </div>
         </CardContent>

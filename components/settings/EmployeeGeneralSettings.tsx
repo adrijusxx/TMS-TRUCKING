@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings } from 'lucide-react';
@@ -21,51 +20,55 @@ export default function EmployeeGeneralSettings() {
   const settings = settingsData?.data;
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>;
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-4">Loading preferences...</div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            <CardTitle>General Preferences</CardTitle>
-          </div>
-          <CardDescription>
-            Your personal preferences and display settings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Timezone</label>
-              <div className="text-sm text-muted-foreground">
-                {settings?.timezone || 'Not set'}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Date Format</label>
-              <div className="text-sm text-muted-foreground">
-                {settings?.dateFormat || 'Not set'}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Time Format</label>
-              <div className="text-sm text-muted-foreground">
-                {settings?.timeFormat || 'Not set'}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Currency</label>
-              <div className="text-sm text-muted-foreground">
-                {settings?.currencySymbol} {settings?.currency || 'Not set'}
-              </div>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Settings className="h-5 w-5" />
+          <CardTitle>Display Preferences</CardTitle>
+        </div>
+        <CardDescription>
+          View your system display preferences (managed by administrator)
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Timezone</label>
+            <div className="text-sm text-muted-foreground">
+              {settings?.timezone || 'Not set'}
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Date Format</label>
+            <div className="text-sm text-muted-foreground">
+              {settings?.dateFormat || 'Not set'}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Time Format</label>
+            <div className="text-sm text-muted-foreground">
+              {settings?.timeFormat || 'Not set'}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Currency</label>
+            <div className="text-sm text-muted-foreground">
+              {settings?.currencySymbol} {settings?.currency || 'Not set'}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -28,6 +28,7 @@ import type {
   MapLocation,
   TruckDiagnostics,
   TruckMapEntry,
+  TrailerMapEntry,
   TruckSensors,
   TruckMedia,
   TruckTrip,
@@ -35,6 +36,7 @@ import type {
 import { useLiveMap } from '@/hooks/useLiveMap';
 import {
   buildTruckMarkerIcon,
+  buildSamsaraMarkerIcon,
   buildBadgeIcon,
   formatBadgeLabel,
   getTruckMarkerColor,
@@ -73,7 +75,8 @@ export default function LiveMap() {
   const clusterManagerRef = useRef<MarkerClusterManager | null>(null);
   const infoWindowRef = useRef<CustomInfoWindow | null>(null);
   const trailManagerRef = useRef<PathTrailManager | null>(null);
-  const previousDataRef = useRef<{ loads: any[]; trucks: any[] } | null>(null);
+  const previousDataRef = useRef<{ loads: any[]; trucks: any[]; trailers: TrailerMapEntry[] } | null>(null);
+  const hasInitialBoundsRef = useRef(false); // Track if we've set initial bounds
   const [searchQuery, setSearchQuery] = useState('');
   const [showFaultyOnly, setShowFaultyOnly] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<SelectedTruckDetail | null>(null);
@@ -88,14 +91,44 @@ export default function LiveMap() {
   const [showStatistics, setShowStatistics] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [showTrackedTrucks, setShowTrackedTrucks] = useState(false);
+  const [showSamsaraOnly, setShowSamsaraOnly] = useState(false); // Toggle for Samsara-only vehicles
   const [isMounted, setIsMounted] = useState(false);
 
-  const { loads, trucks, isLoading, error, refetch } = useLiveMap();
+  const { loads, trucks, trailers, isLoading, error, refetch } = useLiveMap();
 
   // Prevent hydration mismatch by only rendering collapsibles after mount
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Debug logging for trailers
+  useEffect(() => {
+    if (trailers && trailers.length > 0) {
+      console.log('[LiveMap Component] Trailers received:', {
+        total: trailers.length,
+        withLocations: trailers.filter(t => t.location).length,
+        trailers: trailers.map(t => ({
+          id: t.id,
+          number: t.trailerNumber,
+          hasLocation: !!t.location,
+          matchSource: t.matchSource,
+        })),
+      });
+    } else {
+      console.warn('[LiveMap Component] No trailers in data');
+    }
+  }, [trailers]);
+
+  // Debug logging for data changes
+  useEffect(() => {
+    console.log('[LiveMap Component] Data update:', {
+      loads: loads.length,
+      trucks: trucks.length,
+      trailers: trailers.length,
+      isLoading,
+      error: error?.message,
+    });
+  }, [loads.length, trucks.length, trailers.length, isLoading, error]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const hasQuery = normalizedQuery.length > 0;
@@ -115,6 +148,11 @@ export default function LiveMap() {
 
   const filteredTrucks = useMemo(() => {
     return trucks.filter((truck) => {
+      // Filter out Samsara-only vehicles if toggle is off
+      if (truck.isSamsaraOnly && !showSamsaraOnly) {
+        return false;
+      }
+
       if (showFaultyOnly && (truck.diagnostics?.activeFaults ?? 0) === 0) {
         return false;
       }
@@ -133,7 +171,14 @@ export default function LiveMap() {
 
       return filteredLoads.some((load) => load.truck?.id === truck.id);
     });
-  }, [trucks, filteredLoads, hasQuery, normalizedQuery, showFaultyOnly]);
+  }, [trucks, filteredLoads, hasQuery, normalizedQuery, showFaultyOnly, showSamsaraOnly]);
+
+  const filteredTrailers = useMemo(() => {
+    return trailers.filter((trailer) => {
+      if (!hasQuery) return true;
+      return matchesQuery(trailer.trailerNumber) || matchesQuery(trailer.matchSource);
+    });
+  }, [trailers, hasQuery, normalizedQuery]);
 
   const truckMapById = useMemo(() => {
     const map = new Map<string, TruckMapEntry>();
@@ -217,20 +262,46 @@ export default function LiveMap() {
     if (!map || !window.google) return;
 
     // Only clear and recreate if data has actually changed
-    const currentData = { loads: filteredLoads, trucks: filteredTrucks };
+    const currentData = { loads: filteredLoads, trucks: filteredTrucks, trailers: filteredTrailers };
     const previousData = previousDataRef.current;
 
-    // Simple comparison - in production, you'd want a deeper comparison
-    const dataChanged =
+    // Improved comparison - check IDs and key properties
+    const loadsChanged =
       !previousData ||
       previousData.loads.length !== currentData.loads.length ||
-      previousData.trucks.length !== currentData.trucks.length ||
-      JSON.stringify(previousData.loads.map((l) => l.id)) !==
-        JSON.stringify(currentData.loads.map((l) => l.id)) ||
-      JSON.stringify(previousData.trucks.map((t) => t.id)) !==
-        JSON.stringify(currentData.trucks.map((t) => t.id));
+      previousData.loads.some((l, i) => {
+        const current = currentData.loads[i];
+        return !current || 
+          l.id !== current.id ||
+          l.status !== current.status ||
+          (l.truckLocation?.lat !== current.truckLocation?.lat) ||
+          (l.truckLocation?.lng !== current.truckLocation?.lng);
+      });
 
-    if (dataChanged) {
+    const trucksChanged =
+      !previousData ||
+      previousData.trucks.length !== currentData.trucks.length ||
+      previousData.trucks.some((t, i) => {
+        const current = currentData.trucks[i];
+        return !current ||
+          t.id !== current.id ||
+          (t.location?.lat !== current.location?.lat) ||
+          (t.location?.lng !== current.location?.lng) ||
+          (t.diagnostics?.activeFaults !== current.diagnostics?.activeFaults);
+      });
+
+    const trailersChanged =
+      !previousData ||
+      previousData.trailers?.length !== currentData.trailers.length ||
+      previousData.trailers?.some((t: TrailerMapEntry, i: number) => {
+        const current = currentData.trailers[i];
+        return !current ||
+          t.id !== current.id ||
+          (t.location?.lat !== current.location?.lat) ||
+          (t.location?.lng !== current.location?.lng);
+      });
+
+    if (loadsChanged || trucksChanged || trailersChanged) {
       loadMarkersRef.current.forEach((marker) => marker.setMap(null));
       truckMarkersRef.current.forEach((marker) => marker.setMap(null));
       routePolylinesRef.current.forEach((polyline) => polyline.setMap(null));
@@ -298,8 +369,9 @@ export default function LiveMap() {
         if (marker) newLoadMarkers.push(marker);
       }
 
-      // Enhanced route visualization with gradient
-      if (load.routeWaypoints && load.routeWaypoints.length > 1) {
+      // Enhanced route visualization - only show when zoomed in enough (lazy load)
+      // Routes are expensive to render, so only show when zoom >= 8
+      if (load.routeWaypoints && load.routeWaypoints.length > 1 && mapZoom >= 8) {
         const path = load.routeWaypoints.map((point) => ({ lat: point.lat, lng: point.lng }));
         
         // Create main route polyline
@@ -341,21 +413,32 @@ export default function LiveMap() {
       if (showTrucks && load.truck && load.truckLocation) {
         const hasActiveFaults = (load.truckDiagnostics?.activeFaults ?? 0) > 0;
         const truckStatus = createTruckStatus(hasActiveFaults, true);
-        const markerColor = getTruckMarkerColor(truckStatus);
+        const markerColor = getTruckMarkerColor(truckStatus, showFaultyOnly);
         const markerSize = getMarkerSizeForZoom(mapZoom);
         const truckLabel = formatBadgeLabel(load.truck.truckNumber, 'TRK');
+        // Use Samsara icon if location source is Samsara
+        const useSamsaraIcon = load.truckLocation.source === 'samsara' || matchedTruck?.matchSource;
 
         const marker = addMarker(
           load.truckLocation,
           {
-            icon: buildTruckMarkerIcon({
-              label: truckLabel,
-              fill: markerColor,
-              size: markerSize,
-              heading: load.truckLocation.heading,
-              showDirection: true,
-              pulse: hasActiveFaults,
-            }),
+            icon: useSamsaraIcon
+              ? buildSamsaraMarkerIcon({
+                  label: truckLabel,
+                  fill: markerColor,
+                  size: markerSize,
+                  heading: load.truckLocation.heading,
+                  showDirection: true,
+                  pulse: false, // Removed pulse - faults shown in popup
+                })
+              : buildTruckMarkerIcon({
+                  label: truckLabel,
+                  fill: markerColor,
+                  size: markerSize,
+                  heading: load.truckLocation.heading,
+                  showDirection: true,
+                  pulse: false,
+                }),
             title: `Truck ${load.truck.truckNumber} (Load ${load.loadNumber})`,
           },
           () => {
@@ -369,7 +452,10 @@ export default function LiveMap() {
                 status: load.status,
                 speed: load.truckLocation?.speed,
                 diagnostics: load.truckDiagnostics,
-                sensors: matchedTruck?.sensors,
+                sensors: load.truckSensors || matchedTruck?.sensors,
+                dispatcher: load.dispatcher,
+                routeDescription: load.routeDescription,
+                minimal: true, // Use minimal view for quick info
               };
               infoWindowRef.current.open(map, marker, infoData);
             }
@@ -407,17 +493,27 @@ export default function LiveMap() {
         }
       }
 
+      // Show trailers assigned to loads - use Samsara location if available, otherwise use load location
       if (showTrailers && load.trailer) {
-        const trailerAnchor = load.truckLocation ?? load.delivery ?? load.pickup;
-        if (trailerAnchor) {
+        // Check if we have a Samsara location for this trailer
+        const trailerFromSamsara = filteredTrailers.find((t) => t.id === load.trailer!.id);
+        const trailerLocation = trailerFromSamsara?.location ?? load.truckLocation ?? load.delivery ?? load.pickup;
+        
+        if (trailerLocation) {
           const trailerLabel = formatBadgeLabel(load.trailer.trailerNumber, 'TRL');
+          const markerSize = getMarkerSizeForZoom(mapZoom);
+          const trailerColor = MAP_COLORS.trailer; // Purple color for trailers
+          
           const trailerMarker = addMarker(
-            trailerAnchor,
+            trailerLocation,
             {
-              icon: buildBadgeIcon({
+              icon: buildTruckMarkerIcon({
                 label: trailerLabel,
-                fill: MAP_COLORS.trailer,
-                size: 24,
+                fill: trailerColor,
+                size: markerSize,
+                heading: trailerLocation?.heading,
+                showDirection: true,
+                pulse: false,
               }),
               title: `Trailer ${load.trailer.trailerNumber}`,
             },
@@ -425,7 +521,9 @@ export default function LiveMap() {
               if (infoWindowRef.current) {
                 const infoData: InfoWindowData = {
                   title: `Trailer ${load.trailer!.trailerNumber}`,
-                  location: trailerAnchor,
+                  status: trailerFromSamsara?.status,
+                  location: trailerLocation,
+                  minimal: true,
                 };
                 infoWindowRef.current.open(map, trailerMarker, infoData);
               }
@@ -440,40 +538,88 @@ export default function LiveMap() {
     });
 
     if (showTrucks) {
-      const standaloneTrucks = filteredTrucks.filter(
-        (truck) => truck.location && !trackedTruckIds.has(truck.id)
+      const trucksWithLocation = filteredTrucks.filter((truck) => truck.location);
+      const trucksWithoutLocation = filteredTrucks.filter((truck) => !truck.location);
+      
+      console.log('[LiveMap] Truck filtering:', {
+        totalFiltered: filteredTrucks.length,
+        withLocation: trucksWithLocation.length,
+        withoutLocation: trucksWithoutLocation.length,
+        trackedTruckIds: Array.from(trackedTruckIds),
+        trucksWithoutLocationNumbers: trucksWithoutLocation.map(t => t.truckNumber),
+      });
+
+      const standaloneTrucks = trucksWithLocation.filter(
+        (truck) => !trackedTruckIds.has(truck.id)
       );
+
+      console.log('[LiveMap] Rendering standalone trucks:', {
+        count: standaloneTrucks.length,
+        truckNumbers: standaloneTrucks.map(t => t.truckNumber),
+      });
 
       standaloneTrucks.forEach((truck) => {
         const hasActiveFaults = (truck.diagnostics?.activeFaults ?? 0) > 0;
         const truckStatus = createTruckStatus(hasActiveFaults, false);
-        const markerColor = getTruckMarkerColor(truckStatus);
+        // Use unified color logic for all trucks (including Samsara-only)
+        const markerColor = getTruckMarkerColor(truckStatus, showFaultyOnly);
         const markerSize = getMarkerSizeForZoom(mapZoom);
-        const truckLabel = formatBadgeLabel(truck.truckNumber, 'TRK');
+        const truckLabel = formatBadgeLabel(truck.truckNumber, truck.isSamsaraOnly ? 'SAM' : 'TRK');
+        // Use Samsara icon if truck has Samsara match source or is Samsara-only
+        const useSamsaraIcon = truck.isSamsaraOnly || truck.location?.source === 'samsara' || truck.matchSource;
+
+        // Find if this truck is assigned to a load for dispatcher/route info
+        const assignedLoad = filteredLoads.find((load) => load.truck?.id === truck.id);
 
         const marker = addMarker(
           truck.location as MapLocation,
           {
-            icon: buildTruckMarkerIcon({
-              label: truckLabel,
-              fill: markerColor,
-              size: markerSize,
-              heading: truck.location?.heading,
-              showDirection: true,
-              pulse: hasActiveFaults,
-            }),
-            title: `Truck ${truck.truckNumber}`,
+            icon: useSamsaraIcon
+              ? buildSamsaraMarkerIcon({
+                  label: truckLabel,
+                  fill: markerColor,
+                  size: markerSize,
+                  heading: truck.location?.heading,
+                  showDirection: true,
+                  pulse: false, // Removed pulse - faults shown in popup
+                })
+              : buildTruckMarkerIcon({
+                  label: truckLabel,
+                  fill: markerColor,
+                  size: markerSize,
+                  heading: truck.location?.heading,
+                  showDirection: true,
+                  pulse: false,
+                }),
+            title: truck.isSamsaraOnly 
+              ? `${truck.truckNumber} (Samsara Only)`
+              : `Truck ${truck.truckNumber}`,
           },
           () => {
             if (infoWindowRef.current) {
+              // Debug: Log what data we're passing
+              console.log('[LiveMap] Opening popup for truck:', {
+                truckNumber: truck.truckNumber,
+                hasDiagnostics: !!truck.diagnostics,
+                hasSensors: !!truck.sensors,
+                diagnostics: truck.diagnostics,
+                sensors: truck.sensors,
+              });
+
               const infoData: InfoWindowData = {
-                title: `Truck ${truck.truckNumber}`,
-                subtitle: truck.status,
+                title: truck.isSamsaraOnly 
+                  ? `${truck.truckNumber} (Samsara Only)`
+                  : `Truck ${truck.truckNumber}`,
+                subtitle: truck.isSamsaraOnly ? 'Not in system' : truck.status,
                 location: truck.location,
-                status: truck.status,
+                status: truck.isSamsaraOnly ? 'SAMSARA_ONLY' : truck.status,
                 speed: truck.location?.speed,
                 diagnostics: truck.diagnostics,
                 sensors: truck.sensors,
+                // Include dispatcher and route from assigned load if available
+                dispatcher: assignedLoad?.dispatcher,
+                routeDescription: assignedLoad?.routeDescription,
+                minimal: true, // Use minimal view for quick info
               };
               infoWindowRef.current.open(map, marker, infoData);
             }
@@ -507,19 +653,88 @@ export default function LiveMap() {
       });
     }
 
-    if (!bounds.isEmpty()) {
+    // Add standalone trailers from Samsara (not assigned to loads)
+    if (showTrailers) {
+      const loadTrailerIds = new Set(
+        filteredLoads
+          .filter((load) => load.trailer?.id)
+          .map((load) => load.trailer!.id)
+      );
+
+      const standaloneTrailers = filteredTrailers.filter(
+        (trailer) => trailer.location && !loadTrailerIds.has(trailer.id)
+      );
+
+      console.log('[LiveMap] Rendering trailers:', {
+        totalFiltered: filteredTrailers.length,
+        withLocations: filteredTrailers.filter(t => t.location).length,
+        loadTrailerIds: Array.from(loadTrailerIds),
+        standalone: standaloneTrailers.length,
+        standaloneDetails: standaloneTrailers.map(t => ({
+          id: t.id,
+          number: t.trailerNumber,
+          location: t.location,
+        })),
+      });
+
+      standaloneTrailers.forEach((trailer) => {
+        // Format trailer label - handle letters, numbers, or mixed
+        const trailerLabel = formatBadgeLabel(trailer.trailerNumber, 'TRL');
+        const markerSize = getMarkerSizeForZoom(mapZoom);
+        
+        // Use purple color for trailers
+        const trailerColor = MAP_COLORS.trailer; // Purple color for trailers
+        
+        const marker = addMarker(
+          trailer.location as MapLocation,
+          {
+            icon: buildTruckMarkerIcon({
+              label: trailerLabel,
+              fill: trailerColor,
+              size: markerSize,
+              heading: trailer.location?.heading,
+              showDirection: true,
+              pulse: false,
+            }),
+            title: `Trailer ${trailer.trailerNumber}`,
+          },
+          () => {
+            if (infoWindowRef.current) {
+              const infoData: InfoWindowData = {
+                title: `Trailer ${trailer.trailerNumber}`,
+                status: trailer.status,
+                location: trailer.location,
+                minimal: true,
+              };
+              infoWindowRef.current.open(map, marker, infoData);
+            }
+          }
+        );
+
+        if (marker) {
+          newTruckMarkers.push(marker);
+        }
+      });
+    }
+
+    // Only fit bounds on initial load, not on every update (prevents zoom reset)
+    if (!bounds.isEmpty() && !hasInitialBoundsRef.current) {
       map.fitBounds(bounds);
+      hasInitialBoundsRef.current = true;
     }
 
     loadMarkersRef.current = newLoadMarkers;
     truckMarkersRef.current = newTruckMarkers;
     routePolylinesRef.current = newPolylines;
 
-    // Update cluster manager if available
-    if (clusterManagerRef.current && newTruckMarkers.length > 0) {
+    // Update cluster manager if available - only when zoomed out (clustering is more useful)
+    if (clusterManagerRef.current && newTruckMarkers.length > 0 && mapZoom < 10) {
       clusterManagerRef.current.updateMarkers(newTruckMarkers);
+    } else if (clusterManagerRef.current && mapZoom >= 10) {
+      // Clear clusters when zoomed in
+      clusterManagerRef.current.clearMarkers();
     }
-  }, [map, filteredLoads, filteredTrucks, truckMapById, showTrucks, showTrailers, showPickups, showDeliveries, mapZoom]);
+  }, [map, filteredLoads, filteredTrucks, filteredTrailers, truckMapById, showTrucks, showTrailers, showPickups, showDeliveries, mapZoom]);
 
   const activeLoadCount = loads.length;
   const trackedTruckCount = filteredTrucks.length;
@@ -660,6 +875,22 @@ export default function LiveMap() {
                   </Label>
                 </div>
               ))}
+            </div>
+            <div className="flex items-center gap-2 border-l pl-3">
+              <Switch 
+                checked={showSamsaraOnly} 
+                onCheckedChange={setShowSamsaraOnly} 
+                id="samsara-only" 
+                className="scale-75"
+              />
+              <Label htmlFor="samsara-only" className="text-xs cursor-pointer whitespace-nowrap">
+                Show Samsara-only
+              </Label>
+              {trucks.filter(t => t.isSamsaraOnly).length > 0 && (
+                <Badge variant="outline" className="text-xs px-1.5 py-0">
+                  {trucks.filter(t => t.isSamsaraOnly).length}
+                </Badge>
+              )}
             </div>
           </div>
 

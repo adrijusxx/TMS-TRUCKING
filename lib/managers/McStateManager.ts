@@ -20,8 +20,9 @@ export interface McState {
 
 export class McStateManager {
   /**
-   * Gets user's accessible MC IDs from session
+   * Gets user's accessible MC IDs from session (for quick checks)
    * Returns empty array for admins (which means access to all MCs)
+   * Note: This reads from session which may be stale. Use getMcAccessFromDb() for fresh data.
    */
   static getMcAccess(session: any): string[] {
     const mcAccess = (session?.user as any)?.mcAccess;
@@ -32,16 +33,49 @@ export class McStateManager {
   }
 
   /**
+   * Gets user's accessible MC IDs from database (always fresh)
+   * Returns empty array for admins (which means access to all MCs)
+   * Use this when you need the latest mcAccess data
+   */
+  static async getMcAccessFromDb(userId: string): Promise<string[]> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { mcAccess: true, role: true },
+      });
+      
+      if (!user) {
+        return [];
+      }
+      
+      // Return mcAccess array (empty for admins = access to all)
+      return user.mcAccess || [];
+    } catch (error) {
+      console.error('[McStateManager] Error fetching mcAccess from database:', error);
+      return [];
+    }
+  }
+
+  /**
    * Checks if user can access a specific MC ID
    * 
    * Rules:
    * - Admins with empty mcAccess array can access all MCs
    * - Employees can only access MCs in their mcAccess array
    * - If mcAccess is empty for non-admin, they have no access
+   * 
+   * IMPORTANT: Reads from database to ensure fresh data
    */
-  static canAccessMc(session: any, mcId: string): boolean {
-    const mcAccess = this.getMcAccess(session);
+  static async canAccessMc(session: any, mcId: string): Promise<boolean> {
+    const userId = session?.user?.id;
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
+    
+    if (!userId) {
+      return false;
+    }
+    
+    // Always read from database for fresh data
+    const mcAccess = await this.getMcAccessFromDb(userId);
     
     // Admins with empty mcAccess array have access to all MCs
     if (isAdmin && mcAccess.length === 0) {
@@ -61,11 +95,34 @@ export class McStateManager {
    * - Admins with empty mcAccess: Can view 'all' or 'filtered' (specific MCs)
    * - Employees with mcAccess array: Always view 'assigned' (their accessible MCs)
    * - Validates all MC selections against user permissions
+   * 
+   * IMPORTANT: Always reads mcAccess from database to ensure fresh data
    */
   static async getMcState(session: any, request?: any): Promise<McState> {
-    const mcAccess = this.getMcAccess(session);
+    const userId = session?.user?.id;
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
     const companyId = session?.user?.companyId || session?.user?.currentCompanyId;
+    
+    // Always read mcAccess from database to ensure we have the latest data
+    // This prevents issues where session is stale after admin updates user's mcAccess
+    let mcAccess: string[] = [];
+    if (userId) {
+      mcAccess = await this.getMcAccessFromDb(userId);
+    } else {
+      // Fallback to session if no userId (shouldn't happen, but handle gracefully)
+      console.warn('[McStateManager] No userId in session, falling back to session mcAccess');
+      mcAccess = this.getMcAccess(session);
+    }
+    
+    // Debug logging (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[McStateManager] User MC Access:', {
+        userId,
+        role: isAdmin ? 'ADMIN' : 'EMPLOYEE',
+        mcAccessFromDb: mcAccess,
+        mcAccessFromSession: this.getMcAccess(session),
+      });
+    }
 
     // Initialize state variables
     let mcNumberId: string | null = null;
@@ -112,10 +169,18 @@ export class McStateManager {
       viewMode = 'assigned';
       mcNumberIds = [...mcAccess]; // Use all their accessible MCs
     }
-    // CASE 3: User with no MC access (shouldn't happen, but handle gracefully)
+    // CASE 3: User with no MC access - fallback to their default mcNumberId
     else {
       viewMode = 'assigned';
-      mcNumberIds = [];
+      // If no mcAccess but user has a default mcNumberId, use that
+      const defaultMcNumberId = (session?.user as any)?.mcNumberId;
+      if (defaultMcNumberId) {
+        mcNumberIds = [defaultMcNumberId];
+        console.warn('[McStateManager] User has empty mcAccess, falling back to default mcNumberId:', defaultMcNumberId);
+      } else {
+        mcNumberIds = [];
+        console.warn('[McStateManager] User has no mcAccess and no default mcNumberId - will see no data');
+      }
     }
 
     // Validate all MC IDs belong to company (security check)

@@ -64,6 +64,23 @@ export default async function DashboardPage() {
   const baseLoadFilter = await buildMcNumberWhereClause(session, requestCookies);
   const baseDriverTruckFilter = await buildMcNumberIdWhereClause(session, requestCookies);
   
+  // Debug logging for MC filtering
+  const { McStateManager } = await import('@/lib/managers/McStateManager');
+  const mcState = await McStateManager.getMcState(session, requestCookies);
+  const mcAccessFromDb = await McStateManager.getMcAccessFromDb(session.user.id);
+  
+  console.log('[Dashboard] MC Filtering Debug:', {
+    userId: session.user.id,
+    role: session.user.role,
+    baseLoadFilter,
+    mcState: {
+      viewMode: mcState.viewMode,
+      mcNumberIds: mcState.mcNumberIds,
+    },
+    mcAccessFromDb,
+    roleLoadFilter,
+  });
+  
   const loadFilter = { ...baseLoadFilter, ...roleLoadFilter };
   const driverFilter = { ...baseDriverTruckFilter, ...roleDriverFilter };
   

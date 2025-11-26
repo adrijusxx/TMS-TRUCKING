@@ -38,6 +38,14 @@ export interface ExtendedColumnDef<TData extends TableData> extends Omit<ColumnD
    * Whether column is required (cannot be hidden)
    */
   required?: boolean;
+  /**
+   * Whether column filtering is enabled
+   */
+  enableColumnFilter?: boolean;
+  /**
+   * Filter key to use for column filtering (defaults to column id)
+   */
+  filterKey?: string;
 }
 
 /**
@@ -205,7 +213,7 @@ export interface FilterDefinition {
   /**
    * Filter type
    */
-  type: 'text' | 'select' | 'multiselect' | 'date' | 'daterange' | 'number' | 'numberrange';
+  type: 'text' | 'select' | 'multiselect' | 'date' | 'daterange' | 'number' | 'numberrange' | 'boolean';
   /**
    * Options for select/multiselect
    */
@@ -218,6 +226,10 @@ export interface FilterDefinition {
    * Permission required to use this filter
    */
   permission?: string;
+  /**
+   * Help text for boolean filters
+   */
+  helpText?: string;
 }
 
 /**
@@ -317,6 +329,18 @@ export interface DataTableProps<TData extends TableData = TableData> {
    * Callback when inline edit saves (to refresh data)
    */
   onInlineEditSave?: () => void;
+  /**
+   * Function to get custom className for a row
+   */
+  getRowClassName?: (row: TData) => string;
+  /**
+   * Entity type for column filtering
+   */
+  entityType?: string;
+  /**
+   * Callback for column filter changes
+   */
+  onColumnFilterChange?: (columnId: string, values: string[]) => void;
 }
 
 /**

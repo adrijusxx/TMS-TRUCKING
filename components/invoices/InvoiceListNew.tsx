@@ -3,7 +3,9 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, Upload, Download } from 'lucide-react';
+import { Plus, Upload, Download, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportDialog from '@/components/import-export/ImportDialog';
@@ -45,6 +47,7 @@ interface InvoiceData {
 
 export default function InvoiceListNew() {
   const { can } = usePermissions();
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
   const fetchInvoices = async (params: {
@@ -91,15 +94,52 @@ export default function InvoiceListNew() {
     };
   };
 
-  const rowActions = (row: InvoiceData) => (
-    <div className="flex items-center gap-2">
-      <Link href={`/dashboard/invoices/${row.id}`}>
-        <Button variant="ghost" size="sm">
-          View
-        </Button>
-      </Link>
-    </div>
-  );
+  const rowActions = (row: InvoiceData) => {
+    const handleCancel = async () => {
+      if (!confirm('Invoices are financial records and cannot be deleted. Would you like to cancel this invoice instead? This will mark it as CANCELLED status.')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(apiUrl(`/api/invoices/${row.id}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'CANCELLED' }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || 'Failed to cancel invoice');
+        }
+        
+        toast.success('Invoice cancelled successfully');
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to cancel invoice');
+      }
+    };
+
+    return (
+      <div className="flex items-center gap-2">
+        {can('invoices.edit') && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCancel}
+            className="text-destructive hover:text-destructive"
+            title="Cancel Invoice (Financial records cannot be deleted)"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+        <Link href={`/dashboard/invoices/${row.id}`}>
+          <Button variant="ghost" size="sm">
+            View
+          </Button>
+        </Link>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -159,7 +199,9 @@ export default function InvoiceListNew() {
           enableBulkEdit={can('invoices.bulk_edit') || can('data.bulk_edit')}
           enableBulkDelete={can('invoices.bulk_delete') || can('data.bulk_delete')}
           enableBulkExport={can('data.export') || can('export.execute')}
-          onActionComplete={() => {}}
+          onActionComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+          }}
         />
       )}
     </div>

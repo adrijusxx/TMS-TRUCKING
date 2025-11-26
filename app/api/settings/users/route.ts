@@ -42,6 +42,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const roleFilter = searchParams.get('role');
     const statsOnly = searchParams.get('stats') === 'true';
+    const search = searchParams.get('search');
+    const excludeDrivers = searchParams.get('excludeDrivers') === 'true';
 
     // Get MC state - MC numbers are the primary organizational unit
     const mcState = await McStateManager.getMcState(session, request);
@@ -53,67 +55,120 @@ export async function GET(request: NextRequest) {
       isAdmin,
       mcAccessLength: mcAccess.length,
       viewMode: mcState.viewMode,
-      roleFilter
+      roleFilter,
+      search,
+      excludeDrivers
     });
 
-    const where: any = {
+    // Build base conditions
+    const baseConditions: any = {
       deletedAt: null,
     };
+
+    // Exclude drivers if requested (but not if we're specifically filtering for drivers)
+    if (excludeDrivers && roleFilter !== 'DRIVER') {
+      baseConditions.role = { not: 'DRIVER' };
+      baseConditions.driver = null; // Also exclude users who have a driver record
+    }
 
     // MC-based filtering - no companyId, only MC numbers
     const { mcNumberId } = await getCurrentMcNumber(session, request);
 
     // Filter by role if specified
+    let roleFilterCondition: any = null;
     if (roleFilter === 'DISPATCHER') {
-      where.role = 'DISPATCHER';
+      roleFilterCondition = { role: 'DISPATCHER' };
     } else if (roleFilter === 'ACCOUNTANT') {
-      where.role = 'ACCOUNTANT';
+      roleFilterCondition = { role: 'ACCOUNTANT' };
     } else if (roleFilter === 'FLEET') {
-      where.role = 'FLEET';
+      roleFilterCondition = { role: 'FLEET' };
     } else if (roleFilter === 'ADMIN') {
-      where.role = 'ADMIN';
+      roleFilterCondition = { role: 'ADMIN' };
     } else if (roleFilter === 'EMPLOYEES') {
-      where.role = 'ACCOUNTANT';
+      roleFilterCondition = { role: 'ACCOUNTANT' };
     } else if (roleFilter === 'DRIVER') {
-      where.role = 'DRIVER';
+      roleFilterCondition = { role: 'DRIVER' };
     } else if (roleFilter === 'SAFETY') {
-      where.OR = [
-        { role: 'SAFETY' },
-        { safetyManagedDrivers: { some: {} } },
-      ];
+      roleFilterCondition = {
+        OR: [
+          { role: 'SAFETY' },
+          { safetyManagedDrivers: { some: {} } },
+        ],
+      };
     } else if (roleFilter === 'HR') {
-      where.OR = [
-        { role: 'HR' },
-        { hrManagedDrivers: { some: {} } },
-      ];
+      roleFilterCondition = {
+        OR: [
+          { role: 'HR' },
+          { hrManagedDrivers: { some: {} } },
+        ],
+      };
     }
 
-    // Apply MC number filtering (MC-based organization)
-    // Admins can view "all MCs" or filter by selected MC(s)
-    if (isAdmin && mcState.viewMode === 'all') {
-      // Admin viewing all MCs - no MC filter
-    } else {
+    // Build MC filter conditions
+    let mcFilter: any = null;
+    if (!(isAdmin && mcState.viewMode === 'all')) {
       // Filter by MC number(s)
       if (mcState.viewMode === 'filtered' && mcState.mcNumberIds && mcState.mcNumberIds.length > 0) {
         // Multiple MCs selected
-        where.OR = [
-          { mcNumberId: { in: mcState.mcNumberIds } },
-          { driver: { mcNumberId: { in: mcState.mcNumberIds } } },
-        ];
+        mcFilter = {
+          OR: [
+            { mcNumberId: { in: mcState.mcNumberIds } },
+            { driver: { mcNumberId: { in: mcState.mcNumberIds } } },
+          ],
+        };
       } else if (mcNumberId) {
         // Single MC selected
-        where.OR = [
-          { mcNumberId: mcNumberId },
-          { driver: { mcNumberId: mcNumberId } },
-        ];
+        mcFilter = {
+          OR: [
+            { mcNumberId: mcNumberId },
+            { driver: { mcNumberId: mcNumberId } },
+          ],
+        };
       } else if (mcAccess && mcAccess.length > 0) {
         // User has limited MC access
-        where.OR = [
-          { mcNumberId: { in: mcAccess } },
-          { driver: { mcNumberId: { in: mcAccess } } },
-        ];
+        mcFilter = {
+          OR: [
+            { mcNumberId: { in: mcAccess } },
+            { driver: { mcNumberId: { in: mcAccess } } },
+          ],
+        };
       }
     }
+
+    // Build search conditions
+    let searchFilter: any = null;
+    if (search && search.trim().length > 0) {
+      const searchTerm = search.trim();
+      searchFilter = {
+        OR: [
+          { firstName: { contains: searchTerm, mode: 'insensitive' as const } },
+          { lastName: { contains: searchTerm, mode: 'insensitive' as const } },
+          { email: { contains: searchTerm, mode: 'insensitive' as const } },
+          { phone: { contains: searchTerm, mode: 'insensitive' as const } },
+          { role: { contains: searchTerm, mode: 'insensitive' as const } },
+        ],
+      };
+    }
+
+    // Combine all conditions using AND
+    const andConditions: any[] = [baseConditions];
+    
+    if (roleFilterCondition) {
+      andConditions.push(roleFilterCondition);
+    }
+    
+    if (mcFilter) {
+      andConditions.push(mcFilter);
+    }
+    
+    if (searchFilter) {
+      andConditions.push(searchFilter);
+    }
+
+    // Build final where clause
+    const where: any = andConditions.length > 1 
+      ? { AND: andConditions }
+      : baseConditions;
 
     // If stats only, return aggregated data
     if (statsOnly) {
@@ -157,6 +212,7 @@ export async function GET(request: NextRequest) {
         lastLogin: true,
         createdAt: true,
         mcNumberId: true,
+        tempPassword: true, // Include tempPassword for admin viewing
         mcNumber: {
           select: {
             id: true,
@@ -270,13 +326,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
+    // Hash password and store plaintext temporarily for admin viewing
+    const plainPassword = validated.password; // Store before hashing
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
     // Prepare user data
     const userData: any = {
       ...validated,
       password: hashedPassword,
+      tempPassword: plainPassword, // Store plaintext password temporarily for admin viewing
       companyId: session.user.companyId,
     };
     
@@ -306,6 +364,7 @@ export async function POST(request: NextRequest) {
         isActive: true,
         createdAt: true,
         mcNumberId: true,
+        tempPassword: true, // Include tempPassword for admin viewing
         mcNumber: {
           select: {
             id: true,

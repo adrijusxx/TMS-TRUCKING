@@ -66,6 +66,8 @@ export class BulkEditManager {
         inspections: prisma.inspection,
         vendors: prisma.vendor,
         locations: prisma.location,
+        settlements: prisma.settlement,
+        batches: prisma.invoiceBatch,
       };
 
       const model = entityModelMap[entityType];
@@ -74,27 +76,99 @@ export class BulkEditManager {
         throw new Error(`Unknown entity type: ${entityType}`);
       }
 
-      // Update records in batches
-      const batchSize = 100;
-      for (let i = 0; i < ids.length; i += batchSize) {
-        const batch = ids.slice(i, i + batchSize);
+      // Special handling for entities without direct companyId
+      if (entityType === 'settlements') {
+        // Settlements are linked through driver
+        // Get all drivers for the company first
+        const companyDrivers = await prisma.driver.findMany({
+          where: { companyId, deletedAt: null },
+          select: { id: true },
+        });
+        const driverIds = companyDrivers.map((d) => d.id);
 
-        try {
-          const result = await model.updateMany({
-            where: {
-              id: { in: batch },
-              companyId,
-              deletedAt: null,
-            },
-            data: {
-              ...updates,
-              updatedAt: new Date(),
-            },
-          });
+        // Update records in batches
+        const batchSize = 100;
+        for (let i = 0; i < ids.length; i += batchSize) {
+          const batch = ids.slice(i, i + batchSize);
 
-          updatedCount += result.count;
-        } catch (error: any) {
-          errors.push(`Failed to update batch: ${error.message}`);
+          try {
+            const result = await model.updateMany({
+              where: {
+                id: { in: batch },
+                driverId: { in: driverIds }, // Filter through driver relationship
+              },
+              data: {
+                ...updates,
+                updatedAt: new Date(),
+              },
+            });
+
+            updatedCount += result.count;
+          } catch (error: any) {
+            errors.push(`Failed to update batch: ${error.message}`);
+          }
+        }
+      } else if (entityType === 'invoices') {
+        // Invoices are linked through customer
+        // First, verify all invoices belong to customers in this company
+        const validInvoices = await prisma.invoice.findMany({
+          where: {
+            id: { in: ids },
+            customer: { companyId },
+          },
+          select: { id: true },
+        });
+        
+        const validInvoiceIds = validInvoices.map((inv) => inv.id);
+        
+        if (validInvoiceIds.length === 0) {
+          throw new Error('No valid invoices found for this company');
+        }
+
+        // Update records in batches
+        const batchSize = 100;
+        for (let i = 0; i < validInvoiceIds.length; i += batchSize) {
+          const batch = validInvoiceIds.slice(i, i + batchSize);
+
+          try {
+            const result = await model.updateMany({
+              where: {
+                id: { in: batch },
+              },
+              data: {
+                ...updates,
+                updatedAt: new Date(),
+              },
+            });
+
+            updatedCount += result.count;
+          } catch (error: any) {
+            errors.push(`Failed to update batch: ${error.message}`);
+          }
+        }
+      } else {
+        // Standard update for entities with direct companyId
+        const batchSize = 100;
+        for (let i = 0; i < ids.length; i += batchSize) {
+          const batch = ids.slice(i, i + batchSize);
+
+          try {
+            const result = await model.updateMany({
+              where: {
+                id: { in: batch },
+                companyId,
+                deletedAt: null,
+              },
+              data: {
+                ...updates,
+                updatedAt: new Date(),
+              },
+            });
+
+            updatedCount += result.count;
+          } catch (error: any) {
+            errors.push(`Failed to update batch: ${error.message}`);
+          }
         }
       }
 

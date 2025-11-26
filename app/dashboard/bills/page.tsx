@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import InvoiceList from '@/components/invoices/InvoiceList';
+import InvoiceListNew from '@/components/invoices/InvoiceListNew';
 
 export default function BillsPage() {
   return (
@@ -9,7 +9,7 @@ export default function BillsPage() {
         <div>
           <h1 className="text-3xl font-bold">Bills</h1>
         </div>
-        <InvoiceList />
+        <InvoiceListNew />
       </div>
     </>
   );

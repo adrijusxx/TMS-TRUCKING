@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 const updateUserSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
+  email: z.string().email('Invalid email address').optional(),
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']).optional(),
   password: z.string().min(8).optional(),
@@ -14,6 +15,95 @@ const updateUserSchema = z.object({
   mcNumberId: z.string().min(1, 'MC number is required').optional(),
   mcAccess: z.array(z.string()).optional(), // Array of MC IDs user can access
 });
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+
+    if (!session?.user?.companyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
+        { status: 401 }
+      );
+    }
+
+    const resolvedParams = await params;
+    const userId = resolvedParams.id;
+
+    // Check if user is admin or viewing their own profile
+    const isAdmin = session.user.role === 'ADMIN';
+    const isOwnProfile = session.user.id === userId;
+
+    if (!isAdmin && !isOwnProfile) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You can only view your own profile or be an admin',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: userId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        lastLogin: true,
+        createdAt: true,
+        updatedAt: true,
+        mcNumberId: true,
+        tempPassword: true, // Include tempPassword for admin viewing
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
+        mcAccess: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'User not found' },
+        },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error('User fetch error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+      },
+      { status: 500 }
+    );
+  }
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -74,6 +164,26 @@ export async function PATCH(
     if (!isAdmin) {
       const { role, isActive, mcNumberId, mcAccess, ...validatedWithoutRestricted } = validated;
       Object.assign(validated, validatedWithoutRestricted);
+    }
+
+    // Validate email uniqueness if being updated
+    if (validated.email && validated.email !== existingUser.email) {
+      const emailExists = await prisma.user.findUnique({
+        where: { email: validated.email },
+      });
+
+      if (emailExists && emailExists.id !== userId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'EMAIL_ALREADY_EXISTS',
+              message: 'Email address is already in use',
+            },
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Validate MC number if being updated (for non-CUSTOMER roles)
@@ -179,9 +289,12 @@ export async function PATCH(
       }
     }
 
-    // Hash password if provided
+    // Hash password if provided and store plaintext temporarily for admin viewing
     if (validated.password) {
+      const plainPassword = validated.password; // Store before hashing
       updateData.password = await bcrypt.hash(validated.password, 10);
+      // Store plaintext password temporarily for admin viewing (security risk, but user requested)
+      updateData.tempPassword = plainPassword;
     }
 
     const user = await prisma.user.update({
@@ -198,6 +311,7 @@ export async function PATCH(
         lastLogin: true,
         updatedAt: true,
         mcNumberId: true,
+        tempPassword: true, // Include tempPassword for admin viewing
         mcNumber: {
           select: {
             id: true,

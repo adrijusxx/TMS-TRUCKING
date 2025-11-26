@@ -57,6 +57,7 @@ import {
 } from '@/components/ui/dialog';
 import { LoadStatus } from '@prisma/client';
 import LoadStatusQuickActions from './LoadStatusQuickActions';
+import { DispatchStatusBadge } from './DispatchStatusSelector';
 import AdvancedFilters from '@/components/filters/AdvancedFilters';
 import SavedFilters from '@/components/filters/SavedFilters';
 import BulkStatusUpdate from '@/components/loads/BulkStatusUpdate';
@@ -71,6 +72,7 @@ interface Load {
   id: string;
   loadNumber: string;
   status: LoadStatus;
+  dispatchStatus?: string | null;
   mcNumber?: string | null;
   customer: {
     id: string;
@@ -330,6 +332,7 @@ export default function LoadList() {
     truck: true,
     trailer: true,
     status: true,
+    dispatchStatus: true,
     revenue: true,
     driverPay: false,
     serviceFee: false,
@@ -634,6 +637,14 @@ export default function LoadList() {
                 }
               >
                 Status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.dispatchStatus}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns({ ...visibleColumns, dispatchStatus: checked })
+                }
+              >
+                Dispatch Status
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={visibleColumns.revenue}
@@ -955,6 +966,7 @@ export default function LoadList() {
                   {visibleColumns.truck && <TableHead>Truck</TableHead>}
                   {visibleColumns.trailer && <TableHead>Trailer</TableHead>}
                   {visibleColumns.status && <TableHead>Status</TableHead>}
+                  {visibleColumns.dispatchStatus && <TableHead>Dispatch Status</TableHead>}
                   {visibleColumns.revenue && <TableHead className="text-right">Revenue</TableHead>}
                   {visibleColumns.driverPay && <TableHead className="text-right">Driver Pay</TableHead>}
                   {visibleColumns.serviceFee && <TableHead className="text-right">Service Fee</TableHead>}
@@ -1105,6 +1117,9 @@ export default function LoadList() {
                         {getStatusIcon(load.status as LoadStatus)}
                         <span className="text-xs">{formatStatus(load.status)}</span>
                       </Badge>
+                    </TableCell>}
+                    {visibleColumns.dispatchStatus && <TableCell className="px-3 py-2">
+                      <DispatchStatusBadge status={load.dispatchStatus as any} />
                     </TableCell>}
                     {visibleColumns.revenue && <TableCell className="px-3 py-2 text-right">
                       <div className="text-sm font-medium">{formatCurrency(load.revenue)}</div>

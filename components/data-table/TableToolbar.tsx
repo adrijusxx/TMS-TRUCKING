@@ -412,6 +412,23 @@ export function TableToolbar({
                             />
                           </div>
                         )}
+                        {filter.type === 'boolean' && (
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={filter.key}
+                              checked={currentValue === 'true' || currentValue === true || currentValue === 'True'}
+                              onCheckedChange={(checked) => {
+                                handleFilterChange(filter.key, checked ? 'true' : '', filter.type);
+                              }}
+                            />
+                            <Label
+                              htmlFor={filter.key}
+                              className="text-xs font-normal cursor-pointer"
+                            >
+                              {filter.helpText || 'Enable filter'}
+                            </Label>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

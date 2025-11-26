@@ -3,6 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { ComplianceCalculatorService } from '@/lib/services/safety/ComplianceCalculatorService';
 import { AlertService } from '@/lib/services/safety/AlertService';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +16,41 @@ export async function GET(request: NextRequest) {
     const calculator = new ComplianceCalculatorService(prisma, companyId);
     const alertService = new AlertService(prisma, companyId);
 
+    // Build MC number filter (respects admin "all" view, user MC access, current selection)
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // Build filter for models without direct mcNumberId (Document, RoadsideInspection)
+    // Filter through related driver or truck's mcNumberId
+    let documentMcFilter: any = { companyId: mcWhere.companyId };
+    let inspectionMcFilter: any = { companyId: mcWhere.companyId };
+
+    if (mcWhere.mcNumberId) {
+      // If MC filtering is needed, filter through related driver/truck
+      if (typeof mcWhere.mcNumberId === 'string') {
+        // Single MC
+        documentMcFilter.OR = [
+          { driver: { mcNumberId: mcWhere.mcNumberId } },
+          { truck: { mcNumberId: mcWhere.mcNumberId } },
+          { load: { mcNumberId: mcWhere.mcNumberId } }
+        ];
+        inspectionMcFilter.OR = [
+          { driver: { mcNumberId: mcWhere.mcNumberId } },
+          { truck: { mcNumberId: mcWhere.mcNumberId } }
+        ];
+      } else if (typeof mcWhere.mcNumberId === 'object' && 'in' in mcWhere.mcNumberId) {
+        // Multiple MCs
+        documentMcFilter.OR = [
+          { driver: { mcNumberId: { in: mcWhere.mcNumberId.in } } },
+          { truck: { mcNumberId: { in: mcWhere.mcNumberId.in } } },
+          { load: { mcNumberId: { in: mcWhere.mcNumberId.in } } }
+        ];
+        inspectionMcFilter.OR = [
+          { driver: { mcNumberId: { in: mcWhere.mcNumberId.in } } },
+          { truck: { mcNumberId: { in: mcWhere.mcNumberId.in } } }
+        ];
+      }
+    }
+
     // Get key metrics
     let openViolations = 0;
     try {
@@ -22,7 +58,7 @@ export async function GET(request: NextRequest) {
       if (prisma.roadsideInspection && typeof prisma.roadsideInspection.count === 'function') {
         openViolations = await prisma.roadsideInspection.count({
           where: {
-            companyId,
+            ...inspectionMcFilter,
             violationsFound: true,
             violations: {
               some: {
@@ -45,21 +81,19 @@ export async function GET(request: NextRequest) {
       csascores,
       activeAlerts
     ] = await Promise.all([
-      // Active drivers
+      // Active drivers - count ALL active drivers (not just AVAILABLE status)
       prisma.driver.count({
         where: {
-          companyId,
-          status: 'AVAILABLE',
-          employeeStatus: 'ACTIVE',
+          ...mcWhere,
+          isActive: true,
           deletedAt: null
         }
       }),
 
-      // Active vehicles
+      // Active vehicles - count ALL active vehicles (not just AVAILABLE status)
       prisma.truck.count({
         where: {
-          companyId,
-          status: 'AVAILABLE',
+          ...mcWhere,
           isActive: true,
           deletedAt: null
         }
@@ -68,10 +102,10 @@ export async function GET(request: NextRequest) {
       // Days since last accident
       calculator.calculateDaysSinceLastAccident(companyId),
 
-      // Expiring documents (next 30 days)
+      // Expiring documents (next 30 days) - filter through related driver/truck/load MC
       prisma.document.count({
         where: {
-          companyId,
+          ...documentMcFilter,
           expiryDate: {
             lte: new Date(new Date().setDate(new Date().getDate() + 30)),
             gte: new Date()
@@ -80,10 +114,10 @@ export async function GET(request: NextRequest) {
         }
       }),
 
-      // CSA scores
+      // CSA scores - use companyId only (CSA scores are company-level, not MC-specific)
       prisma.cSAScore.findMany({
         where: {
-          companyId,
+          companyId: mcWhere.companyId,
           scoreDate: {
             gte: new Date(new Date().setMonth(new Date().getMonth() - 1))
           }

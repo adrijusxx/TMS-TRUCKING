@@ -2,6 +2,12 @@ import NextAuth from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import type { NextRequest } from 'next/server';
 
+// Validate configuration before creating handler
+if (!process.env.NEXTAUTH_SECRET) {
+  console.error('❌ NEXTAUTH_SECRET is missing! Authentication will not work.');
+  console.error('Please set NEXTAUTH_SECRET in your environment variables.');
+}
+
 const handler = NextAuth(authOptions);
 
 export const { handlers, auth } = handler;
