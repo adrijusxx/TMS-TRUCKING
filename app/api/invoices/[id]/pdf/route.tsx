@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import React from 'react';
+import { InvoiceManager } from '@/lib/managers/InvoiceManager';
 
 // Disable static generation for this route
 export const dynamic = 'force-dynamic';
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
   },
 });
 
-function InvoicePDF({ invoice, company, loads }: any) {
+function InvoicePDF({ invoice, company, loads, remitToAddress, noticeOfAssignment }: any) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -161,6 +162,23 @@ function InvoicePDF({ invoice, company, loads }: any) {
           </View>
           <Text style={styles.invoiceTitle}>INVOICE</Text>
         </View>
+
+        {/* Remit To Section (Factoring Company if factored) */}
+        {remitToAddress && (
+          <View style={styles.section}>
+            <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>Remit To:</Text>
+            <Text>{remitToAddress.name}</Text>
+            {remitToAddress.address && <Text>{remitToAddress.address}</Text>}
+            {(remitToAddress.city || remitToAddress.state || remitToAddress.zip) && (
+              <Text>
+                {remitToAddress.city ? `${remitToAddress.city}, ` : ''}
+                {remitToAddress.state} {remitToAddress.zip || ''}
+              </Text>
+            )}
+            {remitToAddress.phone && <Text>Phone: {remitToAddress.phone}</Text>}
+            {remitToAddress.email && <Text>Email: {remitToAddress.email}</Text>}
+          </View>
+        )}
 
         {/* Invoice Details */}
         <View style={styles.section}>
@@ -256,6 +274,14 @@ function InvoicePDF({ invoice, company, loads }: any) {
           </View>
         )}
 
+        {/* Notice of Assignment (Factoring) */}
+        {noticeOfAssignment && (
+          <View style={[styles.section, { marginTop: 30, padding: 15, backgroundColor: '#FEF3C7', border: '1 solid #F59E0B' }]}>
+            <Text style={{ fontWeight: 'bold', marginBottom: 10, fontSize: 12 }}>NOTICE OF ASSIGNMENT</Text>
+            <Text style={{ fontSize: 9, lineHeight: 1.5 }}>{noticeOfAssignment}</Text>
+          </View>
+        )}
+
         {/* Footer */}
         <View style={styles.footer}>
           <Text>Thank you for your business!</Text>
@@ -341,9 +367,29 @@ export async function GET(
           })
         : [];
 
-    // Generate PDF
+    // 🔥 CRITICAL: Finalize invoice with factoring logic
+    const invoiceManager = new InvoiceManager();
+    const finalization = await invoiceManager.finalizeInvoice(invoiceId);
+
+    if (!finalization.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'FINALIZATION_ERROR', message: finalization.error || 'Failed to finalize invoice' },
+        },
+        { status: 500 }
+      );
+    }
+
+    // Generate PDF with factoring information
     const pdfDoc = (
-      <InvoicePDF invoice={invoice} company={company} loads={loads} />
+      <InvoicePDF 
+        invoice={invoice} 
+        company={company} 
+        loads={loads}
+        remitToAddress={finalization.remitToAddress}
+        noticeOfAssignment={finalization.noticeOfAssignment}
+      />
     );
 
     const pdfBlob = await renderToBuffer(pdfDoc);

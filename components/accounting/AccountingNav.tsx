@@ -84,6 +84,12 @@ const navigationSections = [
         icon: Receipt,
         description: 'Manage rate confirmations for loads and shipments. Create rate confirmations, track rates, and ensure accurate billing. Link rate confirmations to invoices, monitor rate changes, and maintain rate history. Use rate confirmations to verify billing accuracy and resolve rate disputes.',
       },
+      {
+        name: 'Billing Exceptions Queue',
+        href: '/dashboard/accounting/billing-exceptions',
+        icon: FileText,
+        description: 'Review loads with billing holds or ready for invoicing. Force release holds, upload missing PODs, and generate invoices. Monitor loads requiring accounting attention and resolve billing exceptions quickly.',
+      },
     ],
   },
   {
@@ -221,6 +227,12 @@ const navigationSections = [
         href: '/dashboard/automation',
         icon: Sliders,
         description: 'Configure and manage accounting automation rules and workflows. Set up automated invoice generation, payment processing, and reporting. Create automation rules for recurring transactions, automatic calculations, and workflow automation. Streamline accounting processes, reduce manual work, and improve efficiency through automation.',
+      },
+      {
+        name: 'Settings',
+        href: '/dashboard/accounting/settings',
+        icon: Sliders,
+        description: 'Configure global accounting system settings including detention rates, TONU fees, factoring configuration, and settlement defaults. Manage system-wide variables used by DetentionManager and DriverSettlement services.',
       },
     ],
   },

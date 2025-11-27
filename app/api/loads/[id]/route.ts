@@ -32,7 +32,23 @@ export async function GET(
         deletedAt: null,
       },
       include: {
-        customer: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            customerNumber: true,
+            email: true,
+            phone: true,
+            address: true,
+            city: true,
+            state: true,
+            zip: true,
+            creditLimit: true,
+            creditHold: true,
+            paymentTerms: true,
+            mcNumber: true,
+          },
+        },
         driver: {
           include: {
             user: {
@@ -45,14 +61,99 @@ export async function GET(
             },
           },
         },
+        coDriver: {
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
         truck: true,
+        trailer: {
+          select: {
+            id: true,
+            trailerNumber: true,
+          },
+        },
+        dispatcher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
+        stops: {
+          orderBy: { sequence: 'asc' },
+        },
+        statusHistory: {
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        },
         documents: {
           where: { deletedAt: null },
           orderBy: { createdAt: 'desc' },
         },
-        statusHistory: {
-          orderBy: { createdAt: 'desc' },
-          take: 10,
+        segments: {
+          orderBy: { sequence: 'asc' },
+          include: {
+            driver: {
+              select: {
+                id: true,
+                driverNumber: true,
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+            truck: {
+              select: {
+                id: true,
+                truckNumber: true,
+              },
+            },
+          },
+        },
+        rateConfirmation: {
+          select: {
+            id: true,
+            rateConfNumber: true,
+            baseRate: true,
+            fuelSurcharge: true,
+            accessorialCharges: true,
+            totalRate: true,
+            paymentTerms: true,
+            paymentMethod: true,
+            notes: true,
+          },
+        },
+        loadExpenses: {
+          orderBy: { date: 'desc' },
+        },
+        accessorialCharges: true,
+        driverAdvances: {
+          orderBy: { requestDate: 'desc' },
         },
         route: true,
       },

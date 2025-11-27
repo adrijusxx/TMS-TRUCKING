@@ -225,7 +225,7 @@ export default function DriverQuickView({ driverId, open, onOpenChange }: Driver
               {driverId && (
                 <Link href={`/dashboard/drivers/${driverId}`}>
                   <Button>
-                    View Full Details
+                    Edit Driver
                     <ExternalLink className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>

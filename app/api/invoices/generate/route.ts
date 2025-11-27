@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { LoadStatus } from '@prisma/client';
+import { BillingHoldManager } from '@/lib/managers/BillingHoldManager';
+import { InvoiceManager } from '@/lib/managers/InvoiceManager';
 import { z } from 'zod';
 
 const generateInvoiceSchema = z.object({
@@ -36,7 +38,15 @@ export async function POST(request: NextRequest) {
         // Removed status restriction - allow invoicing any load
       },
       include: {
-        customer: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            paymentTerms: true,
+            factoringCompanyId: true,
+          },
+        },
       },
     });
 
@@ -50,6 +60,80 @@ export async function POST(request: NextRequest) {
           },
         },
         { status: 404 }
+      );
+    }
+
+    // 🔥 CRITICAL: Check billing hold eligibility for each load
+    const billingHoldManager = new BillingHoldManager();
+    const invoiceManager = new InvoiceManager();
+    const ineligibleLoads: Array<{ loadId: string; loadNumber: string; reason: string }> = [];
+
+    for (const load of loads) {
+      // Check 1: Billing hold eligibility
+      const eligibility = await billingHoldManager.checkInvoicingEligibility(load.id);
+      
+      if (!eligibility.eligible) {
+        ineligibleLoads.push({
+          loadId: load.id,
+          loadNumber: load.loadNumber,
+          reason: eligibility.reason || 'Load is not eligible for invoicing',
+        });
+        continue; // Skip ready-to-bill check if billing hold
+      }
+
+      // Check 2: "Clean Load" validation gate
+      const readyToBill = await invoiceManager.isReadyToBill(load.id, {
+        allowBrokerageSplit: (load.customer as any).type === 'BROKER', // Allow brokerage split for BROKER customers
+      });
+
+      if (!readyToBill.ready) {
+        ineligibleLoads.push({
+          loadId: load.id,
+          loadNumber: load.loadNumber,
+          reason: `Load validation failed: ${readyToBill.reasons?.join('; ') || 'Not ready to bill'}`,
+        });
+      }
+    }
+
+    // If any loads are on billing hold, return error
+    if (ineligibleLoads.length > 0) {
+      const billingHoldLoads = ineligibleLoads.filter(l => {
+        const load = loads.find(load => load.id === l.loadId);
+        // Check billing hold flag (may need type assertion if Prisma types are stale)
+        return (load as any)?.isBillingHold === true;
+      });
+
+      if (billingHoldLoads.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'BILLING_HOLD',
+              message: 'One or more loads are on billing hold and cannot be invoiced',
+              details: billingHoldLoads.map(l => ({
+                loadNumber: l.loadNumber,
+                reason: l.reason,
+              })),
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      // Other ineligibility reasons (status, etc.)
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INVOICING_NOT_ELIGIBLE',
+            message: 'One or more loads are not eligible for invoicing',
+            details: ineligibleLoads.map(l => ({
+              loadNumber: l.loadNumber,
+              reason: l.reason,
+            })),
+          },
+        },
+        { status: 400 }
       );
     }
 

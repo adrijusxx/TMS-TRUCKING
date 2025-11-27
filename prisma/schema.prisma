@@ -12,24 +12,24 @@ datasource db {
 // ============================================
 
 model User {
-  id         String    @id @default(cuid())
-  email      String    @unique
-  password   String
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String
   tempPassword String? // Temporary plaintext password for admin viewing (cleared after first login)
-  firstName  String
-  lastName   String
-  phone      String?
-  role       UserRole
-  companyId  String // Primary/default company
-  company    Company   @relation(fields: [companyId], references: [id])
-  mcNumberId String // MC Number assignment (required for all users; for DRIVER role, synced from Driver record)
-  mcNumber   McNumber  @relation(fields: [mcNumberId], references: [id])
-  mcAccess   String[]  @default([]) // Array of MC IDs user can access (empty for admins = access to all)
-  isActive   Boolean   @default(true)
-  lastLogin  DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+  firstName    String
+  lastName     String
+  phone        String?
+  role         UserRole
+  companyId    String // Primary/default company
+  company      Company   @relation(fields: [companyId], references: [id])
+  mcNumberId   String // MC Number assignment (required for all users; for DRIVER role, synced from Driver record)
+  mcNumber     McNumber  @relation(fields: [mcNumberId], references: [id])
+  mcAccess     String[]  @default([]) // Array of MC IDs user can access (empty for admins = access to all)
+  isActive     Boolean   @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
   // Relations for driver-specific data
   driver                     Driver?
@@ -216,6 +216,7 @@ model Company {
   insuranceClaims           InsuranceClaim[]
   companySettings           CompanySettings?
   customFields              CustomField[]
+  systemConfig              SystemConfig?
 }
 
 // ============================================
@@ -245,10 +246,10 @@ model Load {
   mcNumber      McNumber? @relation(fields: [mcNumberId], references: [id])
 
   // Load Details
-  status        LoadStatus    @default(PENDING)
+  status         LoadStatus          @default(PENDING)
   dispatchStatus LoadDispatchStatus? // Dispatcher-specific status tracking
-  loadType      LoadType      @default(FTL)
-  equipmentType EquipmentType
+  loadType       LoadType            @default(FTL)
+  equipmentType  EquipmentType
 
   // Pickup Information (optional for multi-stop loads)
   pickupLocation  String?
@@ -302,6 +303,11 @@ model Load {
   netProfit            Float? // Calculated: revenue - driverPay - totalExpenses
   podUploadedAt        DateTime?
   readyForSettlement   Boolean              @default(false)
+
+  // Billing Hold Fields (AR/AP Decoupling)
+  isBillingHold          Boolean                 @default(false) // Blocks invoicing (AR), allows settlement (AP)
+  billingHoldReason      String? // Reason for billing hold
+  detentionStartStrategy DetentionStartStrategy? // How detention clock starts
 
   // Distances
   loadedMiles    Float?
@@ -394,6 +400,10 @@ model LoadStop {
   actualArrival   DateTime?
   actualDeparture DateTime?
 
+  // Detention Calculation Fields
+  billableDetentionMinutes Int?      @default(0) // Calculated billable detention time
+  detentionClockStart      DateTime? // When the billable clock actually started
+
   // Contact
   contactName  String?
   contactPhone String?
@@ -448,6 +458,8 @@ enum LoadStatus {
   EN_ROUTE_DELIVERY
   AT_DELIVERY
   DELIVERED
+  BILLING_HOLD // Blocks invoicing (AR), allows settlement (AP)
+  READY_TO_BILL // Passed audit gate, ready for invoice
   INVOICED
   PAID
   CANCELLED
@@ -491,6 +503,11 @@ enum EquipmentType {
   CONESTOGA
   POWER_ONLY
   HOTSHOT
+}
+
+enum DetentionStartStrategy {
+  ARRIVAL // Clock starts when driver arrives (legacy behavior)
+  APPOINTMENT // Clock starts at scheduled appointment time (US Trucking standard)
 }
 
 model LoadStatusHistory {
@@ -678,12 +695,15 @@ model Driver {
   // Pay
   payType      PayType @default(PER_MILE)
   payRate      Float
+  perDiem      Float? // Cents per mile tax-free
   driverTariff String? // Calculated tariff display (e.g., "$0.65 per mile + 30 per stop")
   payTo        String? // Who to pay to (e.g., company name)
 
   // Deduction Configuration
-  escrowBalance Float @default(0) // Current escrow balance
-  advanceLimit  Float @default(1000) // Maximum advance allowed
+  escrowBalance        Float @default(0) // Current escrow balance (read-only, calculated)
+  escrowTargetAmount   Float? // Target escrow amount (e.g., $2,500)
+  escrowDeductionPerWeek Float? // Deduction per week (e.g., $100)
+  advanceLimit        Float @default(1000) // Maximum advance allowed
 
   // Warnings
   warnings String?
@@ -713,6 +733,7 @@ model Driver {
   communications            Communication[]
   // Accounting Relations
   driverAdvances            DriverAdvance[]
+  negativeBalances          DriverNegativeBalance[]   @relation("DriverNegativeBalance")
   // Safety Relations
   dqf                       DriverQualificationFile?
   medicalCards              MedicalCard[]
@@ -1476,6 +1497,10 @@ model Customer {
   totalLoads   Int    @default(0)
   totalRevenue Float  @default(0)
 
+  // Detention Configuration
+  detentionFreeTimeHours Float? // Customer-specific free time (hours) before detention charges apply
+  detentionRate          Float? // Customer-specific detention rate ($/hour)
+
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1795,10 +1820,12 @@ model Settlement {
   updatedAt DateTime @updatedAt
 
   // Relations
-  deductionItems  SettlementDeduction[]
-  approvalHistory SettlementApproval[]
-  driverAdvances  DriverAdvance[]
-  loadExpenses    LoadExpense[]
+  deductionItems          SettlementDeduction[]
+  approvalHistory         SettlementApproval[]
+  driverAdvances          DriverAdvance[]
+  loadExpenses            LoadExpense[]
+  negativeBalances        DriverNegativeBalance[] @relation("NegativeBalanceSettlement")
+  appliedNegativeBalances DriverNegativeBalance[] @relation("AppliedNegativeBalance")
 
   @@index([driverId])
   @@index([status])
@@ -1891,9 +1918,40 @@ model DriverAdvance {
   @@index([driverId])
   @@index([loadId])
   @@index([settlementId])
-  @@index([approvalStatus])
-  @@index([approvedById])
-  @@index([requestDate])
+}
+
+// ============================================
+// DRIVER NEGATIVE BALANCE TRACKING
+// ============================================
+
+model DriverNegativeBalance {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation("DriverNegativeBalance", fields: [driverId], references: [id], onDelete: Cascade)
+
+  // Balance tracking
+  amount               Float // Negative balance amount (always positive in DB, negative in calculations)
+  originalSettlementId String? // Settlement that created this negative balance
+  originalSettlement   Settlement? @relation("NegativeBalanceSettlement", fields: [originalSettlementId], references: [id])
+
+  // Application tracking
+  appliedSettlementId String? // Settlement where this balance was applied
+  appliedSettlement   Settlement? @relation("AppliedNegativeBalance", fields: [appliedSettlementId], references: [id])
+  appliedAt           DateTime? // When balance was applied
+
+  // Status
+  isApplied Boolean @default(false) // Whether balance has been fully applied
+
+  // Notes
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([isApplied])
+  @@index([originalSettlementId])
+  @@index([appliedSettlementId])
 }
 
 // ============================================
@@ -5596,6 +5654,37 @@ model CompanySettings {
 
   // Security Settings
   securitySettings Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+
+model SystemConfig {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Detention Configuration
+  defaultDetentionRate    Float   @default(50) // $/hour
+  defaultFreeTimeMinutes  Int     @default(120) // minutes (2 hours)
+
+  // TONU Configuration
+  standardTonuFee Float @default(150) // $150 default
+
+  // Factoring Configuration
+  factoringActive         Boolean @default(false)
+  factoringCompanyName    String?
+  factoringCompanyAddress String? // Text area - full address
+
+  // Settlement Defaults
+  payDriverOnFuelSurcharge Boolean @default(false) // Toggle: "Pay Driver % on FSC?"
+  companyFuelTaxRate       Float? // Percentage (e.g., 8.5%)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

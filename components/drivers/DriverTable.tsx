@@ -25,7 +25,7 @@ import {
 import { Edit, CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { DriverStatus, EmployeeStatus, AssignmentStatus, DispatchStatus, DriverType } from '@prisma/client';
 import { formatDate } from '@/lib/utils';
-import DriverInlineEdit from './DriverInlineEdit';
+import DriverExpandedEdit from './DriverExpandedEdit';
 
 interface Driver {
   id: string;
@@ -382,33 +382,15 @@ export default function DriverTable({
                 </TableRow>
                 {isExpanded && (
                   <TableRow>
-                    <TableCell colSpan={columnCount} className="p-0 bg-muted/30">
-                      <div className="animate-in slide-in-from-top-1 duration-200">
-                        <DriverInlineEdit
-                          driver={{
-                            id: driver.id,
-                            firstName: driver.firstName,
-                            lastName: driver.lastName,
-                            email: driver.email,
-                            phone: driver.phone,
-                            status: driver.status,
-                            employeeStatus: driver.employeeStatus,
-                            assignmentStatus: driver.assignmentStatus,
-                            dispatchStatus: driver.dispatchStatus,
-                            driverType: driver.driverType,
-                            currentTruckId: driver.currentTruckId || driver.truck?.id || null,
-                            currentTrailerId: driver.currentTrailerId || driver.trailer?.id || null,
-                            mcNumberId: driver.mcNumberId || driver.mcNumber?.id || null,
-                            teamDriver: driver.teamDriver,
-                            userId: driver.userId || driver.id,
-                          }}
-                          onSave={() => {
-                            toggleRow(driver.id);
-                            onDriverUpdate?.();
-                          }}
-                          onCancel={() => toggleRow(driver.id)}
-                        />
-                      </div>
+                    <TableCell colSpan={columnCount} className="p-0">
+                      <DriverExpandedEdit
+                        driverId={driver.id}
+                        onSave={() => {
+                          toggleRow(driver.id);
+                          onDriverUpdate?.();
+                        }}
+                        onCancel={() => toggleRow(driver.id)}
+                      />
                     </TableCell>
                   </TableRow>
                 )}

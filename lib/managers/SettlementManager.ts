@@ -1,13 +1,17 @@
 /**
  * SettlementManager
  * 
- * Handles automated settlement generation with configurable deduction rules,
- * approval workflow, and comprehensive deduction calculations.
+ * Handles automated settlement generation with STRICT driver pay hierarchy:
+ * 1. Gross Pay (CPM or Percentage with FSC exclusion)
+ * 2. Additions (StopPay, DetentionPay, Reimbursements)
+ * 3. Deductions (Advances, Recurring, Garnishments/Escrow)
+ * 4. Negative Balance handling (create record, apply next week)
  */
 
 import { prisma } from '@/lib/prisma';
 import { DriverAdvanceManager } from './DriverAdvanceManager';
 import { LoadExpenseManager } from './LoadExpenseManager';
+import { LoadStatus } from '@prisma/client';
 
 export interface SettlementGenerationParams {
   driverId: string;
@@ -24,6 +28,13 @@ export interface DeductionItem {
   reference?: string;
 }
 
+export interface AdditionItem {
+  type: string;
+  description: string;
+  amount: number;
+  reference?: string;
+}
+
 export class SettlementManager {
   private advanceManager: DriverAdvanceManager;
   private expenseManager: LoadExpenseManager;
@@ -34,7 +45,7 @@ export class SettlementManager {
   }
 
   /**
-   * Auto-generate settlement for a driver
+   * Auto-generate settlement for a driver with STRICT pay hierarchy
    */
   async generateSettlement(
     params: SettlementGenerationParams
@@ -60,6 +71,7 @@ export class SettlementManager {
     }
 
     // 2. Fetch completed loads for the period
+    // CRITICAL: Do NOT filter by isBillingHold - settlement (AP) can proceed independently
     const loads = await prisma.load.findMany({
       where: {
         driverId,
@@ -68,15 +80,21 @@ export class SettlementManager {
           lte: periodEnd,
         },
         status: {
-          in: ['DELIVERED', 'INVOICED', 'PAID'],
+          in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] as LoadStatus[],
         },
         readyForSettlement: true,
         deletedAt: null,
       },
       include: {
+        accessorialCharges: {
+          where: {
+            status: { in: ['APPROVED', 'BILLED'] },
+          },
+        },
         loadExpenses: {
           where: {
             approvalStatus: 'APPROVED',
+            expenseType: { in: ['TOLL', 'SCALE'] }, // Reimbursements only
           },
         },
       },
@@ -89,21 +107,14 @@ export class SettlementManager {
       throw new Error('No completed loads found for the settlement period');
     }
 
-    // 3. Calculate gross pay
+    // 3. Calculate gross pay (STRICT: CPM or Percentage with FSC exclusion)
     const grossPay = await this.calculateGrossPay(driver, loads);
 
-    // 4. Calculate all deductions
-    const deductions = await this.calculateDeductions(
-      driverId,
-      loads,
-      grossPay,
-      periodStart,
-      periodEnd
-    );
+    // 4. Calculate additions (StopPay, DetentionPay, Reimbursements)
+    const additions = await this.calculateAdditions(loads);
+    const totalAdditions = additions.reduce((sum, a) => sum + a.amount, 0);
 
-    const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
-
-    // 5. Calculate advances
+    // 5. Calculate advances FIRST (Priority 1: Advances)
     const advances = await this.advanceManager.getAdvancesForSettlement(
       driverId,
       periodStart,
@@ -111,24 +122,38 @@ export class SettlementManager {
     );
     const totalAdvances = advances.reduce((sum, adv) => sum + adv.amount, 0);
 
-    // 6. Calculate net pay
-    const netPay = grossPay - totalDeductions - totalAdvances;
+    // 6. Calculate deductions in STRICT priority order (Priority 2: Recurring, Priority 3: Garnishments/Escrow)
+    const deductions = await this.calculateDeductions(
+      driverId,
+      loads,
+      grossPay,
+      periodStart,
+      periodEnd
+    );
+    const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
 
-    // 7. Generate settlement number
+    // 7. Apply previous negative balance (if any)
+    const previousNegativeBalance = await this.getPreviousNegativeBalance(driverId);
+    const negativeBalanceDeduction = previousNegativeBalance ? previousNegativeBalance.amount : 0;
+
+    // 8. Calculate net pay
+    const netPay = grossPay + totalAdditions - totalDeductions - totalAdvances - negativeBalanceDeduction;
+
+    // 9. Generate settlement number
     const settlementNumber =
       params.settlementNumber ||
       `SET-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-    // 8. Create settlement
+    // 10. Create settlement
     const settlement = await prisma.settlement.create({
       data: {
         driverId,
         settlementNumber,
         loadIds: loads.map((l) => l.id),
         grossPay,
-        deductions: totalDeductions,
+        deductions: totalDeductions + negativeBalanceDeduction, // Include negative balance in deductions
         advances: totalAdvances,
-        netPay,
+        netPay: netPay < 0 ? 0 : netPay, // Store 0 if negative (balance tracked separately)
         periodStart,
         periodEnd,
         status: 'PENDING',
@@ -138,7 +163,50 @@ export class SettlementManager {
       },
     });
 
-    // 9. Create deduction items
+    // 11. Handle negative balance (CRITICAL: Create record instead of error)
+    // DO NOT throw error - create NegativeBalance record instead
+    if (netPay < 0) {
+      await prisma.driverNegativeBalance.create({
+        data: {
+          driverId,
+          amount: Math.abs(netPay), // Store as positive amount
+          originalSettlementId: settlement.id,
+          notes: `Negative balance from settlement ${settlementNumber}. Will be applied to next week's settlement.`,
+        },
+      });
+
+      // Mark previous negative balance as applied if it exists
+      if (previousNegativeBalance) {
+        await prisma.driverNegativeBalance.update({
+          where: { id: previousNegativeBalance.id },
+          data: {
+            isApplied: true,
+            appliedSettlementId: settlement.id,
+            appliedAt: new Date(),
+          },
+        });
+      }
+    } else if (previousNegativeBalance) {
+      // Apply previous negative balance to this settlement
+      await (prisma as any).driverNegativeBalance.update({
+        where: { id: previousNegativeBalance.id },
+        data: {
+          isApplied: true,
+          appliedSettlementId: settlement.id,
+          appliedAt: new Date(),
+        },
+      });
+
+      // Add negative balance deduction item
+      deductions.push({
+        type: 'ESCROW',
+        description: `Previous negative balance applied (Settlement ${previousNegativeBalance.originalSettlement?.settlementNumber || 'N/A'})`,
+        amount: negativeBalanceDeduction,
+        reference: `negative_balance_${previousNegativeBalance.id}`,
+      });
+    }
+
+    // 12. Create deduction items
     for (const deduction of deductions) {
       await prisma.settlementDeduction.create({
         data: {
@@ -159,7 +227,7 @@ export class SettlementManager {
       });
     }
 
-    // 10. Link advances to settlement
+    // 14. Link advances to settlement (Priority 1 deductions)
     if (advances.length > 0) {
       await this.advanceManager.markAdvancesDeducted(
         advances.map((a) => a.id),
@@ -167,7 +235,7 @@ export class SettlementManager {
       );
     }
 
-    // 11. Create activity log
+    // 15. Create activity log
     await prisma.activityLog.create({
       data: {
         companyId: driver.companyId,
@@ -177,9 +245,12 @@ export class SettlementManager {
         description: `Settlement ${settlementNumber} generated for ${driver.user.firstName} ${driver.user.lastName}`,
         metadata: {
           grossPay,
+          additions: totalAdditions,
           deductions: totalDeductions,
           advances: totalAdvances,
+          negativeBalanceApplied: negativeBalanceDeduction,
           netPay,
+          hasNegativeBalance: netPay < 0,
           loadCount: loads.length,
         },
       },
@@ -201,38 +272,102 @@ export class SettlementManager {
         },
         deductionItems: true,
         driverAdvances: true,
+        // Note: negativeBalances relation may need Prisma client regeneration
+        // Included via separate query if needed
       },
     });
   }
 
   /**
-   * Calculate gross pay based on driver pay type
+   * Calculate gross pay with STRICT hierarchy
+   * 
+   * CPM: (loadedMiles + emptyMiles) * Rate
+   * Percentage: (TotalInvoice - FuelSurcharge) * Percentage (CRITICAL: Exclude FSC!)
    */
   private async calculateGrossPay(driver: any, loads: any[]): Promise<number> {
     let grossPay = 0;
 
     for (const load of loads) {
       if (load.driverPay && load.driverPay > 0) {
-        // Use manually set driver pay
+        // Use manually set driver pay (override)
         grossPay += load.driverPay;
       } else {
         // Calculate from driver pay rate
         switch (driver.payType) {
-          case 'PER_MILE':
-            const miles = load.totalMiles || load.loadedMiles || 0;
-            grossPay += miles * driver.payRate;
+          case 'PER_MILE': {
+            // STRICT: CPM = (loadedMiles + emptyMiles) * Rate
+            // CRITICAL: Must use loadedMiles + emptyMiles, NOT totalMiles
+            const loadedMiles = load.loadedMiles || 0;
+            const emptyMiles = load.emptyMiles || 0;
+            const totalMiles = loadedMiles + emptyMiles;
+            if (totalMiles > 0) {
+              grossPay += totalMiles * driver.payRate;
+            }
             break;
-          case 'PER_LOAD':
+          }
+          
+          case 'PERCENTAGE': {
+            // STRICT: Percentage = (TotalInvoice - FuelSurcharge) * Percentage
+            // Get invoice total for this load
+            let invoiceTotal = 0;
+            let fuelSurcharge = 0;
+
+            // Find invoices that include this load
+            const invoices = await prisma.invoice.findMany({
+              where: {
+                loadIds: {
+                  has: load.id,
+                },
+              },
+              include: {
+                accessorialCharges: {
+                  where: {
+                    chargeType: 'FUEL_SURCHARGE',
+                    status: { in: ['APPROVED', 'BILLED'] },
+                  },
+                  select: {
+                    amount: true,
+                  },
+                },
+              },
+            });
+
+            if (invoices.length > 0) {
+              // Sum all invoice totals
+              invoiceTotal = invoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
+              
+              // Sum all fuel surcharge accessorials from invoices
+              fuelSurcharge = invoices.reduce((sum: number, inv: any) => {
+                const fsc = inv.accessorialCharges?.reduce((fscSum: number, charge: any) => 
+                  fscSum + (charge.amount || 0), 0) || 0;
+                return sum + fsc;
+              }, 0);
+            } else {
+              // Fallback: Use load revenue if no invoice
+              invoiceTotal = load.revenue || 0;
+              
+              // Check accessorial charges on load for FSC
+              const fscCharges = load.accessorialCharges?.filter((c: any) => c.chargeType === 'FUEL_SURCHARGE') || [];
+              fuelSurcharge = fscCharges.reduce((sum: number, charge: any) => sum + (charge.amount || 0), 0);
+            }
+
+            // CRITICAL: Exclude Fuel Surcharge from calculation
+            const baseAmount = invoiceTotal - fuelSurcharge;
+            grossPay += baseAmount * (driver.payRate / 100);
+            break;
+          }
+          
+          case 'PER_LOAD': {
             grossPay += driver.payRate;
             break;
-          case 'PERCENTAGE':
-            grossPay += (load.revenue || 0) * (driver.payRate / 100);
-            break;
-          case 'HOURLY':
-            const estimatedHours =
-              (load.totalMiles || 0) > 0 ? (load.totalMiles || 0) / 50 : 10;
+          }
+          
+          case 'HOURLY': {
+            const totalMiles = (load.loadedMiles || 0) + (load.emptyMiles || 0) || load.totalMiles || 0;
+            const estimatedHours = totalMiles > 0 ? totalMiles / 50 : 10;
             grossPay += estimatedHours * driver.payRate;
             break;
+          }
         }
       }
     }
@@ -241,7 +376,64 @@ export class SettlementManager {
   }
 
   /**
-   * Calculate all deductions using configurable rules
+   * Calculate additions: StopPay, DetentionPay, Reimbursements
+   */
+  private async calculateAdditions(loads: any[]): Promise<AdditionItem[]> {
+    const additions: AdditionItem[] = [];
+
+    for (const load of loads) {
+      // StopPay: Additional stop accessorials
+      const stopCharges = load.accessorialCharges?.filter(
+        (c: any) => c.chargeType === 'ADDITIONAL_STOP'
+      ) || [];
+      
+      for (const charge of stopCharges) {
+        additions.push({
+          type: 'STOP_PAY',
+          description: `Stop pay: ${charge.description || 'Additional stop'}`,
+          amount: charge.amount || 0,
+          reference: `accessorial_${charge.id}`,
+        });
+      }
+
+      // DetentionPay: Detention accessorials
+      const detentionCharges = load.accessorialCharges?.filter(
+        (c: any) => c.chargeType === 'DETENTION'
+      ) || [];
+      
+      for (const charge of detentionCharges) {
+        additions.push({
+          type: 'DETENTION_PAY',
+          description: `Detention pay: ${charge.description || `${charge.detentionHours || 0} hours`}`,
+          amount: charge.amount || 0,
+          reference: `accessorial_${charge.id}`,
+        });
+      }
+
+      // Reimbursements: Tolls and Scales (from LoadExpense)
+      const reimbursements = load.loadExpenses?.filter(
+        (e: any) => e.expenseType === 'TOLL' || e.expenseType === 'SCALE'
+      ) || [];
+      
+      for (const expense of reimbursements) {
+        additions.push({
+          type: 'REIMBURSEMENT',
+          description: `Reimbursement: ${expense.expenseType} - ${expense.description || expense.vendor || 'N/A'}`,
+          amount: expense.amount || 0,
+          reference: `expense_${expense.id}`,
+        });
+      }
+    }
+
+    return additions;
+  }
+
+  /**
+   * Calculate deductions in STRICT priority order:
+   * NOTE: Priority 1 (Advances) is handled separately in generateSettlement()
+   * This method handles:
+   * - Priority 2: Recurring (Insurance, ELD)
+   * - Priority 3: Garnishments/Escrow
    */
   private async calculateDeductions(
     driverId: string,
@@ -261,11 +453,18 @@ export class SettlementManager {
 
     if (!driver) return deductions;
 
-    // 1. Get applicable deduction rules
-    const rules = await prisma.deductionRule.findMany({
+    // NOTE: Fuel advances are handled via advanceManager.getAdvancesForSettlement()
+    // Cash advances are also handled via advanceManager.getAdvancesForSettlement()
+    // Both are Priority 1 and applied BEFORE these deductions
+
+    // PRIORITY 2: Recurring (Insurance, ELD, etc.)
+    const recurringRules = await prisma.deductionRule.findMany({
       where: {
         companyId: driver.companyId,
         isActive: true,
+        deductionType: {
+          in: ['INSURANCE', 'OCCUPATIONAL_ACCIDENT', 'FUEL_CARD_FEE'], // Recurring types
+        },
         OR: [
           { driverType: null },
           { driverType: driver.driverType },
@@ -273,9 +472,7 @@ export class SettlementManager {
       },
     });
 
-    // 2. Apply each rule
-    for (const rule of rules) {
-      // Check minimum gross pay requirement
+    for (const rule of recurringRules) {
       if (rule.minGrossPay && grossPay < rule.minGrossPay) {
         continue;
       }
@@ -291,14 +488,13 @@ export class SettlementManager {
           break;
         case 'PER_MILE':
           const totalMiles = loads.reduce(
-            (sum, load) => sum + (load.totalMiles || 0),
+            (sum, load) => sum + ((load.loadedMiles || 0) + (load.emptyMiles || 0) || load.totalMiles || 0),
             0
           );
           deductionAmount = totalMiles * (rule.perMileRate || 0);
           break;
       }
 
-      // Apply max amount cap if specified
       if (rule.maxAmount && deductionAmount > rule.maxAmount) {
         deductionAmount = rule.maxAmount;
       }
@@ -312,27 +508,80 @@ export class SettlementManager {
       }
     }
 
-    // 3. Add fuel advances
-    const fuelEntries = await prisma.fuelEntry.findMany({
+    // PRIORITY 3: Garnishments/Escrow
+    const garnishmentRules = await prisma.deductionRule.findMany({
       where: {
-        driverId,
-        date: {
-          gte: periodStart,
-          lte: periodEnd,
+        companyId: driver.companyId,
+        isActive: true,
+        deductionType: {
+          in: ['ESCROW', 'OTHER'], // Garnishments typically use OTHER with notes
         },
+        OR: [
+          { driverType: null },
+          { driverType: driver.driverType },
+        ],
       },
     });
 
-    for (const entry of fuelEntries) {
-      deductions.push({
-        type: 'FUEL_ADVANCE',
-        description: `Fuel advance on ${entry.date.toLocaleDateString()}`,
-        amount: entry.totalCost,
-        reference: `fuel_${entry.id}`,
-      });
+    for (const rule of garnishmentRules) {
+      if (rule.minGrossPay && grossPay < rule.minGrossPay) {
+        continue;
+      }
+
+      let deductionAmount = 0;
+
+      switch (rule.calculationType) {
+        case 'FIXED':
+          deductionAmount = rule.amount || 0;
+          break;
+        case 'PERCENTAGE':
+          deductionAmount = grossPay * ((rule.percentage || 0) / 100);
+          break;
+        case 'PER_MILE':
+          const totalMiles = loads.reduce(
+            (sum, load) => sum + ((load.loadedMiles || 0) + (load.emptyMiles || 0) || load.totalMiles || 0),
+            0
+          );
+          deductionAmount = totalMiles * (rule.perMileRate || 0);
+          break;
+      }
+
+      if (rule.maxAmount && deductionAmount > rule.maxAmount) {
+        deductionAmount = rule.maxAmount;
+      }
+
+      if (deductionAmount > 0) {
+        deductions.push({
+          type: rule.deductionType,
+          description: rule.name,
+          amount: deductionAmount,
+        });
+      }
     }
 
     return deductions;
+  }
+
+  /**
+   * Get previous negative balance that hasn't been applied
+   */
+  private async getPreviousNegativeBalance(driverId: string): Promise<any | null> {
+    return await (prisma as any).driverNegativeBalance.findFirst({
+      where: {
+        driverId,
+        isApplied: false,
+      },
+      include: {
+        originalSettlement: {
+          select: {
+            settlementNumber: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
   }
 
   /**
@@ -487,6 +736,7 @@ export class SettlementManager {
         },
         driverAdvances: true,
         loadExpenses: true,
+        // Note: negativeBalances relation may need Prisma client regeneration
         approvalHistory: {
           include: {
             approvedBy: {
@@ -504,8 +754,3 @@ export class SettlementManager {
     });
   }
 }
-
-
-
-
-

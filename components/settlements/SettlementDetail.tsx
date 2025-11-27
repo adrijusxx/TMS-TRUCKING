@@ -162,7 +162,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
             </p>
             <Link href={`/dashboard/drivers/${settlement.driverId}`}>
               <Button variant="ghost" size="sm" className="mt-2">
-                View Driver
+                Edit Driver
               </Button>
             </Link>
           </CardContent>

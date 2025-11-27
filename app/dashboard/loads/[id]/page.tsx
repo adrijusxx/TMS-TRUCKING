@@ -27,7 +27,23 @@ export default async function LoadDetailPage({
         deletedAt: null,
       },
       include: {
-        customer: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            customerNumber: true,
+            email: true,
+            phone: true,
+            address: true,
+            city: true,
+            state: true,
+            zip: true,
+            creditLimit: true,
+            creditHold: true,
+            paymentTerms: true,
+            mcNumber: true,
+          },
+        },
         driver: {
           include: {
             user: {
@@ -40,7 +56,46 @@ export default async function LoadDetailPage({
             },
           },
         },
+        coDriver: {
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
         truck: true,
+        trailer: {
+          select: {
+            id: true,
+            trailerNumber: true,
+          },
+        },
+        dispatcher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
+        },
         stops: {
           orderBy: { sequence: 'asc' },
         },
@@ -72,6 +127,29 @@ export default async function LoadDetailPage({
                 truckNumber: true,
               },
             },
+          },
+        },
+        rateConfirmation: {
+          select: {
+            id: true,
+            rateConfNumber: true,
+            baseRate: true,
+            fuelSurcharge: true,
+            accessorialCharges: true,
+            totalRate: true,
+            paymentTerms: true,
+            paymentMethod: true,
+            notes: true,
+          },
+        },
+        driverAdvances: {
+          orderBy: { requestDate: 'desc' },
+          select: {
+            id: true,
+            amount: true,
+            requestDate: true,
+            paidAt: true,
+            notes: true,
           },
         },
       },

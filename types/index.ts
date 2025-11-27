@@ -1,10 +1,11 @@
-import { UserRole, LoadStatus, DriverStatus, TruckStatus } from '@prisma/client';
+import { UserRole, LoadStatus, DriverStatus, TruckStatus, DetentionStartStrategy } from '@prisma/client';
 
 export type {
   UserRole,
   LoadStatus,
   DriverStatus,
-  TruckStatus
+  TruckStatus,
+  DetentionStartStrategy
 };
 
 export interface User {
@@ -32,6 +33,31 @@ export interface Load {
   revenue: number;
   driverPay?: number;
   weight: number;
+  // Billing Hold Fields (AR/AP Decoupling)
+  isBillingHold?: boolean;
+  billingHoldReason?: string | null;
+  detentionStartStrategy?: DetentionStartStrategy | null;
+}
+
+export interface LoadStop {
+  id: string;
+  loadId: string;
+  stopType: 'PICKUP' | 'DELIVERY';
+  sequence: number;
+  company?: string | null;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone?: string | null;
+  // Timing
+  earliestArrival?: Date | null;
+  latestArrival?: Date | null;
+  actualArrival?: Date | null;
+  actualDeparture?: Date | null;
+  // Detention Calculation Fields
+  billableDetentionMinutes?: number | null;
+  detentionClockStart?: Date | null;
 }
 
 // Add more types as needed

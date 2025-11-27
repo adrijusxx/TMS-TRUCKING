@@ -102,7 +102,7 @@ export default function DriverListNew() {
     <div className="flex items-center gap-2">
       <Link href={`/dashboard/drivers/${row.id}`}>
         <Button variant="ghost" size="sm">
-          View
+          Edit
         </Button>
       </Link>
     </div>

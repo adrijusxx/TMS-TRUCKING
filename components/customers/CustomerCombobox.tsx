@@ -70,9 +70,10 @@ export default function CustomerCombobox({
 
   // Filter preloaded customers by search query if no API search
   const filteredPreloaded = React.useMemo(() => {
-    if (!hasPreloadedCustomers || searchQuery.length === 0) return preloadedCustomers || [];
+    const customersList = Array.isArray(preloadedCustomers) ? preloadedCustomers : [];
+    if (!hasPreloadedCustomers || searchQuery.length === 0) return customersList;
     const query = searchQuery.toLowerCase();
-    return preloadedCustomers.filter(
+    return customersList.filter(
       (c) =>
         c.name.toLowerCase().includes(query) ||
         c.customerNumber.toLowerCase().includes(query) ||
@@ -81,8 +82,8 @@ export default function CustomerCombobox({
   }, [preloadedCustomers, searchQuery, hasPreloadedCustomers]);
 
   const customers: Customer[] = shouldUseApi
-    ? customersData?.data || []
-    : filteredPreloaded;
+    ? (Array.isArray(customersData?.data) ? customersData.data : [])
+    : (Array.isArray(filteredPreloaded) ? filteredPreloaded : []);
   
   // Find selected customer - check multiple sources
   const selectedCustomer = React.useMemo(() => {

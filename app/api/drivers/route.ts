@@ -259,6 +259,10 @@ export async function GET(request: NextRequest) {
           emergencyPhone: true,
           payType: true,
           payRate: true,
+          perDiem: true,
+          escrowTargetAmount: true,
+          escrowDeductionPerWeek: true,
+          escrowBalance: true,
           rating: true,
           totalLoads: true,
           totalMiles: true,
@@ -385,6 +389,21 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = createDriverSchema.parse(body);
+
+    // Check if dispatcher is trying to set financial fields during creation
+    // Dispatchers can create drivers but cannot set pay rates
+    if (role === 'DISPATCHER' && (validated.payType || validated.payRate)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Dispatchers cannot set pay rates when creating drivers. Pay rates must be set by administrators or accountants.',
+          },
+        },
+        { status: 403 }
+      );
+    }
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({

@@ -81,6 +81,11 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
   // Pay
   driverTariff: z.string().optional(),
   payTo: z.string().optional(),
+  perDiem: z.number().min(0).optional(),
+  // Escrow/Holdings
+  escrowTargetAmount: z.number().min(0).optional(),
+  escrowDeductionPerWeek: z.number().min(0).optional(),
+  escrowBalance: z.number().min(0).optional(), // Read-only, but can be set manually if needed
   warnings: z.string().optional(),
 });
 

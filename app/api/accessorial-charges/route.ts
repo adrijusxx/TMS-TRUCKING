@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { AccessorialChargeType, AccessorialChargeStatus } from '@prisma/client';
+import { BillingHoldManager } from '@/lib/managers/BillingHoldManager';
 
 export async function GET(request: NextRequest) {
   try {
@@ -196,6 +197,7 @@ export async function POST(request: NextRequest) {
           select: {
             id: true,
             loadNumber: true,
+            status: true,
             customer: {
               select: {
                 name: true,
@@ -206,9 +208,22 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 🔥 CRITICAL: Apply billing hold if charge type requires Rate Con update
+    const billingHoldManager = new BillingHoldManager();
+    let billingHoldResult = null;
+
+    if (billingHoldManager.requiresBillingHold(chargeType)) {
+      // Only apply hold if load is delivered (or ready to bill if that status exists)
+      if (charge.load.status === 'DELIVERED') {
+        const holdReason = `${chargeType} charge ($${finalAmount.toFixed(2)}) added - Rate Con update required`;
+        billingHoldResult = await billingHoldManager.applyBillingHold(loadId, holdReason, charge.id);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: charge,
+      billingHold: billingHoldResult,
     });
   } catch (error) {
     console.error('Create accessorial charge error:', error);

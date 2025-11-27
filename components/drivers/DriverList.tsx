@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Users, Plus, Search, Filter, Edit, Trash2 } from 'lucide-react';
+import { Users, Plus, Search, Filter, Edit, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { DriverStatus, PayType } from '@prisma/client';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
@@ -31,6 +31,7 @@ import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
 import { DeletedRecordBadge } from '@/components/common/DeletedRecordBadge';
 import DriverListStats from '@/components/drivers/DriverListStats';
 import DriverQuickView from '@/components/drivers/DriverQuickView';
+import DriverExpandedEdit from '@/components/drivers/DriverExpandedEdit';
 import { useKeyboardShortcuts, commonShortcuts } from '@/lib/hooks/useKeyboardShortcuts';
 import ImportButton from '@/components/import-export/ImportButton';
 import ExportDialog from '@/components/import-export/ExportDialog';
@@ -73,6 +74,10 @@ interface Driver {
   emergencyPhone: string | null;
   payType: PayType;
   payRate: number;
+  perDiem?: number | null;
+  escrowTargetAmount?: number | null;
+  escrowDeductionPerWeek?: number | null;
+  escrowBalance?: number | null;
   rating: number | null;
   totalLoads: number;
   totalMiles: number;
@@ -178,6 +183,7 @@ export default function DriverList() {
   const [deleteDriverId, setDeleteDriverId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [editDriverId, setEditDriverId] = useState<string | null>(null);
+  const [expandedDriverIds, setExpandedDriverIds] = useState<Set<string>>(new Set());
 
   // Get includeDeleted from URL params (admins only)
   const [includeDeleted, setIncludeDeleted] = useState(false);
@@ -237,6 +243,18 @@ export default function DriverList() {
     } else {
       setSelectedDriverIds(selectedDriverIds.filter((id) => id !== driverId));
     }
+  };
+
+  const toggleDriverExpansion = (driverId: string) => {
+    setExpandedDriverIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(driverId)) {
+        newSet.delete(driverId);
+      } else {
+        newSet.add(driverId);
+      }
+      return newSet;
+    });
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -422,6 +440,7 @@ export default function DriverList() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12"></TableHead>
                   {can('drivers.delete') && (
                     <TableHead className="w-12">
                       <Checkbox
@@ -450,19 +469,41 @@ export default function DriverList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drivers.map((driver) => (
-                  <TableRow key={driver.id}>
-                    {can('drivers.delete') && (
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedDriverIds.includes(driver.id)}
-                          onCheckedChange={(checked) =>
-                            handleSelectDriver(driver.id, checked as boolean)
-                          }
-                          aria-label={`Select driver ${driver.driverNumber}`}
-                        />
-                      </TableCell>
-                    )}
+                {drivers.map((driver) => {
+                  const isExpanded = expandedDriverIds.has(driver.id);
+                  // Count: 1 expand + (1 checkbox if can delete) + 16 other columns = 17 or 18
+                  const columnCount = 1 + (can('drivers.delete') ? 1 : 0) + 16;
+                  return (
+                    <>
+                      <TableRow key={driver.id} className={isExpanded ? 'bg-muted/30' : ''}>
+                        <TableCell className="w-12">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleDriverExpansion(driver.id);
+                            }}
+                            className="h-8 w-8 p-0"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        {can('drivers.delete') && (
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedDriverIds.includes(driver.id)}
+                              onCheckedChange={(checked) =>
+                                handleSelectDriver(driver.id, checked as boolean)
+                              }
+                              aria-label={`Select driver ${driver.driverNumber}`}
+                            />
+                          </TableCell>
+                        )}
                     <TableCell className="font-medium">
                       <button
                         onClick={() => setQuickViewDriverId(driver.id)}
@@ -568,7 +609,7 @@ export default function DriverList() {
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         {can('drivers.edit') && (
-                          <Link href={`/dashboard/drivers/${driver.id}/edit`}>
+                          <Link href={`/dashboard/drivers/${driver.id}`}>
                             <Button variant="ghost" size="sm">
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -583,15 +624,26 @@ export default function DriverList() {
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
-                        <Link href={`/dashboard/drivers/${driver.id}`}>
-                          <Button variant="ghost" size="sm">
-                            View
-                          </Button>
-                        </Link>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  {isExpanded && (
+                    <TableRow>
+                      <TableCell colSpan={columnCount} className="p-0">
+                        <DriverExpandedEdit
+                          driverId={driver.id}
+                          onSave={() => {
+                            toggleDriverExpansion(driver.id);
+                            refetch();
+                          }}
+                          onCancel={() => toggleDriverExpansion(driver.id)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

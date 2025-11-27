@@ -15,15 +15,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check permission
+    // Check role: Only ADMIN or ACCOUNTANT can update pay rates
     const role = session.user.role as 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER';
-    if (!hasPermission(role, 'drivers.edit')) {
+    if (role !== 'ADMIN' && role !== 'ACCOUNTANT') {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: 'FORBIDDEN',
-            message: 'You do not have permission to update drivers',
+            message: 'Only administrators and accountants can update driver pay rates',
           },
         },
         { status: 403 }

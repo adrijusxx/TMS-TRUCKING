@@ -5,6 +5,12 @@ import { updateDriverSchema } from '@/lib/validations/driver';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { hasPermission } from '@/lib/permissions';
+import { 
+  canWriteFinancialFields, 
+  containsFinancialFields, 
+  extractFinancialFields,
+  removeFinancialFields 
+} from '@/lib/utils/financial-access';
 
 export async function GET(
   request: NextRequest,
@@ -36,6 +42,8 @@ export async function GET(
             email: true,
             phone: true,
             lastLogin: true,
+            role: true,
+            isActive: true,
           },
         },
         currentTruck: {
@@ -45,6 +53,70 @@ export async function GET(
             make: true,
             model: true,
           },
+        },
+        currentTrailer: {
+          select: {
+            id: true,
+            trailerNumber: true,
+          },
+        },
+        assignedDispatcher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        hrManager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        safetyManager: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        truckHistory: {
+          include: {
+            truck: {
+              select: {
+                id: true,
+                truckNumber: true,
+              },
+            },
+          },
+          orderBy: { date: 'desc' },
+          take: 50,
+        },
+        trailerHistory: {
+          include: {
+            trailer: {
+              select: {
+                id: true,
+                trailerNumber: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+        },
+        comments: {
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
         },
         loads: {
           where: {
@@ -61,12 +133,31 @@ export async function GET(
             pickupState: true,
             deliveryCity: true,
             deliveryState: true,
+            revenue: true,
+            driverPay: true,
+            totalMiles: true,
+            loadedMiles: true,
+            emptyMiles: true,
           },
-          take: 5,
+          take: 100,
         },
         hosRecords: {
           orderBy: { date: 'desc' },
           take: 7,
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            mcNumber: true,
+          },
+        },
+        mcNumber: {
+          select: {
+            id: true,
+            number: true,
+            companyName: true,
+          },
         },
       },
     });
@@ -133,6 +224,27 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateDriverSchema.parse(body);
 
+    const role = session.user.role as 'ADMIN' | 'ACCOUNTANT' | 'DISPATCHER' | 'DRIVER' | 'CUSTOMER';
+
+    // Check if update contains financial fields
+    const hasFinancialFields = containsFinancialFields(validated);
+    
+    if (hasFinancialFields && !canWriteFinancialFields(role)) {
+      // Extract financial fields to show which ones are restricted
+      const financialFields = extractFinancialFields(validated);
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only administrators and accountants can modify financial/payroll fields',
+            restrictedFields: Object.keys(financialFields),
+          },
+        },
+        { status: 403 }
+      );
+    }
+
     const updateData: any = {};
     
     // Driver-specific fields
@@ -149,7 +261,8 @@ export async function PATCH(
       'emergencyContactRelation', 'emergencyContactAddress1', 'emergencyContactAddress2',
       'emergencyContactCity', 'emergencyContactState', 'emergencyContactZip',
       'emergencyContactCountry', 'emergencyContactPhone', 'emergencyContactEmail',
-      'driverTariff', 'payTo', 'warnings', 'licenseNumber', 'licenseState',
+      'driverTariff', 'payTo', 'perDiem', 'escrowTargetAmount', 'escrowDeductionPerWeek',
+      'escrowBalance', 'warnings', 'licenseNumber', 'licenseState',
       'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
       'payType', 'payRate', 'homeTerminal', 'emergencyContact', 'emergencyPhone',
     ];

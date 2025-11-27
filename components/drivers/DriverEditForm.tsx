@@ -14,17 +14,10 @@ import { ArrowLeft, Save, Search } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
-import DriverMainTab from './DriverEditTabs/DriverMainTab';
-import DriverDocumentsTab from './DriverEditTabs/DriverDocumentsTab';
-import DriverMobileAppTab from './DriverEditTabs/DriverMobileAppTab';
-import DriverRecruitingTab from './DriverEditTabs/DriverRecruitingTab';
-import DriverAccountingTab from './DriverEditTabs/DriverAccountingTab';
-import DriverSafetyTab from './DriverEditTabs/DriverSafetyTab';
-import DriverAssetsTab from './DriverEditTabs/DriverAssetsTab';
-import DriverStatisticsTab from './DriverEditTabs/DriverStatisticsTab';
-import DriverLogHistoryTab from './DriverEditTabs/DriverLogHistoryTab';
-import DriverTasksTab from './DriverEditTabs/DriverTasksTab';
-import DriverOthersTab from './DriverEditTabs/DriverOthersTab';
+import DriverPersonalInfoTab from './DriverEditTabs/DriverPersonalInfoTab';
+import DriverComplianceTab from './DriverEditTabs/DriverComplianceTab';
+import DriverWorkDetailsTab from './DriverEditTabs/DriverWorkDetailsTab';
+import DriverFinancialPayrollTab from './DriverEditTabs/DriverFinancialPayrollTab';
 
 interface DriverEditFormProps {
   driver: any;
@@ -56,7 +49,21 @@ export default function DriverEditForm({
 }: DriverEditFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('main');
+  
+  // Get initial tab from URL query parameter
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      // Map old tab names to new ones
+      if (tabParam === 'financials' || tabParam === 'accounting') {
+        return 'financial';
+      }
+      return tabParam || 'personal';
+    }
+    return 'personal';
+  });
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [formDataRef, setFormDataRef] = useState<any>(null);
 
@@ -66,7 +73,7 @@ export default function DriverEditForm({
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['driver', driver.id] });
       toast.success('Driver updated successfully');
-      router.push(`/dashboard/drivers/${driver.id}`);
+      // Stay on same page after save
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update driver');
@@ -94,12 +101,14 @@ export default function DriverEditForm({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href={`/dashboard/drivers/${driver.id}`}>
+          <Link href="/dashboard/drivers">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div>
+            <h2 className="text-xl font-semibold">{driver.user.firstName} {driver.user.lastName}</h2>
+            <p className="text-sm text-muted-foreground">Driver #{driver.driverNumber}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -117,11 +126,9 @@ export default function DriverEditForm({
             form="driver-edit-form"
             disabled={updateMutation.isPending}
             onClick={() => {
-              // Trigger save for active tab if it's not the main form
-              if (activeTab !== 'main') {
-                const event = new CustomEvent('driver-form-save');
-                window.dispatchEvent(event);
-              }
+              // Trigger save for all tabs via event system
+              const event = new CustomEvent('driver-form-save');
+              window.dispatchEvent(event);
             }}
           >
             <Save className="h-4 w-4 mr-2" />
@@ -132,22 +139,29 @@ export default function DriverEditForm({
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-11">
-          <TabsTrigger value="main">Main</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="mobile">Mobile app login</TabsTrigger>
-          <TabsTrigger value="recruiting">Recruiting</TabsTrigger>
-          <TabsTrigger value="accounting">Accounting</TabsTrigger>
-          <TabsTrigger value="safety">Safety</TabsTrigger>
-          <TabsTrigger value="assets">Assets</TabsTrigger>
-          <TabsTrigger value="statistics">Statistics</TabsTrigger>
-          <TabsTrigger value="log-history">Log History</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
-          <TabsTrigger value="others">Others</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="personal">Personal Info</TabsTrigger>
+          <TabsTrigger value="compliance">Compliance</TabsTrigger>
+          <TabsTrigger value="work">Work Details</TabsTrigger>
+          <TabsTrigger value="financial">Financial & Payroll</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="main" className="space-y-4">
-          <DriverMainTab
+        <TabsContent value="personal" className="space-y-4">
+          <DriverPersonalInfoTab
+            driver={driver}
+            onSave={handleSave}
+          />
+        </TabsContent>
+
+        <TabsContent value="compliance" className="space-y-4">
+          <DriverComplianceTab
+            driver={driver}
+            onSave={handleSave}
+          />
+        </TabsContent>
+
+        <TabsContent value="work" className="space-y-4">
+          <DriverWorkDetailsTab
             driver={driver}
             trucks={trucks}
             trailers={trailers}
@@ -157,44 +171,11 @@ export default function DriverEditForm({
           />
         </TabsContent>
 
-        <TabsContent value="documents" className="space-y-4">
-          <DriverDocumentsTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="mobile" className="space-y-4">
-          <DriverMobileAppTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="recruiting" className="space-y-4">
-          <DriverRecruitingTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="accounting" className="space-y-4">
-          <DriverAccountingTab driver={driver} onSave={handleSave} />
-        </TabsContent>
-
-        <TabsContent value="safety" className="space-y-4">
-          <DriverSafetyTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="assets" className="space-y-4">
-          <DriverAssetsTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="statistics" className="space-y-4">
-          <DriverStatisticsTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="log-history" className="space-y-4">
-          <DriverLogHistoryTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="tasks" className="space-y-4">
-          <DriverTasksTab driver={driver} />
-        </TabsContent>
-
-        <TabsContent value="others" className="space-y-4">
-          <DriverOthersTab driver={driver} />
+        <TabsContent value="financial" className="space-y-4">
+          <DriverFinancialPayrollTab
+            driver={driver}
+            onSave={handleSave}
+          />
         </TabsContent>
       </Tabs>
     </div>

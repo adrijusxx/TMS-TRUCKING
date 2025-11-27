@@ -38,6 +38,12 @@ export const accountingNavigationSections = [
         description: 'Manage rate confirmations for loads and shipments. Create rate confirmations, track rates, and ensure accurate billing.',
       },
       {
+        name: 'Billing Exceptions Queue',
+        href: '/dashboard/accounting/billing-exceptions',
+        icon: FileText,
+        description: 'Review loads with billing holds or ready for invoicing. Force release holds, upload missing PODs, and generate invoices.',
+      },
+      {
         name: 'Factoring',
         href: '/dashboard/accounting/factoring',
         icon: Building2,
@@ -147,6 +153,12 @@ export const accountingNavigationSections = [
         href: '/dashboard/automation',
         icon: Sliders,
         description: 'Configure and manage accounting automation rules and workflows. Set up automated invoice generation, payment processing, and reporting.',
+      },
+      {
+        name: 'Settings',
+        href: '/dashboard/accounting/settings',
+        icon: Sliders,
+        description: 'Configure global accounting system settings including detention rates, TONU fees, factoring configuration, and settlement defaults.',
       },
     ],
   },

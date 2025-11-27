@@ -1,10 +1,10 @@
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
-import DriverDetail from '@/components/drivers/DriverDetail';
+import DriverEditForm from '@/components/drivers/DriverEditForm';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
-export default async function DriverDetailPage({
+export default async function DriverPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -34,25 +34,82 @@ export default async function DriverDetailPage({
           isActive: true,
         },
       },
-      loads: {
-        where: { deletedAt: null },
+      currentTruck: {
         select: {
           id: true,
-          loadNumber: true,
-          status: true,
-          pickupCity: true,
-          pickupState: true,
-          deliveryCity: true,
-          deliveryState: true,
-          revenue: true,
-          pickupDate: true,
-          deliveryDate: true,
+          truckNumber: true,
         },
-        take: 20,
-        orderBy: { createdAt: 'desc' },
       },
-      documents: {
-        where: { deletedAt: null },
+      currentTrailer: {
+        select: {
+          id: true,
+          trailerNumber: true,
+        },
+      },
+      assignedDispatcher: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      hrManager: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      safetyManager: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      truckHistory: {
+        include: {
+          truck: {
+            select: {
+              id: true,
+              truckNumber: true,
+            },
+          },
+        },
+        orderBy: { date: 'desc' },
+        take: 50,
+      },
+      trailerHistory: {
+        include: {
+          trailer: {
+            select: {
+              id: true,
+              trailerNumber: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      },
+      comments: {
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      },
+      company: {
+        select: {
+          id: true,
+          name: true,
+          mcNumber: true,
+        },
       },
     },
   });
@@ -60,6 +117,62 @@ export default async function DriverDetailPage({
   if (!driver) {
     notFound();
   }
+
+  // Get available trucks, trailers, and users for dropdowns
+  const [trucks, trailers, dispatchers, users] = await Promise.all([
+    prisma.truck.findMany({
+      where: {
+        companyId: session.user.companyId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        truckNumber: true,
+      },
+      orderBy: { truckNumber: 'asc' },
+    }),
+    prisma.trailer.findMany({
+      where: {
+        companyId: session.user.companyId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        trailerNumber: true,
+      },
+      orderBy: { trailerNumber: 'asc' },
+    }),
+    prisma.user.findMany({
+      where: {
+        companyId: session.user.companyId,
+        role: 'DISPATCHER',
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+      },
+      orderBy: { firstName: 'asc' },
+    }),
+    prisma.user.findMany({
+      where: {
+        companyId: session.user.companyId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+      },
+      orderBy: { firstName: 'asc' },
+    }),
+  ]);
 
   return (
     <>
@@ -69,11 +182,16 @@ export default async function DriverDetailPage({
       ]} />
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Driver Details</h1>
+          <h1 className="text-3xl font-bold">{driver.user.firstName} {driver.user.lastName}</h1>
         </div>
-        <DriverDetail driver={driver} />
+        <DriverEditForm
+          driver={driver}
+          trucks={trucks}
+          trailers={trailers}
+          dispatchers={dispatchers}
+          users={users}
+        />
       </div>
     </>
   );
 }
-

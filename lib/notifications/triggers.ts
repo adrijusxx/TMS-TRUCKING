@@ -462,3 +462,131 @@ export async function notifySettlementGenerated(settlementId: string) {
     console.error('Error sending settlement generated notification:', error);
   }
 }
+
+/**
+ * Send notification when detention is detected
+ */
+export async function notifyDetentionDetected(params: {
+  loadId: string;
+  loadNumber: string;
+  detentionHours: number;
+  location: string;
+  customerName: string;
+  estimatedCharge: number;
+  driverLate?: boolean;
+  clockStartReason?: string;
+  requiresAttention?: boolean;
+}) {
+  try {
+    const load = await prisma.load.findUnique({
+      where: { id: params.loadId },
+      include: {
+        dispatcher: true,
+        driver: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    if (!load) {
+      return;
+    }
+
+    const lateWarning = params.driverLate 
+      ? ' ⚠️ DRIVER LATE - Detention may be at risk if broker disputes.'
+      : '';
+
+    // Notify dispatcher
+    if (load.dispatcherId) {
+      await prisma.notification.create({
+        data: {
+          userId: load.dispatcherId,
+          type: 'SYSTEM_ALERT',
+          title: `Detention Detected: Load ${params.loadNumber}`,
+          message: `Detention of ${params.detentionHours.toFixed(2)} hours detected at ${params.location} for load ${params.loadNumber}. Estimated charge: $${params.estimatedCharge.toFixed(2)}.${lateWarning}`,
+          link: `/dashboard/loads/${params.loadId}`,
+        },
+      });
+    }
+
+    // Notify admins and dispatchers
+    const users = await prisma.user.findMany({
+      where: {
+        companyId: load.companyId,
+        role: {
+          in: ['ADMIN', 'DISPATCHER'],
+        },
+      },
+    });
+
+    for (const user of users) {
+      await prisma.notification.create({
+        data: {
+          userId: user.id,
+          type: params.requiresAttention ? 'SYSTEM_ALERT' : 'LOAD_UPDATED',
+          title: `Detention Detected: Load ${params.loadNumber}${params.driverLate ? ' [DRIVER LATE]' : ''}`,
+          message: `Detention of ${params.detentionHours.toFixed(2)} hours detected at ${params.location} for load ${params.loadNumber} (${params.customerName}). Estimated charge: $${params.estimatedCharge.toFixed(2)}.${lateWarning}`,
+          link: `/dashboard/loads/${params.loadId}`,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error sending detention detected notification:', error);
+  }
+}
+
+/**
+ * Send notification when billing hold is set
+ */
+export async function notifyBillingHold(params: {
+  loadId: string;
+  loadNumber: string;
+  reason: string;
+  accessorialChargeId: string;
+  requiresRateConUpdate: boolean;
+  blocksInvoicing?: boolean;
+  allowsSettlement?: boolean;
+}) {
+  try {
+    const load = await prisma.load.findUnique({
+      where: { id: params.loadId },
+      include: {
+        customer: true,
+      },
+    });
+
+    if (!load) {
+      return;
+    }
+
+    // Notify accounting department (admins and accountants)
+    const users = await prisma.user.findMany({
+      where: {
+        companyId: load.companyId,
+        role: {
+          in: ['ADMIN', 'ACCOUNTANT'],
+        },
+      },
+    });
+
+    const settlementNote = params.allowsSettlement 
+      ? ' NOTE: Driver settlement (AP) can proceed independently.'
+      : '';
+
+    for (const user of users) {
+      await prisma.notification.create({
+        data: {
+          userId: user.id,
+          type: 'SYSTEM_ALERT',
+          title: `Billing Hold: Load ${params.loadNumber}`,
+          message: `Load ${params.loadNumber} (${load.customer.name}) is on billing hold. ${params.reason}${settlementNote}`,
+          link: `/dashboard/loads/${params.loadId}`,
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error sending billing hold notification:', error);
+  }
+}
