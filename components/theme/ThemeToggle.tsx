@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Monitor } from 'lucide-react';
+import { Moon, Sun, Monitor, Flame } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -36,6 +36,8 @@ export function ThemeToggle() {
         <Button variant="ghost" size="icon" className="h-9 w-9">
           {resolvedTheme === 'dark' ? (
             <Moon className="h-4 w-4" />
+          ) : resolvedTheme === 'amber' ? (
+            <Flame className="h-4 w-4" />
           ) : (
             <Sun className="h-4 w-4" />
           )}
@@ -52,6 +54,11 @@ export function ThemeToggle() {
           <Moon className="mr-2 h-4 w-4" />
           <span>Dark</span>
           {theme === 'dark' && <span className="ml-auto">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme('amber')}>
+          <Flame className="mr-2 h-4 w-4" />
+          <span>Amber</span>
+          {theme === 'amber' && <span className="ml-auto">✓</span>}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme('system')}>
           <Monitor className="mr-2 h-4 w-4" />

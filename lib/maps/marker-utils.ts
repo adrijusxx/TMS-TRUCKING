@@ -5,13 +5,13 @@
 import type { MapLocation } from './live-map-service';
 import { MAP_COLORS, MARKER_SIZES } from './map-config';
 
-export interface TruckStatus {
+interface TruckStatus {
   hasActiveFaults: boolean;
   isAssigned: boolean;
   isHealthy: boolean;
 }
 
-export interface MarkerIconOptions {
+interface MarkerIconOptions {
   label: string;
   fill: string;
   size: number;

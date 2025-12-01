@@ -37,10 +37,4 @@ export async function generateBatchNumber(companyId: string): Promise<string> {
   return `IB-${formattedNumber}`;
 }
 
-/**
- * Validate batch number format
- */
-export function isValidBatchNumber(batchNumber: string): boolean {
-  return /^IB-\d{6}$/.test(batchNumber);
-}
 

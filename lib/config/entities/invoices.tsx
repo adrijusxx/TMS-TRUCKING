@@ -66,8 +66,25 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     required: true,
   },
   {
+    id: 'loadId',
+    accessorKey: 'loadId',
+    header: 'Load #',
+    cell: ({ row }) =>
+      row.original.loadId ? (
+        <Link
+          href={`/dashboard/loads/${row.original.loadId}`}
+          className="text-primary hover:underline"
+        >
+          {row.original.loadId}
+        </Link>
+      ) : (
+        'N/A'
+      ),
+    defaultVisible: true,
+  },
+  {
     id: 'customer',
-    header: 'Customer',
+    header: 'Broker Name',
     cell: ({ row }) => (
       <Link
         href={`/dashboard/customers/${row.original.customer.id}`}
@@ -79,23 +96,9 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     defaultVisible: true,
   },
   {
-    id: 'invoiceDate',
-    accessorKey: 'invoiceDate',
-    header: 'Invoice Date',
-    cell: ({ row }) => formatDate(new Date(row.original.invoiceDate)),
-    defaultVisible: true,
-  },
-  {
-    id: 'dueDate',
-    accessorKey: 'dueDate',
-    header: 'Due Date',
-    cell: ({ row }) => formatDate(new Date(row.original.dueDate)),
-    defaultVisible: true,
-  },
-  {
     id: 'total',
     accessorKey: 'total',
-    header: 'Total',
+    header: 'Total Amount',
     cell: ({ row }) => formatCurrency(row.original.total),
     defaultVisible: true,
   },
@@ -103,11 +106,24 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     id: 'status',
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }) => (
-      <Badge variant="outline" className={statusColors[row.original.status]}>
-        {formatStatus(row.original.status)}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const displayStatus = row.original.status === 'DRAFT' ? 'Draft' :
+                            row.original.status === 'SENT' ? 'Sent' :
+                            row.original.status === 'PAID' ? 'Paid' :
+                            formatStatus(row.original.status);
+      return (
+        <Badge variant="outline" className={statusColors[row.original.status]}>
+          {displayStatus}
+        </Badge>
+      );
+    },
+    defaultVisible: true,
+  },
+  {
+    id: 'invoiceDate',
+    accessorKey: 'invoiceDate',
+    header: 'Date',
+    cell: ({ row }) => formatDate(new Date(row.original.invoiceDate)),
     defaultVisible: true,
   },
   {
@@ -154,7 +170,7 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     permission: 'mc_numbers.view',
   },
   {
-    id: 'loadId',
+    id: 'loadIdDetail',
     accessorKey: 'loadId',
     header: 'Load ID',
     cell: ({ row }) =>
@@ -208,12 +224,11 @@ export const invoicesTableConfig = createEntityTableConfig<InvoiceData>({
   columns,
   defaultVisibleColumns: [
     'invoiceNumber',
+    'loadId',
     'customer',
-    'invoiceDate',
-    'dueDate',
     'total',
     'status',
-    'balance',
+    'invoiceDate',
   ],
   requiredColumns: ['invoiceNumber'],
   bulkEditFields,

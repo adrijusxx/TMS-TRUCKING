@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const appearanceSettingsSchema = z.object({
-  theme: z.enum(['light', 'dark', 'system']).optional(),
+  theme: z.enum(['light', 'dark', 'amber', 'system']).optional(),
   primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
   secondaryColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),
   accentColor: z.string().regex(/^#[0-9A-F]{6}$/i).optional(),

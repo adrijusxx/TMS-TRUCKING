@@ -42,7 +42,7 @@ class EntityTableConfigRegistry {
 }
 
 // Global registry instance
-export const entityTableConfigRegistry = new EntityTableConfigRegistry();
+const entityTableConfigRegistry = new EntityTableConfigRegistry();
 
 /**
  * Helper function to create entity table configuration
@@ -59,7 +59,7 @@ export function createEntityTableConfig<TData extends Record<string, any>>(
 /**
  * Get entity table configuration
  */
-export function getEntityTableConfig<TData extends Record<string, any>>(
+function getEntityTableConfig<TData extends Record<string, any>>(
   entityType: string
 ): EntityTableConfig<TData> | undefined {
   return entityTableConfigRegistry.get<TData>(entityType);

@@ -5,13 +5,13 @@
 
 import { AIService } from './AIService';
 
-export interface DocumentProcessingInput {
+interface DocumentProcessingInput {
   documentType: 'INVOICE' | 'RECEIPT' | 'SAFETY_DOCUMENT' | 'INSURANCE' | 'MAINTENANCE_RECORD' | 'OTHER';
   text: string;
   fileName?: string;
 }
 
-export interface InvoiceExtractionResult {
+interface InvoiceExtractionResult {
   invoiceNumber?: string;
   vendor?: string;
   date?: string;
@@ -29,7 +29,7 @@ export interface InvoiceExtractionResult {
   poNumber?: string;
 }
 
-export interface ReceiptExtractionResult {
+interface ReceiptExtractionResult {
   vendor?: string;
   date?: string;
   items?: Array<{
@@ -45,7 +45,7 @@ export interface ReceiptExtractionResult {
   receiptNumber?: string;
 }
 
-export interface SafetyDocumentExtractionResult {
+interface SafetyDocumentExtractionResult {
   documentType?: string; // CDL, MEDICAL_CARD, MVR, etc.
   driverName?: string;
   licenseNumber?: string;
@@ -61,7 +61,7 @@ export interface SafetyDocumentExtractionResult {
   }>;
 }
 
-export interface InsuranceDocumentExtractionResult {
+interface InsuranceDocumentExtractionResult {
   policyNumber?: string;
   insuranceCompany?: string;
   policyType?: string;
@@ -77,7 +77,7 @@ export interface InsuranceDocumentExtractionResult {
   };
 }
 
-export interface MaintenanceRecordExtractionResult {
+interface MaintenanceRecordExtractionResult {
   vendor?: string;
   date?: string;
   type?: string; // OIL_CHANGE, REPAIR, INSPECTION, etc.
@@ -94,7 +94,7 @@ export interface MaintenanceRecordExtractionResult {
   invoiceNumber?: string;
 }
 
-export type DocumentExtractionResult =
+type DocumentExtractionResult =
   | InvoiceExtractionResult
   | ReceiptExtractionResult
   | SafetyDocumentExtractionResult

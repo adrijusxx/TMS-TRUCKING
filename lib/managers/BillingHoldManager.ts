@@ -10,7 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { notifyBillingHold } from '@/lib/notifications/triggers';
 import { LoadStatus } from '@prisma/client';
 
-export interface BillingHoldResult {
+interface BillingHoldResult {
   billingHoldSet: boolean;
   loadId?: string;
   loadNumber?: string;
@@ -19,7 +19,7 @@ export interface BillingHoldResult {
   allowsSettlement?: boolean;
 }
 
-export interface InvoicingEligibilityResult {
+interface InvoicingEligibilityResult {
   eligible: boolean;
   reason?: string;
   isBillingHold?: boolean;

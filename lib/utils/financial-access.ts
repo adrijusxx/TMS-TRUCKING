@@ -18,14 +18,14 @@ export function canWriteFinancialFields(role: UserRole): boolean {
  * Check if user can read financial fields
  * ADMIN, ACCOUNTANT, and DISPATCHER can read (dispatchers are read-only)
  */
-export function canReadFinancialFields(role: UserRole): boolean {
+function canReadFinancialFields(role: UserRole): boolean {
   return role === 'ADMIN' || role === 'ACCOUNTANT' || role === 'DISPATCHER';
 }
 
 /**
  * List of financial/payroll fields that require ADMIN/ACCOUNTANT to modify
  */
-export const FINANCIAL_FIELDS = [
+const FINANCIAL_FIELDS = [
   'payType',
   'payRate',
   'perDiem',
@@ -38,7 +38,7 @@ export const FINANCIAL_FIELDS = [
 /**
  * Check if a field is a financial field
  */
-export function isFinancialField(field: string): boolean {
+function isFinancialField(field: string): boolean {
   return (FINANCIAL_FIELDS as readonly string[]).includes(field);
 }
 

@@ -1,0 +1,208 @@
+'use client';
+
+import React from 'react';
+import { DataTable } from '@/components/data-table/DataTable';
+import { createDriverColumns } from './columns';
+import { useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
+import { toast } from 'sonner';
+import { exportToCSV } from '@/lib/export';
+import ImportDialog from '@/components/import-export/ImportDialog';
+import DriverInlineEdit from '@/components/drivers/DriverInlineEdit';
+import { BulkActionBar } from '@/components/data-table/BulkActionBar';
+import type { BulkEditField } from '@/components/data-table/types';
+import { DriverStatus, EmployeeStatus, AssignmentStatus } from '@prisma/client';
+
+interface DriverData {
+  id: string;
+  driverNumber: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  notes: string | null;
+  status: any;
+  employeeStatus?: any;
+  assignmentStatus?: any;
+  mcNumberId?: string | null;
+  mcNumber?: { id: string; number: string } | null;
+  createdAt: Date;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+  };
+}
+
+interface DriversTableClientProps {
+  data: DriverData[];
+}
+
+export function DriversTableClient({ data }: DriversTableClientProps) {
+  const queryClient = useQueryClient();
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+  const importDialogRef = React.useRef<{ open: () => void } | null>(null);
+
+  const handleUpdate = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['drivers'] });
+  }, [queryClient]);
+
+  const handleDelete = React.useCallback(async (ids: string[]) => {
+    try {
+      const result = await bulkDeleteEntities('driver', ids);
+      if (result.success) {
+        toast.success(`Successfully deleted ${result.deletedCount || ids.length} driver(s)`);
+        queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      } else {
+        toast.error(result.error || 'Failed to delete drivers');
+      }
+    } catch (err) {
+      toast.error('Failed to delete drivers');
+      console.error(err);
+    }
+  }, [queryClient]);
+
+  const handleExport = React.useCallback(() => {
+    if (data.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    const headers = Object.keys(data[0]);
+    exportToCSV(data, headers, `drivers-export-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`Exported ${data.length} driver(s)`);
+  }, [data]);
+
+  const handleImport = React.useCallback(() => {
+    // Trigger import dialog - using a hidden button approach
+    const trigger = document.querySelector('[data-import-trigger="drivers"]') as HTMLButtonElement;
+    if (trigger) {
+      trigger.click();
+    }
+  }, []);
+
+  const columns = React.useMemo(
+    () => createDriverColumns(handleUpdate),
+    [handleUpdate]
+  );
+
+  const rowActions = React.useCallback((row: DriverData) => {
+    return (
+      <div className="flex items-center gap-2">
+        <Link href={`/dashboard/drivers/${row.id}`}>
+          <Button variant="ghost" size="sm">
+            View
+          </Button>
+        </Link>
+      </div>
+    );
+  }, []);
+
+  const handleDeleteSelected = React.useCallback((ids: string[]) => {
+    handleDelete(ids);
+  }, [handleDelete]);
+
+  const handleExportSelected = React.useCallback((ids: string[]) => {
+    const selectedData = data.filter((row) => ids.includes(row.id));
+    if (selectedData.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    const headers = Object.keys(selectedData[0]);
+    exportToCSV(selectedData, headers, `drivers-selected-export-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`Exported ${selectedData.length} selected driver(s)`);
+  }, [data]);
+
+  const bulkEditFields: BulkEditField[] = React.useMemo(() => [
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'select',
+      options: Object.values(DriverStatus).map(status => ({
+        value: status,
+        label: status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+      })),
+    },
+    {
+      key: 'employeeStatus',
+      label: 'Employee Status',
+      type: 'select',
+      options: Object.values(EmployeeStatus).map(status => ({
+        value: status,
+        label: status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+      })),
+    },
+    {
+      key: 'assignmentStatus',
+      label: 'Assignment Status',
+      type: 'select',
+      options: Object.values(AssignmentStatus).map(status => ({
+        value: status,
+        label: status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+      })),
+    },
+    {
+      key: 'mcNumberId',
+      label: 'MC Number',
+      type: 'select',
+      placeholder: 'Select MC Number',
+    },
+  ], []);
+
+  const selectedRowIds = React.useMemo(() => {
+    return Object.keys(rowSelection).filter((key) => rowSelection[key]);
+  }, [rowSelection]);
+
+  return (
+    <>
+      {selectedRowIds.length > 0 && (
+        <BulkActionBar
+          selectedIds={selectedRowIds}
+          onClearSelection={() => setRowSelection({})}
+          entityType="drivers"
+          bulkEditFields={bulkEditFields}
+          enableBulkEdit={true}
+          enableBulkDelete={true}
+          enableBulkExport={true}
+          onActionComplete={handleUpdate}
+        />
+      )}
+      <DataTable
+        columns={columns}
+        data={data}
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+        enableRowSelection={true}
+        rowActions={rowActions}
+        emptyMessage="No drivers found"
+        filterKey="lastName"
+        onDeleteSelected={handleDeleteSelected}
+        onExportSelected={handleExportSelected}
+        onImport={handleImport}
+        onExport={handleExport}
+        inlineEditComponent={DriverInlineEdit}
+        onInlineEditSave={handleUpdate}
+      />
+      {/* Hidden import trigger */}
+      <div className="hidden">
+        <ImportDialog
+          entityType="drivers"
+          onImportComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ['drivers'] });
+          }}
+        >
+          <button data-import-trigger="drivers" type="button" />
+        </ImportDialog>
+      </div>
+    </>
+  );
+}
+

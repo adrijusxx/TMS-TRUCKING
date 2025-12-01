@@ -16,6 +16,8 @@ import InvoiceInlineEdit from './InvoiceInlineEdit';
 import { apiUrl } from '@/lib/utils';
 import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
+import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
+import { exportToCSV } from '@/lib/export';
 
 interface InvoiceData {
   id: string;
@@ -49,6 +51,31 @@ export default function InvoiceListNew() {
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  const handleDelete = React.useCallback(async (ids: string[]) => {
+    try {
+      const result = await bulkDeleteEntities('invoice', ids);
+      if (result.success) {
+        toast.success(`Successfully deleted ${result.deletedCount || ids.length} invoice(s)`);
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        setSelectedIds([]);
+      } else {
+        toast.error(result.error || 'Failed to delete invoices');
+      }
+    } catch (err) {
+      toast.error('Failed to delete invoices');
+      console.error(err);
+    }
+  }, [queryClient]);
+
+  const handleExport = React.useCallback(() => {
+    toast.info('Export all invoices functionality - use the export button in the toolbar');
+  }, []);
+
+  const handleImport = React.useCallback(() => {
+    console.log('Import invoices');
+    toast.info('Import functionality coming soon');
+  }, []);
 
   const fetchInvoices = async (params: {
     page?: number;
@@ -186,6 +213,8 @@ export default function InvoiceListNew() {
           const ids = Object.keys(selection).filter((key) => selection[key]);
           setSelectedIds(ids);
         }}
+        onDeleteSelected={handleDelete}
+        onExportSelected={handleExport}
       />
 
       {/* Bulk Action Bar */}

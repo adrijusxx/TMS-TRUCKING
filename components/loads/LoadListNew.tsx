@@ -17,6 +17,10 @@ import { apiUrl } from '@/lib/utils';
 import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
+import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
+import { toast } from 'sonner';
+import { exportToCSV } from '@/lib/export';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface LoadData {
   id: string;
@@ -68,11 +72,37 @@ interface LoadData {
 
 export default function LoadListNew() {
   const { can } = usePermissions();
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [selectedLoadId, setSelectedLoadId] = React.useState<string | null>(null);
   const [createdToday, setCreatedToday] = React.useState(false);
   const [pickupToday, setPickupToday] = React.useState(false);
   const [createdLast24h, setCreatedLast24h] = React.useState(false);
+
+  const handleDelete = React.useCallback(async (ids: string[]) => {
+    try {
+      const result = await bulkDeleteEntities('load', ids);
+      if (result.success) {
+        toast.success(`Successfully deleted ${result.deletedCount || ids.length} load(s)`);
+        queryClient.invalidateQueries({ queryKey: ['loads'] });
+        setSelectedIds([]);
+      } else {
+        toast.error(result.error || 'Failed to delete loads');
+      }
+    } catch (err) {
+      toast.error('Failed to delete loads');
+      console.error(err);
+    }
+  }, [queryClient]);
+
+  const handleExport = React.useCallback(() => {
+    toast.info('Export all loads functionality - use the export button in the toolbar');
+  }, []);
+
+  const handleImport = React.useCallback(() => {
+    console.log('Import loads - PDF Rate Con Upload');
+    toast.info('Import functionality - PDF Rate Con Upload');
+  }, []);
 
   const fetchLoads = async (params: {
     page?: number;
@@ -162,7 +192,7 @@ export default function LoadListNew() {
         View
       </Button>
       {can('loads.edit') && (
-        <Link href={`/dashboard/loads/${row.id}/edit`}>
+        <Link href={`/dashboard/loads/${row.id}`}>
           <Button variant="ghost" size="sm">
             <Edit className="h-4 w-4 mr-1" />
             Edit
@@ -268,6 +298,8 @@ export default function LoadListNew() {
           setSelectedIds(ids);
         }, [])}
         getRowClassName={getLoadRowClassName}
+        onDeleteSelected={handleDelete}
+        onExportSelected={handleExport}
       />
 
       {/* Bulk Action Bar */}

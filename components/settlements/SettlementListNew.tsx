@@ -12,6 +12,10 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { settlementsTableConfig } from '@/lib/config/entities/settlements';
 import { apiUrl } from '@/lib/utils';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
+import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
+import { toast } from 'sonner';
+import { exportToCSV } from '@/lib/export';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SettlementData {
   id: string;
@@ -35,7 +39,33 @@ interface SettlementData {
 
 export default function SettlementListNew() {
   const { can } = usePermissions();
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  const handleDelete = React.useCallback(async (ids: string[]) => {
+    try {
+      const result = await bulkDeleteEntities('settlement', ids);
+      if (result.success) {
+        toast.success(`Successfully deleted ${result.deletedCount || ids.length} settlement(s)`);
+        queryClient.invalidateQueries({ queryKey: ['settlements'] });
+        setSelectedIds([]);
+      } else {
+        toast.error(result.error || 'Failed to delete settlements');
+      }
+    } catch (err) {
+      toast.error('Failed to delete settlements');
+      console.error(err);
+    }
+  }, [queryClient]);
+
+  const handleExport = React.useCallback(() => {
+    toast.info('Export all settlements functionality - use the export button in the toolbar');
+  }, []);
+
+  const handleImport = React.useCallback(() => {
+    console.log('Import settlements');
+    toast.info('Import functionality coming soon');
+  }, []);
 
   const fetchSettlements = async (params: {
     page?: number;
@@ -125,6 +155,8 @@ export default function SettlementListNew() {
           const ids = Object.keys(selection).filter((key) => selection[key]);
           setSelectedIds(ids);
         }}
+        onDeleteSelected={handleDelete}
+        onExportSelected={handleExport}
       />
 
       {/* Bulk Action Bar */}

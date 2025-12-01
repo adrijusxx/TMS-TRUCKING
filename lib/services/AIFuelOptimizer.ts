@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface FuelOptimization {
+interface FuelOptimization {
   routeId?: string;
   loadId?: string;
   optimalFuelStops: Array<{

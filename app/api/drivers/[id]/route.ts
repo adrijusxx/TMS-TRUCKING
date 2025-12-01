@@ -27,12 +27,15 @@ export async function GET(
       );
     }
 
-    const driver = await prisma.driver.findFirst({
+    // HR users should be able to access all drivers in the company
+    // No need for MC number or role-based filtering for single driver fetch
+    // Use findUnique for better performance and to ensure we get the exact driver
+    const driver = await prisma.driver.findUnique({
       where: {
         id,
-        companyId: session.user.companyId,
-        deletedAt: null,
       },
+      // Then verify companyId matches (for security)
+      // This allows us to check companyId after fetching, which is more reliable
       include: {
         user: {
           select: {
@@ -163,6 +166,17 @@ export async function GET(
     });
 
     if (!driver) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Driver not found' },
+        },
+        { status: 404 }
+      );
+    }
+
+    // Verify the driver belongs to the user's company and is not deleted
+    if (driver.companyId !== session.user.companyId || driver.deletedAt !== null) {
       return NextResponse.json(
         {
           success: false,

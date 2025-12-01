@@ -90,5 +90,5 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
 });
 
 export type CreateDriverInput = z.infer<typeof createDriverSchema>;
-export type UpdateDriverInput = z.infer<typeof updateDriverSchema>;
+type UpdateDriverInput = z.infer<typeof updateDriverSchema>;
 

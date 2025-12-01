@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { apiUrl } from '@/lib/utils';
 
-export interface McOption {
+interface McOption {
   id: string;
   mcNumberId: string;
   name: string;
@@ -203,11 +203,4 @@ export function McFilterProvider({ children }: McFilterProviderProps) {
   );
 }
 
-export function useMcFilter() {
-  const context = useContext(McFilterContext);
-  if (context === undefined) {
-    throw new Error('useMcFilter must be used within McFilterProvider');
-  }
-  return context;
-}
 

@@ -1,6 +1,6 @@
 import { schemaReference, getModelFields } from '../schema-reference';
 
-export interface MissingFieldWarning {
+interface MissingFieldWarning {
   fieldName: string;
   fieldType: string;
   isRequired: boolean;
@@ -11,7 +11,7 @@ export interface MissingFieldWarning {
   suggestedCsvHeaders: string[];
 }
 
-export interface ImportValidationResult {
+interface ImportValidationResult {
   isValid: boolean;
   missingRequiredFields: MissingFieldWarning[];
   missingOptionalFields: MissingFieldWarning[];

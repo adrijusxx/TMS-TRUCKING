@@ -4,7 +4,7 @@ import { hasPermission, hasPermissionAsync } from './permissions';
 /**
  * Department definitions mapping route prefixes to department permissions
  */
-export const departmentRoutes: Record<string, Permission> = {
+const departmentRoutes: Record<string, Permission> = {
   '/dashboard/accounting': 'departments.accounting.view',
   '/dashboard/invoices': 'departments.accounting.view',
   '/dashboard/batches': 'departments.accounting.view',
@@ -41,7 +41,7 @@ export function getDepartmentForRoute(pathname: string): Permission | null {
 /**
  * Check if a role has access to a specific department
  */
-export function hasDepartmentAccess(role: UserRole, department: Permission): boolean {
+function hasDepartmentAccess(role: UserRole, department: Permission): boolean {
   return hasPermission(role, department);
 }
 
@@ -63,7 +63,7 @@ export function hasRouteAccess(role: UserRole, pathname: string): boolean {
 /**
  * Check if a role has access to a route based on its pathname (async - checks database)
  */
-export async function hasRouteAccessAsync(role: UserRole, pathname: string): Promise<boolean> {
+async function hasRouteAccessAsync(role: UserRole, pathname: string): Promise<boolean> {
   const departmentPermission = getDepartmentForRoute(pathname);
   
   // If no department permission is required, allow access
@@ -84,7 +84,7 @@ export async function hasRouteAccessAsync(role: UserRole, pathname: string): Pro
 /**
  * Get all department permissions
  */
-export function getAllDepartmentPermissions(): Permission[] {
+function getAllDepartmentPermissions(): Permission[] {
   return [
     'departments.accounting.view',
     'departments.fleet.view',

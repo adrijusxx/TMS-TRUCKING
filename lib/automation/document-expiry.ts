@@ -10,7 +10,7 @@ import { notifyDocumentExpiring } from '../notifications/triggers';
 /**
  * Check for expiring driver documents
  */
-export async function checkDriverDocumentExpiry(companyId: string, daysAhead: number = 30) {
+async function checkDriverDocumentExpiry(companyId: string, daysAhead: number = 30) {
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + daysAhead);
 
@@ -69,7 +69,7 @@ export async function checkDriverDocumentExpiry(companyId: string, daysAhead: nu
 /**
  * Check for expiring truck documents
  */
-export async function checkTruckDocumentExpiry(companyId: string, daysAhead: number = 30) {
+async function checkTruckDocumentExpiry(companyId: string, daysAhead: number = 30) {
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + daysAhead);
 

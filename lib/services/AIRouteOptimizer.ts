@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface RouteOptimizationInput {
+interface RouteOptimizationInput {
   loadIds: string[];
   optimizationType: 'DISTANCE' | 'TIME' | 'COST';
   startLocation?: {
@@ -19,7 +19,7 @@ export interface RouteOptimizationInput {
   companyId: string;
 }
 
-export interface RouteOptimizationResult {
+interface RouteOptimizationResult {
   optimizedSequence: string[];
   waypoints: Array<{
     loadId: string;

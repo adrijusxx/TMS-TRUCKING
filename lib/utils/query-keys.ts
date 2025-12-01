@@ -56,7 +56,7 @@ export function getMcContext(): string {
  * @param params - Additional query parameters
  * @returns Normalized query key array
  */
-export function createQueryKey(
+function createQueryKey(
   baseKey: string | string[],
   params?: Record<string, any>
 ): any[] {
@@ -84,7 +84,7 @@ export function createQueryKey(
  * Invalidates queries with MC context
  * Use this instead of invalidateQueries() to ensure proper cache invalidation
  */
-export function invalidateMcQueries(
+function invalidateMcQueries(
   queryClient: any,
   baseKey: string | string[],
   exact = false

@@ -1,12 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { calculateDistanceMatrix } from '@/lib/maps/google-maps';
 
-export interface StateMileage {
+interface StateMileage {
   state: string;
   miles: number;
 }
 
-export interface IFTACalculationResult {
+interface IFTACalculationResult {
   totalMiles: number;
   stateMileages: StateMileage[];
   totalTax: number;

@@ -1,6 +1,6 @@
 import { schemaReference, fieldExists, getModelFields, getEnumValues } from '../schema-reference';
 
-export interface ValidationResult {
+interface ValidationResult {
   isValid: boolean;
   errors: string[];
   warnings: string[];
@@ -106,7 +106,7 @@ export function validateEnumValue(
 /**
  * Validates a Prisma query object structure
  */
-export function validatePrismaQuery(modelName: string, query: any): ValidationResult {
+function validatePrismaQuery(modelName: string, query: any): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -169,21 +169,21 @@ export function validatePrismaQuery(modelName: string, query: any): ValidationRe
 /**
  * Type guard to check if a model exists
  */
-export function isModel(modelName: string): boolean {
+function isModel(modelName: string): boolean {
   return modelName in schemaReference.models;
 }
 
 /**
  * Get all field names for a model
  */
-export function getModelFieldNames(modelName: string): string[] {
+function getModelFieldNames(modelName: string): string[] {
   return getModelFields(modelName).map((f) => f.name);
 }
 
 /**
  * Get all relation names for a model
  */
-export function getModelRelationNames(modelName: string): string[] {
+function getModelRelationNames(modelName: string): string[] {
   const model = schemaReference.models[modelName];
   return model ? model.relations : [];
 }

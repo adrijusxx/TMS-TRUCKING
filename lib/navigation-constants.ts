@@ -92,7 +92,7 @@ export const NAV_CLASSES = {
 } as const;
 
 // Sidebar container classes - standardized backgrounds for all submenus
-export const SIDEBAR_CLASSES = {
+const SIDEBAR_CLASSES = {
   expanded: `${SIDEBAR_WIDTHS.expanded} border-r bg-slate-50 dark:bg-secondary overflow-y-auto p-4 ${NAV_SPACING.sections}`,
   collapsed: `${SIDEBAR_WIDTHS.collapsed} border-r bg-slate-50 dark:bg-secondary p-2 flex flex-col items-center`,
 } as const;

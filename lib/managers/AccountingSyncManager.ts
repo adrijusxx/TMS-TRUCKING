@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/prisma';
 
-export interface SyncResult {
+interface SyncResult {
   success: boolean;
   loadId: string;
   syncedAt?: Date;
@@ -15,7 +15,7 @@ export interface SyncResult {
   retryCount?: number;
 }
 
-export interface AccountingData {
+interface AccountingData {
   loadId: string;
   revenue: number;
   driverPay: number;

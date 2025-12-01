@@ -37,6 +37,8 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, Chevro
 import { cn } from '@/lib/utils';
 import type { DataTableProps, ExtendedColumnDef } from './types';
 import { ColumnFilter } from './ColumnFilter';
+import { DataTableBulkActions } from '@/components/ui/data-table-bulk-actions';
+import { DataTableToolbar } from '@/components/ui/data-table-toolbar';
 
 /**
  * Core DataTable component built on TanStack Table
@@ -67,6 +69,11 @@ export function DataTable<TData extends Record<string, any>>({
   getRowClassName,
   entityType,
   onColumnFilterChange,
+  onDeleteSelected,
+  onExportSelected,
+  filterKey,
+  onImport,
+  onExport,
 }: DataTableProps<TData>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
@@ -89,6 +96,7 @@ export function DataTable<TData extends Record<string, any>>({
     pageIndex: 0,
     pageSize: 20,
   });
+  const [globalFilter, setGlobalFilter] = React.useState('');
 
   // Use controlled or internal state
   const rowSelection = controlledRowSelection ?? internalRowSelection;
@@ -212,13 +220,48 @@ export function DataTable<TData extends Record<string, any>>({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
+    onGlobalFilterChange: setGlobalFilter,
     enableRowSelection,
+    enableGlobalFilter: !!filterKey,
+    globalFilterFn: filterKey
+      ? (row, columnId, filterValue) => {
+          // Search in the row's original data, not through column definitions
+          const rowData = row.original as any;
+          const searchValue = String(filterValue).toLowerCase();
+          
+          // Try to get value from the specified filterKey path
+          let value: any;
+          if (filterKey.includes('.')) {
+            // Handle nested paths like 'user.lastName'
+            const keys = filterKey.split('.');
+            value = keys.reduce((obj: any, key) => obj?.[key], rowData);
+          } else {
+            // Direct property access
+            value = rowData[filterKey];
+          }
+          
+          // If value is found, check if it matches
+          if (value !== undefined && value !== null) {
+            if (typeof value === 'string') {
+              return value.toLowerCase().includes(searchValue);
+            }
+            if (typeof value === 'number') {
+              return String(value).includes(searchValue);
+            }
+          }
+          
+          // If filterKey value not found or doesn't match, return false
+          // (Don't fallback to searching all values - be specific to the filterKey)
+          return false;
+        }
+      : undefined,
     state: {
       rowSelection,
       sorting,
       columnFilters,
       columnVisibility,
       pagination,
+      globalFilter,
     },
     manualPagination: !!controlledPagination,
     manualSorting: !!controlledSorting,
@@ -233,6 +276,17 @@ export function DataTable<TData extends Record<string, any>>({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.length]); // Clear selection when data is empty - only clear if there's actually a selection
+
+  // Get selected row IDs - MUST be called before any conditional returns
+  const selectedRowIds = React.useMemo(() => {
+    if (!enableRowSelection) return [];
+    return table.getFilteredSelectedRowModel().rows.map((row) => row.id);
+  }, [table, enableRowSelection, rowSelection]);
+
+  // Clear selection handler - MUST be called before any conditional returns
+  const handleClearSelection = React.useCallback(() => {
+    table.resetRowSelection();
+  }, [table]);
 
   if (error) {
     return (
@@ -278,6 +332,23 @@ export function DataTable<TData extends Record<string, any>>({
 
   return (
     <div className="space-y-4">
+      {/* Toolbar: Search, Filters, Columns, Import, Export */}
+      {(filterKey || onImport || onExport) && (
+        <DataTableToolbar
+          table={table}
+          filterKey={filterKey}
+          onImport={onImport}
+          onExport={onExport}
+        />
+      )}
+      
+      <DataTableBulkActions
+        selectedCount={table.getFilteredSelectedRowModel().rows.length}
+        selectedIds={selectedRowIds}
+        onDelete={onDeleteSelected}
+        onExport={onExportSelected}
+        onClearSelection={handleClearSelection}
+      />
       <div className="border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <Table>

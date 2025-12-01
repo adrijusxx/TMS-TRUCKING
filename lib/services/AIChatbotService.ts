@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface ChatbotInput {
+interface ChatbotInput {
   message: string;
   companyId: string;
   customerId?: string;
@@ -14,7 +14,7 @@ export interface ChatbotInput {
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
-export interface ChatbotResponse {
+interface ChatbotResponse {
   response: string;
   suggestions?: string[];
   data?: any; // Structured data if query is about specific entity

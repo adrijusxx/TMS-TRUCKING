@@ -13,7 +13,7 @@ import { DriverAdvanceManager } from './DriverAdvanceManager';
 import { LoadExpenseManager } from './LoadExpenseManager';
 import { LoadStatus } from '@prisma/client';
 
-export interface SettlementGenerationParams {
+interface SettlementGenerationParams {
   driverId: string;
   periodStart: Date;
   periodEnd: Date;
@@ -21,14 +21,14 @@ export interface SettlementGenerationParams {
   notes?: string;
 }
 
-export interface DeductionItem {
+interface DeductionItem {
   type: string;
   description: string;
   amount: number;
   reference?: string;
 }
 
-export interface AdditionItem {
+interface AdditionItem {
   type: string;
   description: string;
   amount: number;

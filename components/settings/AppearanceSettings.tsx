@@ -18,14 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Palette, Moon, Sun, Monitor, Layout, Type } from 'lucide-react';
+import { Palette, Moon, Sun, Monitor, Layout, Type, Flame } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import { useTheme } from '@/components/providers/ThemeProvider';
 
 const appearanceSchema = z.object({
   // Theme
-  theme: z.enum(['light', 'dark', 'system']),
+  theme: z.enum(['light', 'dark', 'amber', 'system']),
   
   // Colors
   primaryColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Invalid color format'),
@@ -187,6 +187,12 @@ export default function AppearanceSettings() {
                   <div className="flex items-center gap-2">
                     <Moon className="h-4 w-4" />
                     Dark
+                  </div>
+                </SelectItem>
+                <SelectItem value="amber">
+                  <div className="flex items-center gap-2">
+                    <Flame className="h-4 w-4" />
+                    Amber
                   </div>
                 </SelectItem>
                 <SelectItem value="system">

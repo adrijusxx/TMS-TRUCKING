@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import BatchList from '@/components/batches/BatchList';
+import BatchList from '@/components/batches/BatchListNew';
 
 export default function BatchesPage() {
   return (

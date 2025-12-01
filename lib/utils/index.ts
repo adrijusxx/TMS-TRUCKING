@@ -37,7 +37,7 @@ export function formatDateTime(date: Date | string): string {
  * For subdirectory deployment (domain.com/tms): returns '/tms'
  * Don't detect from URL as it may already have basePath appended
  */
-export function getBasePath(): string {
+function getBasePath(): string {
   return process.env.NEXT_PUBLIC_BASE_PATH || '';
 }
 

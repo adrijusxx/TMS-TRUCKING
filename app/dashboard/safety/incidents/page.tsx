@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import IncidentList from '@/components/safety/incidents/IncidentList';
+import { IncidentsTableClient } from './IncidentsTableClient';
 
 export default function IncidentsPage() {
   return (
@@ -12,7 +12,7 @@ export default function IncidentsPage() {
         <div>
           <h1 className="text-3xl font-bold">Safety Incidents</h1>
         </div>
-        <IncidentList />
+        <IncidentsTableClient />
       </div>
     </>
   );

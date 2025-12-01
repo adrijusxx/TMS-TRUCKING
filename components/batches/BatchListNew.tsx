@@ -2,8 +2,19 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Plus, Upload, Download } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Plus, Upload, Download, Send, Trash2 } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportDialog from '@/components/import-export/ImportDialog';
@@ -11,6 +22,8 @@ import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { batchesTableConfig } from '@/lib/config/entities/batches';
 import { apiUrl } from '@/lib/utils';
+import { toast } from 'sonner';
+import CreateBatchForm from './CreateBatchForm';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 
 interface BatchData {
@@ -30,8 +43,11 @@ interface BatchData {
 }
 
 export default function BatchListNew() {
+  const queryClient = useQueryClient();
   const { can } = usePermissions();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+  const [createBatchDialogOpen, setCreateBatchDialogOpen] = React.useState(false);
+  const [deleteBatchId, setDeleteBatchId] = React.useState<string | null>(null);
 
   const fetchBatches = async (params: {
     page?: number;
@@ -80,8 +96,65 @@ export default function BatchListNew() {
     };
   };
 
+  const handleDelete = async (batchId: string) => {
+    try {
+      const response = await fetch(apiUrl(`/api/batches/${batchId}`), {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to delete batch');
+      }
+      toast.success('Batch deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+      setDeleteBatchId(null);
+      setSelectedIds([]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete batch');
+    }
+  };
+
+  const handleSendToFactoring = async (batchId: string) => {
+    try {
+      const response = await fetch(apiUrl(`/api/batches/${batchId}/send`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to send batch');
+      }
+      toast.success('Batch sent to factoring');
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to send batch');
+    }
+  };
+
   const rowActions = (row: BatchData) => (
     <div className="flex items-center gap-2">
+      {row.postStatus === 'UNPOSTED' && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleSendToFactoring(row.id)}
+            title="Send to factoring"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDeleteBatchId(row.id)}
+            className="text-destructive hover:text-destructive"
+            title="Delete batch"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </>
+      )}
       <Link href={`/dashboard/accounting/batches/${row.id}`}>
         <Button variant="ghost" size="sm">
           View
@@ -112,12 +185,10 @@ export default function BatchListNew() {
             </ExportDialog>
           )}
           {can('batches.create') && (
-            <Link href="/dashboard/accounting/batches/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                New Batch
-              </Button>
-            </Link>
+            <Button size="sm" onClick={() => setCreateBatchDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Batch
+            </Button>
           )}
         </div>
       </div>
@@ -150,6 +221,36 @@ export default function BatchListNew() {
           onActionComplete={() => {}}
         />
       )}
+
+      <CreateBatchForm
+        open={createBatchDialogOpen}
+        onOpenChange={setCreateBatchDialogOpen}
+      />
+
+      <AlertDialog open={!!deleteBatchId} onOpenChange={(open) => !open && setDeleteBatchId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this batch? This action cannot be undone.
+              Only UNPOSTED batches can be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteBatchId) {
+                  handleDelete(deleteBatchId);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

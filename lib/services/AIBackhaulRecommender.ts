@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface BackhaulRecommendationInput {
+interface BackhaulRecommendationInput {
   deliveryCity: string;
   deliveryState: string;
   deliveryDate: Date;
@@ -14,7 +14,7 @@ export interface BackhaulRecommendationInput {
   companyId: string;
 }
 
-export interface BackhaulRecommendation {
+interface BackhaulRecommendation {
   loadId: string;
   loadNumber: string;
   pickupCity: string;
@@ -34,7 +34,7 @@ export interface BackhaulRecommendation {
   };
 }
 
-export interface BackhaulRecommendationResult {
+interface BackhaulRecommendationResult {
   recommendations: BackhaulRecommendation[];
   summary: {
     totalOpportunities: number;

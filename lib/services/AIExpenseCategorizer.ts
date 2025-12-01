@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface ExpenseCategorizationInput {
+interface ExpenseCategorizationInput {
   description: string;
   vendor?: string;
   amount?: number;
@@ -16,7 +16,7 @@ export interface ExpenseCategorizationInput {
   mcNumberId?: string;
 }
 
-export interface ExpenseCategorizationResult {
+interface ExpenseCategorizationResult {
   categoryId?: string;
   categoryName?: string;
   expenseTypeId?: string;

@@ -207,7 +207,7 @@ export async function createQuickBooksInvoice(
 /**
  * Get customer from QuickBooks
  */
-export async function getQuickBooksCustomer(
+async function getQuickBooksCustomer(
   accessToken: string,
   realmId: string,
   customerId: string

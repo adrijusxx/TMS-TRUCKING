@@ -7,12 +7,12 @@
  * - 214: Transportation Carrier Shipment Status Message
  */
 
-export interface EDISegment {
+interface EDISegment {
   id: string;
   elements: string[];
 }
 
-export interface EDITransaction {
+interface EDITransaction {
   type: '204' | '210' | '214';
   segments: EDISegment[];
   senderId?: string;

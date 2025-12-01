@@ -11,7 +11,7 @@
 
 import { prisma } from '@/lib/prisma';
 
-export interface McState {
+interface McState {
   mcNumberId: string | null; // Single MC ID (legacy, for backward compatibility)
   mcNumber: string | null; // Single MC number value (legacy)
   mcNumberIds: string[]; // Array of MC IDs being viewed

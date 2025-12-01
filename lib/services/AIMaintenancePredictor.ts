@@ -6,12 +6,12 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface MaintenancePredictionInput {
+interface MaintenancePredictionInput {
   truckId: string;
   companyId: string;
 }
 
-export interface MaintenancePrediction {
+interface MaintenancePrediction {
   type: string;
   description: string;
   predictedDate: string;
@@ -27,7 +27,7 @@ export interface MaintenancePrediction {
   };
 }
 
-export interface MaintenancePredictionResult {
+interface MaintenancePredictionResult {
   truckId: string;
   truckNumber: string;
   currentMileage: number;

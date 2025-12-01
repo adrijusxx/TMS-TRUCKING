@@ -6,12 +6,12 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface CashFlowPredictionInput {
+interface CashFlowPredictionInput {
   companyId: string;
   days: number; // Number of days to predict
 }
 
-export interface CashFlowPrediction {
+interface CashFlowPrediction {
   date: string;
   expectedInflow: number;
   expectedOutflow: number;
@@ -26,7 +26,7 @@ export interface CashFlowPrediction {
   };
 }
 
-export interface CashFlowPredictionResult {
+interface CashFlowPredictionResult {
   predictions: CashFlowPrediction[];
   summary: {
     totalInflow: number;

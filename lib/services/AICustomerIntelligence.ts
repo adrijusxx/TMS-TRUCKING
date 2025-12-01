@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface CustomerIntelligence {
+interface CustomerIntelligence {
   customerId: string;
   customerName: string;
   paymentBehavior: {

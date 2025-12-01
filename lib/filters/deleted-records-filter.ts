@@ -42,25 +42,6 @@ export function parseIncludeDeleted(request: Request): boolean {
   return includeDeleted === 'true' || includeDeleted === '1';
 }
 
-/**
- * Check if a record is soft-deleted
- * 
- * @param record - Record object with optional deletedAt field
- * @returns Boolean indicating if record is deleted
- */
-export function isRecordDeleted(record: { deletedAt?: Date | null }): boolean {
-  return record.deletedAt !== null && record.deletedAt !== undefined;
-}
-
-/**
- * Get deletion timestamp for a record
- * 
- * @param record - Record object with optional deletedAt field
- * @returns Date object or null
- */
-export function getDeletedAt(record: { deletedAt?: Date | null }): Date | null {
-  return record.deletedAt || null;
-}
 
 
 

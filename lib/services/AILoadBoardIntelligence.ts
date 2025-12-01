@@ -22,7 +22,7 @@ export interface LoadBoardLoad {
   hazmat?: boolean;
 }
 
-export interface LoadScore {
+interface LoadScore {
   loadId: string;
   loadNumber: string;
   profitabilityScore: number; // 0-100

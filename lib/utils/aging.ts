@@ -3,7 +3,7 @@
  * Calculate invoice aging days and categorize into buckets
  */
 
-export interface AgingBucket {
+interface AgingBucket {
   current: number;
   '1-30': number;
   '31-60': number;
@@ -11,7 +11,7 @@ export interface AgingBucket {
   '90+': number;
 }
 
-export interface AgingInfo {
+interface AgingInfo {
   daysPastDue: number;
   agingStatus: 'NOT_OVERDUE' | '1-30' | '31-60' | '61-90' | '90+';
   bucket: keyof AgingBucket;
@@ -37,7 +37,7 @@ export function calculateAgingDays(dueDate: Date | string): number {
 /**
  * Get aging status based on days past due
  */
-export function getAgingStatus(daysPastDue: number): AgingInfo['agingStatus'] {
+function getAgingStatus(daysPastDue: number): AgingInfo['agingStatus'] {
   if (daysPastDue <= 0) {
     return 'NOT_OVERDUE';
   } else if (daysPastDue <= 30) {
@@ -54,7 +54,7 @@ export function getAgingStatus(daysPastDue: number): AgingInfo['agingStatus'] {
 /**
  * Get aging bucket key for categorization
  */
-export function getAgingBucket(daysPastDue: number): keyof AgingBucket {
+function getAgingBucket(daysPastDue: number): keyof AgingBucket {
   if (daysPastDue <= 0) {
     return 'current';
   } else if (daysPastDue <= 30) {
@@ -71,7 +71,7 @@ export function getAgingBucket(daysPastDue: number): keyof AgingBucket {
 /**
  * Get complete aging information for an invoice
  */
-export function getAgingInfo(dueDate: Date | string): AgingInfo {
+function getAgingInfo(dueDate: Date | string): AgingInfo {
   const daysPastDue = calculateAgingDays(dueDate);
   const agingStatus = getAgingStatus(daysPastDue);
   const bucket = getAgingBucket(daysPastDue);
@@ -86,7 +86,7 @@ export function getAgingInfo(dueDate: Date | string): AgingInfo {
 /**
  * Categorize invoices into aging buckets
  */
-export function categorizeAgingBuckets(
+function categorizeAgingBuckets(
   invoices: Array<{ dueDate: Date | string; balance: number }>
 ): AgingBucket {
   const buckets: AgingBucket = {

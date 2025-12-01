@@ -43,31 +43,6 @@ export async function convertMcNumberIdToMcNumberString(
   return result;
 }
 
-/**
- * Converts multi-MC mcNumberId filter to mcNumber string array for models that still use mcNumber string
- * @param multiMcWhere - The where clause from buildMultiMcNumberWhereClause
- * @returns A where clause with mcNumber string array instead of mcNumberId array
- */
-export async function convertMultiMcNumberIdToMcNumberString(
-  multiMcWhere: { companyId: string; mcNumberId?: { in: string[] } }
-): Promise<{ companyId: string; mcNumber?: { in: string[] } }> {
-  const result: { companyId: string; mcNumber?: { in: string[] } } = {
-    companyId: multiMcWhere.companyId,
-  };
-
-  if (multiMcWhere.mcNumberId && typeof multiMcWhere.mcNumberId === 'object' && 'in' in multiMcWhere.mcNumberId) {
-    const mcNumbers = await prisma.mcNumber.findMany({
-      where: { id: { in: multiMcWhere.mcNumberId.in }, companyId: multiMcWhere.companyId },
-      select: { number: true },
-    });
-    const mcNumberValues = mcNumbers.map(mc => mc.number?.trim()).filter((n): n is string => !!n);
-    if (mcNumberValues.length > 0) {
-      result.mcNumber = { in: mcNumberValues };
-    }
-  }
-
-  return result;
-}
 
 /**
  * Gets the current MC number ID and value from session or cookies
@@ -82,46 +57,8 @@ export async function getCurrentMcNumber(session: any, request?: any): Promise<{
   };
 }
 
-/**
- * Builds a where clause that filters by companyId and optionally by mcNumber
- * @param companyId - The company ID
- * @param mcNumber - Optional MC number value to filter by
- * @returns A where clause object for Prisma queries
- */
-export function buildMcNumberFilter(companyId: string, mcNumber?: string | null) {
-  const baseFilter: any = {
-    companyId,
-  };
 
-  if (mcNumber) {
-    baseFilter.mcNumber = mcNumber;
-  }
 
-  return baseFilter;
-}
-
-/**
- * Gets the MC number value from session
- * Note: This is a server-side helper
- */
-export function getMcNumberFromSession(session: any): string | null | undefined {
-  return (session?.user as any)?.mcNumber || null;
-}
-
-/**
- * Gets the MC number value from an MC number ID
- * This should be called server-side with Prisma access
- */
-export async function getMcNumberValue(mcNumberId: string | null | undefined): Promise<string | null> {
-  if (!mcNumberId) return null;
-  
-  const mcNumber = await prisma.mcNumber.findUnique({
-    where: { id: mcNumberId },
-    select: { number: true },
-  });
-  
-  return mcNumber?.number || null;
-}
 
 /**
  * Builds a where clause for queries that should filter by MC number

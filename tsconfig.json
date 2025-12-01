@@ -22,6 +22,7 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
@@ -37,6 +38,6 @@
   ],
   "exclude": [
     "node_modules",
-    ".next/dev/types/validator.ts"
+    "legacy_src"
   ]
 }

@@ -11,6 +11,8 @@ import { ColumnPreferenceManager } from '@/lib/managers/ColumnPreferenceManager'
 import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
+import { ImportModal } from '@/components/ui/import-modal';
+import { exportToCSV } from '@/lib/export';
 import type {
   DataTableProps,
   ExtendedColumnDef,
@@ -99,6 +101,14 @@ interface DataTableWrapperProps<TData extends Record<string, any>> {
    * Function to get custom className for a row
    */
   getRowClassName?: (row: TData) => string;
+  /**
+   * Handler for bulk delete action
+   */
+  onDeleteSelected?: (selectedIds: string[]) => void;
+  /**
+   * Handler for bulk export action
+   */
+  onExportSelected?: (selectedIds: string[]) => void;
 }
 
 /**
@@ -121,6 +131,8 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   searchPlaceholder,
   inlineEditComponent,
   getRowClassName,
+  onDeleteSelected,
+  onExportSelected,
 }: DataTableWrapperProps<TData>) {
   const { can } = usePermissions();
   const isAdmin = useIsAdmin();
@@ -140,6 +152,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   });
   const [userPreferences, setUserPreferences] = React.useState<UserColumnPreferences | null>(null);
   const [isSelectingAll, setIsSelectingAll] = React.useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
 
   // Filter columns based on permissions
   const visibleColumns = React.useMemo(() => {
@@ -401,6 +414,92 @@ export function DataTableWrapper<TData extends Record<string, any>>({
     }
   }, [enableRowSelection, fetchData, sorting, nonSearchFilters, searchFilter, queryParams, handleRowSelectionChange]);
 
+  // Export handler - exports current filtered data
+  const handleExport = React.useCallback(() => {
+    const currentData = data?.data || [];
+    if (currentData.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+
+    // Get visible columns (those that are not hidden)
+    const visibleCols = filteredColumns.filter(
+      (col) => columnVisibility[col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : '')] !== false
+    );
+
+    // Extract headers and accessor keys
+    const headers: string[] = [];
+    const accessorKeys: string[] = [];
+
+    visibleCols.forEach((col) => {
+      const header = typeof col.header === 'string' 
+        ? col.header 
+        : (col.header as any)?.toString?.() || col.id || String(col.accessorKey || '');
+      const accessorKey = typeof col.accessorKey === 'string' 
+        ? col.accessorKey 
+        : col.id || '';
+      
+      headers.push(header);
+      accessorKeys.push(accessorKey);
+    });
+
+    // Prepare data for export - use headers as keys
+    const exportData = currentData.map((row) => {
+      const exportRow: Record<string, any> = {};
+      headers.forEach((header, index) => {
+        const accessorKey = accessorKeys[index];
+        // Get value using accessorKey, or try column id
+        let value: any = '';
+        if (accessorKey) {
+          // Handle nested accessors (e.g., 'user.firstName')
+          if (accessorKey.includes('.')) {
+            const keys = accessorKey.split('.');
+            value = keys.reduce((obj: any, key) => obj?.[key], row) ?? '';
+          } else {
+            value = row[accessorKey] ?? '';
+          }
+        }
+        exportRow[header] = value;
+      });
+      return exportRow;
+    });
+
+    // Generate filename
+    const filename = `${config.entityType}-export-${new Date().toISOString().split('T')[0]}.csv`;
+
+    // Export to CSV
+    exportToCSV(exportData, headers, filename);
+    toast.success(`Exported ${exportData.length} row(s) to ${filename}`);
+  }, [data, filteredColumns, columnVisibility, config.entityType]);
+
+  // Import handler - opens import modal
+  const handleImport = React.useCallback(() => {
+    setIsImportModalOpen(true);
+  }, []);
+
+  // Handle import completion
+  const handleImportComplete = React.useCallback(
+    (mappedData: Array<Record<string, any>>, columnMapping: Record<string, string>) => {
+      // This will be connected to backend later
+      console.log('Import data:', mappedData);
+      console.log('Column mapping:', columnMapping);
+      toast.info('Import functionality will be connected to backend logic later');
+      refetch(); // Refresh data after import
+    },
+    [refetch]
+  );
+
+  // Get database fields from columns for import mapping
+  const databaseFields = React.useMemo(() => {
+    return visibleColumns.map((col) => ({
+      key: col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : ''),
+      label: typeof col.header === 'string' 
+        ? col.header 
+        : (col.header as any)?.toString?.() || col.id || String(col.accessorKey || ''),
+      required: (col as ExtendedColumnDef<TData>).required || false,
+    }));
+  }, [visibleColumns]);
+
   return (
     <div className="space-y-4">
       {/* Search and Filter Toolbar */}
@@ -416,6 +515,10 @@ export function DataTableWrapper<TData extends Record<string, any>>({
           onSelectAll={enableRowSelection ? handleSelectAll : undefined}
           isSelectingAll={isSelectingAll}
           totalCount={data?.meta?.totalCount}
+          enableExport={config.enableExport !== false}
+          onExport={config.enableExport !== false ? handleExport : undefined}
+          enableImport={config.enableImport === true}
+          onImport={config.enableImport === true ? handleImport : undefined}
         />
       )}
 
@@ -482,7 +585,20 @@ export function DataTableWrapper<TData extends Record<string, any>>({
           // Trigger refetch when column filter changes
           refetch();
         }}
+        onDeleteSelected={onDeleteSelected}
+        onExportSelected={onExportSelected}
       />
+
+      {/* Import Modal */}
+      {config.enableImport && (
+        <ImportModal
+          open={isImportModalOpen}
+          onOpenChange={setIsImportModalOpen}
+          databaseFields={databaseFields}
+          onImport={handleImportComplete}
+          entityType={config.entityType}
+        />
+      )}
     </div>
   );
 }

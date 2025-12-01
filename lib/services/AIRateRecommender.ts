@@ -7,7 +7,7 @@ import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 import { EquipmentType } from '@prisma/client';
 
-export interface RateRecommendationInput {
+interface RateRecommendationInput {
   pickupCity: string;
   pickupState: string;
   deliveryCity: string;
@@ -20,7 +20,7 @@ export interface RateRecommendationInput {
   companyId: string;
 }
 
-export interface RateRecommendation {
+interface RateRecommendation {
   recommendedRate: number;
   ratePerMile: number;
   confidence: number;

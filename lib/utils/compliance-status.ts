@@ -45,7 +45,7 @@ export function isExpiringSoon(
 /**
  * Get expiration status
  */
-export function getExpirationStatus(
+function getExpirationStatus(
   expirationDate: Date | null | undefined
 ): 'current' | 'expiring' | 'expired' {
   if (!expirationDate) return 'current';

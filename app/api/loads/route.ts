@@ -494,6 +494,12 @@ export async function GET(request: NextRequest) {
             orderBy: { createdAt: 'asc' }, // Get the first entry (when load was created/imported)
             take: 1,
           },
+          rateConfirmation: {
+            select: {
+              id: true,
+              rateConfNumber: true,
+            },
+          },
         },
         orderBy: { [sortBy]: sortOrder === 'desc' ? 'desc' : 'asc' },
         skip,

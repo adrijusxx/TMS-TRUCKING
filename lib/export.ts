@@ -4,7 +4,7 @@
  * Provides functions to export data in various formats (CSV, Excel, PDF)
  */
 
-export interface ExportOptions {
+interface ExportOptions {
   format: 'csv' | 'json' | 'xlsx';
   filename?: string;
 }
@@ -48,7 +48,7 @@ export function exportToCSV(data: any[], headers: string[], filename: string = '
 /**
  * Export data to Excel format (CSV for now, can be enhanced with xlsx library)
  */
-export function exportToExcel(
+function exportToExcel(
   data: any[],
   headers: string[],
   filename: string = 'export.csv'
@@ -61,7 +61,7 @@ export function exportToExcel(
 /**
  * Generate download link for exported data
  */
-export function downloadExport(content: string, filename: string, mimeType: string = 'text/csv') {
+function downloadExport(content: string, filename: string, mimeType: string = 'text/csv') {
   const blob = new Blob([content], { type: mimeType });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -89,7 +89,7 @@ export function exportToJSON(data: any[], filename: string = 'export.json') {
 /**
  * Format date for export
  */
-export function formatDateForExport(date: Date | string | null | undefined): string {
+function formatDateForExport(date: Date | string | null | undefined): string {
   if (!date) return '';
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleDateString('en-US', {

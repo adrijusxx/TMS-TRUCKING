@@ -3,7 +3,7 @@
  * Handles parsing and validating CSV files for bulk imports
  */
 
-export interface CSVImportOptions {
+interface CSVImportOptions {
   skipFirstRow?: boolean; // Skip header row
   maxRows?: number; // Maximum number of rows to process
   validateRow?: (row: any, index: number) => { valid: boolean; errors?: string[] };
@@ -192,7 +192,7 @@ export async function csvFileToJSON(file: File | Buffer | string): Promise<CSVIm
 /**
  * Validate email format
  */
-export function isValidEmail(email: string): boolean {
+function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
@@ -200,7 +200,7 @@ export function isValidEmail(email: string): boolean {
 /**
  * Validate phone format (US format)
  */
-export function isValidPhone(phone: string): boolean {
+function isValidPhone(phone: string): boolean {
   const phoneRegex = /^[\d\s\-()]+$/;
   const digitsOnly = phone.replace(/\D/g, '');
   return digitsOnly.length >= 10 && digitsOnly.length <= 11;
@@ -209,7 +209,7 @@ export function isValidPhone(phone: string): boolean {
 /**
  * Validate date format
  */
-export function isValidDate(dateString: string): boolean {
+function isValidDate(dateString: string): boolean {
   const date = new Date(dateString);
   return !isNaN(date.getTime());
 }
@@ -217,7 +217,7 @@ export function isValidDate(dateString: string): boolean {
 /**
  * Convert string to number, handling empty strings and invalid values
  */
-export function parseNumber(value: string, defaultValue: number = 0): number {
+function parseNumber(value: string, defaultValue: number = 0): number {
   if (!value || value.trim() === '') return defaultValue;
   const parsed = parseFloat(value);
   return isNaN(parsed) ? defaultValue : parsed;
@@ -226,7 +226,7 @@ export function parseNumber(value: string, defaultValue: number = 0): number {
 /**
  * Convert string to boolean
  */
-export function parseBoolean(value: string): boolean {
+function parseBoolean(value: string): boolean {
   const normalized = value.toLowerCase().trim();
   return ['true', '1', 'yes', 'y'].includes(normalized);
 }

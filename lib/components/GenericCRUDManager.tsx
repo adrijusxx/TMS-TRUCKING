@@ -15,6 +15,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -213,20 +220,22 @@ export default function GenericCRUDManager<T extends { id: string; [key: string]
                       rows={3}
                     />
                   ) : field.type === 'select' ? (
-                    <select
-                      id={field.name}
+                    <Select
                       value={formData[field.name] || ''}
-                      onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+                      onValueChange={(value) => setFormData({ ...formData, [field.name]: value })}
                       required={field.required}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                     >
-                      <option value="">Select {field.label}</option>
-                      {field.options?.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger id={field.name}>
+                        <SelectValue placeholder={`Select ${field.label}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {field.options?.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <Input
                       id={field.name}

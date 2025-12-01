@@ -10,8 +10,13 @@ import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { locationsTableConfig } from '@/lib/config/entities/locations';
+import LocationInlineEdit from '@/components/locations/LocationInlineEdit';
 import { apiUrl } from '@/lib/utils';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
+import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
+import { toast } from 'sonner';
+import { exportToCSV } from '@/lib/export';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface LocationData {
   id: string;
@@ -24,13 +29,40 @@ interface LocationData {
   zip: string;
   contactName?: string | null;
   contactPhone?: string | null;
+  notes?: string | null;
   pickupCount: number;
   deliveryCount: number;
 }
 
 export default function LocationListNew() {
   const { can } = usePermissions();
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  const handleDelete = React.useCallback(async (ids: string[]) => {
+    try {
+      const result = await bulkDeleteEntities('location', ids);
+      if (result.success) {
+        toast.success(`Successfully deleted ${result.deletedCount || ids.length} location(s)`);
+        queryClient.invalidateQueries({ queryKey: ['locations'] });
+        setSelectedIds([]);
+      } else {
+        toast.error(result.error || 'Failed to delete locations');
+      }
+    } catch (err) {
+      toast.error('Failed to delete locations');
+      console.error(err);
+    }
+  }, [queryClient]);
+
+  const handleExport = React.useCallback(() => {
+    toast.info('Export all locations functionality - use the export button in the toolbar');
+  }, []);
+
+  const handleImport = React.useCallback(() => {
+    console.log('Import locations');
+    toast.info('Import functionality coming soon');
+  }, []);
 
   const fetchLocations = async (params: {
     page?: number;
@@ -133,6 +165,7 @@ export default function LocationListNew() {
         config={locationsTableConfig}
         fetchData={fetchLocations}
         rowActions={rowActions}
+        inlineEditComponent={can('locations.edit') ? LocationInlineEdit : undefined}
         emptyMessage="No locations found. Get started by adding your first location."
         enableColumnVisibility={can('data.column_visibility')}
         enableRowSelection={true}
@@ -140,6 +173,8 @@ export default function LocationListNew() {
           const ids = Object.keys(selection).filter((key) => selection[key]);
           setSelectedIds(ids);
         }}
+        onDeleteSelected={handleDelete}
+        onExportSelected={handleExport}
       />
 
       {/* Bulk Action Bar */}

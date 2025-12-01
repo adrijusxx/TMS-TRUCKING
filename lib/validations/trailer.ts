@@ -22,12 +22,12 @@ export const createTrailerSchema = z.object({
   mcNumberId: z.string().min(1, 'MC number is required'),
 });
 
-export const updateTrailerSchema = createTrailerSchema.partial().extend({
+const updateTrailerSchema = createTrailerSchema.partial().extend({
   mcNumberId: z.string().min(1, 'MC number is required').nullable().optional(),
 });
 
 export type CreateTrailerInput = z.infer<typeof createTrailerSchema>;
-export type UpdateTrailerInput = z.infer<typeof updateTrailerSchema>;
+type UpdateTrailerInput = z.infer<typeof updateTrailerSchema>;
 
 
 

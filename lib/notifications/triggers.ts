@@ -202,7 +202,7 @@ export async function notifyHOSViolation(
 /**
  * Send notification when maintenance is due
  */
-export async function notifyMaintenanceDue(truckId: string, maintenanceType: string, dueDate: Date) {
+async function notifyMaintenanceDue(truckId: string, maintenanceType: string, dueDate: Date) {
   try {
     const truck = await prisma.truck.findUnique({
       where: { id: truckId },

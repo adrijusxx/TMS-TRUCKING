@@ -67,7 +67,7 @@ export async function retry<T>(
 /**
  * Retry with custom error handling
  */
-export async function retryWithErrorHandling<T>(
+async function retryWithErrorHandling<T>(
   fn: () => Promise<T>,
   options: RetryOptions = {},
   onRetry?: (error: any, attempt: number) => void

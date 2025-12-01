@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import McBadge from '@/components/mc-numbers/McBadge';
 import { LoadStatusCell } from '@/components/loads/LoadStatusCell';
+import { RateConfEditableCell } from '@/components/loads/RateConfEditableCell';
 import { AlertTriangle, FileText } from 'lucide-react';
 import {
   Tooltip,
@@ -65,6 +66,10 @@ interface LoadData {
   updatedAt?: Date | string;
   missingDocuments?: string[];
   hasMissingDocuments?: boolean;
+  rateConfirmation?: Array<{
+    id: string;
+    rateConfNumber: string | null;
+  }> | null;
 }
 
 export function formatStatus(status: LoadStatus): string {
@@ -197,6 +202,60 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     required: true,
   },
   {
+    id: 'rateConfNumber',
+    header: 'Rate Con #',
+    cell: ({ row }) => {
+      const rateConf = row.original.rateConfirmation?.[0];
+      return (
+        <RateConfEditableCell
+          loadId={row.original.id}
+          rateConfId={rateConf?.id || null}
+          rateConfNumber={rateConf?.rateConfNumber || null}
+        />
+      );
+    },
+    defaultVisible: true,
+  },
+  {
+    id: 'status',
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => (
+      <LoadStatusCell loadId={row.original.id} status={row.original.status} />
+    ),
+    defaultVisible: true,
+    enableColumnFilter: true,
+    filterKey: 'status',
+  },
+  {
+    id: 'origin',
+    header: 'Origin',
+    cell: ({ row }) => (
+      <div className="font-medium">
+        {row.original.pickupCity || 'N/A'}, {row.original.pickupState || 'N/A'}
+      </div>
+    ),
+    defaultVisible: true,
+  },
+  {
+    id: 'destination',
+    header: 'Dest',
+    cell: ({ row }) => (
+      <div className="font-medium">
+        {row.original.deliveryCity || 'N/A'}, {row.original.deliveryState || 'N/A'}
+      </div>
+    ),
+    defaultVisible: true,
+  },
+  {
+    id: 'revenue',
+    accessorKey: 'revenue',
+    header: 'Rate',
+    cell: ({ row }) => formatCurrency(row.original.revenue),
+    defaultVisible: true,
+    // Rate is NOT editable - financial safety
+  },
+  {
     id: 'customer',
     header: 'Customer',
     cell: ({ row }) =>
@@ -227,18 +286,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
         </div>
       </div>
     ),
-    defaultVisible: true,
-  },
-  {
-    id: 'status',
-    accessorKey: 'status',
-    header: 'Status',
-    cell: ({ row }) => (
-      <LoadStatusCell loadId={row.original.id} status={row.original.status} />
-    ),
-    defaultVisible: true,
-    enableColumnFilter: true,
-    filterKey: 'status',
+    defaultVisible: false, // Hidden by default since we have Origin/Dest columns
   },
   {
     id: 'driver',
@@ -275,13 +323,6 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'truckId',
-  },
-  {
-    id: 'revenue',
-    accessorKey: 'revenue',
-    header: 'Revenue',
-    cell: ({ row }) => formatCurrency(row.original.revenue),
-    defaultVisible: true,
   },
   {
     id: 'pickupDate',
@@ -540,13 +581,12 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
   columns,
   defaultVisibleColumns: [
     'loadNumber',
-    'customer',
-    'route',
+    'rateConfNumber',
     'status',
-    'driver',
-    'truck',
-    'documents',
+    'origin',
+    'destination',
     'revenue',
+    'customer',
   ],
   requiredColumns: ['loadNumber'],
   bulkEditFields,

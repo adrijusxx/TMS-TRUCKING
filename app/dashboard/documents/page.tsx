@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import DocumentList from '@/components/documents/DocumentList';
+import DocumentList from '@/components/documents/DocumentListNew';
 import DocumentUpload from '@/components/documents/DocumentUpload';
 
 export default function DocumentsPage() {

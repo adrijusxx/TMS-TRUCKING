@@ -5,11 +5,8 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/', '/login', '/register', '/tracking'];
+  const publicRoutes = ['/login', '/register', '/tracking'];
   const isPublicRoute = publicRoutes.some((route) => {
-    if (route === '/') {
-      return pathname === '/';
-    }
     return pathname === route || pathname.startsWith(route + '/');
   });
 
@@ -32,6 +29,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(redirectPath, request.url));
   }
 
+  // Protect root path (dashboard) - redirect to login if not authenticated
+  if (pathname === '/') {
+    const sessionToken = request.cookies.get('authjs.session-token') || 
+                        request.cookies.get('__Secure-authjs.session-token') ||
+                        request.cookies.get('next-auth.session-token') ||
+                        request.cookies.get('__Secure-next-auth.session-token');
+    
+    if (!sessionToken) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('callbackUrl', '/');
+      return NextResponse.redirect(loginUrl);
+    }
+    
+    return NextResponse.next();
+  }
+
   // Protect /dashboard/* routes - let the layout handle auth check
   // The layout will redirect to /login if not authenticated
   if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
@@ -46,6 +59,11 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
     }
+    
+    // Check if user is a driver - drivers should only access mobile app
+    // We need to decode the session to check role, but since we can't easily do that in middleware,
+    // we'll let the dashboard layout handle this check
+    // However, we can add a quick check here by reading the role from a cookie if available
     
     return NextResponse.next();
   }

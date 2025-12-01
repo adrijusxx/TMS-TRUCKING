@@ -10,7 +10,7 @@ import { AccountingSyncManager } from './AccountingSyncManager';
 import { LoadCostingManager } from './LoadCostingManager';
 // import { notifyLoadCompleted } from '@/lib/notifications/triggers'; // TODO: Implement notification trigger
 
-export interface LoadCompletionResult {
+interface LoadCompletionResult {
   success: boolean;
   loadId: string;
   syncedToAccounting: boolean;
@@ -19,7 +19,7 @@ export interface LoadCompletionResult {
   errors?: string[];
 }
 
-export interface LoadValidationResult {
+interface LoadValidationResult {
   isValid: boolean;
   missingFields: string[];
   warnings: string[];

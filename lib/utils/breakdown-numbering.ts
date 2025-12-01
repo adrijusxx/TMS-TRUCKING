@@ -40,10 +40,4 @@ export async function generateBreakdownCaseNumber(companyId: string): Promise<st
   return `BD-${year}-${formattedNumber}`;
 }
 
-/**
- * Validate breakdown case number format
- */
-export function isValidBreakdownCaseNumber(caseNumber: string): boolean {
-  return /^BD-\d{4}-\d{4}$/.test(caseNumber);
-}
 

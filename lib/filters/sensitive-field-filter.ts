@@ -66,7 +66,7 @@ const SENSITIVE_FIELDS: Record<string, { fields: string[]; permissions: Permissi
 /**
  * Check if a role can view a specific field
  */
-export function canViewField(field: string, role: UserRole): boolean {
+function canViewField(field: string, role: UserRole): boolean {
   // Admin can view everything
   if (role === 'ADMIN') {
     return true;
@@ -125,7 +125,7 @@ export function filterSensitiveFields<T extends Record<string, any>>(
 /**
  * Filter sensitive fields from an array of objects
  */
-export function filterSensitiveFieldsArray<T extends Record<string, any>>(
+function filterSensitiveFieldsArray<T extends Record<string, any>>(
   data: T[],
   role: UserRole
 ): Partial<T>[] {
@@ -139,7 +139,7 @@ export function filterSensitiveFieldsArray<T extends Record<string, any>>(
 /**
  * Get list of sensitive fields that should be hidden for a role
  */
-export function getHiddenFields(role: UserRole): string[] {
+function getHiddenFields(role: UserRole): string[] {
   if (role === 'ADMIN') {
     return [];
   }
@@ -162,7 +162,7 @@ export function getHiddenFields(role: UserRole): string[] {
 /**
  * Check if a field path (e.g., "load.revenue" or "driver.ssn") should be hidden
  */
-export function shouldHideField(fieldPath: string, role: UserRole): boolean {
+function shouldHideField(fieldPath: string, role: UserRole): boolean {
   if (role === 'ADMIN') {
     return false;
   }

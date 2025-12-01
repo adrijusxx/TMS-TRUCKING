@@ -23,7 +23,7 @@ import { getStatusBadgeColor, formatDaysUntilExpiration, isExpired, isExpiringSo
 import { toast } from 'sonner';
 import { FileCheck, Heart, CreditCard, Search, TestTube, Clock, Calendar, FileText, Upload, Download, X, Trash2 } from 'lucide-react';
 import DocumentUpload from '@/components/documents/DocumentUpload';
-import DocumentList from '@/components/documents/DocumentList';
+import DocumentList from '@/components/documents/DocumentListNew';
 
 interface DriverComplianceEditorProps {
   driver: DriverComplianceData;

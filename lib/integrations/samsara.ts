@@ -343,7 +343,7 @@ export async function getSamsaraAssets(companyId?: string): Promise<SamsaraVehic
 /**
  * Get vehicle by ID
  */
-export async function getSamsaraVehicle(vehicleId: string): Promise<SamsaraVehicle | null> {
+async function getSamsaraVehicle(vehicleId: string): Promise<SamsaraVehicle | null> {
   const vehicles = await getSamsaraVehicles();
   if (!vehicles) return null;
   return vehicles.find((v) => v.id === vehicleId) || null;
@@ -370,7 +370,7 @@ export async function getSamsaraDrivers(companyId?: string): Promise<SamsaraDriv
 /**
  * Get driver by ID
  */
-export async function getSamsaraDriver(driverId: string, companyId?: string): Promise<SamsaraDriver | null> {
+async function getSamsaraDriver(driverId: string, companyId?: string): Promise<SamsaraDriver | null> {
   const drivers = await getSamsaraDrivers(companyId);
   if (!drivers) return null;
   return drivers.find((d) => d.id === driverId) || null;
@@ -399,7 +399,7 @@ export async function getSamsaraHOSStatuses(
 /**
  * Get HOS logs for a specific driver
  */
-export async function getSamsaraHOSLogs(
+async function getSamsaraHOSLogs(
   driverId: string,
   startTime: string,
   endTime?: string

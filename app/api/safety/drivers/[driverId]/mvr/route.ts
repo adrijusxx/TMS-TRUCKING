@@ -1,45 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import {
+  getAuthenticatedSession,
+  createErrorResponse,
+  createSuccessResponse,
+  driverWithDocumentInclude,
+  isErrorResponse,
+} from '@/lib/api/safety/route-helpers';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ driverId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await getAuthenticatedSession();
+    if (isErrorResponse(authResult)) {
+      return authResult.response;
     }
 
+    const { companyId } = authResult;
     const { driverId } = await params;
 
     const mvrRecords = await prisma.mVRRecord.findMany({
       where: {
         driverId,
-        companyId: session.user.companyId
+        companyId,
       },
       include: {
-        document: true,
+        ...driverWithDocumentInclude,
         violations: {
-          orderBy: { violationDate: 'desc' }
+          orderBy: { violationDate: 'desc' },
         },
-        driver: {
-          include: {
-            user: true
-          }
-        }
       },
-      orderBy: { pullDate: 'desc' }
+      orderBy: { pullDate: 'desc' },
     });
 
-    return NextResponse.json({ mvrRecords });
+    return createSuccessResponse({ mvrRecords });
   } catch (error) {
-    console.error('Error fetching MVR records:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch MVR records' },
-      { status: 500 }
-    );
+    return createErrorResponse(error, 'Failed to fetch MVR records');
   }
 }
 
@@ -48,11 +46,12 @@ export async function POST(
   { params }: { params: Promise<{ driverId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authResult = await getAuthenticatedSession();
+    if (isErrorResponse(authResult)) {
+      return authResult.response;
     }
 
+    const { companyId } = authResult;
     const { driverId } = await params;
     const body = await request.json();
 
@@ -63,7 +62,7 @@ export async function POST(
 
     const mvrRecord = await prisma.mVRRecord.create({
       data: {
-        companyId: session.user.companyId,
+        companyId,
         driverId,
         pullDate,
         state: body.state,
@@ -76,28 +75,19 @@ export async function POST(
             violationDate: new Date(violation.violationDate),
             state: violation.state,
             points: violation.points,
-            isNew: violation.isNew || false
-          }))
-        }
+            isNew: violation.isNew || false,
+          })),
+        },
       },
       include: {
-        document: true,
+        ...driverWithDocumentInclude,
         violations: true,
-        driver: {
-          include: {
-            user: true
-          }
-        }
-      }
+      },
     });
 
-    return NextResponse.json({ mvrRecord }, { status: 201 });
+    return createSuccessResponse({ mvrRecord }, 201);
   } catch (error) {
-    console.error('Error creating MVR record:', error);
-    return NextResponse.json(
-      { error: 'Failed to create MVR record' },
-      { status: 500 }
-    );
+    return createErrorResponse(error, 'Failed to create MVR record');
   }
 }
 

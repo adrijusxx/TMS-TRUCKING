@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { AIVerificationService } from './AIVerificationService';
 import { EquipmentType } from '@prisma/client';
 
-export interface DynamicPricingRecommendation {
+interface DynamicPricingRecommendation {
   lane: string; // e.g., "CA-TX"
   recommendedRatePerMile: number;
   marketRateRange: {

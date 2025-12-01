@@ -2,7 +2,7 @@
  * Centralized map configuration and styling
  */
 
-export interface MapColorScheme {
+interface MapColorScheme {
   healthy: string;
   faulty: string;
   assigned: string;
@@ -24,7 +24,7 @@ export const MAP_COLORS: MapColorScheme = {
   route: '#0ea5e9', // Sky blue
 };
 
-export interface MarkerSizeConfig {
+interface MarkerSizeConfig {
   small: number;
   medium: number;
   large: number;
@@ -36,7 +36,7 @@ export const MARKER_SIZES: MarkerSizeConfig = {
   large: 44,
 };
 
-export interface MapConfig {
+interface MapConfig {
   defaultZoom: number;
   defaultCenter: { lat: number; lng: number };
   minZoom: number;
@@ -52,7 +52,7 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   refreshInterval: 30000, // 30 seconds
 };
 
-export interface RouteStyle {
+interface RouteStyle {
   strokeColor: string;
   strokeWeight: number;
   strokeOpacity: number;
@@ -66,7 +66,7 @@ export const ROUTE_STYLES: RouteStyle = {
   zIndex: 1,
 };
 
-export interface ClusterStyle {
+interface ClusterStyle {
   textColor: string;
   url: string;
   height: number;

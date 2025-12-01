@@ -6,13 +6,13 @@
 import { AIService, AICallResult } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface LoadMatchInput {
+interface LoadMatchInput {
   loadId: string;
   availableDriverIds?: string[];
   availableTruckIds?: string[];
 }
 
-export interface LoadMatchRecommendation {
+interface LoadMatchRecommendation {
   driverId: string;
   driverNumber: string;
   driverName: string;
@@ -29,7 +29,7 @@ export interface LoadMatchRecommendation {
   };
 }
 
-export interface LoadMatchResult {
+interface LoadMatchResult {
   recommendations: LoadMatchRecommendation[];
   loadDetails: {
     loadNumber: string;

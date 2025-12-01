@@ -6,7 +6,7 @@
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-be6d955aafb84e25bfb9c18ef425ca31';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-export interface AICallOptions {
+interface AICallOptions {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;

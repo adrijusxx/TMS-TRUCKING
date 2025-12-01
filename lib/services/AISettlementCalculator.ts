@@ -7,7 +7,7 @@ import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 import { AIVerificationService } from './AIVerificationService';
 
-export interface SettlementCalculation {
+interface SettlementCalculation {
   driverId: string;
   periodStart: Date;
   periodEnd: Date;

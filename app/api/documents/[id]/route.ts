@@ -75,6 +75,81 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+
+    if (!session?.user?.companyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
+        { status: 401 }
+      );
+    }
+
+    const resolvedParams = await params;
+    const existingDocument = await prisma.document.findFirst({
+      where: {
+        id: resolvedParams.id,
+        companyId: session.user.companyId,
+        deletedAt: null,
+      },
+    });
+
+    if (!existingDocument) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'Document not found' },
+        },
+        { status: 404 }
+      );
+    }
+
+    // Check permission to edit documents
+    const role = session.user.role as 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER';
+    if (!hasPermission(role, 'documents.edit')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'You do not have permission to edit documents',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { fileName } = body;
+
+    // Update document
+    const updatedDocument = await prisma.document.update({
+      where: { id: resolvedParams.id },
+      data: {
+        ...(fileName !== undefined && { fileName }),
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: updatedDocument,
+    });
+  } catch (error) {
+    console.error('Document update error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+      },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

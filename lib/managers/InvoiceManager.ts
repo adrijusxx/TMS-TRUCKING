@@ -5,7 +5,7 @@
  */
 import { prisma } from '@/lib/prisma';
 
-export interface InvoiceFinalizationResult {
+interface InvoiceFinalizationResult {
   success: boolean;
   remitToAddress?: {
     name: string;
@@ -20,7 +20,7 @@ export interface InvoiceFinalizationResult {
   error?: string;
 }
 
-export interface ReadyToBillResult {
+interface ReadyToBillResult {
   ready: boolean;
   reasons?: string[];
   missingPOD?: boolean;

@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { BaseSafetyService } from './BaseSafetyService';
 
-export interface DocumentUploadParams {
+interface DocumentUploadParams {
   companyId: string;
   fileName: string;
   fileUrl: string;
@@ -16,7 +16,7 @@ export interface DocumentUploadParams {
   relatedEntityId?: string;
 }
 
-export interface DocumentSearchParams {
+interface DocumentSearchParams {
   companyId: string;
   searchTerm?: string;
   documentType?: string;

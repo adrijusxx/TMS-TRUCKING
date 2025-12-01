@@ -20,3 +20,7 @@ CREATE INDEX "Load_isBillingHold_idx" ON "Load"("isBillingHold");
 -- CreateIndex: Add index on detentionClockStart for detention queries
 CREATE INDEX "LoadStop_detentionClockStart_idx" ON "LoadStop"("detentionClockStart");
 
+
+
+
+

@@ -9,8 +9,9 @@ import { prisma } from '../prisma';
  * Generate the next customer number in C-000XXX format
  * Note: This function may generate duplicate numbers under high concurrency.
  * Callers should check for uniqueness and retry if needed.
+ * @internal Used internally by generateUniqueCustomerNumber
  */
-export async function generateCustomerNumber(companyId: string): Promise<string> {
+async function generateCustomerNumber(companyId: string): Promise<string> {
   // Get the latest customer number for this company
   const latestCustomer = await prisma.customer.findFirst({
     where: {
@@ -68,10 +69,4 @@ export async function generateUniqueCustomerNumber(companyId: string, maxAttempt
   throw new Error(`Failed to generate unique customer number after ${maxAttempts} attempts`);
 }
 
-/**
- * Validate customer number format
- */
-export function isValidCustomerNumber(customerNumber: string): boolean {
-  return /^C-\d{6}$/.test(customerNumber);
-}
 

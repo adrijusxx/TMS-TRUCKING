@@ -10,7 +10,7 @@ import { prisma } from '@/lib/prisma';
  * The filters returned here should be combined with MC filters in API routes
  */
 
-export interface RoleFilterContext {
+interface RoleFilterContext {
   userId: string;
   role: UserRole;
   companyId: string;
@@ -182,10 +182,9 @@ export async function getDriverFilter(context: RoleFilterContext): Promise<any> 
       };
 
     case 'HR':
-      return {
-        ...baseFilter,
-        hrManagerId: userId,
-      };
+      // HR should see all drivers (not just ones they manage)
+      // This allows HR to manage all driver records
+      return baseFilter;
 
     case 'SAFETY':
       return {
@@ -256,26 +255,6 @@ export function getTrailerFilter(context: RoleFilterContext): any {
   return baseFilter;
 }
 
-/**
- * Get customer filter based on role
- * 
- * Currently all roles see all customers within their company
- * 
- * NOTE: MC filtering should be applied separately using buildMcNumberWhereClause
- * This filter only handles role-based access control
- */
-export function getCustomerFilter(context: RoleFilterContext): any {
-  const { companyId } = context;
-
-  const baseFilter: any = {
-    companyId,
-    deletedAt: null,
-  };
-
-  // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
-
-  return baseFilter;
-}
 
 /**
  * Get invoice filter based on role

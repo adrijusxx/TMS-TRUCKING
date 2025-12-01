@@ -33,7 +33,7 @@ export function FactoringStatusBadge({ status, className }: FactoringStatusBadge
   );
 }
 
-export function formatFactoringStatus(status: FactoringStatus): string {
+function formatFactoringStatus(status: FactoringStatus): string {
   return factoringStatusLabels[status];
 }
 

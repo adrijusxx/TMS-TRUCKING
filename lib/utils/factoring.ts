@@ -69,7 +69,7 @@ export function shouldReleaseReserve(
 /**
  * Get expected funding date (typically 1-3 days after submission)
  */
-export function getExpectedFundingDate(
+function getExpectedFundingDate(
   submittedAt: Date | string,
   fundingDays: number = 2
 ): Date {
@@ -82,7 +82,7 @@ export function getExpectedFundingDate(
 /**
  * Get days until reserve release
  */
-export function getDaysUntilReserveRelease(
+function getDaysUntilReserveRelease(
   fundedAt: Date | string | null,
   reserveHoldDays: number = 90
 ): number | null {
@@ -101,7 +101,7 @@ export function getDaysUntilReserveRelease(
 /**
  * Check if invoice is eligible for factoring
  */
-export function isEligibleForFactoring(invoice: {
+function isEligibleForFactoring(invoice: {
   status: string;
   factoringStatus: FactoringStatus;
   balance: number;

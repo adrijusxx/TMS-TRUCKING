@@ -7,7 +7,7 @@ import type React from 'react';
 /**
  * Base type for all table data rows
  */
-export type TableData = Record<string, any>;
+type TableData = Record<string, any>;
 
 /**
  * Column definition with additional metadata
@@ -341,6 +341,28 @@ export interface DataTableProps<TData extends TableData = TableData> {
    * Callback for column filter changes
    */
   onColumnFilterChange?: (columnId: string, values: string[]) => void;
+  /**
+   * Handler for bulk delete action
+   * Receives array of selected row IDs
+   */
+  onDeleteSelected?: (selectedIds: string[]) => void;
+  /**
+   * Handler for bulk export action
+   * Receives array of selected row IDs
+   */
+  onExportSelected?: (selectedIds: string[]) => void;
+  /**
+   * Filter key for global search (optional)
+   */
+  filterKey?: string;
+  /**
+   * Import handler - opens import modal
+   */
+  onImport?: () => void;
+  /**
+   * Export handler - exports all filtered data
+   */
+  onExport?: () => void;
 }
 
 /**

@@ -139,13 +139,14 @@ export async function GET(request: NextRequest) {
     let searchFilter: any = null;
     if (search && search.trim().length > 0) {
       const searchTerm = search.trim();
+      // Note: role is an enum, so we can't use contains on it
+      // Search only works on string fields
       searchFilter = {
         OR: [
           { firstName: { contains: searchTerm, mode: 'insensitive' as const } },
           { lastName: { contains: searchTerm, mode: 'insensitive' as const } },
           { email: { contains: searchTerm, mode: 'insensitive' as const } },
           { phone: { contains: searchTerm, mode: 'insensitive' as const } },
-          { role: { contains: searchTerm, mode: 'insensitive' as const } },
         ],
       };
     }

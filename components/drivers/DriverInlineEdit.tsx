@@ -1,45 +1,73 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Save, X } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Save, X, Loader2 } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
-import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
+import DriverPersonalInfoTab from './DriverEditTabs/DriverPersonalInfoTab';
+import DriverComplianceTab from './DriverEditTabs/DriverComplianceTab';
+import DriverWorkDetailsTab from './DriverEditTabs/DriverWorkDetailsTab';
+import DriverFinancialPayrollTab from './DriverEditTabs/DriverFinancialPayrollTab';
 
 interface DriverInlineEditProps {
-  driver: {
+  row: {
     id: string;
+    driverNumber: string;
     firstName: string;
     lastName: string;
     email: string;
     phone: string | null;
-    status: string;
-    employeeStatus: string;
-    assignmentStatus: string;
-    dispatchStatus: string | null;
-    driverType: string;
-    currentTruckId: string | null;
-    currentTrailerId: string | null;
-    mcNumberId: string | null;
-    teamDriver: boolean;
-    userId: string;
+    address1?: string | null;
+    address2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zipCode?: string | null;
+    status?: DriverStatus;
+    employeeStatus?: EmployeeStatus;
+    assignmentStatus?: AssignmentStatus;
+    mcNumberId?: string | null;
+    mcNumber?: { id: string; number: string } | null;
+    user?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string | null;
+    };
   };
   onSave?: () => void;
   onCancel?: () => void;
+}
+
+async function fetchFullDriver(driverId: string) {
+  const response = await fetch(apiUrl(`/api/drivers/${driverId}`));
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: { message: 'Failed to fetch driver' } }));
+    throw new Error(error.error?.message || `Failed to fetch driver: ${response.status}`);
+  }
+  const result = await response.json();
+  if (!result.success || !result.data) {
+    throw new Error('Driver not found');
+  }
+  return result;
+}
+
+async function updateDriver(driverId: string, data: any) {
+  const response = await fetch(apiUrl(`/api/drivers/${driverId}`), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Failed to update driver');
+  }
+  return response.json();
 }
 
 async function fetchTrucks() {
@@ -56,286 +84,271 @@ async function fetchTrailers() {
   return result.data || [];
 }
 
-async function updateDriver(driverId: string, data: any) {
-  const response = await fetch(apiUrl(`/api/drivers/${driverId}`), {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'Failed to update driver');
-  }
-  return response.json();
+async function fetchDispatchers() {
+  const response = await fetch(apiUrl('/api/settings/users?role=DISPATCHER&limit=1000'));
+  if (!response.ok) throw new Error('Failed to fetch dispatchers');
+  const result = await response.json();
+  return result.data || [];
 }
 
-export default function DriverInlineEdit({ driver, onSave, onCancel }: DriverInlineEditProps) {
-  const queryClient = useQueryClient();
-  const [isSaving, setIsSaving] = useState(false);
+async function fetchUsers() {
+  const response = await fetch(apiUrl('/api/settings/users?limit=1000'));
+  if (!response.ok) throw new Error('Failed to fetch users');
+  const result = await response.json();
+  return result.data || [];
+}
 
-  // Fetch trucks and trailers for dropdowns
+export default function DriverInlineEdit({ row, onSave, onCancel }: DriverInlineEditProps) {
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState('personal');
+  const formDataRef = useRef<any>({});
+
+  // Fetch full driver data
+  const { data: driverData, isLoading: isLoadingDriver, error: driverError } = useQuery({
+    queryKey: ['driver', row.id, 'inline'],
+    queryFn: () => fetchFullDriver(row.id),
+    enabled: !!row.id,
+    staleTime: 0, // Always fetch fresh data for editing
+    retry: 3, // Retry up to 3 times for new drivers (might need time to be fully committed)
+    retryDelay: (attemptIndex) => Math.min(500 * (attemptIndex + 1), 2000), // Exponential backoff: 500ms, 1000ms, 1500ms, max 2000ms
+  });
+
+  // Fetch related data
   const { data: trucks = [] } = useQuery({
     queryKey: ['trucks'],
     queryFn: fetchTrucks,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   const { data: trailers = [] } = useQuery({
     queryKey: ['trailers'],
     queryFn: fetchTrailers,
+    staleTime: 5 * 60 * 1000,
   });
 
-  const { register, handleSubmit, setValue, watch } = useForm({
-    defaultValues: {
-      firstName: driver.firstName || '',
-      lastName: driver.lastName || '',
-      phone: driver.phone || '',
-      status: driver.status || 'AVAILABLE',
-      employeeStatus: driver.employeeStatus || 'ACTIVE',
-      assignmentStatus: driver.assignmentStatus || 'READY_TO_GO',
-      dispatchStatus: driver.dispatchStatus || null,
-      driverType: driver.driverType || 'COMPANY_DRIVER',
-      currentTruckId: driver.currentTruckId || '',
-      currentTrailerId: driver.currentTrailerId || '',
-      mcNumberId: driver.mcNumberId || '',
-      teamDriver: driver.teamDriver || false,
-    },
+  const { data: dispatchers = [] } = useQuery({
+    queryKey: ['dispatchers'],
+    queryFn: fetchDispatchers,
+    staleTime: 5 * 60 * 1000,
   });
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const driver = driverData?.data;
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => updateDriver(driver.id, data),
+    mutationFn: (data: any) => updateDriver(row.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
-      queryClient.invalidateQueries({ queryKey: ['driver', driver.id] });
+      queryClient.invalidateQueries({ queryKey: ['driver', row.id] });
+      queryClient.invalidateQueries({ queryKey: ['driver', row.id, 'inline'] });
       toast.success('Driver updated successfully');
       onSave?.();
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update driver');
-      setIsSaving(false);
     },
   });
 
-  const onSubmit = (data: any) => {
-    setIsSaving(true);
-    const updateData: any = {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone || null,
-      status: data.status,
-      employeeStatus: data.employeeStatus,
-      assignmentStatus: data.assignmentStatus,
-      dispatchStatus: data.dispatchStatus || null,
-      driverType: data.driverType,
-      currentTruckId: data.currentTruckId && data.currentTruckId !== 'none' ? data.currentTruckId : null,
-      currentTrailerId: data.currentTrailerId && data.currentTrailerId !== 'none' ? data.currentTrailerId : null,
-      mcNumberId: data.mcNumberId || null,
-      teamDriver: data.teamDriver,
+  const handleSave = (formData: any, tabName: string) => {
+    formDataRef.current = {
+      ...formDataRef.current,
+      [tabName]: formData,
     };
-    updateMutation.mutate(updateData);
   };
+
+  // Listen for save event from tabs - collect all form data
+  useEffect(() => {
+    let saveTimeout: NodeJS.Timeout;
+    
+    const handleFormSave = () => {
+      // Clear any pending save
+      if (saveTimeout) clearTimeout(saveTimeout);
+      
+      // Reset form data collection
+      formDataRef.current = {};
+      
+      // Trigger all forms to submit - this will call handleSave for each tab
+      const forms = [
+        document.getElementById('driver-personal-info-form') as HTMLFormElement,
+        document.getElementById('driver-compliance-form') as HTMLFormElement,
+        document.getElementById('driver-work-details-form') as HTMLFormElement,
+        document.getElementById('driver-financial-payroll-form') as HTMLFormElement,
+      ];
+
+      // Submit all forms - they will call onSave which updates formDataRef
+      forms.forEach(form => {
+        if (form) {
+          form.requestSubmit();
+        }
+      });
+
+      // Wait for all forms to submit and update formDataRef, then save
+      saveTimeout = setTimeout(() => {
+        // Merge all tab data
+        const allData = {
+          ...(formDataRef.current.personal || {}),
+          ...(formDataRef.current.compliance || {}),
+          ...(formDataRef.current.work || {}),
+          ...(formDataRef.current.financial || {}),
+        };
+
+        // Only save if we have data
+        if (Object.keys(allData).length > 0) {
+          updateMutation.mutate(allData);
+          // Clear form data after save
+          formDataRef.current = {};
+        } else {
+          toast.error('No changes to save');
+        }
+      }, 300);
+    };
+    
+    window.addEventListener('driver-form-save', handleFormSave);
+    return () => {
+      window.removeEventListener('driver-form-save', handleFormSave);
+      if (saveTimeout) clearTimeout(saveTimeout);
+    };
+  }, [updateMutation]);
+
+  if (isLoadingDriver) {
+    return (
+      <Card className="m-4 border-l-4 border-l-primary">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (driverError) {
+    return (
+      <Card className="m-4 border-l-4 border-l-red-500">
+        <CardContent className="pt-6">
+          <div className="p-4 text-center">
+            <p className="text-red-600 font-semibold mb-2">Error loading driver</p>
+            <p className="text-sm text-muted-foreground">
+              {driverError instanceof Error ? driverError.message : 'Failed to fetch driver data'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Driver ID: {row.id}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!driver) {
+    return (
+      <Card className="m-4 border-l-4 border-l-primary">
+        <CardContent className="pt-6">
+          <div className="p-4 text-center text-muted-foreground">
+            Driver not found
+            <p className="text-xs mt-2">Driver ID: {row.id}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="m-4 border-l-4 border-l-primary">
       <CardContent className="pt-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Personal Information */}
-            <div className="space-y-2">
-              <Label htmlFor="firstName">First Name</Label>
-              <Input id="firstName" {...register('firstName')} />
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b">
+            <div>
+              <h3 className="text-lg font-semibold">
+                {driver.user?.firstName} {driver.user?.lastName}
+              </h3>
+              <p className="text-sm text-muted-foreground">Driver #{driver.driverNumber}</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Last Name</Label>
-              <Input id="lastName" {...register('lastName')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" {...register('phone')} />
-            </div>
-
-            {/* Status Fields */}
-            <div className="space-y-2">
-              <Label htmlFor="status">Driver Status</Label>
-              <Select
-                value={watch('status')}
-                onValueChange={(value) => setValue('status', value)}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onCancel}
+                disabled={updateMutation.isPending}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="AVAILABLE">Available</SelectItem>
-                  <SelectItem value="ON_DUTY">On Duty</SelectItem>
-                  <SelectItem value="DRIVING">Driving</SelectItem>
-                  <SelectItem value="OFF_DUTY">Off Duty</SelectItem>
-                  <SelectItem value="SLEEPER_BERTH">Sleeper Berth</SelectItem>
-                  <SelectItem value="ON_LEAVE">On Leave</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  <SelectItem value="IN_TRANSIT">In Transit</SelectItem>
-                  <SelectItem value="DISPATCHED">Dispatched</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="employeeStatus">Employee Status</Label>
-              <Select
-                value={watch('employeeStatus')}
-                onValueChange={(value) => setValue('employeeStatus', value)}
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={updateMutation.isPending}
+                onClick={() => {
+                  const event = new CustomEvent('driver-form-save');
+                  window.dispatchEvent(event);
+                }}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="TERMINATED">Terminated</SelectItem>
-                  <SelectItem value="APPLICANT">Applicant</SelectItem>
-                </SelectContent>
-              </Select>
+                <Save className="h-4 w-4 mr-2" />
+                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="assignmentStatus">Assignment Status</Label>
-              <Select
-                value={watch('assignmentStatus')}
-                onValueChange={(value) => setValue('assignmentStatus', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="READY_TO_GO">Ready to Go</SelectItem>
-                  <SelectItem value="NOT_READY">Not Ready</SelectItem>
-                  <SelectItem value="TERMINATED">Terminated</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="personal">Personal Info</TabsTrigger>
+              <TabsTrigger value="compliance">Compliance</TabsTrigger>
+              <TabsTrigger value="work">Work Details</TabsTrigger>
+              <TabsTrigger value="financial">Financial & Payroll</TabsTrigger>
+            </TabsList>
 
-            <div className="space-y-2">
-              <Label htmlFor="dispatchStatus">Dispatch Status</Label>
-              <Select
-                value={watch('dispatchStatus') || 'none'}
-                onValueChange={(value) => setValue('dispatchStatus', value === 'none' ? null : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="DISPATCHED">Dispatched</SelectItem>
-                  <SelectItem value="ENROUTE">En Route</SelectItem>
-                  <SelectItem value="TERMINATION">Termination</SelectItem>
-                  <SelectItem value="REST">Rest</SelectItem>
-                  <SelectItem value="AVAILABLE">Available</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="driverType">Driver Type</Label>
-              <Select
-                value={watch('driverType')}
-                onValueChange={(value) => setValue('driverType', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="COMPANY_DRIVER">Company Driver</SelectItem>
-                  <SelectItem value="LEASE">Lease</SelectItem>
-                  <SelectItem value="OWNER_OPERATOR">Owner Operator</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Assignments */}
-            <div className="space-y-2">
-              <Label htmlFor="currentTruckId">Assigned Truck</Label>
-              <Select
-                value={watch('currentTruckId') || 'none'}
-                onValueChange={(value) => setValue('currentTruckId', value === 'none' ? '' : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select truck" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {trucks.map((truck: any) => (
-                    <SelectItem key={truck.id} value={truck.id}>
-                      {truck.truckNumber}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="currentTrailerId">Assigned Trailer</Label>
-              <Select
-                value={watch('currentTrailerId') || 'none'}
-                onValueChange={(value) => setValue('currentTrailerId', value === 'none' ? '' : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select trailer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {trailers.map((trailer: any) => (
-                    <SelectItem key={trailer.id} value={trailer.id}>
-                      {trailer.trailerNumber}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="mcNumberId">MC Number</Label>
-              <McNumberSelector
-                value={watch('mcNumberId') || ''}
-                onValueChange={(value) => setValue('mcNumberId', value)}
-                className="w-full"
+            <TabsContent value="personal" className="space-y-4 mt-4">
+              <DriverPersonalInfoTab
+                driver={driver}
+                onSave={(data) => handleSave(data, 'personal')}
               />
-            </div>
+            </TabsContent>
 
-            <div className="space-y-2">
-              <Label htmlFor="teamDriver">Team Driver</Label>
-              <Select
-                value={watch('teamDriver') ? 'true' : 'false'}
-                onValueChange={(value) => setValue('teamDriver', value === 'true')}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="false">No</SelectItem>
-                  <SelectItem value="true">Yes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            <TabsContent value="compliance" className="space-y-4 mt-4">
+              <DriverComplianceTab
+                driver={driver}
+                onSave={(data) => handleSave(data, 'compliance')}
+              />
+            </TabsContent>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              disabled={isSaving || updateMutation.isPending}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSaving || updateMutation.isPending}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {isSaving || updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
-        </form>
+            <TabsContent value="work" className="space-y-4 mt-4">
+              <DriverWorkDetailsTab
+                driver={driver}
+                trucks={trucks.map((t: any) => ({ id: t.id, truckNumber: t.truckNumber }))}
+                trailers={trailers.map((t: any) => ({ id: t.id, trailerNumber: t.trailerNumber }))}
+                dispatchers={dispatchers.map((d: any) => ({
+                  id: d.id,
+                  firstName: d.firstName,
+                  lastName: d.lastName,
+                }))}
+                users={users.map((u: any) => ({
+                  id: u.id,
+                  firstName: u.firstName,
+                  lastName: u.lastName,
+                  role: u.role,
+                }))}
+                onSave={(data) => handleSave(data, 'work')}
+              />
+            </TabsContent>
+
+            <TabsContent value="financial" className="space-y-4 mt-4">
+              <DriverFinancialPayrollTab
+                driver={driver}
+                onSave={(data) => handleSave(data, 'financial')}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
       </CardContent>
     </Card>
   );
 }
+

@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface DriverRetentionPrediction {
+interface DriverRetentionPrediction {
   driverId: string;
   driverName: string;
   turnoverRisk: {

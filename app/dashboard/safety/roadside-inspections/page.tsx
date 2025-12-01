@@ -1,5 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { RoadsideInspectionsTableClient } from './RoadsideInspectionsTableClient';
 
 export default function RoadsideInspectionsPage() {
   return (
@@ -12,15 +12,7 @@ export default function RoadsideInspectionsPage() {
         <div>
           <h1 className="text-3xl font-bold">Roadside Inspections</h1>
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Inspection Records</CardTitle>
-            <CardDescription>View and manage roadside inspection records</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">View and manage roadside inspection records.</p>
-          </CardContent>
-        </Card>
+        <RoadsideInspectionsTableClient />
       </div>
     </>
   );

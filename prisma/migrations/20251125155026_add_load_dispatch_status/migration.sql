@@ -7,3 +7,7 @@ ALTER TABLE "Load" ADD COLUMN     "dispatchStatus" "LoadDispatchStatus";
 -- CreateIndex
 CREATE INDEX "Load_dispatchStatus_idx" ON "Load"("dispatchStatus");
 
+
+
+
+

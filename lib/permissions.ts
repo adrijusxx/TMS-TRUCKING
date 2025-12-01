@@ -427,14 +427,14 @@ export async function hasPermissionAsync(role: UserRole, permission: Permission)
 /**
  * Check if a role has any of the specified permissions
  */
-export function hasAnyPermission(role: UserRole, permissions: Permission[]): boolean {
+function hasAnyPermission(role: UserRole, permissions: Permission[]): boolean {
   return permissions.some((permission) => hasPermission(role, permission));
 }
 
 /**
  * Check if a role has all of the specified permissions
  */
-export function hasAllPermissions(role: UserRole, permissions: Permission[]): boolean {
+function hasAllPermissions(role: UserRole, permissions: Permission[]): boolean {
   return permissions.every((permission) => hasPermission(role, permission));
 }
 
@@ -450,7 +450,7 @@ export function getRolePermissions(role: UserRole): Permission[] {
  * Get all permissions for a role (async - checks database)
  * This is the preferred method for server-side code
  */
-export async function getRolePermissionsAsync(role: UserRole): Promise<Permission[]> {
+async function getRolePermissionsAsync(role: UserRole): Promise<Permission[]> {
   try {
     const { PermissionService } = await import('@/lib/services/PermissionService');
     return await PermissionService.getRolePermissions(role);

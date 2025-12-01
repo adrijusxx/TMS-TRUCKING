@@ -6,7 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 
-export interface ExpenseData {
+interface ExpenseData {
   loadId: string;
   expenseType: string;
   amount: number;
@@ -16,7 +16,7 @@ export interface ExpenseData {
   date?: Date;
 }
 
-export interface ExpenseApproval {
+interface ExpenseApproval {
   expenseId: string;
   approverId: string;
   approved: boolean;

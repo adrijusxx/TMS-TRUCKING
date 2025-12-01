@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Search, X, Filter } from 'lucide-react';
+import { Search, X, Filter, Download, Upload } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,7 @@ import type { ColumnFiltersState, FilterDefinition } from './types';
 import SavedFilters from '@/components/filters/SavedFilters';
 import { usePermissions } from '@/hooks/usePermissions';
 import { CheckSquare } from 'lucide-react';
+import { ImportWizard } from '@/components/shared/import-wizard';
 
 interface TableToolbarProps {
   /**
@@ -69,6 +70,26 @@ interface TableToolbarProps {
    * Total count of records matching filters
    */
   totalCount?: number;
+  /**
+   * Enable export functionality
+   */
+  enableExport?: boolean;
+  /**
+   * Export handler - exports current filtered data
+   */
+  onExport?: () => void;
+  /**
+   * Enable import functionality
+   */
+  enableImport?: boolean;
+  /**
+   * Import handler - opens import modal
+   */
+  onImport?: () => void;
+  /**
+   * Required fields for import (used with ImportWizard)
+   */
+  importRequiredFields?: string[];
 }
 
 /**
@@ -87,8 +108,14 @@ export function TableToolbar({
   onSelectAll,
   isSelectingAll = false,
   totalCount,
+  enableExport = false,
+  onExport,
+  enableImport = false,
+  onImport,
+  importRequiredFields = [],
 }: TableToolbarProps) {
-  const { can } = usePermissions();
+  const { can, isAdmin } = usePermissions();
+  const [importWizardOpen, setImportWizardOpen] = React.useState(false);
   const [searchInput, setSearchInput] = React.useState(searchValue);
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | undefined>(undefined);
@@ -237,6 +264,61 @@ export function TableToolbar({
           <CheckSquare className="h-4 w-4 mr-2" />
           {isSelectingAll ? 'Selecting...' : totalCount ? `Select All (${totalCount})` : 'Select All'}
         </Button>
+      )}
+
+      {/* Export Button */}
+      {enableExport && onExport && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExport}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
+      )}
+
+      {/* Import Button */}
+      {enableImport && (
+        <>
+          {isAdmin ? (
+            <>
+              {onImport ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onImport}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+              ) : importRequiredFields.length > 0 ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setImportWizardOpen(true)}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import
+                  </Button>
+                  <ImportWizard
+                    open={importWizardOpen}
+                    onOpenChange={setImportWizardOpen}
+                    entityType={entityType}
+                    requiredFields={importRequiredFields}
+                    onComplete={() => {
+                      // Optionally trigger a refetch or refresh
+                      if (onImport) {
+                        onImport();
+                      }
+                    }}
+                  />
+                </>
+              ) : null}
+            </>
+          ) : null}
+        </>
       )}
 
       {/* Filters */}

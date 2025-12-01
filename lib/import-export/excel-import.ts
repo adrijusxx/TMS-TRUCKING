@@ -5,7 +5,7 @@
 
 import * as XLSX from 'xlsx';
 
-export interface ExcelImportOptions {
+interface ExcelImportOptions {
   sheetIndex?: number; // Which sheet to import (0-based)
   sheetName?: string; // Or specify sheet name
   skipFirstRow?: boolean;

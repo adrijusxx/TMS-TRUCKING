@@ -6,13 +6,13 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface SafetyPredictionInput {
+interface SafetyPredictionInput {
   driverId?: string;
   truckId?: string;
   companyId: string;
 }
 
-export interface SafetyRiskPrediction {
+interface SafetyRiskPrediction {
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   score: number; // 0-100, higher = more risk
   factors: string[];
@@ -20,7 +20,7 @@ export interface SafetyRiskPrediction {
   predictedIncidentTypes?: string[];
 }
 
-export interface SafetyPredictionResult {
+interface SafetyPredictionResult {
   driverId?: string;
   driverName?: string;
   truckId?: string;

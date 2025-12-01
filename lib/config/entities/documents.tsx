@@ -56,7 +56,7 @@ const columns: ExtendedColumnDef<DocumentData>[] = [
   {
     id: 'fileName',
     accessorKey: 'fileName',
-    header: 'Document',
+    header: 'File Name',
     cell: ({ row }) => (
       <div>
         <a
@@ -67,9 +67,6 @@ const columns: ExtendedColumnDef<DocumentData>[] = [
         >
           {row.original.fileName}
         </a>
-        {row.original.description && (
-          <div className="text-sm text-muted-foreground">{row.original.description}</div>
-        )}
       </div>
     ),
     defaultVisible: true,
@@ -79,16 +76,30 @@ const columns: ExtendedColumnDef<DocumentData>[] = [
     id: 'type',
     accessorKey: 'type',
     header: 'Type',
-    cell: ({ row }) => (
-      <Badge variant="outline">
-        {documentTypeLabels[row.original.type] || row.original.type}
-      </Badge>
-    ),
+    cell: ({ row }) => {
+      const typeLabel = documentTypeLabels[row.original.type] || row.original.type;
+      // Filter to show only POD and RATE_CONFIRMATION prominently, others as-is
+      const displayType = ['POD', 'RATE_CONFIRMATION'].includes(row.original.type) 
+        ? typeLabel 
+        : typeLabel;
+      return (
+        <Badge variant="outline">
+          {displayType}
+        </Badge>
+      );
+    },
+    defaultVisible: true,
+  },
+  {
+    id: 'createdAt',
+    accessorKey: 'createdAt',
+    header: 'Upload Date',
+    cell: ({ row }) => formatDate(new Date(row.original.createdAt)),
     defaultVisible: true,
   },
   {
     id: 'relatedTo',
-    header: 'Related To',
+    header: 'Related Entity',
     cell: ({ row }) => {
       if (row.original.load) {
         return (
@@ -121,27 +132,6 @@ const columns: ExtendedColumnDef<DocumentData>[] = [
     },
     defaultVisible: true,
   },
-  {
-    id: 'uploadedBy',
-    header: 'Uploaded By',
-    cell: ({ row }) =>
-      `${row.original.uploadedBy.firstName} ${row.original.uploadedBy.lastName}`,
-    defaultVisible: true,
-  },
-  {
-    id: 'fileSize',
-    accessorKey: 'fileSize',
-    header: 'Size',
-    cell: ({ row }) => formatFileSize(row.original.fileSize),
-    defaultVisible: true,
-  },
-  {
-    id: 'createdAt',
-    accessorKey: 'createdAt',
-    header: 'Date',
-    cell: ({ row }) => formatDate(new Date(row.original.createdAt)),
-    defaultVisible: true,
-  },
 ];
 
 const bulkEditFields: BulkEditField[] = [
@@ -168,7 +158,7 @@ const bulkEditFields: BulkEditField[] = [
 export const documentsTableConfig = createEntityTableConfig<DocumentData>({
   entityType: 'documents',
   columns,
-  defaultVisibleColumns: ['fileName', 'type', 'relatedTo', 'uploadedBy', 'fileSize', 'createdAt'],
+  defaultVisibleColumns: ['fileName', 'type', 'createdAt', 'relatedTo'],
   requiredColumns: ['fileName'],
   bulkEditFields,
   defaultSort: [{ id: 'createdAt', desc: true }],

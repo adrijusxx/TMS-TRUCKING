@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface DispatchRecommendation {
+interface DispatchRecommendation {
   loadId: string;
   loadNumber: string;
   priority: number; // 1-10, higher is more urgent
@@ -21,7 +21,7 @@ export interface DispatchRecommendation {
   recommendations: string[];
 }
 
-export interface DispatchAssistantInput {
+interface DispatchAssistantInput {
   companyId: string;
   date?: Date; // Date to analyze (defaults to today)
   includeAssigned?: boolean; // Include already assigned loads

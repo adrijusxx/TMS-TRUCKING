@@ -2,13 +2,13 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 
-export type Theme = 'light' | 'dark' | 'system';
-export type FontSize = 'small' | 'medium' | 'large';
+type Theme = 'light' | 'dark' | 'amber' | 'system';
+type FontSize = 'small' | 'medium' | 'large';
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  resolvedTheme: 'light' | 'dark';
+  resolvedTheme: 'light' | 'dark' | 'amber';
   fontSize: FontSize;
   setFontSize: (size: FontSize) => void;
   compactMode: boolean;
@@ -21,7 +21,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'amber'>('light');
   const [fontSize, setFontSizeState] = useState<FontSize>('medium');
   const [compactMode, setCompactModeState] = useState(false);
   const [reduceMotion, setReduceMotionState] = useState(false);
@@ -56,14 +56,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const root = document.documentElement;
     
     // Remove existing theme classes
-    root.classList.remove('light', 'dark');
+    root.classList.remove('light', 'dark', 'amber');
 
-    let effectiveTheme: 'light' | 'dark' = 'light';
+    let effectiveTheme: 'light' | 'dark' | 'amber' = 'light';
     
     if (theme === 'system') {
       const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       effectiveTheme = systemPrefersDark ? 'dark' : 'light';
-    } else if (theme === 'light' || theme === 'dark') {
+    } else if (theme === 'light' || theme === 'dark' || theme === 'amber') {
       effectiveTheme = theme;
     } else {
       // Fallback to light if theme is invalid
@@ -122,7 +122,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
       const root = document.documentElement;
-      root.classList.remove('light', 'dark');
+      root.classList.remove('light', 'dark', 'amber');
       const newTheme = mediaQuery.matches ? 'dark' : 'light';
       if (newTheme && newTheme.trim() !== '') {
         root.classList.add(newTheme);
@@ -147,7 +147,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('theme', newTheme);
           }
         },
-        resolvedTheme: mounted ? resolvedTheme : 'light',
+        resolvedTheme: mounted ? resolvedTheme : ('light' as 'light' | 'dark' | 'amber'),
         fontSize: mounted ? fontSize : 'medium',
         setFontSize: (size: FontSize) => {
           if (mounted) {

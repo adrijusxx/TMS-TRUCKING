@@ -63,7 +63,7 @@ export async function sendInvoiceEmail(
 /**
  * Send generic email
  */
-export async function sendEmail(options: EmailOptions): Promise<{
+async function sendEmail(options: EmailOptions): Promise<{
   success: boolean;
   messageId?: string;
   error?: string;
@@ -87,7 +87,7 @@ export async function sendEmail(options: EmailOptions): Promise<{
 /**
  * Generate invoice PDF
  */
-export async function generateInvoicePdf(
+async function generateInvoicePdf(
   invoiceId: string
 ): Promise<{ success: boolean; pdfPath?: string; error?: string }> {
   try {

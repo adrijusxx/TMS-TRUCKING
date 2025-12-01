@@ -9,7 +9,7 @@ export interface ComplianceStatus {
   urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | null;
 }
 
-export interface DQFCompliance {
+interface DQFCompliance {
   status: 'COMPLETE' | 'INCOMPLETE' | 'EXPIRING' | 'EXPIRED';
   lastReviewDate: Date | null;
   nextReviewDate: Date | null;
@@ -28,7 +28,7 @@ export interface DQFCompliance {
   }>;
 }
 
-export interface MedicalCardCompliance {
+interface MedicalCardCompliance {
   id: string;
   cardNumber: string;
   expirationDate: Date;
@@ -44,7 +44,7 @@ export interface MedicalCardCompliance {
   status: ComplianceStatus;
 }
 
-export interface CDLCompliance {
+interface CDLCompliance {
   id: string;
   cdlNumber: string;
   expirationDate: Date;
@@ -61,7 +61,7 @@ export interface CDLCompliance {
   status: ComplianceStatus;
 }
 
-export interface MVRCompliance {
+interface MVRCompliance {
   id: string;
   pullDate: Date;
   state: string;
@@ -83,7 +83,7 @@ export interface MVRCompliance {
   status: ComplianceStatus;
 }
 
-export interface DrugTestCompliance {
+interface DrugTestCompliance {
   id: string;
   testDate: Date;
   testType: string;
@@ -96,7 +96,7 @@ export interface DrugTestCompliance {
   };
 }
 
-export interface HOSCompliance {
+interface HOSCompliance {
   violations: Array<{
     id: string;
     violationType: string;
@@ -107,7 +107,7 @@ export interface HOSCompliance {
   compliancePercentage: number;
 }
 
-export interface AnnualReviewCompliance {
+interface AnnualReviewCompliance {
   id: string;
   reviewDate: Date;
   dueDate: Date;
@@ -142,7 +142,7 @@ export interface DriverComplianceData {
   };
 }
 
-export interface ComplianceEditorData {
+interface ComplianceEditorData {
   driverId: string;
   dqf?: Partial<DQFCompliance>;
   medicalCard?: Partial<MedicalCardCompliance>;

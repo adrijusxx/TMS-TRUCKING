@@ -37,7 +37,7 @@ interface GeocodeResponse {
   formattedAddress: string;
 }
 
-export type RouteWaypoint =
+type RouteWaypoint =
   | { city: string; state: string; address?: string }
   | { lat: number; lng: number };
 

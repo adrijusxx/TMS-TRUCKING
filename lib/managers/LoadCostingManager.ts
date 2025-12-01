@@ -6,7 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 
-export interface LoadCost {
+interface LoadCost {
   loadId: string;
   revenue: number;
   driverPay: number;
@@ -19,7 +19,7 @@ export interface LoadCost {
   profitMargin: number;
 }
 
-export interface CostBreakdown {
+interface CostBreakdown {
   loadId: string;
   loadNumber: string;
   revenue: number;

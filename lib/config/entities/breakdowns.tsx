@@ -30,6 +30,7 @@ interface BreakdownData {
   status: BreakdownStatus;
   priority: string;
   location: string;
+  description: string;
   reportedAt: Date;
   totalCost: number;
   downtimeHours?: number | null;
@@ -70,23 +71,8 @@ function getPriorityColor(priority: string): string {
 // Column definitions
 const columns: ExtendedColumnDef<BreakdownData>[] = [
   {
-    id: 'breakdownNumber',
-    accessorKey: 'breakdownNumber',
-    header: 'Breakdown #',
-    cell: ({ row }) => (
-      <Link
-        href={`/dashboard/breakdowns/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
-        {row.original.breakdownNumber}
-      </Link>
-    ),
-    defaultVisible: true,
-    required: true,
-  },
-  {
     id: 'truck',
-    header: 'Truck',
+    header: 'Truck #',
     cell: ({ row }) => (
       <Link
         href={`/dashboard/trucks/${row.original.truck.id}`}
@@ -98,10 +84,30 @@ const columns: ExtendedColumnDef<BreakdownData>[] = [
     defaultVisible: true,
   },
   {
-    id: 'breakdownType',
-    accessorKey: 'breakdownType',
-    header: 'Type',
-    cell: ({ row }) => row.original.breakdownType.replace(/_/g, ' '),
+    id: 'driver',
+    header: 'Driver Name',
+    cell: ({ row }) =>
+      row.original.driver
+        ? `${row.original.driver.user.firstName} ${row.original.driver.user.lastName}`
+        : 'N/A',
+    defaultVisible: true,
+  },
+  {
+    id: 'reportedAt',
+    accessorKey: 'reportedAt',
+    header: 'Date',
+    cell: ({ row }) => formatDate(row.original.reportedAt),
+    defaultVisible: true,
+  },
+  {
+    id: 'description',
+    accessorKey: 'description',
+    header: 'Issue Description',
+    cell: ({ row }) => (
+      <div className="max-w-md truncate" title={row.original.description}>
+        {row.original.description || 'N/A'}
+      </div>
+    ),
     defaultVisible: true,
   },
   {
@@ -113,30 +119,6 @@ const columns: ExtendedColumnDef<BreakdownData>[] = [
         {formatStatus(row.original.status)}
       </Badge>
     ),
-    defaultVisible: true,
-  },
-  {
-    id: 'priority',
-    accessorKey: 'priority',
-    header: 'Priority',
-    cell: ({ row }) => (
-      <Badge variant="outline" className={getPriorityColor(row.original.priority)}>
-        {row.original.priority}
-      </Badge>
-    ),
-    defaultVisible: true,
-  },
-  {
-    id: 'location',
-    accessorKey: 'location',
-    header: 'Location',
-    defaultVisible: true,
-  },
-  {
-    id: 'reportedAt',
-    accessorKey: 'reportedAt',
-    header: 'Reported',
-    cell: ({ row }) => formatDate(row.original.reportedAt),
     defaultVisible: true,
   },
   {
@@ -232,15 +214,12 @@ export const breakdownsTableConfig = createEntityTableConfig<BreakdownData>({
   entityType: 'breakdowns',
   columns,
   defaultVisibleColumns: [
-    'breakdownNumber',
     'truck',
-    'breakdownType',
-    'status',
-    'priority',
-    'location',
+    'driver',
     'reportedAt',
+    'description',
+    'status',
     'totalCost',
-    'downtimeHours',
   ],
   requiredColumns: ['breakdownNumber'],
   bulkEditFields,

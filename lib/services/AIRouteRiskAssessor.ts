@@ -5,7 +5,7 @@
 
 import { AIService } from './AIService';
 
-export interface RouteRiskAssessment {
+interface RouteRiskAssessment {
   route: {
     pickupCity: string;
     pickupState: string;

@@ -12,7 +12,7 @@
 import { prisma } from '@/lib/prisma';
 import { notifyDetentionDetected, notifyBillingHold } from '@/lib/notifications/triggers';
 
-export interface DetentionCheckResult {
+interface DetentionCheckResult {
   detentionDetected: boolean;
   detentionHours?: number;
   billableDetentionMinutes?: number;

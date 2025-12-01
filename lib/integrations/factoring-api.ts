@@ -108,7 +108,7 @@ export async function generateFactoringExport(
 /**
  * Check factoring status for invoices
  */
-export async function checkFactoringStatus(
+async function checkFactoringStatus(
   factoringCompany: FactoringCompany,
   invoiceIds: string[]
 ): Promise<{

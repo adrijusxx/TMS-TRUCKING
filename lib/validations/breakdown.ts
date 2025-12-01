@@ -35,8 +35,8 @@ export const createBreakdownSchema = z.object({
   serviceAddress: z.string().optional(),
 });
 
-export const updateBreakdownSchema = createBreakdownSchema.partial();
+const updateBreakdownSchema = createBreakdownSchema.partial();
 
 export type CreateBreakdownInput = z.infer<typeof createBreakdownSchema>;
-export type UpdateBreakdownInput = z.infer<typeof updateBreakdownSchema>;
+type UpdateBreakdownInput = z.infer<typeof updateBreakdownSchema>;
 

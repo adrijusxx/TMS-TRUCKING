@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface BreakdownPrediction {
+interface BreakdownPrediction {
   truckId: string;
   truckNumber: string;
   predictedBreakdowns: Array<{

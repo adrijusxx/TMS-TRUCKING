@@ -28,7 +28,7 @@ const images = [
   'image/bmp',
 ] as const;
 
-export const ALLOWED_FILE_TYPES = {
+const ALLOWED_FILE_TYPES = {
   documents,
   images,
   all: [
@@ -38,7 +38,7 @@ export const ALLOWED_FILE_TYPES = {
 } as const;
 
 // Allowed file extensions
-export const ALLOWED_EXTENSIONS = [
+const ALLOWED_EXTENSIONS = [
   // Documents
   '.pdf',
   '.doc',
@@ -57,14 +57,14 @@ export const ALLOWED_EXTENSIONS = [
 ] as const;
 
 // File size limits (in bytes)
-export const FILE_SIZE_LIMITS = {
+const FILE_SIZE_LIMITS = {
   document: 10 * 1024 * 1024, // 10 MB for documents
   image: 5 * 1024 * 1024, // 5 MB for images
   default: 10 * 1024 * 1024, // 10 MB default
 } as const;
 
 // Dangerous file extensions to block
-export const DANGEROUS_EXTENSIONS = [
+const DANGEROUS_EXTENSIONS = [
   '.exe',
   '.bat',
   '.cmd',
@@ -84,7 +84,7 @@ export const DANGEROUS_EXTENSIONS = [
   '.sys',
 ] as const;
 
-export interface FileValidationResult {
+interface FileValidationResult {
   valid: boolean;
   error?: string;
   sanitizedFileName?: string;
@@ -94,7 +94,7 @@ export interface FileValidationResult {
 /**
  * Validate file type by MIME type
  */
-export function validateMimeType(
+function validateMimeType(
   mimeType: string,
   allowedTypes: string[] | readonly string[] = ALLOWED_FILE_TYPES.all
 ): boolean {
@@ -122,7 +122,7 @@ export function validateMimeType(
 /**
  * Validate file extension
  */
-export function validateFileExtension(fileName: string): boolean {
+function validateFileExtension(fileName: string): boolean {
   if (!fileName) {
     return false;
   }
@@ -141,7 +141,7 @@ export function validateFileExtension(fileName: string): boolean {
 /**
  * Validate file size
  */
-export function validateFileSize(
+function validateFileSize(
   fileSize: number,
   maxSize: number = FILE_SIZE_LIMITS.default
 ): boolean {
@@ -179,7 +179,7 @@ export function sanitizeFileName(fileName: string): string {
 /**
  * Detect file category from MIME type
  */
-export function detectFileCategory(mimeType: string): 'document' | 'image' | 'unknown' {
+function detectFileCategory(mimeType: string): 'document' | 'image' | 'unknown' {
   if (!mimeType) {
     return 'unknown';
   }

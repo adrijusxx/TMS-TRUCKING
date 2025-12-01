@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface ComplianceRisk {
+interface ComplianceRisk {
   companyId: string;
   csaScore: {
     current: number | null;

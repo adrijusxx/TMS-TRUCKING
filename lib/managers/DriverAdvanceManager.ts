@@ -6,14 +6,14 @@
 
 import { prisma } from '@/lib/prisma';
 
-export interface AdvanceRequest {
+interface AdvanceRequest {
   driverId: string;
   amount: number;
   loadId?: string;
   notes?: string;
 }
 
-export interface AdvanceApproval {
+interface AdvanceApproval {
   advanceId: string;
   approverId: string;
   approved: boolean;

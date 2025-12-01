@@ -2,7 +2,7 @@
  * Path Trail Manager for showing historical truck movement
  */
 
-export interface TrailPoint {
+interface TrailPoint {
   lat: number;
   lng: number;
   timestamp: number;

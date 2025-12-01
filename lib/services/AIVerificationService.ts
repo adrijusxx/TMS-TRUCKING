@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { AISuggestionStatus } from '@prisma/client';
 import { createActivityLog } from '@/lib/activity-log';
 
-export interface CreateSuggestionInput {
+interface CreateSuggestionInput {
   companyId: string;
   suggestionType: string; // e.g., 'RATE_RECOMMENDATION', 'EXPENSE_CATEGORIZATION', 'INVOICE_MATCHING'
   entityType: string; // e.g., 'LOAD', 'INVOICE', 'SETTLEMENT', 'EXPENSE'
@@ -18,14 +18,14 @@ export interface CreateSuggestionInput {
   originalValue?: any; // Original value for comparison
 }
 
-export interface ApproveSuggestionInput {
+interface ApproveSuggestionInput {
   suggestionId: string;
   reviewedById: string;
   approved: boolean;
   rejectionReason?: string;
 }
 
-export interface ApplySuggestionInput {
+interface ApplySuggestionInput {
   suggestionId: string;
   appliedById: string;
 }

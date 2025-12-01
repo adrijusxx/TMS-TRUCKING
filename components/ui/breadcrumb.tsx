@@ -3,12 +3,12 @@ import { ChevronRight, Home } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
-export interface BreadcrumbItem {
+interface BreadcrumbItem {
   label: string
   href?: string
 }
 
-export interface BreadcrumbProps extends React.HTMLAttributes<HTMLElement> {
+interface BreadcrumbProps extends React.HTMLAttributes<HTMLElement> {
   items: BreadcrumbItem[]
 }
 

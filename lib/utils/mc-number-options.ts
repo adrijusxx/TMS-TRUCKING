@@ -31,7 +31,7 @@ export async function getMcNumberOptions(): Promise<Array<{ value: string; label
  */
 export const MC_NUMBER_FIELD_KEY = 'mcNumberId';
 
-export const mcNumberBulkEditField = {
+const mcNumberBulkEditField = {
   key: MC_NUMBER_FIELD_KEY,
   label: 'MC Number',
   type: 'select' as const,

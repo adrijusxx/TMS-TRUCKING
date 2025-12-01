@@ -7,7 +7,7 @@ import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 import { AIVerificationService } from './AIVerificationService';
 
-export interface InvoiceMatch {
+interface InvoiceMatch {
   invoiceId: string;
   invoiceNumber: string;
   customerName: string;
@@ -20,7 +20,7 @@ export interface InvoiceMatch {
   isPartialMatch: boolean;
 }
 
-export interface InvoiceMatchingInput {
+interface InvoiceMatchingInput {
   companyId: string;
   depositAmount: number;
   depositDate: Date;

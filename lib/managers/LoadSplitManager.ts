@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { LoadStatus } from '@prisma/client';
 
-export interface LoadSplitData {
+interface LoadSplitData {
   loadId: string;
   newDriverId?: string;
   newTruckId?: string;
@@ -11,7 +11,7 @@ export interface LoadSplitData {
   notes?: string;
 }
 
-export interface AutoSplitData {
+interface AutoSplitData {
   driverId: string;
   oldTruckId?: string;
   newTruckId?: string;

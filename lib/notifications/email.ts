@@ -6,7 +6,7 @@
 
 import { prisma } from '../prisma';
 
-export interface EmailOptions {
+interface EmailOptions {
   to: string;
   subject: string;
   html: string;
@@ -17,7 +17,7 @@ export interface EmailOptions {
  * Send an email notification
  * This is a placeholder - integrate with your email service (SendGrid, AWS SES, etc.)
  */
-export async function sendEmail(options: EmailOptions): Promise<boolean> {
+async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
     // TODO: Integrate with email service provider
     // Example providers:
@@ -67,7 +67,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
 /**
  * Check if user wants to receive email notifications for a specific type
  */
-export async function shouldSendEmail(
+async function shouldSendEmail(
   userId: string,
   notificationType: string
 ): Promise<boolean> {

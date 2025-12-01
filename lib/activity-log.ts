@@ -6,7 +6,7 @@
 
 import { prisma } from './prisma';
 
-export type ActivityAction =
+type ActivityAction =
   | 'CREATE'
   | 'UPDATE'
   | 'DELETE'
@@ -26,7 +26,7 @@ export type ActivityAction =
   | 'AI_SUGGESTION_REJECTED'
   | 'AI_SUGGESTION_APPLIED';
 
-export type EntityType =
+type EntityType =
   | 'Load'
   | 'Driver'
   | 'Truck'

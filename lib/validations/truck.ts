@@ -28,5 +28,5 @@ export const updateTruckSchema = createTruckSchema.partial().extend({
 });
 
 export type CreateTruckInput = z.infer<typeof createTruckSchema>;
-export type UpdateTruckInput = z.infer<typeof updateTruckSchema>;
+type UpdateTruckInput = z.infer<typeof updateTruckSchema>;
 

@@ -3,13 +3,13 @@
  * Defines system fields for each entity type
  */
 
-export interface EntityConfig {
+interface EntityConfig {
   label: string;
   fields: Array<{ key: string; label: string; required?: boolean }>;
   exampleFileUrl?: string;
 }
 
-export const entityConfigs: Record<string, EntityConfig> = {
+const entityConfigs: Record<string, EntityConfig> = {
   trucks: {
     label: 'Trucks',
     fields: [

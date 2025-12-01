@@ -6,7 +6,7 @@
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
 
-export interface AnomalyDetectionInput {
+interface AnomalyDetectionInput {
   companyId: string;
   type: 'FUEL_COST' | 'DELAY' | 'REVENUE' | 'MAINTENANCE_COST' | 'DRIVER_BEHAVIOR' | 'GENERAL';
   startDate?: Date;
@@ -15,7 +15,7 @@ export interface AnomalyDetectionInput {
   truckId?: string;
 }
 
-export interface Anomaly {
+interface Anomaly {
   type: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   description: string;
@@ -28,7 +28,7 @@ export interface Anomaly {
   recommendations: string[];
 }
 
-export interface AnomalyDetectionResult {
+interface AnomalyDetectionResult {
   anomalies: Anomaly[];
   summary: {
     totalAnomalies: number;

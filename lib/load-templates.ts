@@ -6,7 +6,7 @@
 
 import { prisma } from './prisma';
 
-export interface LoadTemplate {
+interface LoadTemplate {
   id: string;
   name: string;
   description?: string;
