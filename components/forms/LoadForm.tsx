@@ -250,7 +250,9 @@ export default function LoadForm({
     watch,
     reset,
   } = useForm<CreateLoadInput | UpdateLoadInput>({
-    resolver: zodResolver(formSchema) as any,
+    // @ts-expect-error - zodResolver accepts union of Zod schemas but TypeScript doesn't infer it correctly
+    resolver: zodResolver(formSchema),
+    // @ts-expect-error - defaultValues type mismatch between create and update schemas
     defaultValues: getDefaultValues(),
   });
 

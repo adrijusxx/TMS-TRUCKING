@@ -78,7 +78,7 @@ export async function POST(
       loadId,
       expenseType: validated.expenseType,
       amount: validated.amount,
-      vendor: validated.vendor,
+      vendorId: validated.vendor,
       description: validated.description,
       receiptUrl: validated.receiptUrl,
       date: validated.date ? new Date(validated.date) : undefined,

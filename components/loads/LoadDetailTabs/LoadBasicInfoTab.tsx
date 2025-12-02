@@ -9,7 +9,6 @@ import DriverCombobox from '@/components/drivers/DriverCombobox';
 import TruckCombobox from '@/components/trucks/TruckCombobox';
 import TrailerCombobox from '@/components/trailers/TrailerCombobox';
 import CustomerCombobox from '@/components/customers/CustomerCombobox';
-import DispatchStatusSelector from '../DispatchStatusSelector';
 import { Package, User, Truck } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -149,26 +148,24 @@ export default function LoadBasicInfoTab({
                   <SelectContent>
                     {Object.values(LoadStatus).map((status) => (
                       <SelectItem key={status} value={status}>
-                        {status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                        {status.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : (
-                <p className="font-medium text-sm mt-1">{load.status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}</p>
+                <p className="font-medium text-sm mt-1">{String(load.status).replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</p>
               )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="dispatchStatus" className="text-sm">Dispatch Status</Label>
-              {canEdit ? (
-                <DispatchStatusSelector
-                  loadId={load.id}
-                  currentDispatchStatus={formData.dispatchStatus || load.dispatchStatus}
-                />
-              ) : (
-                <p className="font-medium text-sm mt-1">{load.dispatchStatus || 'Not Set'}</p>
-              )}
+              <p className="font-medium text-sm mt-1 text-muted-foreground">
+                {load.dispatchStatus ? load.dispatchStatus.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Not Set'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Use the dispatch status selector in the header to change this value.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -184,7 +181,7 @@ export default function LoadBasicInfoTab({
                   <SelectContent>
                     {Object.values(LoadType).map((type) => (
                       <SelectItem key={type} value={type}>
-                        {type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                        {type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -207,7 +204,7 @@ export default function LoadBasicInfoTab({
                   <SelectContent>
                     {Object.values(EquipmentType).map((type) => (
                       <SelectItem key={type} value={type}>
-                        {type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                        {type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -27,8 +27,8 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
   employeeStatus: z.nativeEnum(EmployeeStatus).optional(),
   assignmentStatus: z.nativeEnum(AssignmentStatus).optional(),
   dispatchStatus: z.nativeEnum(DispatchStatus).optional(),
-  currentTruckId: z.string().optional(),
-  currentTrailerId: z.string().optional(),
+  currentTruckId: z.string().nullable().optional(),
+  currentTrailerId: z.string().nullable().optional(),
   password: z.string().min(8).optional(),
   // Personal Information
   socialSecurityNumber: z.string().optional(),

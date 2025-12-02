@@ -17,8 +17,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 async function fetchDeliveredLoads() {
   const response = await fetch(
@@ -41,7 +43,11 @@ async function generateInvoice(data: {
   });
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error?.message || 'Failed to generate invoice');
+    // Create a custom error with full details
+    const customError: any = new Error(error.error?.message || 'Failed to generate invoice');
+    customError.errorDetails = error.error;
+    customError.statusCode = response.status;
+    throw customError;
   }
   return response.json();
 }
@@ -63,9 +69,40 @@ export default function GenerateInvoiceForm() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['loads'] });
+      toast.success(`Successfully generated ${data.data?.length || 1} invoice(s)`);
       if (data.data && data.data.length > 0) {
         router.push(`/dashboard/invoices/${data.data[0].id}`);
       }
+    },
+    onError: (error: any) => {
+      const errorDetails = error.errorDetails;
+      const errorCode = errorDetails?.code;
+      const errorMessage = errorDetails?.message || error.message || 'Failed to generate invoice';
+      
+      // Build detailed error message
+      let detailedMessage = errorMessage;
+      
+      if (errorDetails?.details && Array.isArray(errorDetails.details) && errorDetails.details.length > 0) {
+        const loadDetails = errorDetails.details
+          .map((d: any) => `• Load ${d.loadNumber}: ${d.reason}`)
+          .join('\n');
+        detailedMessage = `${errorMessage}\n\n${loadDetails}`;
+      }
+      
+      // Show toast with error
+      toast.error(errorMessage, {
+        description: errorDetails?.details 
+          ? errorDetails.details.map((d: any) => `Load ${d.loadNumber}: ${d.reason}`).join('; ')
+          : undefined,
+        duration: 10000,
+      });
+      
+      console.error('Invoice generation error:', {
+        code: errorCode,
+        message: errorMessage,
+        details: errorDetails?.details,
+        fullError: error,
+      });
     },
   });
 
@@ -94,7 +131,7 @@ export default function GenerateInvoiceForm() {
 
   const handleGenerate = () => {
     if (selectedLoads.size === 0) {
-      alert('Please select at least one load');
+      toast.error('Please select at least one load');
       return;
     }
 
@@ -160,48 +197,98 @@ export default function GenerateInvoiceForm() {
               </div>
 
               <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead>Load #</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Route</TableHead>
-                      <TableHead>Delivered</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {unassignedLoads.map((load: any) => (
-                      <TableRow key={load.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedLoads.has(load.id)}
-                            onCheckedChange={() =>
-                              handleToggleLoad(load.id)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {load.loadNumber}
-                        </TableCell>
-                        <TableCell>{load.customer.name}</TableCell>
-                        <TableCell>
-                          {load.pickupCity}, {load.pickupState} →{' '}
-                          {load.deliveryCity}, {load.deliveryState}
-                        </TableCell>
-                        <TableCell>
-                          {load.deliveredAt
-                            ? formatDate(load.deliveredAt)
-                            : '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(load.revenue)}
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead>Load #</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Route</TableHead>
+                        <TableHead>Dispatcher</TableHead>
+                        <TableHead>Driver</TableHead>
+                        <TableHead>Truck/Trailer</TableHead>
+                        <TableHead>Delivered</TableHead>
+                        <TableHead className="text-right">Revenue</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {unassignedLoads.map((load: any) => {
+                        const dispatcherName = load.dispatcher
+                          ? `${load.dispatcher.firstName || ''} ${load.dispatcher.lastName || ''}`.trim()
+                          : '-';
+                        const dispatcherPhone = load.dispatcher?.phone || '';
+                        
+                        const driverName = load.driver?.user
+                          ? `${load.driver.user.firstName || ''} ${load.driver.user.lastName || ''}`.trim()
+                          : '-';
+                        const driverNumber = load.driver?.driverNumber || '';
+                        const driverPhone = load.driver?.user?.phone || '';
+                        
+                        const truckNumber = load.truck?.truckNumber || '-';
+                        const trailerNumber = load.trailerNumber || '';
+                        const truckTrailer = trailerNumber
+                          ? `${truckNumber} / ${trailerNumber}`
+                          : truckNumber;
+
+                        return (
+                          <TableRow key={load.id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedLoads.has(load.id)}
+                                onCheckedChange={() =>
+                                  handleToggleLoad(load.id)
+                                }
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {load.loadNumber}
+                            </TableCell>
+                            <TableCell>{load.customer.name}</TableCell>
+                            <TableCell>
+                              {load.pickupCity}, {load.pickupState} →{' '}
+                              {load.deliveryCity}, {load.deliveryState}
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div className="font-medium">{dispatcherName}</div>
+                                {dispatcherPhone && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {dispatcherPhone}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div className="font-medium">
+                                  {driverName}
+                                  {driverNumber && ` (#${driverNumber})`}
+                                </div>
+                                {driverPhone && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {driverPhone}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {truckTrailer}
+                            </TableCell>
+                            <TableCell>
+                              {load.deliveredAt
+                                ? formatDate(load.deliveredAt)
+                                : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(load.revenue)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </>
           )}
@@ -233,6 +320,27 @@ export default function GenerateInvoiceForm() {
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+
+            {generateMutation.isError && generateMutation.error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error Generating Invoice</AlertTitle>
+                <AlertDescription className="mt-2">
+                  <div className="font-medium">
+                    {(generateMutation.error as any).errorDetails?.message || generateMutation.error.message}
+                  </div>
+                  {(generateMutation.error as any).errorDetails?.details && (
+                    <ul className="mt-2 list-disc list-inside space-y-1 text-sm">
+                      {(generateMutation.error as any).errorDetails.details.map((detail: any, idx: number) => (
+                        <li key={idx}>
+                          <strong>Load {detail.loadNumber}:</strong> {detail.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="flex justify-end gap-4 pt-4">
               <Link href="/dashboard/invoices">

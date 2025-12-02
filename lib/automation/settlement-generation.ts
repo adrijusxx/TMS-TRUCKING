@@ -40,7 +40,8 @@ export async function runWeeklySettlementGeneration(): Promise<SettlementGenerat
   let totalDrivers = 0;
 
   try {
-    // Calculate period (previous week: Monday to Sunday)
+    // Calculate period (previous week: Monday to Sunday by default)
+    // Can be customized via company settings
     const periodEnd = new Date();
     periodEnd.setHours(0, 0, 0, 0);
     periodEnd.setDate(periodEnd.getDate() - periodEnd.getDay()); // Last Sunday

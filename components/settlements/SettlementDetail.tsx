@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { SettlementStatus } from '@prisma/client';
+import { Loader2 } from 'lucide-react';
 import {
   ArrowLeft,
   DollarSign,
@@ -34,6 +35,8 @@ import {
   Package,
   CheckCircle,
   XCircle,
+  Download,
+  Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -71,11 +74,47 @@ function formatStatus(status: SettlementStatus): string {
   return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+async function downloadSettlementPDF(id: string) {
+  try {
+    const response = await fetch(apiUrl(`/api/settlements/${id}/pdf`));
+    if (!response.ok) throw new Error('Failed to download PDF');
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `settlement-${id}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success('PDF downloaded successfully');
+  } catch (error: any) {
+    toast.error(error.message || 'Failed to download PDF');
+  }
+}
+
+async function sendSettlementEmail(id: string) {
+  try {
+    const response = await fetch(apiUrl(`/api/settlements/${id}/send`), {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Failed to send email');
+    }
+    toast.success('Settlement email sent successfully');
+  } catch (error: any) {
+    toast.error(error.message || 'Failed to send email');
+  }
+}
+
 export default function SettlementDetail({ settlementId }: SettlementDetailProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SettlementStatus | ''>('');
   const [notes, setNotes] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['settlement', settlementId],
@@ -106,6 +145,24 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
     updateMutation.mutate(updateData);
   };
 
+  const handleDownloadPDF = async () => {
+    setIsDownloadingPDF(true);
+    try {
+      await downloadSettlementPDF(settlementId);
+    } finally {
+      setIsDownloadingPDF(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    setIsSendingEmail(true);
+    try {
+      await sendSettlementEmail(settlementId);
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -124,6 +181,42 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           <Badge variant="outline" className={statusColors[settlement.status as SettlementStatus]}>
             {formatStatus(settlement.status)}
           </Badge>
+          <Button
+            onClick={handleDownloadPDF}
+            disabled={isDownloadingPDF}
+            variant="outline"
+            size="sm"
+          >
+            {isDownloadingPDF ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Download PDF
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={handleSendEmail}
+            disabled={isSendingEmail}
+            variant="outline"
+            size="sm"
+          >
+            {isSendingEmail ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Mail className="mr-2 h-4 w-4" />
+                Email Statement
+              </>
+            )}
+          </Button>
           {!isEditing ? (
             <Button onClick={() => setIsEditing(true)} variant="outline">
               Edit

@@ -51,7 +51,7 @@ const columns: ExtendedColumnDef<BatchData>[] = [
   {
     id: 'postStatus',
     accessorKey: 'postStatus',
-    header: 'Status',
+    header: 'Post status',
     cell: ({ row }) => (
       <Badge variant="outline" className={statusColors[row.original.postStatus]}>
         {formatStatus(row.original.postStatus)}
@@ -82,15 +82,15 @@ const columns: ExtendedColumnDef<BatchData>[] = [
   },
   {
     id: 'createdBy',
-    header: 'Created By',
+    header: 'Created by',
     cell: ({ row }) =>
       `${row.original.createdBy.firstName} ${row.original.createdBy.lastName}`,
-    defaultVisible: false,
+    defaultVisible: true,
   },
   {
     id: 'createdAt',
     accessorKey: 'createdAt',
-    header: 'Created',
+    header: 'Created date',
     cell: ({ row }) => formatDate(new Date(row.original.createdAt)),
     defaultVisible: true,
   },
@@ -99,7 +99,7 @@ const columns: ExtendedColumnDef<BatchData>[] = [
     accessorKey: 'notes',
     header: 'Notes',
     cell: ({ row }) => row.original.notes || 'N/A',
-    defaultVisible: false,
+    defaultVisible: true,
   },
 ];
 
@@ -130,9 +130,12 @@ export const batchesTableConfig = createEntityTableConfig<BatchData>({
   defaultVisibleColumns: [
     'batchNumber',
     'postStatus',
-    'invoiceCount',
-    'totalAmount',
+    'createdBy',
     'createdAt',
+    'invoiceCount',
+    'mcNumber',
+    'totalAmount',
+    'notes',
   ],
   requiredColumns: ['batchNumber'],
   bulkEditFields,

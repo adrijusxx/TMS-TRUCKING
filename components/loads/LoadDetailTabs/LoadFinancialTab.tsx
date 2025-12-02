@@ -253,7 +253,7 @@ export default function LoadFinancialTab({
               <div className="mt-1">
                 <Badge
                   variant="outline"
-                  className={syncStatusColors[load.accountingSyncStatus || 'NOT_SYNCED']}
+                  className={syncStatusColors[(load.accountingSyncStatus || 'NOT_SYNCED') as AccountingSyncStatus]}
                 >
                   {load.accountingSyncStatus?.replace(/_/g, ' ') || 'NOT_SYNCED'}
                 </Badge>

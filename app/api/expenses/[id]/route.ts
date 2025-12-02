@@ -93,7 +93,7 @@ export async function PATCH(
       loadId: expense.loadId,
       expenseType: validated.expenseType,
       amount: validated.amount,
-      vendor: validated.vendor,
+      vendorId: validated.vendor,
       description: validated.description,
       receiptUrl: validated.receiptUrl,
       date: validated.date ? new Date(validated.date) : undefined,

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Save, X, Loader2 } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
+import { DriverStatus, EmployeeStatus, AssignmentStatus } from '@prisma/client';
 import DriverPersonalInfoTab from './DriverEditTabs/DriverPersonalInfoTab';
 import DriverComplianceTab from './DriverEditTabs/DriverComplianceTab';
 import DriverWorkDetailsTab from './DriverEditTabs/DriverWorkDetailsTab';
@@ -144,8 +145,11 @@ export default function DriverInlineEdit({ row, onSave, onCancel }: DriverInline
     mutationFn: (data: any) => updateDriver(row.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['drivers', 'wizard'] }); // Also invalidate wizard query
       queryClient.invalidateQueries({ queryKey: ['driver', row.id] });
       queryClient.invalidateQueries({ queryKey: ['driver', row.id, 'inline'] });
+      queryClient.invalidateQueries({ queryKey: ['trucks'] }); // Invalidate trucks in case assignment changed
+      queryClient.invalidateQueries({ queryKey: ['trailers'] }); // Invalidate trailers in case assignment changed
       toast.success('Driver updated successfully');
       onSave?.();
     },

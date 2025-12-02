@@ -83,12 +83,12 @@ async function testManualLoadCreation() {
     });
 
     const hasRequiredFields = 
-      load.loadNumber &&
-      load.companyId &&
-      load.customerId &&
-      load.mcNumberId &&
-      load.pickupCity &&
-      load.deliveryCity;
+      !!load.loadNumber &&
+      !!load.companyId &&
+      !!load.customerId &&
+      !!load.mcNumberId &&
+      !!load.pickupCity &&
+      !!load.deliveryCity;
 
     logTest(
       'Manual Load Creation - Required Fields',
@@ -306,8 +306,8 @@ async function testLoadSplit() {
     const totalSegmentMiles = segments.reduce((sum, seg) => sum + (seg.segmentMiles || 0), 0);
     logTest(
       'Load Split - Miles Allocation',
-      Math.abs(totalSegmentMiles - load.totalMiles) < 1, // Allow small rounding differences
-      `Total segment miles (${totalSegmentMiles}) matches load miles (${load.totalMiles})`
+      load.totalMiles !== null && Math.abs(totalSegmentMiles - load.totalMiles) < 1, // Allow small rounding differences
+      `Total segment miles (${totalSegmentMiles}) matches load miles (${load.totalMiles ?? 'null'})`
     );
 
     // Cleanup

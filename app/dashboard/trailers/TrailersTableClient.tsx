@@ -159,7 +159,7 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
         />
       )}
       <DataTable
-        columns={columns}
+        columns={columns as any}
         data={data}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}

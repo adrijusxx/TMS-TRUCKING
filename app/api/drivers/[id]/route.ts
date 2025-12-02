@@ -283,7 +283,13 @@ export async function PATCH(
 
     driverFields.forEach((field) => {
       if (validated[field as keyof typeof validated] !== undefined) {
-        updateData[field] = validated[field as keyof typeof validated];
+        const value = validated[field as keyof typeof validated];
+        // Explicitly handle null values for nullable fields
+        if (field === 'currentTruckId' || field === 'currentTrailerId') {
+          updateData[field] = value === null || value === '' ? null : value;
+        } else {
+          updateData[field] = value;
+        }
       }
     });
 
@@ -299,20 +305,87 @@ export async function PATCH(
       }
     });
 
-    // Detect truck change and auto-split loads
-    if (updateData.currentTruckId !== undefined && updateData.currentTruckId !== existingDriver.currentTruckId) {
-      const { LoadSplitManager } = await import('@/lib/managers/LoadSplitManager');
+    // Handle truck and trailer assignment changes with history tracking
+    const oldTruckId = existingDriver.currentTruckId;
+    const oldTrailerId = existingDriver.currentTrailerId;
+    const newTruckId = updateData.currentTruckId !== undefined ? updateData.currentTruckId : oldTruckId;
+    const newTrailerId = updateData.currentTrailerId !== undefined ? updateData.currentTrailerId : oldTrailerId;
+
+    // Create truck history if truck changed
+    if (updateData.currentTruckId !== undefined && oldTruckId !== newTruckId) {
+      const now = new Date();
       
+      // Close old truck assignment if it existed
+      if (oldTruckId) {
+        await prisma.driverTruckHistory.updateMany({
+          where: {
+            driverId: id,
+            truckId: oldTruckId,
+            dropOffDate: null, // Only update active assignments
+          },
+          data: {
+            dropOffDate: now,
+            isActive: false,
+          },
+        });
+      }
+
+      // Create new truck assignment history
+      if (newTruckId) {
+        await prisma.driverTruckHistory.create({
+          data: {
+            driverId: id,
+            truckId: newTruckId,
+            date: now,
+            pickupDate: now,
+            isActive: true,
+            note: 'Assignment updated',
+          },
+        });
+      }
+
+      // Auto-split loads if truck changed
+      const { LoadSplitManager } = await import('@/lib/managers/LoadSplitManager');
       try {
         await LoadSplitManager.autoSplitOnTruckChange({
           driverId: id,
-          oldTruckId: existingDriver.currentTruckId || undefined,
-          newTruckId: updateData.currentTruckId || undefined,
-          changeDate: new Date(),
+          oldTruckId: oldTruckId || undefined,
+          newTruckId: newTruckId || undefined,
+          changeDate: now,
         });
       } catch (splitError) {
         console.error('Auto-split error on truck change:', splitError);
         // Don't fail the update if auto-split fails, just log it
+      }
+    }
+
+    // Create trailer history if trailer changed
+    if (updateData.currentTrailerId !== undefined && oldTrailerId !== newTrailerId) {
+      const now = new Date();
+      
+      // Close old trailer assignment if it existed
+      if (oldTrailerId) {
+        await prisma.driverTrailerHistory.updateMany({
+          where: {
+            driverId: id,
+            trailerId: oldTrailerId,
+            dropOffDate: null, // Only update active assignments
+          },
+          data: {
+            dropOffDate: now,
+          },
+        });
+      }
+
+      // Create new trailer assignment history
+      if (newTrailerId) {
+        await prisma.driverTrailerHistory.create({
+          data: {
+            driverId: id,
+            trailerId: newTrailerId,
+            pickupDate: now,
+          },
+        });
       }
     }
 

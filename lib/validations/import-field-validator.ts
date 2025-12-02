@@ -1,6 +1,6 @@
 import { schemaReference, getModelFields } from '../schema-reference';
 
-interface MissingFieldWarning {
+export interface MissingFieldWarning {
   fieldName: string;
   fieldType: string;
   isRequired: boolean;

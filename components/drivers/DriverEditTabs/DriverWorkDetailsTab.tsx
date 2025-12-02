@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,11 +16,13 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
+import { X, Truck, Package } from 'lucide-react';
 import DriverTruckHistoryTable from './DriverTruckHistoryTable';
 import DriverTrailerHistoryTable from './DriverTrailerHistoryTable';
 import DriverCommentsSection from './DriverCommentsSection';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
+import TruckCombobox from '@/components/trucks/TruckCombobox';
+import TrailerCombobox from '@/components/trailers/TrailerCombobox';
 
 interface DriverWorkDetailsTabProps {
   driver: any;
@@ -38,41 +41,68 @@ export default function DriverWorkDetailsTab({
   users,
   onSave,
 }: DriverWorkDetailsTabProps) {
-  const { register, handleSubmit, setValue, watch } = useForm({
-    defaultValues: {
-      employmentStatus: driver.employeeStatus || 'ACTIVE',
-      hireDate: driver.hireDate ? new Date(driver.hireDate).toISOString().split('T')[0] : '',
-      tenureAtCompany: driver.tenure || '',
-      driverStatus: driver.status || 'AVAILABLE',
-      thresholdAmount: driver.thresholdAmount || '',
-      // Assignments
-      assignedTruck: driver.currentTruckId || '',
-      assignedTrailer: driver.currentTrailerId || '',
-      assignedDispatcher: driver.assignedDispatcherId || '',
-      hrManager: driver.hrManagerId || '',
-      safetyManager: driver.safetyManagerId || '',
-      mcNumber: typeof driver.mcNumber === 'object' ? driver.mcNumber?.id || '' : driver.mcNumber || '',
-      teamDriver: driver.teamDriver || false,
-      otherId: driver.otherId || '',
-      driverTags: driver.tags || [],
-      notes: driver.notes || '',
-      // Dispatch preferences
-      dispatchPreferences: driver.dispatchPreferences || '',
-    },
+  // Convert currentTrailerId to trailerNumber for the combobox
+  const getTrailerNumberFromId = (trailerId: string | null | undefined): string => {
+    if (!trailerId) return '';
+    const trailer = trailers.find((t) => t.id === trailerId);
+    return trailer?.trailerNumber || '';
+  };
+
+  const defaultValues = {
+    employmentStatus: driver.employeeStatus || 'ACTIVE',
+    hireDate: driver.hireDate ? new Date(driver.hireDate).toISOString().split('T')[0] : '',
+    tenureAtCompany: driver.tenure || '',
+    driverStatus: driver.status || 'AVAILABLE',
+    thresholdAmount: driver.thresholdAmount || '',
+    // Assignments
+    assignedTruck: driver.currentTruckId || '',
+    assignedTrailer: getTrailerNumberFromId(driver.currentTrailerId), // Convert ID to trailerNumber
+    assignedDispatcher: driver.assignedDispatcherId || '',
+    hrManager: driver.hrManagerId || '',
+    safetyManager: driver.safetyManagerId || '',
+    mcNumber: typeof driver.mcNumber === 'object' ? driver.mcNumber?.id || '' : driver.mcNumber || '',
+    teamDriver: driver.teamDriver || false,
+    otherId: driver.otherId || '',
+    driverTags: driver.tags || [],
+    notes: driver.notes || '',
+    // Dispatch preferences
+    dispatchPreferences: driver.dispatchPreferences || '',
+  };
+
+  const { register, handleSubmit, setValue, watch, reset } = useForm({
+    defaultValues,
   });
+
+  // Reset form when driver assignment data changes (e.g., after save)
+  useEffect(() => {
+    const newDefaultValues = {
+      ...defaultValues,
+      assignedTruck: driver.currentTruckId || '',
+      assignedTrailer: getTrailerNumberFromId(driver.currentTrailerId),
+    };
+    reset(newDefaultValues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driver.currentTruckId, driver.currentTrailerId]);
 
   const [driverTags, setDriverTags] = useState<string[]>(watch('driverTags') || []);
 
   const onSubmit = (data: any) => {
+    // Convert trailerNumber back to trailerId
+    const getTrailerIdFromNumber = (trailerNumber: string | null | undefined): string | null => {
+      if (!trailerNumber || trailerNumber === 'none' || trailerNumber === '') return null;
+      const trailer = trailers.find((t) => t.trailerNumber === trailerNumber);
+      return trailer?.id || null;
+    };
+
     const apiData: any = {
       employeeStatus: data.employmentStatus,
       hireDate: data.hireDate || undefined,
       tenure: data.tenureAtCompany,
       status: data.driverStatus,
       thresholdAmount: data.thresholdAmount ? parseFloat(data.thresholdAmount) : undefined,
-      // Assignments
-      currentTruckId: data.assignedTruck && data.assignedTruck !== 'none' ? data.assignedTruck : undefined,
-      currentTrailerId: data.assignedTrailer && data.assignedTrailer !== 'none' ? data.assignedTrailer : undefined,
+      // Assignments - use null to explicitly clear, not undefined
+      currentTruckId: data.assignedTruck && data.assignedTruck !== 'none' && data.assignedTruck !== '' ? data.assignedTruck : null,
+      currentTrailerId: getTrailerIdFromNumber(data.assignedTrailer), // Convert trailerNumber to ID
       assignedDispatcherId: data.assignedDispatcher && data.assignedDispatcher !== 'none' ? data.assignedDispatcher : undefined,
       hrManagerId: data.hrManager && data.hrManager !== 'none' ? data.hrManager : undefined,
       safetyManagerId: data.safetyManager && data.safetyManager !== 'none' ? data.safetyManager : undefined,
@@ -171,43 +201,39 @@ export default function DriverWorkDetailsTab({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="assignedTruck">Assigned Truck</Label>
-                <Select
-                  value={watch('assignedTruck') || 'none'}
-                  onValueChange={(value) => setValue('assignedTruck', value === 'none' ? '' : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select truck" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {trucks.map((truck) => (
-                      <SelectItem key={truck.id} value={truck.id}>
-                        {truck.truckNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="assignedTruck" className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-muted-foreground" />
+                  Assigned Truck
+                </Label>
+                <TruckCombobox
+                  value={watch('assignedTruck') || ''}
+                  onValueChange={(value) => setValue('assignedTruck', value || '')}
+                  placeholder="Search truck by number..."
+                  trucks={trucks}
+                />
+                {watch('assignedTruck') && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Current assignment will be updated when you save
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="assignedTrailer">Assigned Trailer</Label>
-                <Select
-                  value={watch('assignedTrailer') || 'none'}
-                  onValueChange={(value) => setValue('assignedTrailer', value === 'none' ? '' : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select trailer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {trailers.map((trailer) => (
-                      <SelectItem key={trailer.id} value={trailer.id}>
-                        {trailer.trailerNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="assignedTrailer" className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                  Assigned Trailer
+                </Label>
+                <TrailerCombobox
+                  value={watch('assignedTrailer') || ''}
+                  onValueChange={(value) => setValue('assignedTrailer', value || '')}
+                  placeholder="Search trailer by number..."
+                  trailers={trailers}
+                />
+                {watch('assignedTrailer') && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Current assignment will be updated when you save
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

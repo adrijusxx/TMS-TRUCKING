@@ -52,7 +52,6 @@ export async function PATCH(
             companyId: true,
             customerId: true,
             customer: {
-              // @ts-expect-error - detentionFreeTimeHours and detentionRate are new fields, types will be updated after migration
               select: {
                 id: true,
                 detentionFreeTimeHours: true,
@@ -121,7 +120,6 @@ export async function PATCH(
             id: true,
             loadNumber: true,
             customer: {
-              // @ts-expect-error - detentionFreeTimeHours is a new field, types will be updated after migration
               select: {
                 id: true,
                 detentionFreeTimeHours: true,

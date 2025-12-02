@@ -168,10 +168,32 @@ export default function GenericCRUDManager<T extends { id: string; [key: string]
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Process form data: convert numbers, handle empty strings
+    const processedData: Record<string, any> = {};
+    fields.forEach((field) => {
+      const value = formData[field.name];
+      
+      // Handle empty strings for optional fields
+      if (value === '' && !field.required) {
+        processedData[field.name] = undefined;
+      } else if (field.type === 'number' && value !== '' && value !== undefined) {
+        // Convert number fields to actual numbers
+        const numValue = Number(value);
+        processedData[field.name] = isNaN(numValue) ? undefined : numValue;
+      } else if (field.type === 'checkbox') {
+        // Handle checkbox boolean
+        processedData[field.name] = Boolean(value);
+      } else {
+        // Keep other values as-is (strings, selects, etc.)
+        processedData[field.name] = value || undefined;
+      }
+    });
+    
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data: formData as Partial<T> });
+      updateMutation.mutate({ id: editingItem.id, data: processedData as Partial<T> });
     } else {
-      createMutation.mutate(formData as Partial<T>);
+      createMutation.mutate(processedData as Partial<T>);
     }
   };
 
@@ -236,6 +258,28 @@ export default function GenericCRUDManager<T extends { id: string; [key: string]
                         ))}
                       </SelectContent>
                     </Select>
+                  ) : field.type === 'number' ? (
+                    <Input
+                      id={field.name}
+                      type="number"
+                      step="any"
+                      value={formData[field.name] || ''}
+                      onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+                      required={field.required}
+                    />
+                  ) : field.type === 'checkbox' ? (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        id={field.name}
+                        type="checkbox"
+                        checked={Boolean(formData[field.name])}
+                        onChange={(e) => setFormData({ ...formData, [field.name]: e.target.checked })}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor={field.name} className="!mt-0">
+                        {field.label}
+                      </Label>
+                    </div>
                   ) : (
                     <Input
                       id={field.name}

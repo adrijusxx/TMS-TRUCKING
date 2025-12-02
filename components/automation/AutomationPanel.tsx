@@ -5,10 +5,12 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, FileText, DollarSign, CheckCircle, AlertTriangle, Receipt } from 'lucide-react';
+import { RefreshCw, FileText, DollarSign, CheckCircle, AlertTriangle, Receipt, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { LoadStatus } from '@prisma/client';
 import { apiUrl } from '@/lib/utils';
+import DriverCombobox from '@/components/drivers/DriverCombobox';
+import Link from 'next/link';
 
 async function triggerLoadStatusUpdate() {
   const response = await fetch(apiUrl('/api/automation/load-status'), {
@@ -217,13 +219,11 @@ export default function AutomationPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Driver ID</label>
-            <input
-              type="text"
+            <label className="text-sm font-medium">Driver</label>
+            <DriverCombobox
               value={selectedDriverId}
-              onChange={(e) => setSelectedDriverId(e.target.value)}
-              placeholder="Enter driver ID"
-              className="w-full px-3 py-2 border rounded-md"
+              onValueChange={setSelectedDriverId}
+              placeholder="Search for a driver..."
             />
           </div>
           <Button
@@ -236,13 +236,23 @@ export default function AutomationPanel() {
           </Button>
           {settlementData?.data && (
             <div className="p-3 bg-muted rounded-lg space-y-2">
-              <div className="flex items-center gap-4">
-                <Badge variant="outline">
-                  {settlementData.data.totalLoads} Loads
-                </Badge>
-                <Badge variant="outline">
-                  ${settlementData.data.totalRevenue.toFixed(2)}
-                </Badge>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Badge variant="outline">
+                    {settlementData.data.totalLoads} Loads
+                  </Badge>
+                  <Badge variant="outline">
+                    ${settlementData.data.totalRevenue.toFixed(2)}
+                  </Badge>
+                </div>
+                {settlementData.data.totalLoads > 0 && (
+                  <Link href={`/dashboard/settlements?driverId=${selectedDriverId}`}>
+                    <Button variant="outline" size="sm">
+                      Go to Settlements
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                )}
               </div>
               {settlementData.data.loads.length > 0 && (
                 <div className="mt-2 space-y-1">

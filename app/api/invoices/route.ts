@@ -6,6 +6,7 @@ import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNu
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { getInvoiceFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { calculateAgingDays } from '@/lib/utils/aging';
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,6 +40,8 @@ export async function GET(request: NextRequest) {
     const customerId = searchParams.get('customerId');
     const search = searchParams.get('search');
     const invoiceDate = searchParams.get('invoiceDate');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const dueDate = searchParams.get('dueDate');
     const minTotal = searchParams.get('minTotal');
     const mcNumber = searchParams.get('mcNumber');
@@ -70,7 +73,20 @@ export async function GET(request: NextRequest) {
       where.customerId = customerId;
     }
 
-    if (invoiceDate) {
+    // Support both single date and date range
+    if (startDate || endDate) {
+      where.invoiceDate = {};
+      if (startDate) {
+        const date = new Date(startDate);
+        date.setHours(0, 0, 0, 0);
+        where.invoiceDate.gte = date;
+      }
+      if (endDate) {
+        const date = new Date(endDate);
+        date.setHours(23, 59, 59, 999);
+        where.invoiceDate.lte = date;
+      }
+    } else if (invoiceDate) {
       const date = new Date(invoiceDate);
       const nextDay = new Date(date);
       nextDay.setDate(nextDay.getDate() + 1);
@@ -120,7 +136,7 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const [invoices, total] = await Promise.all([
+    const [invoices, total, allInvoicesForTotals] = await Promise.all([
       prisma.invoice.findMany({
         where,
         include: {
@@ -143,11 +159,59 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
       prisma.invoice.count({ where }),
+      // Get all invoices for grand totals (unfiltered, but still respecting role-based access)
+      prisma.invoice.findMany({
+        where: viewingAll ? {} : { ...roleFilter, ...mcWhere },
+        select: {
+          total: true,
+          amountPaid: true,
+          balance: true,
+        },
+      }),
     ]);
 
-    // 5. Filter Sensitive Fields based on role
-    const filteredInvoices = invoices.map((invoice) =>
-      filterSensitiveFields(invoice, session.user.role as any)
+    // 5. Filter Sensitive Fields based on role and add aging calculations
+    const filteredInvoices = invoices.map((invoice) => {
+      const filtered = filterSensitiveFields(invoice, session.user.role as any);
+      const agingDays = calculateAgingDays(invoice.dueDate);
+      const agingStatus = agingDays <= 0 ? 'NOT_OVERDUE' : 'OVERDUE';
+      
+      return {
+        ...filtered,
+        agingDays,
+        agingStatus,
+        accrual: invoice.total,
+        // Map amountPaid to paidAmount for frontend compatibility
+        paidAmount: invoice.amountPaid,
+      };
+    });
+
+    // Calculate summary totals for filtered results
+    const filteredTotals = filteredInvoices.reduce(
+      (acc, invoice) => {
+        const total = invoice.total || 0;
+        const amountPaid = invoice.amountPaid || 0;
+        return {
+          accrual: acc.accrual + (invoice.accrual || total),
+          paid: acc.paid + amountPaid,
+          balance: acc.balance + (invoice.balance ?? (total - amountPaid)),
+        };
+      },
+      { accrual: 0, paid: 0, balance: 0 }
+    );
+
+    // Calculate grand totals (all invoices)
+    const grandTotals = allInvoicesForTotals.reduce(
+      (acc, invoice) => {
+        const total = invoice.total || 0;
+        const amountPaid = invoice.amountPaid || 0;
+        return {
+          accrual: acc.accrual + total,
+          paid: acc.paid + amountPaid,
+          balance: acc.balance + (invoice.balance ?? (total - amountPaid)),
+        };
+      },
+      { accrual: 0, paid: 0, balance: 0 }
     );
 
     // 6. Return Success Response
@@ -159,6 +223,10 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+        totals: {
+          filtered: filteredTotals,
+          grand: grandTotals,
+        },
       },
     });
   } catch (error) {

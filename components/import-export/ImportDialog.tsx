@@ -114,19 +114,47 @@ export default function ImportDialog({
         csvHeaders.forEach((excelCol) => {
           const normalizedExcel = excelCol.toLowerCase().trim().replace(/[_\s-]/g, '');
           
-          // Try to find matching system field
+          // Try to find matching system field with better matching logic
+          let bestMatch: { field: typeof systemFields[0]; score: number } | null = null;
+          
           for (const field of systemFields) {
             const normalizedField = field.key.toLowerCase().replace(/[_\s-]/g, '');
+            let score = 0;
             
-            // Exact match or contains
-            if (
-              normalizedExcel === normalizedField ||
-              normalizedExcel.includes(normalizedField) ||
-              normalizedField.includes(normalizedExcel)
-            ) {
-              autoMapping[excelCol] = field.key;
-              break;
+            // Exact match gets highest priority
+            if (normalizedExcel === normalizedField) {
+              score = 100;
             }
+            // Field contains Excel column (e.g., "customer_name" contains "customer")
+            else if (normalizedField.includes(normalizedExcel) && normalizedExcel.length >= 3) {
+              score = 80;
+            }
+            // Excel column contains field (e.g., "customer_name" contains "customer")
+            else if (normalizedExcel.includes(normalizedField) && normalizedField.length >= 3) {
+              score = 70;
+            }
+            // Check if they start with the same characters (for partial matches)
+            else if (normalizedExcel.length >= 4 && normalizedField.length >= 4) {
+              const minLen = Math.min(normalizedExcel.length, normalizedField.length);
+              let matchingChars = 0;
+              for (let i = 0; i < minLen; i++) {
+                if (normalizedExcel[i] === normalizedField[i]) matchingChars++;
+              }
+              // If at least 4 characters match, give it a score
+              if (matchingChars >= 4) {
+                score = 50 + (matchingChars / minLen) * 20;
+              }
+            }
+            
+            // Update best match if this score is better
+            if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+              bestMatch = { field, score };
+            }
+          }
+          
+          // Only auto-map if we have a reasonable match (score >= 50)
+          if (bestMatch && bestMatch.score >= 50) {
+            autoMapping[excelCol] = bestMatch.field.key;
           }
         });
         
@@ -227,7 +255,12 @@ export default function ImportDialog({
         progress: 25,
       });
 
-      const response = await fetch(apiUrl(`/api/import-export/${entityType}`), {
+      // Use dedicated invoice import route if available
+      const importEndpoint = entityType === 'invoices' 
+        ? `/api/invoices/import`
+        : `/api/import-export/${entityType}`;
+      
+      const response = await fetch(apiUrl(importEndpoint), {
         method: 'POST',
         body: formData,
       });
@@ -1232,6 +1265,108 @@ function getSystemFieldsForEntity(entityType: string): Array<{ key: string; labe
       
       // Additional
       { key: 'tags', label: 'Tags' },
+    ];
+  }
+  
+  if (entityType === 'invoices') {
+    return [
+      // Required Fields
+      { key: 'invoiceNumber', label: 'Invoice Number', required: true },
+      { key: 'invoice_id', label: 'Invoice ID', required: true },
+      { key: 'invoiceNumber', label: 'Invoice Number', required: true },
+      { key: 'Invoice ID', label: 'Invoice ID', required: true },
+      
+      // Customer
+      { key: 'customerId', label: 'Customer ID', required: true },
+      { key: 'customer_name', label: 'Customer Name', required: true },
+      { key: 'customerName', label: 'Customer Name', required: true },
+      { key: 'Customer Name', label: 'Customer Name', required: true },
+      { key: 'customer', label: 'Customer', required: true },
+      
+      // Load
+      { key: 'loadId', label: 'Load ID' },
+      { key: 'load_id', label: 'Load ID' },
+      { key: 'Load ID', label: 'Load ID' },
+      { key: 'load', label: 'Load' },
+      
+      // MC Number
+      { key: 'mcNumber', label: 'MC Number' },
+      { key: 'mc_number', label: 'MC Number' },
+      { key: 'MC Number', label: 'MC Number' },
+      { key: 'mc', label: 'MC Number' },
+      
+      // Dates
+      { key: 'invoiceDate', label: 'Invoice Date', required: true },
+      { key: 'date', label: 'Date', required: true },
+      { key: 'Date', label: 'Date', required: true },
+      { key: 'invoice_date', label: 'Invoice Date', required: true },
+      { key: 'Invoice Date', label: 'Invoice Date', required: true },
+      { key: 'dueDate', label: 'Due Date' },
+      { key: 'due_date', label: 'Due Date' },
+      { key: 'Due Date', label: 'Due Date' },
+      
+      // Status
+      { key: 'status', label: 'Status' },
+      { key: 'Status', label: 'Status' },
+      { key: 'invoice_status', label: 'Invoice Status' },
+      { key: 'Invoice Status', label: 'Invoice Status' },
+      { key: 'subStatus', label: 'Sub Status' },
+      { key: 'sub_status', label: 'Sub Status' },
+      { key: 'Sub Status', label: 'Sub Status' },
+      
+      // Aging
+      { key: 'agingDays', label: 'Aging Days' },
+      { key: 'aging_days', label: 'Aging Days' },
+      { key: 'Aging Days', label: 'Aging Days' },
+      { key: 'agingStatus', label: 'Aging Status' },
+      { key: 'aging_status', label: 'Aging Status' },
+      { key: 'Aging Status', label: 'Aging Status' },
+      
+      // Financial
+      { key: 'total', label: 'Total', required: true },
+      { key: 'Total', label: 'Total', required: true },
+      { key: 'accrual', label: 'Accrual' },
+      { key: 'Accrual', label: 'Accrual' },
+      { key: 'amountPaid', label: 'Paid' },
+      { key: 'paid', label: 'Paid' },
+      { key: 'Paid', label: 'Paid' },
+      { key: 'amount_paid', label: 'Amount Paid' },
+      { key: 'Amount Paid', label: 'Amount Paid' },
+      { key: 'balance', label: 'Balance Due' },
+      { key: 'balance_due', label: 'Balance Due' },
+      { key: 'Balance Due', label: 'Balance Due' },
+      { key: 'Balance', label: 'Balance' },
+      { key: 'subtotal', label: 'Subtotal' },
+      { key: 'Subtotal', label: 'Subtotal' },
+      { key: 'tax', label: 'Tax' },
+      { key: 'Tax', label: 'Tax' },
+      
+      // Reconciliation
+      { key: 'reconciliationStatus', label: 'Reconciliation Status' },
+      { key: 'reconciliation_status', label: 'Reconciliation Status' },
+      { key: 'Reconciliation Status', label: 'Reconciliation Status' },
+      { key: 'reconciliation', label: 'Reconciliation' },
+      { key: 'Reconciliation', label: 'Reconciliation' },
+      
+      // Notes
+      { key: 'invoiceNote', label: 'Invoice Note' },
+      { key: 'invoice_note', label: 'Invoice Note' },
+      { key: 'Invoice Note', label: 'Invoice Note' },
+      { key: 'paymentNote', label: 'Payment Note' },
+      { key: 'payment_note', label: 'Payment Note' },
+      { key: 'Payment Note', label: 'Payment Note' },
+      { key: 'notes', label: 'Notes' },
+      { key: 'Notes', label: 'Notes' },
+      
+      // Payment Method
+      { key: 'paymentMethod', label: 'Payment Method' },
+      { key: 'payment_method', label: 'Payment Method' },
+      { key: 'Payment Method', label: 'Payment Method' },
+      
+      // Factoring
+      { key: 'factoringStatus', label: 'Factoring Status' },
+      { key: 'factoring_status', label: 'Factoring Status' },
+      { key: 'Factoring Status', label: 'Factoring Status' },
     ];
   }
   

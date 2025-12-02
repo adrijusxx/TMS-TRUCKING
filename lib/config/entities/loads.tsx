@@ -92,6 +92,8 @@ export const statusColors: Record<LoadStatus, string> = {
   EN_ROUTE_DELIVERY: 'bg-teal-100 text-teal-800 border-teal-200',
   AT_DELIVERY: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   DELIVERED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  BILLING_HOLD: 'bg-amber-100 text-amber-800 border-amber-200',
+  READY_TO_BILL: 'bg-lime-100 text-lime-800 border-lime-200',
   INVOICED: 'bg-lime-100 text-lime-800 border-lime-200',
   PAID: 'bg-green-100 text-green-800 border-green-200',
   CANCELLED: 'bg-red-100 text-red-800 border-red-200',

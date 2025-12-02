@@ -198,7 +198,6 @@ export class DetentionManager {
     const billableDetentionMinutes = Math.round(detentionHours * 60);
 
     // STEP 6: Update LoadStop with detention calculation details (even if no detention)
-    // @ts-expect-error - billableDetentionMinutes is a valid field, types will be updated after migration
     await prisma.loadStop.update({
       where: { id: loadStopId },
       data: {
@@ -385,7 +384,6 @@ export class DetentionManager {
     }
   ): Promise<void> {
     // Set billing hold flag (blocks invoicing, allows settlement)
-    // @ts-expect-error - isBillingHold and billingHoldReason are valid fields, types will be updated after migration
     await prisma.load.update({
       where: { id: loadId },
       data: {

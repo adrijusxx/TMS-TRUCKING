@@ -115,6 +115,8 @@ export function TableToolbar({
   importRequiredFields = [],
 }: TableToolbarProps) {
   const { can, isAdmin } = usePermissions();
+  // Capture onImport at the top level to avoid type narrowing issues
+  const importHandler = onImport;
   const [importWizardOpen, setImportWizardOpen] = React.useState(false);
   const [searchInput, setSearchInput] = React.useState(searchValue);
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
@@ -309,8 +311,8 @@ export function TableToolbar({
                     requiredFields={importRequiredFields}
                     onComplete={() => {
                       // Optionally trigger a refetch or refresh
-                      if (onImport) {
-                        onImport();
+                      if (importHandler) {
+                        importHandler();
                       }
                     }}
                   />

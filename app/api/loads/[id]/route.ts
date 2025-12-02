@@ -243,6 +243,89 @@ export async function PATCH(
     // Prepare update data
     const updateData: any = { ...validated };
 
+    // Validate foreign key relationships if IDs are provided
+    if (validated.trailerId !== undefined) {
+      if (validated.trailerId === null || validated.trailerId === '') {
+        // Convert empty string to null
+        updateData.trailerId = null;
+      } else {
+        // Verify trailer exists and belongs to company
+        const trailer = await prisma.trailer.findFirst({
+          where: {
+            id: validated.trailerId,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+        if (!trailer) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Trailer not found or does not belong to your company',
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    if (validated.truckId !== undefined) {
+      if (validated.truckId === null || validated.truckId === '') {
+        updateData.truckId = null;
+      } else {
+        // Verify truck exists and belongs to company
+        const truck = await prisma.truck.findFirst({
+          where: {
+            id: validated.truckId,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+        if (!truck) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Truck not found or does not belong to your company',
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    if (validated.driverId !== undefined) {
+      if (validated.driverId === null || validated.driverId === '') {
+        updateData.driverId = null;
+      } else {
+        // Verify driver exists and belongs to company
+        const driver = await prisma.driver.findFirst({
+          where: {
+            id: validated.driverId,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+        if (!driver) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Driver not found or does not belong to your company',
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Convert date strings to Date objects if provided
     if (validated.pickupDate) {
       updateData.pickupDate = validated.pickupDate instanceof Date

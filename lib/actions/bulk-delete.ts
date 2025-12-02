@@ -79,7 +79,9 @@ export async function bulkDeleteEntities(
         const result = await prisma.invoice.deleteMany({
           where: {
             id: { in: ids },
-            companyId: session.user.companyId,
+            customer: {
+              companyId: session.user.companyId,
+            },
           },
         });
         deletedCount = result.count;
@@ -310,6 +312,7 @@ export async function bulkDeleteEntities(
     };
   }
 }
+
 
 
 

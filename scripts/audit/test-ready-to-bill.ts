@@ -39,7 +39,7 @@ async function testMissingPODValidation() {
 
   const customer = await prisma.customer.findFirst({ 
     where: { companyId: company.id },
-    select: { id: true }, // Only select id to avoid schema mismatch issues
+    select: { id: true, type: true }, // Select id and type for the test
   });
   const mcNumber = await prisma.mcNumber.findFirst({ where: { companyId: company.id } });
   const driver = await prisma.driver.findFirst({ where: { companyId: company.id } });
@@ -85,14 +85,14 @@ async function testMissingPODValidation() {
 
     logTest(
       'Missing POD - Validation Failed',
-      !result.ready && result.missingPOD === true,
+      !result.ready && (result.missingPOD === true),
       result.missingPOD ? 'Correctly identified missing POD' : 'Did not identify missing POD'
     );
 
     logTest(
       'Missing POD - Reason Provided',
-      result.reasons && result.reasons.length > 0,
-      result.reasons ? `Reason: ${result.reasons[0]}` : 'No reason provided'
+      (result.reasons?.length ?? 0) > 0,
+      result.reasons?.[0] ?? 'No reason provided'
     );
 
     // Cleanup
@@ -115,9 +115,16 @@ async function testRateMismatchValidation() {
   const customer = await prisma.customer.create({
     data: {
       companyId: company.id,
+      customerNumber: `DIRECT-${Date.now()}`,
       name: 'Test Direct Customer',
       type: CustomerType.DIRECT,
       paymentTerms: 30,
+      address: '123 Test St',
+      city: 'Dallas',
+      state: 'TX',
+      zip: '75001',
+      phone: '555-0100',
+      email: 'test@example.com',
     },
   });
 
@@ -166,8 +173,11 @@ async function testRateMismatchValidation() {
       data: {
         companyId: company.id,
         loadId: load.id,
+        title: `POD-${load.loadNumber}`,
         fileName: `POD-${load.loadNumber}.pdf`,
         fileUrl: `https://example.com/pod-${load.loadNumber}.pdf`,
+        fileSize: 1024,
+        mimeType: 'application/pdf',
         type: 'POD',
         uploadedBy: user.id,
       },
@@ -178,7 +188,7 @@ async function testRateMismatchValidation() {
 
     logTest(
       'Rate Mismatch - Validation Failed',
-      !result.ready && result.rateMismatch === true,
+      !result.ready && (result.rateMismatch === true),
       result.rateMismatch ? 'Correctly identified rate mismatch' : 'Did not identify rate mismatch'
     );
 
@@ -186,9 +196,16 @@ async function testRateMismatchValidation() {
     const brokerCustomer = await prisma.customer.create({
       data: {
         companyId: company.id,
+        customerNumber: `BROKER-${Date.now()}`,
         name: 'Test Broker Customer',
         type: CustomerType.BROKER,
         paymentTerms: 30,
+        address: '456 Broker St',
+        city: 'Houston',
+        state: 'TX',
+        zip: '77001',
+        phone: '555-0200',
+        email: 'broker@example.com',
       },
     });
 
@@ -225,8 +242,11 @@ async function testRateMismatchValidation() {
       data: {
         companyId: company.id,
         loadId: brokerLoad.id,
+        title: `POD-${brokerLoad.loadNumber}`,
         fileName: `POD-${brokerLoad.loadNumber}.pdf`,
         fileUrl: `https://example.com/pod-${brokerLoad.loadNumber}.pdf`,
+        fileSize: 1024,
+        mimeType: 'application/pdf',
         type: 'POD',
         uploadedBy: user.id,
       },
@@ -261,7 +281,7 @@ async function testMissingWeightValidation() {
 
   const customer = await prisma.customer.findFirst({ 
     where: { companyId: company.id },
-    select: { id: true }, // Only select id to avoid schema mismatch issues
+    select: { id: true, type: true }, // Select id and type for the test
   });
   const mcNumber = await prisma.mcNumber.findFirst({ where: { companyId: company.id } });
   const driver = await prisma.driver.findFirst({ where: { companyId: company.id } });
@@ -308,8 +328,11 @@ async function testMissingWeightValidation() {
       data: {
         companyId: company.id,
         loadId: load.id,
+        title: `POD-${load.loadNumber}`,
         fileName: `POD-${load.loadNumber}.pdf`,
         fileUrl: `https://example.com/pod-${load.loadNumber}.pdf`,
+        fileSize: 1024,
+        mimeType: 'application/pdf',
         type: 'POD',
         uploadedBy: user.id,
       },
@@ -320,7 +343,7 @@ async function testMissingWeightValidation() {
 
     logTest(
       'Missing Weight - Validation Failed',
-      !result.ready && result.missingBOLWeight === true,
+      !result.ready && (result.missingBOLWeight === true),
       result.missingBOLWeight ? 'Correctly identified missing/zero weight' : 'Did not identify missing weight'
     );
 
@@ -342,7 +365,7 @@ async function testReadyToBillComplete() {
 
   const customer = await prisma.customer.findFirst({ 
     where: { companyId: company.id },
-    select: { id: true }, // Only select id to avoid schema mismatch issues
+    select: { id: true, type: true }, // Select id and type for the test
   });
   const mcNumber = await prisma.mcNumber.findFirst({ where: { companyId: company.id } });
   const driver = await prisma.driver.findFirst({ where: { companyId: company.id } });
@@ -389,8 +412,11 @@ async function testReadyToBillComplete() {
       data: {
         companyId: company.id,
         loadId: load.id,
+        title: `POD-${load.loadNumber}`,
         fileName: `POD-${load.loadNumber}.pdf`,
         fileUrl: `https://example.com/pod-${load.loadNumber}.pdf`,
+        fileSize: 1024,
+        mimeType: 'application/pdf',
         type: 'POD',
         uploadedBy: user.id,
       },
@@ -420,7 +446,7 @@ async function testReadyToBillComplete() {
 
     logTest(
       'Complete Ready - No Issues',
-      !result.missingPOD && !result.missingBOLWeight && (!result.rateMismatch || allowSplit),
+      !result.missingPOD && !result.missingBOLWeight && (!(result.rateMismatch ?? false) || allowSplit),
       'No validation issues found'
     );
 

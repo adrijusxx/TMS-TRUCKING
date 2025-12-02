@@ -47,6 +47,33 @@ export async function POST(request: NextRequest) {
             factoringCompanyId: true,
           },
         },
+        dispatcher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+        driver: {
+          select: {
+            id: true,
+            driverNumber: true,
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                phone: true,
+              },
+            },
+          },
+        },
+        truck: {
+          select: {
+            id: true,
+            truckNumber: true,
+          },
+        },
       },
     });
 
@@ -188,6 +215,86 @@ export async function POST(request: NextRequest) {
             Date.now() + (customer.paymentTerms || 30) * 24 * 60 * 60 * 1000
           );
 
+      // Build contact information for invoice notes
+      const contactInfo: string[] = [];
+      
+      // Collect unique dispatchers, drivers, trucks, and trailers from all loads
+      const dispatchers = new Map<string, { name: string; phone: string | null }>();
+      const drivers = new Map<string, { name: string; driverNumber: string | null; phone: string | null }>();
+      const trucks = new Set<string>();
+      const trailers = new Set<string>();
+
+      for (const load of data.loads) {
+        // Dispatcher info
+        if (load.dispatcher) {
+          const dispatcherName = `${load.dispatcher.firstName} ${load.dispatcher.lastName}`.trim();
+          if (dispatcherName && !dispatchers.has(load.dispatcher.id)) {
+            dispatchers.set(load.dispatcher.id, {
+              name: dispatcherName,
+              phone: load.dispatcher.phone || null,
+            });
+          }
+        }
+
+        // Driver info
+        if (load.driver) {
+          const driverName = load.driver.user
+            ? `${load.driver.user.firstName} ${load.driver.user.lastName}`.trim()
+            : null;
+          if (driverName && !drivers.has(load.driver.id)) {
+            drivers.set(load.driver.id, {
+              name: driverName,
+              driverNumber: load.driver.driverNumber || null,
+              phone: load.driver.user?.phone || null,
+            });
+          }
+        }
+
+        // Truck info
+        if (load.truck?.truckNumber) {
+          trucks.add(load.truck.truckNumber);
+        }
+
+        // Trailer info
+        if (load.trailerNumber) {
+          trailers.add(load.trailerNumber);
+        }
+      }
+
+      // Format contact information
+      if (dispatchers.size > 0) {
+        const dispatcherList = Array.from(dispatchers.values())
+          .map((d) => `${d.name}${d.phone ? ` (${d.phone})` : ''}`)
+          .join(', ');
+        contactInfo.push(`Dispatcher(s): ${dispatcherList}`);
+      }
+
+      if (drivers.size > 0) {
+        const driverList = Array.from(drivers.values())
+          .map((d) => {
+            const namePart = d.driverNumber ? `${d.name} (#${d.driverNumber})` : d.name;
+            return `${namePart}${d.phone ? ` (${d.phone})` : ''}`;
+          })
+          .join(', ');
+        contactInfo.push(`Driver(s): ${driverList}`);
+      }
+
+      if (trucks.size > 0) {
+        contactInfo.push(`Truck(s): ${Array.from(trucks).join(', ')}`);
+      }
+
+      if (trailers.size > 0) {
+        contactInfo.push(`Trailer(s): ${Array.from(trailers).join(', ')}`);
+      }
+
+      // Combine user notes with contact information
+      const invoiceNotes = [
+        validated.notes,
+        contactInfo.length > 0 ? `\n\nContact Information:\n${contactInfo.join('\n')}` : '',
+      ]
+        .filter(Boolean)
+        .join('');
+
       const invoice = await prisma.invoice.create({
         data: {
           invoiceNumber,
@@ -199,7 +306,7 @@ export async function POST(request: NextRequest) {
           total: totalWithTax,
           balance: totalWithTax,
           status: 'DRAFT',
-          notes: validated.notes,
+          notes: invoiceNotes || undefined,
           loadIds: data.loads.map((l: any) => l.id),
         },
       });

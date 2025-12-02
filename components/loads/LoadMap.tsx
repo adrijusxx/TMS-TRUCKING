@@ -165,8 +165,11 @@ export default function LoadMap({ load, compact = false }: LoadMapProps) {
     resizeMap();
 
     // Use ResizeObserver to detect container size changes
+    // Wrap in requestAnimationFrame to prevent ResizeObserver loop errors
     const resizeObserver = new ResizeObserver(() => {
-      resizeMap();
+      requestAnimationFrame(() => {
+        resizeMap();
+      });
     });
 
     if (mapRef.current) {

@@ -1,9 +1,9 @@
 'use client';
 
-import LoadForm from '@/components/forms/LoadForm';
+import CreateLoadWizard from '@/components/loads/CreateLoadWizard/CreateLoadWizard';
 
 export default function CreateLoadForm() {
-  // No initialData = create mode
-  return <LoadForm />;
+  // Use the new wizard component for creating loads
+  return <CreateLoadWizard />;
 }
 

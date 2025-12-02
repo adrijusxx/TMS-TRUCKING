@@ -10,13 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import BatchInvoiceSelector from './BatchInvoiceSelector';
+import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 
 interface CreateBatchFormProps {
   open: boolean;
@@ -28,7 +28,7 @@ export default function CreateBatchForm({ open, onOpenChange, preselectedInvoice
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>(preselectedInvoiceIds);
-  const [mcNumber, setMcNumber] = useState('');
+  const [mcNumberId, setMcNumberId] = useState<string>('');
   const [notes, setNotes] = useState('');
 
   // Update selected invoices when preselectedInvoiceIds changes
@@ -37,6 +37,25 @@ export default function CreateBatchForm({ open, onOpenChange, preselectedInvoice
       setSelectedInvoiceIds(preselectedInvoiceIds);
     }
   }, [preselectedInvoiceIds]);
+
+  // Fetch all MC numbers to get the number string from ID
+  const { data: mcNumbersData } = useQuery({
+    queryKey: ['mc-numbers'],
+    queryFn: async () => {
+      const response = await fetch(apiUrl('/api/mc-numbers?limit=1000'));
+      if (!response.ok) return [];
+      const result = await response.json();
+      // Ensure we always return an array
+      return Array.isArray(result.data) ? result.data : [];
+    },
+  });
+
+  // Get MC number string from selected ID
+  const getMcNumberString = (id: string): string | undefined => {
+    if (!mcNumbersData || !Array.isArray(mcNumbersData)) return undefined;
+    const mcNumber = mcNumbersData.find((mc: any) => mc.id === id);
+    return mcNumber?.number;
+  };
 
   const createBatchMutation = useMutation({
     mutationFn: async (data: {
@@ -69,9 +88,12 @@ export default function CreateBatchForm({ open, onOpenChange, preselectedInvoice
       return;
     }
 
+    // Get MC number string from ID if selected
+    const mcNumberString = mcNumberId ? getMcNumberString(mcNumberId) : undefined;
+
     createBatchMutation.mutate({
       invoiceIds: selectedInvoiceIds,
-      mcNumber: mcNumber || undefined,
+      mcNumber: mcNumberString || undefined,
       notes: notes || undefined,
     });
   };
@@ -86,15 +108,12 @@ export default function CreateBatchForm({ open, onOpenChange, preselectedInvoice
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 flex flex-col flex-1 min-h-0">
-          <div className="space-y-2">
-            <Label htmlFor="mcNumber">MC Number (Optional)</Label>
-            <Input
-              id="mcNumber"
-              value={mcNumber}
-              onChange={(e) => setMcNumber(e.target.value)}
-              placeholder="Enter MC number"
-            />
-          </div>
+          <McNumberSelector
+            value={mcNumberId}
+            onValueChange={setMcNumberId}
+            label="MC Number (Optional)"
+            required={false}
+          />
 
           <div className="space-y-2 flex-1 min-h-0 flex flex-col">
             <div className="flex items-center justify-between">

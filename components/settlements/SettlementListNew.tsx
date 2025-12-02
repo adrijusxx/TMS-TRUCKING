@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Upload, Download } from 'lucide-react';
+import { Upload, Download, FileText, Zap } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportDialog from '@/components/import-export/ImportDialog';
@@ -124,6 +124,18 @@ export default function SettlementListNew() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
+          <Link href="/dashboard/settlements/bulk-generate">
+            <Button size="sm" variant="default">
+              <Zap className="h-4 w-4 mr-2" />
+              Bulk Generate
+            </Button>
+          </Link>
+          <Link href="/dashboard/settlements/generate">
+            <Button size="sm" variant="outline">
+              <FileText className="h-4 w-4 mr-2" />
+              Generate Single
+            </Button>
+          </Link>
           {can('data.import') && (
             <ImportDialog entityType="settlements">
               <Button variant="outline" size="sm">

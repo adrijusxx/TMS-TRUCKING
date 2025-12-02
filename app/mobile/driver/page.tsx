@@ -206,7 +206,7 @@ export default function DriverMobilePage() {
                   Active Breakdown Alert
                 </p>
                 <p className="text-sm text-red-700">
-                  You have {stats.activeBreakdowns} open breakdown case(s)
+                  You have {stats?.activeBreakdowns || 0} open breakdown case(s)
                 </p>
               </div>
               <Link href="/mobile/driver/support">

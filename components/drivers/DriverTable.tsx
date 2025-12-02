@@ -22,10 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Edit, CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit, CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp, Truck } from 'lucide-react';
 import { DriverStatus, EmployeeStatus, AssignmentStatus, DispatchStatus, DriverType } from '@prisma/client';
 import { formatDate } from '@/lib/utils';
 import DriverExpandedEdit from './DriverExpandedEdit';
+import QuickAssignmentDialog from './QuickAssignmentDialog';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface Driver {
   id: string;
@@ -180,6 +182,16 @@ export default function DriverTable({
   visibleColumns = {},
   onDriverUpdate,
 }: DriverTableProps & { onDriverUpdate?: () => void }) {
+  const { can } = usePermissions();
+  const canAssign = can('drivers.edit') || can('loads.assign');
+  const [quickAssignDriver, setQuickAssignDriver] = useState<{
+    id: string;
+    driverNumber: string;
+    user: { firstName: string; lastName: string };
+    currentTruck?: { id: string; truckNumber: string } | null;
+    currentTrailer?: { id: string; trailerNumber: string } | null;
+  } | null>(null);
+  
   // Track expanded rows - all collapsed by default
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -363,20 +375,47 @@ export default function DriverTable({
                   {cols.warnings && <TableCell>{driver.warnings || '-'}</TableCell>}
                   {cols.actions && (
                     <TableCell className="text-right">
-                      {canEdit && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => toggleRow(driver.id)}
-                          type="button"
-                        >
-                          {isExpanded ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        {canAssign && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const driverData = drivers.find((d) => d.id === driver.id);
+                              if (driverData) {
+                                setQuickAssignDriver({
+                                  id: driverData.id,
+                                  driverNumber: driverData.driverNumber,
+                                  user: {
+                                    firstName: driverData.firstName,
+                                    lastName: driverData.lastName,
+                                  },
+                                  currentTruck: (driverData as any).currentTruck,
+                                  currentTrailer: (driverData as any).currentTrailer,
+                                });
+                              }
+                            }}
+                            type="button"
+                            title="Quick Assignment"
+                          >
+                            <Truck className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => toggleRow(driver.id)}
+                            type="button"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -399,6 +438,19 @@ export default function DriverTable({
           })}
         </TableBody>
       </Table>
+
+      {/* Quick Assignment Dialog */}
+      {quickAssignDriver && (
+        <QuickAssignmentDialog
+          open={!!quickAssignDriver}
+          onOpenChange={(open) => {
+            if (!open) {
+              setQuickAssignDriver(null);
+            }
+          }}
+          driver={quickAssignDriver}
+        />
+      )}
     </div>
   );
 }

@@ -5,12 +5,13 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { LoadExpenseType } from '@prisma/client';
 
 interface ExpenseData {
   loadId: string;
-  expenseType: string;
+  expenseType: LoadExpenseType | string;
   amount: number;
-  vendor?: string;
+  vendorId?: string;
   description?: string;
   receiptUrl?: string;
   date?: Date;
@@ -39,11 +40,11 @@ export class LoadExpenseManager {
     const expense = await prisma.loadExpense.create({
       data: {
         loadId: expenseData.loadId,
-        expenseType: expenseData.expenseType as any,
+        expenseType: expenseData.expenseType as LoadExpenseType,
         amount: expenseData.amount,
-        vendor: expenseData.vendor,
-        description: expenseData.description,
-        receiptUrl: expenseData.receiptUrl,
+        ...(expenseData.vendorId && { vendorId: expenseData.vendorId }),
+        ...(expenseData.description && { description: expenseData.description }),
+        ...(expenseData.receiptUrl && { receiptUrl: expenseData.receiptUrl }),
         date: expenseData.date || new Date(),
         approvalStatus: 'PENDING',
       },
@@ -347,12 +348,12 @@ export class LoadExpenseManager {
     return await prisma.loadExpense.update({
       where: { id: expenseId },
       data: {
-        expenseType: updates.expenseType as any,
-        amount: updates.amount,
-        vendor: updates.vendor,
-        description: updates.description,
-        receiptUrl: updates.receiptUrl,
-        date: updates.date,
+        ...(updates.expenseType && { expenseType: updates.expenseType as LoadExpenseType }),
+        ...(updates.amount !== undefined && { amount: updates.amount }),
+        ...(updates.vendorId !== undefined && { vendorId: updates.vendorId }),
+        ...(updates.description !== undefined && { description: updates.description }),
+        ...(updates.receiptUrl !== undefined && { receiptUrl: updates.receiptUrl }),
+        ...(updates.date !== undefined && { date: updates.date }),
       },
     });
   }

@@ -20,7 +20,7 @@ interface InvoiceFinalizationResult {
   error?: string;
 }
 
-interface ReadyToBillResult {
+export interface ReadyToBillResult {
   ready: boolean;
   reasons?: string[];
   missingPOD?: boolean;
@@ -231,6 +231,9 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
       return {
         ready: false,
         reasons: [error.message || 'Failed to validate load'],
+        missingPOD: false,
+        rateMismatch: false,
+        missingBOLWeight: false,
       };
     }
   }

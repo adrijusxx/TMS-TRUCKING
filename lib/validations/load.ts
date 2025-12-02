@@ -288,9 +288,39 @@ const baseLoadSchema = z.object({
       tripId: z.string().optional(),
       mcNumber: z.string().optional(),
       // Driver and equipment assignment
-      driverId: z.string().optional(),
-      truckId: z.string().optional(),
-      trailerId: z.string().optional(),
+      driverId: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            return trimmed === '' ? undefined : trimmed;
+          }
+          return val;
+        },
+        z.string().cuid().optional()
+      ),
+      truckId: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            return trimmed === '' ? undefined : trimmed;
+          }
+          return val;
+        },
+        z.string().cuid().optional()
+      ),
+      trailerId: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            return trimmed === '' ? undefined : trimmed;
+          }
+          return val;
+        },
+        z.string().cuid().optional()
+      ),
       revenuePerMile: z.preprocess(
         (val) => {
           if (val === undefined || val === null || val === '') return undefined;
@@ -319,177 +349,6 @@ const baseLoadSchema = z.object({
         },
         z.number().nonnegative().optional()
       ),
-});
-    (val) => {
-      if (val === undefined || val === null) return undefined;
-      if (typeof val === 'string') {
-        const trimmed = val.trim();
-        return trimmed === '' ? undefined : trimmed;
-      }
-      return val;
-    },
-    z.string().min(1, 'Customer is required')
-  ),
-  loadType: z.nativeEnum(LoadType),
-  equipmentType: z.nativeEnum(EquipmentType),
-  stops: z.array(loadStopSchema).optional(),
-  pickupLocation: z.string().optional(),
-  pickupAddress: z.string().optional(),
-  pickupCity: z.string().optional(),
-  pickupState: z.string().length(2, 'State must be 2 characters').or(z.literal('')).optional(),
-  pickupZip: z.string().min(5, 'ZIP code is required').or(z.literal('')).optional(),
-  pickupDate: z.string().or(z.date()).optional(),
-  pickupTimeStart: z.string().or(z.date()).optional(),
-  pickupTimeEnd: z.string().or(z.date()).optional(),
-  pickupContact: z.string().optional(),
-  pickupPhone: z.string().optional(),
-  pickupNotes: z.string().optional(),
-  pickupCompany: z.string().optional(),
-  deliveryLocation: z.string().optional(),
-  deliveryAddress: z.string().optional(),
-  deliveryCity: z.string().optional(),
-  deliveryState: z.string().length(2, 'State must be 2 characters').or(z.literal('')).optional(),
-  deliveryZip: z.string().min(5, 'ZIP code is required').or(z.literal('')).optional(),
-  deliveryDate: z.string().or(z.date()).optional(),
-  deliveryTimeStart: z.string().or(z.date()).optional(),
-  deliveryTimeEnd: z.string().or(z.date()).optional(),
-  deliveryContact: z.string().optional(),
-  deliveryPhone: z.string().optional(),
-  deliveryNotes: z.string().optional(),
-  deliveryCompany: z.string().optional(),
-  weight: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
-      if (typeof val === 'string') {
-        const trimmed = val.trim();
-        if (trimmed === '') return undefined;
-        const num = parseFloat(trimmed);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number({
-      message: 'Weight must be a valid number',
-    }).positive('Weight must be positive').optional()
-  ),
-  pieces: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
-      if (typeof val === 'string') {
-        const num = parseInt(val, 10);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number().int().positive().optional()
-  ),
-  commodity: z.string().optional(),
-  pallets: z.number().int().positive().optional(),
-  temperature: z.string().optional(),
-  hazmat: z.boolean().default(false),
-  hazmatClass: z.string().optional(),
-  revenue: z.number().nonnegative('Revenue cannot be negative'),
-  driverPay: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '') return undefined;
-      if (typeof val === 'string') {
-        const num = parseFloat(val);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number().nonnegative().optional()
-  ),
-  fuelAdvance: z.number().nonnegative().default(0),
-  loadedMiles: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '') return undefined;
-      if (typeof val === 'string') {
-        const num = parseFloat(val);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number().nonnegative().optional()
-  ),
-  emptyMiles: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '') return undefined;
-      if (typeof val === 'string') {
-        const num = parseFloat(val);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number().nonnegative().optional()
-  ),
-  totalMiles: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '') return undefined;
-      if (typeof val === 'string') {
-        const num = parseFloat(val);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number().nonnegative().optional()
-  ),
-  trailerNumber: z.string().optional(),
-  dispatchNotes: z.string().optional(),
-  coDriverId: z.string().optional(),
-  dispatcherId: z.string().optional(),
-  createdById: z.string().optional(),
-  tripId: z.string().optional(),
-  mcNumber: z.string().optional(),
-  driverId: z.string().optional(),
-  truckId: z.string().optional(),
-  trailerId: z.string().optional(),
-  revenuePerMile: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '') return undefined;
-      if (typeof val === 'string') {
-        const num = parseFloat(val);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number().nonnegative().optional()
-  ),
-  serviceFee: z.preprocess(
-    (val) => {
-      if (val === undefined || val === null || val === '') return undefined;
-      if (typeof val === 'string') {
-        const num = parseFloat(val);
-        return isNaN(num) ? undefined : num;
-      }
-      if (typeof val === 'number') {
-        return isNaN(val) ? undefined : val;
-      }
-      return undefined;
-    },
-    z.number().nonnegative().optional()
-  ),
 });
 
 // Create schema with superRefine validation for creation
@@ -608,21 +467,102 @@ export const updateLoadSchema = baseLoadSchema
       'PAID',
       'CANCELLED',
     ]).optional(),
-    dispatchStatus: z.enum([
-      'BOOKED',
-      'ON_ROUTE_TO_PICKUP',
-      'AT_PICKUP',
-      'LOADED',
-      'ON_ROUTE_TO_DELIVERY',
-      'AT_DELIVERY',
-      'DELIVERED',
-      'PENDING_DISPATCH',
-      'DISPATCHED',
-      'CANCELLED',
-    ]).optional(),
-    driverId: z.string().optional(),
-    truckId: z.string().optional(),
-    trailerId: z.string().optional(),
+    dispatchStatus: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        return val;
+      },
+      z.enum([
+        'BOOKED',
+        'ON_ROUTE_TO_PICKUP',
+        'AT_PICKUP',
+        'LOADED',
+        'ON_ROUTE_TO_DELIVERY',
+        'AT_DELIVERY',
+        'DELIVERED',
+        'PENDING_DISPATCH',
+        'DISPATCHED',
+        'CANCELLED',
+      ]).optional()
+    ),
+    driverId: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().cuid().optional()
+    ),
+    truckId: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().cuid().optional()
+    ),
+    trailerId: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().cuid().optional()
+    ),
+    // Handle optional string fields that might be empty
+    pickupState: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().length(2, 'State must be 2 characters').optional()
+    ),
+    deliveryState: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().length(2, 'State must be 2 characters').optional()
+    ),
+    pickupZip: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().min(5, 'ZIP code is required').optional()
+    ),
+    deliveryZip: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().min(5, 'ZIP code is required').optional()
+    ),
   })
   .passthrough(); // Allow any additional fields for flexibility
 

@@ -5,6 +5,7 @@ import { InvoiceStatus, InvoiceSubStatus, FactoringStatus, PaymentMethod } from 
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { calculateAgingDays } from '@/lib/utils/aging';
 
 interface InvoiceData {
   id: string;
@@ -32,6 +33,9 @@ interface InvoiceData {
     id: string;
     name: string;
   } | null;
+  agingDays?: number;
+  agingStatus?: 'NOT_OVERDUE' | 'OVERDUE';
+  accrual?: number;
 }
 
 function formatStatus(status: InvoiceStatus): string {
@@ -100,7 +104,7 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     accessorKey: 'total',
     header: 'Total Amount',
     cell: ({ row }) => formatCurrency(row.original.total),
-    defaultVisible: true,
+    defaultVisible: false,
   },
   {
     id: 'status',
@@ -129,7 +133,7 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
   {
     id: 'balance',
     accessorKey: 'balance',
-    header: 'Balance',
+    header: 'Balance due',
     cell: ({ row }) => formatCurrency(row.original.balance || row.original.total - (row.original.paidAmount || 0)),
     defaultVisible: true,
   },
@@ -138,14 +142,54 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     accessorKey: 'paidAmount',
     header: 'Paid',
     cell: ({ row }) => formatCurrency(row.original.paidAmount || 0),
-    defaultVisible: false,
+    defaultVisible: true,
   },
   {
     id: 'subStatus',
     accessorKey: 'subStatus',
     header: 'Sub Status',
     cell: ({ row }) => row.original.subStatus || 'N/A',
-    defaultVisible: false,
+    defaultVisible: true,
+  },
+  {
+    id: 'agingDays',
+    accessorKey: 'agingDays',
+    header: 'Aging days',
+    cell: ({ row }) => {
+      const days = row.original.agingDays ?? calculateAgingDays(row.original.dueDate);
+      return days;
+    },
+    defaultVisible: true,
+  },
+  {
+    id: 'agingStatus',
+    accessorKey: 'agingStatus',
+    header: 'Aging status',
+    cell: ({ row }) => {
+      const days = row.original.agingDays ?? calculateAgingDays(row.original.dueDate);
+      const status = row.original.agingStatus ?? (days <= 0 ? 'NOT_OVERDUE' : 'OVERDUE');
+      const isOverdue = status === 'OVERDUE' || days > 0;
+      return (
+        <Badge
+          variant="outline"
+          className={
+            isOverdue
+              ? 'bg-red-100 text-red-800 border-red-200'
+              : 'bg-green-100 text-green-800 border-green-200'
+          }
+        >
+          {status === 'NOT_OVERDUE' ? 'NOT OVERDUE' : 'OVERDUE'}
+        </Badge>
+      );
+    },
+    defaultVisible: true,
+  },
+  {
+    id: 'accrual',
+    accessorKey: 'accrual',
+    header: 'Accrual',
+    cell: ({ row }) => formatCurrency(row.original.accrual ?? row.original.total),
+    defaultVisible: true,
   },
   {
     id: 'factoringStatus',
@@ -166,8 +210,19 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     accessorKey: 'mcNumber',
     header: 'MC Number',
     cell: ({ row }) => row.original.mcNumber ?? 'N/A',
-    defaultVisible: false,
+    defaultVisible: true,
     permission: 'mc_numbers.view',
+  },
+  {
+    id: 'reconciliationStatus',
+    accessorKey: 'reconciliationStatus',
+    header: 'Reconciliation status',
+    cell: ({ row }) => (
+      <span className={row.original.reconciliationStatus === 'Not reconciled' ? 'text-red-600' : ''}>
+        {row.original.reconciliationStatus || 'Not reconciled'}
+      </span>
+    ),
+    defaultVisible: true,
   },
   {
     id: 'loadIdDetail',
@@ -223,12 +278,19 @@ export const invoicesTableConfig = createEntityTableConfig<InvoiceData>({
   entityType: 'invoices',
   columns,
   defaultVisibleColumns: [
+    'customer',
     'invoiceNumber',
     'loadId',
-    'customer',
-    'total',
-    'status',
+    'mcNumber',
     'invoiceDate',
+    'status',
+    'subStatus',
+    'agingDays',
+    'agingStatus',
+    'accrual',
+    'paidAmount',
+    'balance',
+    'reconciliationStatus',
   ],
   requiredColumns: ['invoiceNumber'],
   bulkEditFields,

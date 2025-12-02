@@ -13,6 +13,8 @@ import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { invoicesTableConfig } from '@/lib/config/entities/invoices';
 import InvoiceInlineEdit from './InvoiceInlineEdit';
+import { InvoiceDateRangeFilter } from './InvoiceDateRangeFilter';
+import { InvoiceSummaryTotals } from './InvoiceSummaryTotals';
 import { apiUrl } from '@/lib/utils';
 import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
@@ -45,12 +47,21 @@ interface InvoiceData {
     id: string;
     name: string;
   } | null;
+  agingDays?: number;
+  agingStatus?: 'NOT_OVERDUE' | 'OVERDUE';
+  accrual?: number;
 }
 
 export default function InvoiceListNew() {
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+  const [fromDate, setFromDate] = React.useState<string>('');
+  const [toDate, setToDate] = React.useState<string>('');
+  const [summaryTotals, setSummaryTotals] = React.useState<{
+    filtered: { accrual: number; paid: number; balance: number };
+    grand?: { accrual: number; paid: number; balance: number };
+  } | null>(null);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -83,11 +94,21 @@ export default function InvoiceListNew() {
     sorting?: SortingState;
     filters?: ColumnFiltersState;
     search?: string;
+    startDate?: string;
+    endDate?: string;
     [key: string]: any;
   }) => {
     const queryParams = new URLSearchParams();
     if (params.page) queryParams.set('page', params.page.toString());
     if (params.pageSize) queryParams.set('limit', params.pageSize.toString());
+
+    // Add date range filters from params (passed via queryParams prop)
+    if (params.startDate) {
+      queryParams.set('startDate', params.startDate);
+    }
+    if (params.endDate) {
+      queryParams.set('endDate', params.endDate);
+    }
 
     // Convert filters and search to query params
     const filterParams = convertFiltersToQueryParams(params.filters || [], params.search);
@@ -102,6 +123,11 @@ export default function InvoiceListNew() {
     const response = await fetch(apiUrl(`/api/invoices?${queryParams}`));
     if (!response.ok) throw new Error('Failed to fetch invoices');
     const result = await response.json();
+
+    // Store summary totals
+    if (result.meta?.totals) {
+      setSummaryTotals(result.meta.totals);
+    }
 
     return {
       data: result.data || [],
@@ -200,10 +226,28 @@ export default function InvoiceListNew() {
         </div>
       </div>
 
+      {/* Date Range Filter */}
+      <InvoiceDateRangeFilter
+        fromDate={fromDate}
+        toDate={toDate}
+        onFromDateChange={(date) => {
+          setFromDate(date);
+          // Refetch will happen automatically when DataTableWrapper calls fetchInvoices with new params
+        }}
+        onToDateChange={(date) => {
+          setToDate(date);
+          // Refetch will happen automatically when DataTableWrapper calls fetchInvoices with new params
+        }}
+      />
+
       {/* Data Table */}
       <DataTableWrapper
         config={invoicesTableConfig}
         fetchData={fetchInvoices}
+        queryParams={{
+          ...(fromDate && { startDate: fromDate }),
+          ...(toDate && { endDate: toDate }),
+        }}
         rowActions={rowActions}
         inlineEditComponent={can('invoices.edit') ? InvoiceInlineEdit : undefined}
         emptyMessage="No invoices found. Get started by creating your first invoice."
@@ -216,6 +260,14 @@ export default function InvoiceListNew() {
         onDeleteSelected={handleDelete}
         onExportSelected={handleExport}
       />
+
+      {/* Summary Totals */}
+      {summaryTotals && (
+        <InvoiceSummaryTotals
+          filteredTotals={summaryTotals.filtered}
+          grandTotals={summaryTotals.grand}
+        />
+      )}
 
       {/* Bulk Action Bar */}
       {selectedIds.length > 0 && (

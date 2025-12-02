@@ -439,6 +439,7 @@ export async function GET(request: NextRequest) {
                 select: {
                   firstName: true,
                   lastName: true,
+                  phone: true,
                 },
               },
             },
@@ -455,6 +456,7 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true,
               email: true,
+              phone: true,
             },
           },
           mcNumber: {

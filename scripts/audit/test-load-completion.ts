@@ -201,8 +201,11 @@ async function testLoadCompletionManager() {
         loadId: load.id,
         fileName: `POD-${load.loadNumber}.pdf`,
         fileUrl: `https://example.com/pod-${load.loadNumber}.pdf`,
-        type: 'POD',
+        type: 'POD' as const,
         uploadedBy: user.id,
+        title: `POD-${load.loadNumber}`,
+        fileSize: 0,
+        mimeType: 'application/pdf',
       },
     });
 
@@ -300,8 +303,11 @@ async function testPODUploadTrigger() {
       data: {
         companyId: company.id,
         loadId: load.id,
+        title: `POD-${load.loadNumber}`,
         fileName: `POD-${load.loadNumber}.pdf`,
         fileUrl: `https://example.com/pod-${load.loadNumber}.pdf`,
+        fileSize: 1024,
+        mimeType: 'application/pdf',
         type: 'POD',
         uploadedBy: user.id,
       },

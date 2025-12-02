@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { hasPermission } from '@/lib/permissions';
+import { hasPermission, type UserRole } from '@/lib/permissions';
 
 export async function GET(
   request: NextRequest,
@@ -109,8 +109,8 @@ export async function PATCH(
     }
 
     // Check permission to edit documents
-    const role = session.user.role as 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER';
-    if (!hasPermission(role, 'documents.edit')) {
+    const role = session.user.role as UserRole;
+    if (!hasPermission(role, 'documents.upload')) {
       return NextResponse.json(
         {
           success: false,

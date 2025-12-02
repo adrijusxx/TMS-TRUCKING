@@ -1,22 +1,25 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { McFilterProvider } from '@/lib/contexts/McFilterContext';
+import { Toaster } from 'sonner';
+import { ErrorHandler } from '@/components/providers/ErrorHandler';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'TMS - Transportation Management System',
   description: 'Custom TMS for trucking fleet management',
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -53,11 +56,19 @@ export default function RootLayout({
           <SessionProvider>
             <QueryProvider>
               <McFilterProvider>
+                <ErrorHandler />
                 {children}
               </McFilterProvider>
             </QueryProvider>
           </SessionProvider>
         </ThemeProvider>
+        <Toaster 
+          position="bottom-right"
+          richColors
+          closeButton
+          expand={true}
+          duration={5000}
+        />
       </body>
     </html>
   );

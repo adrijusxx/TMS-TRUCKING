@@ -144,7 +144,7 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
         />
       )}
       <DataTable
-        columns={columns}
+        columns={columns as any}
         data={data}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}

@@ -188,7 +188,7 @@ export default function DocumentListNew({ loadId, driverId, truckId }: DocumentL
         config={documentsTableConfig}
         fetchData={fetchDocuments}
         rowActions={rowActions}
-        inlineEditComponent={can('documents.edit') ? DocumentInlineEdit : undefined}
+        inlineEditComponent={can('documents.upload') ? DocumentInlineEdit : undefined}
         emptyMessage="No documents found. Upload your first document to get started."
         enableColumnVisibility={can('data.column_visibility')}
         enableRowSelection={true}
