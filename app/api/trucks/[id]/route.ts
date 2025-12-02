@@ -61,7 +61,7 @@ export async function GET(
           orderBy: { createdAt: 'desc' },
         },
         maintenanceRecords: {
-          orderBy: { scheduledDate: 'desc' },
+          orderBy: { date: 'desc' },
           take: 10,
         },
       },

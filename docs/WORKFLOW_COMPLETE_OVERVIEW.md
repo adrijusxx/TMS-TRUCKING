@@ -586,3 +586,4 @@ PENDING → APPROVED → BILLED → PAID
 
 This document provides a comprehensive overview of the complete workflow from load creation through billing, factoring, and settlements. For specific implementation details, refer to the individual file locations listed in Section 12.
 
+

@@ -6,23 +6,14 @@ import { z } from 'zod';
 
 const createMaintenanceSchema = z.object({
   truckId: z.string().min(1, 'Truck is required'),
-  type: z.enum([
-    'OIL_CHANGE',
-    'TIRE_ROTATION',
-    'BRAKE_SERVICE',
-    'INSPECTION',
-    'REPAIR',
-    'PMI',
-    'ENGINE',
-    'TRANSMISSION',
-    'OTHER',
-  ]),
+  type: z.enum(['PM_A', 'PM_B', 'TIRES', 'REPAIR']),
   description: z.string().min(1, 'Description is required'),
   cost: z.number().nonnegative(),
-  mileage: z.number().nonnegative(),
-  scheduledDate: z.string().datetime().optional().nullable(),
-  completedDate: z.string().datetime().optional().nullable(),
-  vendor: z.string().optional().nullable(),
+  odometer: z.number().nonnegative(),
+  date: z.string().datetime().optional().nullable(),
+  nextServiceDate: z.string().datetime().optional().nullable(),
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']).optional(),
+  vendorId: z.string().optional().nullable(),
   invoiceNumber: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
@@ -75,7 +66,7 @@ export async function GET(request: NextRequest) {
           },
         },
         orderBy: {
-          scheduledDate: 'desc',
+          date: 'desc',
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -150,14 +141,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert date strings to Date objects
-    const recordData: any = { ...validatedData };
-    if (validatedData.scheduledDate) {
-      recordData.scheduledDate = new Date(validatedData.scheduledDate);
-    }
-    if (validatedData.completedDate) {
-      recordData.completedDate = new Date(validatedData.completedDate);
-    }
+    // Convert date strings to Date objects and map to Prisma schema
+    const recordData: any = {
+      truckId: validatedData.truckId,
+      companyId: session.user.companyId,
+      type: validatedData.type,
+      description: validatedData.description,
+      cost: validatedData.cost,
+      odometer: validatedData.odometer,
+      date: validatedData.date ? new Date(validatedData.date) : new Date(),
+      nextServiceDate: validatedData.nextServiceDate ? new Date(validatedData.nextServiceDate) : null,
+      status: validatedData.status || 'OPEN',
+      vendorId: validatedData.vendorId || null,
+      invoiceNumber: validatedData.invoiceNumber || null,
+      notes: validatedData.notes || null,
+    };
 
     const record = await prisma.maintenanceRecord.create({
       data: recordData,
@@ -174,12 +172,12 @@ export async function POST(request: NextRequest) {
     });
 
     // Update truck's last/next maintenance if completed
-    if (record.completedDate) {
+    if (record.status === 'COMPLETED') {
       await prisma.truck.update({
         where: { id: truck.id },
         data: {
-          lastMaintenance: record.completedDate,
-          odometerReading: record.mileage,
+          lastMaintenance: record.date,
+          odometerReading: record.odometer,
         },
       });
     }

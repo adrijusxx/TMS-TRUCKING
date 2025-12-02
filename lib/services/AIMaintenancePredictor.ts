@@ -45,7 +45,10 @@ export class AIMaintenancePredictor extends AIService {
       where: { id: input.truckId },
       include: {
         maintenanceRecords: {
-          orderBy: { completedDate: 'desc' },
+          where: {
+            status: 'COMPLETED',
+          },
+          orderBy: { date: 'desc' },
           take: 20,
         },
         fuelEntries: {
@@ -71,7 +74,7 @@ export class AIMaintenancePredictor extends AIService {
     const currentMileage = truck.odometerReading || 0;
     const lastMaintenance = truck.lastMaintenance;
     const milesSinceLastMaintenance = lastMaintenance && maintenanceRecords.length > 0
-      ? currentMileage - (maintenanceRecords[0].mileage || 0)
+      ? currentMileage - (maintenanceRecords[0].odometer || 0)
       : 0;
 
     // Calculate average miles per month
@@ -91,8 +94,8 @@ export class AIMaintenancePredictor extends AIService {
         maintenanceByType[record.type] = [];
       }
       maintenanceByType[record.type].push({
-        date: record.completedDate?.toISOString() || record.scheduledDate?.toISOString(),
-        mileage: record.mileage,
+        date: record.date?.toISOString() || null,
+        mileage: record.odometer,
         cost: record.cost,
       });
     });
@@ -112,8 +115,8 @@ MAINTENANCE HISTORY (Last 20 records):
 ${maintenanceRecords.map((rec, i) => `
 Record ${i + 1}:
 - Type: ${rec.type}
-- Date: ${rec.completedDate?.toISOString().split('T')[0] || rec.scheduledDate?.toISOString().split('T')[0] || 'N/A'}
-- Mileage: ${rec.mileage.toLocaleString()} miles
+- Date: ${rec.date?.toISOString().split('T')[0] || 'N/A'}
+- Mileage: ${rec.odometer.toLocaleString()} miles
 - Cost: $${rec.cost.toFixed(2)}
 - Description: ${rec.description}
 `).join('\n')}

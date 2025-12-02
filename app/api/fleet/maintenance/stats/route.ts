@@ -36,18 +36,18 @@ export async function GET(request: NextRequest) {
           companyId: session.user.companyId,
           deletedAt: null,
         },
-        completedDate: { not: null },
+        status: 'COMPLETED',
         truckId: { in: trucks.map((t) => t.id) },
       },
       select: {
         id: true,
         truckId: true,
         type: true,
-        completedDate: true,
-        mileage: true,
+        date: true,
+        odometer: true,
       },
       orderBy: {
-        completedDate: 'desc',
+        date: 'desc',
       },
     });
 
@@ -75,8 +75,8 @@ export async function GET(request: NextRequest) {
         totalScheduled++;
 
         const lastService = maintenanceRecords.find((r) => r.truckId === truck.id && r.type === type);
-        const lastServiceDate = lastService?.completedDate
-          ? new Date(lastService.completedDate)
+        const lastServiceDate = lastService?.date
+          ? new Date(lastService.date)
           : truck.lastMaintenance || null;
 
         if (lastServiceDate) {
@@ -101,7 +101,8 @@ export async function GET(request: NextRequest) {
           companyId: session.user.companyId,
           deletedAt: null,
         },
-        completedDate: {
+        status: 'COMPLETED',
+        date: {
           gte: monthStart,
           lte: now,
         },

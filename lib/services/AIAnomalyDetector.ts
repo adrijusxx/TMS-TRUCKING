@@ -249,7 +249,8 @@ Load ${i + 1}:
       where: {
         companyId: input.companyId,
         truckId: input.truckId,
-        completedDate: { gte: startDate, lte: endDate },
+        status: 'COMPLETED',
+        date: { gte: startDate, lte: endDate },
       },
       include: {
         truck: {
@@ -275,7 +276,7 @@ Record ${i + 1}:
 - Truck: ${r.truck?.truckNumber || 'N/A'}
 - Type: ${r.type}
 - Cost: $${r.cost.toFixed(2)}
-- Date: ${r.completedDate?.toISOString().split('T')[0] || 'N/A'}
+- Date: ${r.date?.toISOString().split('T')[0] || 'N/A'}
 `).join('\n')}`;
   }
 

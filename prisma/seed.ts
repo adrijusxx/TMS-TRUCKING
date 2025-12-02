@@ -603,13 +603,13 @@ async function main() {
         data: {
           companyId: company.id,
           truckId: truck.id,
-          type: ['OIL_CHANGE', 'TIRE_ROTATION', 'BRAKE_SERVICE'][i] as any,
+          type: ['PM_A', 'PM_B', 'TIRES'][i] as any,
           description: `Maintenance ${i + 1} for ${truck.truckNumber}`,
           cost: 200 + (i * 100),
-          mileage: truck.odometerReading + (i * 1000),
-          completedDate: new Date(Date.now() - (i + 1) * 7 * 24 * 60 * 60 * 1000),
-          scheduledDate: new Date(Date.now() + (i + 1) * 30 * 24 * 60 * 60 * 1000),
-          vendor: `Vendor ${i + 1}`,
+          odometer: truck.odometerReading + (i * 1000),
+          date: new Date(Date.now() - (i + 1) * 7 * 24 * 60 * 60 * 1000),
+          nextServiceDate: new Date(Date.now() + (i + 1) * 30 * 24 * 60 * 60 * 1000),
+          status: 'COMPLETED',
         },
       });
       maintenanceRecords.push(maintenance);

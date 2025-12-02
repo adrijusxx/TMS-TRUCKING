@@ -33,14 +33,17 @@ export class AIBreakdownPredictor extends AIService {
       where: { id: truckId, companyId },
       include: {
         maintenanceRecords: {
-          orderBy: { completedDate: 'desc' },
+          where: {
+            status: 'COMPLETED',
+          },
+          orderBy: { date: 'desc' },
           take: 20,
           select: {
             type: true,
             description: true,
             cost: true,
-            mileage: true,
-            completedDate: true,
+            odometer: true,
+            date: true,
           },
         },
         breakdowns: {

@@ -44,10 +44,12 @@ export async function GET(request: NextRequest) {
         },
         maintenanceRecords: {
           where: {
-            scheduledDate: {
+            nextServiceDate: {
               lte: new Date(),
             },
-            completedDate: null, // Only records that haven't been completed
+            status: {
+              not: 'COMPLETED', // Only records that haven't been completed
+            },
           },
           select: {
             id: true,

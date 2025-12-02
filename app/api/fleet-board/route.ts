@@ -69,13 +69,15 @@ export async function GET(request: NextRequest) {
         },
         maintenanceRecords: {
           where: {
-            completedDate: null,
-            scheduledDate: {
+            status: {
+              not: 'COMPLETED',
+            },
+            nextServiceDate: {
               lte: new Date(),
             },
           },
           orderBy: {
-            scheduledDate: 'asc',
+            nextServiceDate: 'asc',
           },
           take: 1,
         },

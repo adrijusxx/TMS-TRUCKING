@@ -112,7 +112,10 @@ export class AISafetyPredictor extends AIService {
             take: 10,
           },
           maintenanceRecords: {
-            orderBy: { completedDate: 'desc' },
+            where: {
+              status: 'COMPLETED',
+            },
+            orderBy: { date: 'desc' },
             take: 10,
           },
         },
