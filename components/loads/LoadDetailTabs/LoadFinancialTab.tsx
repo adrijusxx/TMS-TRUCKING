@@ -4,15 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { AccountingSyncStatus } from '@prisma/client';
+import { apiUrl } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useState } from 'react';
 
 interface LoadFinancialTabProps {
   load: any;
   formData: any;
   onFormDataChange: (data: any) => void;
+  onLoadRefetch?: () => void;
 }
 
 const syncStatusColors: Record<AccountingSyncStatus, string> = {
@@ -27,12 +32,42 @@ export default function LoadFinancialTab({
   load,
   formData,
   onFormDataChange,
+  onLoadRefetch,
 }: LoadFinancialTabProps) {
   const { can } = usePermissions();
   const canEdit = can('loads.edit');
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
   const updateField = (field: string, value: any) => {
     onFormDataChange({ ...formData, [field]: value });
+  };
+
+  const handleRecalculateDriverPay = async () => {
+    if (!load?.id || !load?.driverId) {
+      toast.error('Driver must be assigned to calculate driver pay');
+      return;
+    }
+
+    setIsRecalculating(true);
+    try {
+      const response = await fetch(apiUrl(`/api/loads/${load.id}/recalculate-driver-pay`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to recalculate driver pay');
+      }
+
+      const result = await response.json();
+      toast.success(`Driver pay recalculated: ${formatCurrency(result.data.calculatedPay)}`);
+      onLoadRefetch?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to recalculate driver pay');
+    } finally {
+      setIsRecalculating(false);
+    }
   };
 
   // Helper to ensure input values are never undefined
@@ -78,7 +113,22 @@ export default function LoadFinancialTab({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="driverPay" className="text-sm">Driver Pay</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="driverPay" className="text-sm">Driver Pay</Label>
+                {load?.driverId && canEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRecalculateDriverPay}
+                    disabled={isRecalculating}
+                    className="h-7 text-xs"
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${isRecalculating ? 'animate-spin' : ''}`} />
+                    Recalculate
+                  </Button>
+                )}
+              </div>
               {canEdit ? (
                 <Input
                   id="driverPay"

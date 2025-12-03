@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
+import { emitLoadDelivered, emitLoadStatusChanged, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 
 /**
  * Mark load as complete and trigger accounting sync
@@ -83,6 +84,22 @@ export async function POST(
         },
         { status: 500 }
       );
+    }
+
+    // Get updated load for real-time event
+    const updatedLoad = await prisma.load.findUnique({
+      where: { id: loadId },
+      include: {
+        customer: { select: { name: true } },
+        driver: { select: { driverNumber: true } },
+      },
+    });
+
+    // Emit real-time events
+    if (updatedLoad) {
+      emitLoadDelivered(loadId, updatedLoad);
+      emitLoadStatusChanged(loadId, 'DELIVERED', updatedLoad);
+      emitDispatchUpdated({ type: 'load_delivered', loadId });
     }
 
     return NextResponse.json({

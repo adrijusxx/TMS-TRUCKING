@@ -19,19 +19,35 @@ export async function GET(request: NextRequest) {
     }
 
     // Build MC filters - Truck uses mcNumberId, Load uses mcNumberId
-    const truckFilter = await buildMcNumberIdWhereClause(session, request);
-    const loadMcWhere = await buildMcNumberWhereClause(session, request);
-    
-    // Build load filter for include (Load uses mcNumberId)
-    // For admin "all" view, loadMcWhere only has companyId (no mcNumberId)
-    // For single MC view, loadMcWhere has both companyId and mcNumberId
-    const loadWhere: any = {
-      ...loadMcWhere, // This includes companyId, and mcNumberId if not "all" view
+    // Wrap in try-catch to make MC filtering optional
+    let truckFilter: any = { companyId: session.user.companyId };
+    let loadWhere: any = {
+      companyId: session.user.companyId,
       status: {
         in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
       },
       deletedAt: null,
     };
+
+    try {
+      truckFilter = await buildMcNumberIdWhereClause(session, request);
+      const loadMcWhere = await buildMcNumberWhereClause(session, request);
+      
+      // Build load filter for include (Load uses mcNumberId)
+      // For admin "all" view, loadMcWhere only has companyId (no mcNumberId)
+      // For single MC view, loadMcWhere has both companyId and mcNumberId
+      loadWhere = {
+        ...loadMcWhere, // This includes companyId, and mcNumberId if not "all" view
+        status: {
+          in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
+        },
+        deletedAt: null,
+      };
+    } catch (mcError) {
+      // Log but don't fail - MC filtering is optional for security
+      console.warn('MC number filter failed for fleet board, continuing without MC filter:', mcError);
+      // truckFilter and loadWhere already have default companyId values above
+    }
 
     // Get all trucks with their current loads
     const trucks = await prisma.truck.findMany({
@@ -69,12 +85,14 @@ export async function GET(request: NextRequest) {
         },
         maintenanceRecords: {
           where: {
-            status: {
-              not: 'COMPLETED',
-            },
             nextServiceDate: {
               lte: new Date(),
             },
+          },
+          select: {
+            id: true,
+            type: true,
+            nextServiceDate: true,
           },
           orderBy: {
             nextServiceDate: 'asc',

@@ -10,10 +10,13 @@ import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/export';
 import ImportDialog from '@/components/import-export/ImportDialog';
+import ExportDialog from '@/components/import-export/ExportDialog';
 import TruckInlineEdit from '@/components/trucks/TruckInlineEdit';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import type { BulkEditField } from '@/components/data-table/types';
 import { TruckStatus } from '@prisma/client';
+import { Plus, Upload, Download } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface TruckData {
   id: string;
@@ -38,6 +41,7 @@ interface TrucksTableClientProps {
 
 export function TrucksTableClient({ data }: TrucksTableClientProps) {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
 
   const handleUpdate = React.useCallback(() => {
@@ -106,11 +110,6 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
     toast.success(`Exported ${selectedData.length} selected truck(s)`);
   }, [data]);
 
-  const handleImport = React.useCallback(() => {
-    const trigger = document.querySelector('[data-import-trigger="trucks"]') as HTMLButtonElement;
-    if (trigger) trigger.click();
-  }, []);
-
   const bulkEditFields: BulkEditField[] = React.useMemo(() => [
     {
       key: 'status',
@@ -143,6 +142,35 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
           onActionComplete={handleUpdate}
         />
       )}
+      {/* Header with action buttons */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          {can('data.import') && (
+            <ImportDialog entityType="trucks">
+              <Button variant="outline" size="sm">
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+            </ImportDialog>
+          )}
+          {can('data.export') && (
+            <ExportDialog entityType="trucks">
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </ExportDialog>
+          )}
+          {can('trucks.create') && (
+            <Link href="/dashboard/trucks/new">
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Truck
+              </Button>
+            </Link>
+          )}
+        </div>
+      </div>
       <DataTable
         columns={columns as any}
         data={data}
@@ -154,21 +182,10 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
         filterKey="truckNumber"
         onDeleteSelected={handleDeleteSelected}
         onExportSelected={handleExportSelected}
-        onImport={handleImport}
         onExport={handleExport}
         inlineEditComponent={TruckInlineEdit}
         onInlineEditSave={handleUpdate}
       />
-      <div className="hidden">
-        <ImportDialog
-          entityType="trucks"
-          onImportComplete={() => {
-            queryClient.invalidateQueries({ queryKey: ['trucks'] });
-          }}
-        >
-          <button data-import-trigger="trucks" type="button" />
-        </ImportDialog>
-      </div>
     </>
   );
 }

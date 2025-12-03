@@ -53,6 +53,7 @@ export default function CreateTruckForm() {
       odometerReading: 0,
       eldInstalled: false,
       gpsInstalled: false,
+      equipmentType: 'DRY_VAN',
     },
   });
 
@@ -71,7 +72,12 @@ export default function CreateTruckForm() {
 
   const onSubmit = async (data: CreateTruckInput) => {
     setError(null);
-    createMutation.mutate(data as CreateTruckInput);
+    try {
+      createMutation.mutate(data);
+    } catch (err) {
+      // Error is handled by onError callback
+      console.error('Form submission error:', err);
+    }
   };
 
   return (
@@ -93,6 +99,27 @@ export default function CreateTruckForm() {
       {error && (
         <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md border border-destructive/20">
           {error}
+        </div>
+      )}
+
+      {Object.keys(errors).length > 0 && (
+        <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md border border-destructive/20">
+          <p className="font-semibold mb-1">Please fix the following errors:</p>
+          <ul className="list-disc list-inside space-y-1">
+            {errors.truckNumber && <li>Truck Number: {errors.truckNumber.message}</li>}
+            {errors.vin && <li>VIN: {errors.vin.message}</li>}
+            {errors.make && <li>Make: {errors.make.message}</li>}
+            {errors.model && <li>Model: {errors.model.message}</li>}
+            {errors.year && <li>Year: {errors.year.message}</li>}
+            {errors.licensePlate && <li>License Plate: {errors.licensePlate.message}</li>}
+            {errors.state && <li>State: {errors.state.message}</li>}
+            {errors.equipmentType && <li>Equipment Type: {errors.equipmentType.message}</li>}
+            {errors.capacity && <li>Capacity: {errors.capacity.message}</li>}
+            {errors.registrationExpiry && <li>Registration Expiry: {errors.registrationExpiry.message}</li>}
+            {errors.insuranceExpiry && <li>Insurance Expiry: {errors.insuranceExpiry.message}</li>}
+            {errors.inspectionExpiry && <li>Inspection Expiry: {errors.inspectionExpiry.message}</li>}
+            {errors.mcNumberId && <li>MC Number: {errors.mcNumberId.message}</li>}
+          </ul>
         </div>
       )}
 
@@ -140,6 +167,11 @@ export default function CreateTruckForm() {
                   placeholder="Freightliner"
                   {...register('make')}
                 />
+                {errors.make && (
+                  <p className="text-sm text-destructive">
+                    {errors.make.message}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="model">Model *</Label>
@@ -148,6 +180,11 @@ export default function CreateTruckForm() {
                   placeholder="Cascadia"
                   {...register('model')}
                 />
+                {errors.model && (
+                  <p className="text-sm text-destructive">
+                    {errors.model.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -159,6 +196,11 @@ export default function CreateTruckForm() {
                 placeholder="2022"
                 {...register('year', { valueAsNumber: true })}
               />
+              {errors.year && (
+                <p className="text-sm text-destructive">
+                  {errors.year.message}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -169,6 +211,11 @@ export default function CreateTruckForm() {
                   placeholder="TX-ABC123"
                   {...register('licensePlate')}
                 />
+                {errors.licensePlate && (
+                  <p className="text-sm text-destructive">
+                    {errors.licensePlate.message}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="state">State *</Label>
@@ -178,6 +225,11 @@ export default function CreateTruckForm() {
                   maxLength={2}
                   {...register('state')}
                 />
+                {errors.state && (
+                  <p className="text-sm text-destructive">
+                    {errors.state.message}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -194,19 +246,20 @@ export default function CreateTruckForm() {
         <Card>
           <CardHeader>
             <CardTitle>Specifications</CardTitle>
-            <CardDescription>Equipment and capacity</CardDescription>
+            <CardDescription>Truck specifications</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="equipmentType">Equipment Type *</Label>
               <Select
                 onValueChange={(value) =>
-                  setValue('equipmentType', value as EquipmentType)
+                  setValue('equipmentType', value as EquipmentType, { shouldValidate: true })
                 }
                 defaultValue="DRY_VAN"
+                value={watch('equipmentType')}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select equipment type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="DRY_VAN">Dry Van</SelectItem>
@@ -220,6 +273,11 @@ export default function CreateTruckForm() {
                   <SelectItem value="HOTSHOT">Hotshot</SelectItem>
                 </SelectContent>
               </Select>
+              {errors.equipmentType && (
+                <p className="text-sm text-destructive">
+                  {errors.equipmentType.message}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -286,7 +344,9 @@ export default function CreateTruckForm() {
               <Input
                 id="registrationExpiry"
                 type="date"
-                {...register('registrationExpiry')}
+                {...register('registrationExpiry', {
+                  setValueAs: (value) => value || undefined,
+                })}
               />
               {errors.registrationExpiry && (
                 <p className="text-sm text-destructive">
@@ -300,7 +360,9 @@ export default function CreateTruckForm() {
               <Input
                 id="insuranceExpiry"
                 type="date"
-                {...register('insuranceExpiry')}
+                {...register('insuranceExpiry', {
+                  setValueAs: (value) => value || undefined,
+                })}
               />
               {errors.insuranceExpiry && (
                 <p className="text-sm text-destructive">
@@ -314,7 +376,9 @@ export default function CreateTruckForm() {
               <Input
                 id="inspectionExpiry"
                 type="date"
-                {...register('inspectionExpiry')}
+                {...register('inspectionExpiry', {
+                  setValueAs: (value) => value || undefined,
+                })}
               />
               {errors.inspectionExpiry && (
                 <p className="text-sm text-destructive">

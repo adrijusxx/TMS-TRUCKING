@@ -62,6 +62,7 @@ interface LoadData {
   loadedMiles?: number | null;
   emptyMiles?: number | null;
   weight: number | null;
+  trailerNumber?: string | null;
   createdAt?: Date | string;
   updatedAt?: Date | string;
   missingDocuments?: string[];
@@ -288,7 +289,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
         </div>
       </div>
     ),
-    defaultVisible: false, // Hidden by default since we have Origin/Dest columns
+    defaultVisible: true, // Show route by default
   },
   {
     id: 'driver',
@@ -331,14 +332,14 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     accessorKey: 'pickupDate',
     header: 'Pickup Date',
     cell: ({ row }) => (row.original.pickupDate ? formatDate(row.original.pickupDate) : 'N/A'),
-    defaultVisible: false,
+    defaultVisible: true,
   },
   {
     id: 'deliveryDate',
     accessorKey: 'deliveryDate',
     header: 'Delivery Date',
     cell: ({ row }) => (row.original.deliveryDate ? formatDate(row.original.deliveryDate) : 'N/A'),
-    defaultVisible: false,
+    defaultVisible: true,
   },
   {
     id: 'miles',
@@ -348,7 +349,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       const miles = (row.original as any).totalMiles ?? row.original.miles;
       return miles ? miles.toLocaleString() : 'N/A';
     },
-    defaultVisible: false,
+    defaultVisible: true,
   },
   {
     id: 'loadedMiles',
@@ -385,7 +386,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       }
       return 'N/A';
     },
-    defaultVisible: false,
+    defaultVisible: true,
     enableHiding: true,
   },
   {
@@ -446,6 +447,15 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     permission: 'loads.view_financial',
   },
   {
+    id: 'trailer',
+    header: 'Trailer',
+    cell: ({ row }) => {
+      const trailerNumber = (row.original as any).trailerNumber;
+      return trailerNumber ? trailerNumber : 'Unassigned';
+    },
+    defaultVisible: true,
+  },
+  {
     id: 'mcNumber',
     accessorKey: 'mcNumber',
     header: 'MC Number',
@@ -465,7 +475,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       }
       return <McBadge mcNumber={mcNumber as string} size="sm" />;
     },
-    defaultVisible: false,
+    defaultVisible: true,
     permission: 'mc_numbers.view',
   },
   {
@@ -583,12 +593,16 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
   columns,
   defaultVisibleColumns: [
     'loadNumber',
-    'rateConfNumber',
     'status',
-    'origin',
-    'destination',
-    'revenue',
-    'customer',
+    'route',
+    'driver',
+    'truck',
+    'trailer',
+    'pickupDate',
+    'deliveryDate',
+    'rpmLoaded',
+    'miles',
+    'mcNumber',
   ],
   requiredColumns: ['loadNumber'],
   bulkEditFields,
@@ -635,12 +649,16 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
     { 
       key: 'customerId', 
       label: 'Customer', 
-      type: 'text',
+      type: 'searchable-select',
+      entityType: 'loads',
+      filterKey: 'customerId',
     },
     { 
       key: 'driverId', 
       label: 'Driver', 
-      type: 'text',
+      type: 'searchable-select',
+      entityType: 'loads',
+      filterKey: 'driverId',
     },
     { 
       key: 'pickupCity', 

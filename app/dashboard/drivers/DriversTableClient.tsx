@@ -10,10 +10,13 @@ import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/export';
 import ImportDialog from '@/components/import-export/ImportDialog';
+import ExportDialog from '@/components/import-export/ExportDialog';
 import DriverInlineEdit from '@/components/drivers/DriverInlineEdit';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import type { BulkEditField } from '@/components/data-table/types';
 import { DriverStatus, EmployeeStatus, AssignmentStatus } from '@prisma/client';
+import { Plus, Upload, Download } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface DriverData {
   id: string;
@@ -49,8 +52,8 @@ interface DriversTableClientProps {
 
 export function DriversTableClient({ data }: DriversTableClientProps) {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
-  const importDialogRef = React.useRef<{ open: () => void } | null>(null);
 
   const handleUpdate = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -175,6 +178,35 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
           onActionComplete={handleUpdate}
         />
       )}
+      {/* Header with action buttons */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          {can('data.import') && (
+            <ImportDialog entityType="drivers">
+              <Button variant="outline" size="sm">
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+            </ImportDialog>
+          )}
+          {can('data.export') && (
+            <ExportDialog entityType="drivers">
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </ExportDialog>
+          )}
+          {can('drivers.create') && (
+            <Link href="/dashboard/drivers/new">
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Driver
+              </Button>
+            </Link>
+          )}
+        </div>
+      </div>
       <DataTable
         columns={columns}
         data={data}
@@ -191,17 +223,6 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
         inlineEditComponent={DriverInlineEdit}
         onInlineEditSave={handleUpdate}
       />
-      {/* Hidden import trigger */}
-      <div className="hidden">
-        <ImportDialog
-          entityType="drivers"
-          onImportComplete={() => {
-            queryClient.invalidateQueries({ queryKey: ['drivers'] });
-          }}
-        >
-          <button data-import-trigger="drivers" type="button" />
-        </ImportDialog>
-      </div>
     </>
   );
 }

@@ -236,7 +236,13 @@ export async function PATCH(
     }
 
     const body = await request.json();
+    console.log('[Driver Update API] Raw request body:', JSON.stringify(body, null, 2));
+    console.log('[Driver Update API] recurringDeductions in body:', body.recurringDeductions);
+    console.log('[Driver Update API] Type of recurringDeductions:', typeof body.recurringDeductions);
+    console.log('[Driver Update API] Is array?', Array.isArray(body.recurringDeductions));
+    
     const validated = updateDriverSchema.parse(body);
+    console.log('[Driver Update API] Validated data - recurringDeductions:', validated.recurringDeductions);
 
     const role = session.user.role as 'ADMIN' | 'ACCOUNTANT' | 'DISPATCHER' | 'DRIVER' | 'CUSTOMER';
 
@@ -292,6 +298,71 @@ export async function PATCH(
         }
       }
     });
+
+    // Handle recurring deductions - save as DeductionRule records
+    if (validated.recurringDeductions !== undefined) {
+      console.log('[Driver Update] Processing recurring deductions:', validated.recurringDeductions);
+      
+      // Get driver number for naming pattern
+      const driverIdentifier = existingDriver.driverNumber || id.slice(0, 8);
+      console.log('[Driver Update] Driver identifier:', driverIdentifier);
+      
+      // Get existing deduction rules created for this driver (identified by name pattern)
+      const existingRules = await prisma.deductionRule.findMany({
+        where: {
+          companyId: session.user.companyId,
+          name: { startsWith: `Driver ${driverIdentifier} - ` },
+        },
+      });
+      console.log('[Driver Update] Found existing rules:', existingRules.length);
+
+      // Deactivate old rules (even if new list is empty)
+      if (existingRules.length > 0) {
+        await prisma.deductionRule.updateMany({
+          where: {
+            id: { in: existingRules.map(r => r.id) },
+          },
+          data: {
+            isActive: false,
+          },
+        });
+        console.log('[Driver Update] Deactivated', existingRules.length, 'old rules');
+      }
+
+      // Create new deduction rules for each recurring deduction
+      if (Array.isArray(validated.recurringDeductions) && validated.recurringDeductions.length > 0) {
+        console.log('[Driver Update] Creating', validated.recurringDeductions.length, 'new deduction rules');
+        for (const deduction of validated.recurringDeductions) {
+          if (deduction.type && deduction.amount > 0 && deduction.frequency) {
+            const frequencyValue = deduction.frequency === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY';
+            try {
+              const newRule = await prisma.deductionRule.create({
+                data: {
+                  companyId: session.user.companyId,
+                  name: `Driver ${driverIdentifier} - ${deduction.type}`,
+                  deductionType: deduction.type as any,
+                  driverType: existingDriver.driverType as any,
+                  calculationType: 'FIXED',
+                  amount: deduction.amount,
+                  frequency: frequencyValue as any, // DeductionRuleFrequency (WEEKLY or MONTHLY)
+                  deductionFrequency: frequencyValue as any, // DeductionFrequency (WEEKLY or MONTHLY) - for settlement generation
+                  isActive: true,
+                },
+              });
+              console.log('[Driver Update] Created deduction rule:', newRule.id, newRule.name);
+            } catch (error) {
+              console.error('[Driver Update] Error creating deduction rule:', error);
+            }
+          } else {
+            console.warn('[Driver Update] Skipping invalid deduction:', deduction);
+          }
+        }
+      } else {
+        console.log('[Driver Update] No deductions to create (empty array)');
+      }
+    } else {
+      console.log('[Driver Update] recurringDeductions is undefined, skipping');
+    }
 
     // Convert date strings to Date objects
     const dateFields = [

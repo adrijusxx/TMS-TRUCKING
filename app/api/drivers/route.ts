@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     const mcViewMode = searchParams.get('mc'); // 'all' or specific MC ID
     const mcNumber = searchParams.get('mcNumber'); // Filter by MC number value
     const mcNumberIdFilter = searchParams.get('mcNumberId');
+    const isActiveParam = searchParams.get('isActive'); // Filter by isActive
 
     // Apply role-based filtering (separate from MC filtering)
     const roleFilter = await getDriverFilter(
@@ -77,6 +78,14 @@ export async function GET(request: NextRequest) {
       } else {
         where.mcNumberId = mcNumberIdFilter;
       }
+    }
+
+    // Handle isActive parameter filter (used by settlement form)
+    if (isActiveParam === 'true') {
+      where.isActive = true;
+      where.employeeStatus = 'ACTIVE';
+    } else if (isActiveParam === 'false') {
+      where.isActive = false;
     }
 
     // Filter drivers by MC number if provided

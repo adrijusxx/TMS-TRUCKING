@@ -36,6 +36,7 @@ export async function GET(
           select: {
             id: true,
             driverNumber: true,
+            driverType: true,
             user: {
               select: {
                 firstName: true,
@@ -45,18 +46,40 @@ export async function GET(
             },
             payType: true,
             payRate: true,
+            perDiem: true,
+            driverTariff: true,
+            escrowBalance: true,
+            escrowTargetAmount: true,
+            escrowDeductionPerWeek: true,
+          },
+        },
+        deductionItems: {
+          orderBy: {
+            createdAt: 'desc',
           },
         },
       },
     });
 
     if (!settlement) {
+      console.error(`[Settlement GET] Settlement ${resolvedParams.id} not found for company ${session.user.companyId}`);
       return NextResponse.json(
         {
           success: false,
           error: { code: 'NOT_FOUND', message: 'Settlement not found' },
         },
         { status: 404 }
+      );
+    }
+
+    if (!settlement.driver) {
+      console.error(`[Settlement GET] Settlement ${resolvedParams.id} has no driver associated`);
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'INVALID_DATA', message: 'Settlement is missing driver information' },
+        },
+        { status: 500 }
       );
     }
 
@@ -84,11 +107,45 @@ export async function GET(
       },
     });
 
+    // Fetch deduction rules that apply to this driver
+    // Note: Only filter by driverType since driverId column doesn't exist in database
+    const deductionRules = await prisma.deductionRule.findMany({
+      where: {
+        companyId: session.user.companyId,
+        isActive: true,
+        OR: [
+          { driverType: null }, // Company-wide rules for all driver types
+          { driverType: settlement.driver.driverType }, // Rules for this driver's type
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        deductionType: true,
+        amount: true,
+        calculationType: true,
+        percentage: true,
+        perMileRate: true,
+        frequency: true,
+        minGrossPay: true,
+        maxAmount: true,
+        driverType: true,
+        notes: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         ...settlement,
         loads,
+        driver: {
+          ...settlement.driver,
+          deductionRules,
+        },
       },
     });
   } catch (error) {

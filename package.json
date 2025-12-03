@@ -55,7 +55,11 @@
     "audit:test-load-creation": "tsx scripts/audit/test-load-creation.ts",
     "audit:test-load-completion": "tsx scripts/audit/test-load-completion.ts",
     "audit:test-ready-to-bill": "tsx scripts/audit/test-ready-to-bill.ts",
-    "test:mc-system": "tsx scripts/test-mc-system.ts"
+    "test:mc-system": "tsx scripts/test-mc-system.ts",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "test:ui": "vitest --ui"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -109,16 +113,23 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
     "@types/google.maps": "^3.58.1",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.10.1",
     "@types/papaparse": "^5.3.15",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/ui": "^1.1.0",
     "autoprefixer": "^10.4.22",
     "glob": "^13.0.0",
+    "jsdom": "^23.0.1",
     "postcss": "^8.5.6",
     "prisma": "^6.19.0",
     "tailwindcss": "^3.4.18",
     "tailwindcss-animate": "^1.0.7",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "vitest": "^1.1.0"
   }
 }

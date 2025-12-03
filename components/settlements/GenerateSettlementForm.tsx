@@ -158,6 +158,43 @@ export default function GenerateSettlementForm() {
     .filter((load: any) => selectedLoads.has(load.id))
     .reduce((sum: number, load: any) => sum + (load.revenue || 0), 0);
 
+  // Calculate driver pay for a load based on driver's pay settings
+  const calculateLoadDriverPay = (load: any): number => {
+    if (!selectedDriver) return load.driverPay || 0;
+    
+    // If load already has driver pay stored, use it
+    if (load.driverPay && load.driverPay > 0) {
+      return load.driverPay;
+    }
+    
+    // Calculate based on driver's pay type
+    if (!selectedDriver.payType || !selectedDriver.payRate) {
+      return 0;
+    }
+    
+    const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
+    const revenue = load.revenue || 0;
+    
+    switch (selectedDriver.payType) {
+      case 'PER_MILE':
+        return miles * selectedDriver.payRate;
+      case 'PER_LOAD':
+        return selectedDriver.payRate;
+      case 'PERCENTAGE':
+        return revenue * (selectedDriver.payRate / 100);
+      case 'HOURLY':
+        const estimatedHours = miles > 0 ? miles / 50 : 10;
+        return estimatedHours * selectedDriver.payRate;
+      default:
+        return 0;
+    }
+  };
+
+  // Calculate total estimated driver pay for selected loads
+  const totalDriverPay = availableLoads
+    .filter((load: any) => selectedLoads.has(load.id))
+    .reduce((sum: number, load: any) => sum + calculateLoadDriverPay(load), 0);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -209,29 +246,41 @@ export default function GenerateSettlementForm() {
               </Select>
             </div>
             {selectedDriver && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Driver Information</AlertTitle>
-                <AlertDescription>
-                  <div className="mt-2 space-y-1">
-                    <p>
-                      <strong>Pay Type:</strong> {selectedDriver.payType || 'Not set'}
-                    </p>
-                    <p>
-                      <strong>Pay Rate:</strong>{' '}
-                      {selectedDriver.payRate
-                        ? selectedDriver.payType === 'PER_MILE'
-                          ? `${formatCurrency(selectedDriver.payRate)}/mile`
-                          : selectedDriver.payType === 'PERCENTAGE'
-                          ? `${selectedDriver.payRate}%`
-                          : selectedDriver.payType === 'PER_LOAD'
-                          ? `${formatCurrency(selectedDriver.payRate)}/load`
-                          : `${formatCurrency(selectedDriver.payRate)}/hour`
-                        : 'Not set'}
-                    </p>
-                  </div>
-                </AlertDescription>
-              </Alert>
+              <>
+                <Alert variant={!selectedDriver.payType || !selectedDriver.payRate ? 'destructive' : 'default'}>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Driver Information</AlertTitle>
+                  <AlertDescription>
+                    <div className="mt-2 space-y-1">
+                      <p>
+                        <strong>Pay Type:</strong> {selectedDriver.payType || <span className="text-destructive">Not set</span>}
+                      </p>
+                      <p>
+                        <strong>Pay Rate:</strong>{' '}
+                        {selectedDriver.payRate
+                          ? selectedDriver.payType === 'PER_MILE'
+                            ? `${formatCurrency(selectedDriver.payRate)}/mile`
+                            : selectedDriver.payType === 'PERCENTAGE'
+                            ? `${selectedDriver.payRate}%`
+                            : selectedDriver.payType === 'PER_LOAD'
+                            ? `${formatCurrency(selectedDriver.payRate)}/load`
+                            : `${formatCurrency(selectedDriver.payRate)}/hour`
+                          : <span className="text-destructive">Not set</span>}
+                      </p>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+                {(!selectedDriver.payType || !selectedDriver.payRate) && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Pay Configuration Required</AlertTitle>
+                    <AlertDescription>
+                      This driver does not have pay type and rate configured. Settlement calculations will be $0. 
+                      Please configure the driver's pay settings first.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -321,7 +370,16 @@ export default function GenerateSettlementForm() {
                             {formatCurrency(load.revenue || 0)}
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatCurrency(load.driverPay || 0)}
+                            {load.driverPay && load.driverPay > 0 ? (
+                              formatCurrency(load.driverPay)
+                            ) : selectedDriver?.payType ? (
+                              <span className="text-muted-foreground">
+                                {formatCurrency(calculateLoadDriverPay(load))}
+                                <span className="text-xs ml-1">(est)</span>
+                              </span>
+                            ) : (
+                              <span className="text-destructive">$0.00</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             {load.totalMiles || load.loadedMiles || load.emptyMiles || 0} mi
@@ -333,7 +391,7 @@ export default function GenerateSettlementForm() {
                 </div>
               )}
               {selectedLoads.size > 0 && (
-                <div className="mt-4 p-4 bg-muted rounded-lg">
+                <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-medium">
                       {selectedLoads.size} load{selectedLoads.size !== 1 ? 's' : ''} selected
@@ -342,6 +400,17 @@ export default function GenerateSettlementForm() {
                       Total Revenue: {formatCurrency(totalRevenue)}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center border-t pt-2">
+                    <span className="text-muted-foreground">Estimated Driver Pay:</span>
+                    <span className={`text-lg font-bold ${totalDriverPay === 0 ? 'text-destructive' : 'text-green-600'}`}>
+                      {formatCurrency(totalDriverPay)}
+                    </span>
+                  </div>
+                  {totalDriverPay === 0 && selectedDriver && (
+                    <p className="text-sm text-destructive">
+                      ⚠️ Driver pay is $0. Check if driver has pay type configured.
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -426,5 +495,6 @@ export default function GenerateSettlementForm() {
     </div>
   );
 }
+
 
 

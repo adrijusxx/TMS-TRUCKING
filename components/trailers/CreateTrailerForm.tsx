@@ -54,9 +54,9 @@ export default function CreateTrailerForm() {
 
   const createMutation = useMutation({
     mutationFn: createTrailer,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trailers'] });
-      router.push(`/dashboard/trailers/${data.data.id}`);
+      router.push('/dashboard/trailers');
     },
     onError: (err: Error) => {
       setError(err.message);
@@ -187,12 +187,32 @@ export default function CreateTrailerForm() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="type">Type</Label>
-              <Input
-                id="type"
-                placeholder="Dry Van"
-                {...register('type')}
-              />
+              <Label htmlFor="type">Equipment Type</Label>
+              <Select
+                onValueChange={(value) =>
+                  setValue('type', value, { shouldValidate: true })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select equipment type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DRY_VAN">Dry Van</SelectItem>
+                  <SelectItem value="REEFER">Reefer</SelectItem>
+                  <SelectItem value="FLATBED">Flatbed</SelectItem>
+                  <SelectItem value="STEP_DECK">Step Deck</SelectItem>
+                  <SelectItem value="LOWBOY">Lowboy</SelectItem>
+                  <SelectItem value="TANKER">Tanker</SelectItem>
+                  <SelectItem value="CONESTOGA">Conestoga</SelectItem>
+                  <SelectItem value="POWER_ONLY">Power Only</SelectItem>
+                  <SelectItem value="HOTSHOT">Hotshot</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.type && (
+                <p className="text-sm text-destructive">
+                  {errors.type.message}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

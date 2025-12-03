@@ -404,19 +404,6 @@ export async function GET(
               },
             },
           },
-          select: {
-            id: true,
-            driverNumber: true,
-            payType: true,
-            payRate: true,
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-          },
         },
         deductionItems: {
           orderBy: {
@@ -476,25 +463,39 @@ export async function GET(
       },
     });
 
-    // Generate PDF
-    const pdfBuffer = await renderToBuffer(
-      <SettlementPDF
-        settlement={settlement}
-        company={company}
-        driver={settlement.driver}
-        loads={loads}
-        deductionItems={settlement.deductionItems}
-        advances={advances}
-      />
-    );
+    try {
+      // Generate PDF
+      const pdfBuffer = await renderToBuffer(
+        <SettlementPDF
+          settlement={settlement}
+          company={company}
+          driver={settlement.driver}
+          loads={loads}
+          deductionItems={settlement.deductionItems || []}
+          advances={advances}
+        />
+      );
 
-    // Return PDF as response - convert Buffer to Uint8Array for NextResponse
-    return new NextResponse(new Uint8Array(pdfBuffer), {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="settlement-${settlement.settlementNumber}.pdf"`,
-      },
-    });
+      // Convert buffer to proper format for NextResponse
+      // renderToBuffer returns a Buffer or Uint8Array
+      const pdfArray = pdfBuffer instanceof Buffer 
+        ? new Uint8Array(pdfBuffer)
+        : pdfBuffer instanceof Uint8Array
+        ? pdfBuffer
+        : new Uint8Array(await pdfBuffer);
+
+      // Return PDF as response
+      return new NextResponse(pdfArray, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="settlement-${settlement.settlementNumber}.pdf"`,
+          'Content-Length': pdfArray.length.toString(),
+        },
+      });
+    } catch (pdfError) {
+      console.error('PDF rendering error:', pdfError);
+      throw pdfError;
+    }
   } catch (error) {
     console.error('Settlement PDF generation error:', error);
     return NextResponse.json(

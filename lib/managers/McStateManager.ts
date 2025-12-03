@@ -258,10 +258,14 @@ export class McStateManager {
     }
 
     // Admin filtered mode or employee assigned mode - filter by MC array
+    // Include loads with null mcNumberId as well (unassigned loads)
     if (mcState.mcNumberIds.length > 0) {
       return {
         companyId,
-        mcNumberId: { in: mcState.mcNumberIds },
+        OR: [
+          { mcNumberId: { in: mcState.mcNumberIds } },
+          { mcNumberId: null },
+        ],
       };
     }
 

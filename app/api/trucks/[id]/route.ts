@@ -61,6 +61,19 @@ export async function GET(
           orderBy: { createdAt: 'desc' },
         },
         maintenanceRecords: {
+          select: {
+            id: true,
+            type: true,
+            description: true,
+            cost: true,
+            odometer: true,
+            date: true,
+            nextServiceDate: true,
+            // status: true, // Removed until migration adds this column
+            invoiceNumber: true,
+            notes: true,
+            createdAt: true,
+          },
           orderBy: { date: 'desc' },
           take: 10,
         },

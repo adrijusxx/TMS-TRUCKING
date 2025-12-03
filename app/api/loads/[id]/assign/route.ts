@@ -3,6 +3,8 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
+import { emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
+import { notifyLoadAssigned } from '@/lib/notifications/triggers';
 
 const assignLoadSchema = z.object({
   driverId: z.string().min(1, 'Driver is required').optional(),
@@ -209,6 +211,20 @@ export async function POST(
 
     if (updates.length > 0) {
       await Promise.all(updates);
+    }
+
+    // Emit real-time events
+    emitLoadAssigned(loadId, validated.driverId || '', updatedLoad);
+    emitDispatchUpdated({ 
+      type: 'load_assigned', 
+      loadId, 
+      driverId: validated.driverId,
+      truckId: validated.truckId,
+    });
+
+    // Send notification
+    if (validated.driverId) {
+      await notifyLoadAssigned(loadId, validated.driverId);
     }
 
     return NextResponse.json({

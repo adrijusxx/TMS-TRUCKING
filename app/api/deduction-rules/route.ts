@@ -168,7 +168,6 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const driverId = searchParams.get('driverId');
     const driverType = searchParams.get('driverType');
     const deductionType = searchParams.get('deductionType');
     const isActive = searchParams.get('isActive');
@@ -177,10 +176,7 @@ export async function GET(request: NextRequest) {
       companyId: session.user.companyId,
     };
 
-    if (driverId) {
-      where.driverId = driverId;
-    }
-
+    // Note: driverId column doesn't exist in database, only filter by driverType
     if (driverType) {
       where.driverType = driverType;
     }
@@ -193,17 +189,60 @@ export async function GET(request: NextRequest) {
       where.isActive = isActive === 'true';
     }
 
-    const rules = await (prisma as any).deductionRule.findMany({
-      where,
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    try {
+      const rules = await (prisma as any).deductionRule.findMany({
+        where,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        // Explicitly exclude driverId relation to avoid Prisma errors if column doesn't exist
+        select: {
+          id: true,
+          companyId: true,
+          name: true,
+          deductionType: true,
+          driverType: true,
+          calculationType: true,
+          amount: true,
+          percentage: true,
+          perMileRate: true,
+          frequency: true,
+          deductionFrequency: true,
+          minGrossPay: true,
+          maxAmount: true,
+          isActive: true,
+          notes: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-    return NextResponse.json({
-      success: true,
-      data: rules,
-    });
+      return NextResponse.json({
+        success: true,
+        data: rules,
+      });
+    } catch (error: any) {
+      // If driverId column doesn't exist, try query without it
+      if (error.code === 'P2022' && error.meta?.column === 'DeductionRule.driverId') {
+        console.warn('[Deduction Rules API] driverId column not found, querying without relation');
+        // Remove driverId from where clause if it was added
+        const safeWhere = { ...where };
+        delete (safeWhere as any).driverId;
+        
+        const rules = await (prisma as any).deductionRule.findMany({
+          where: safeWhere,
+          orderBy: {
+            createdAt: 'desc',
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: rules,
+        });
+      }
+      throw error;
+    }
   } catch (error: any) {
     console.error('Error listing deduction rules:', error);
     return NextResponse.json(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,12 +16,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { X, Plus, DollarSign, Calculator, Shield, Lock, RotateCcw } from 'lucide-react';
+import { X, Plus, DollarSign, Calculator, Shield, Lock } from 'lucide-react';
 import { PayType } from '@prisma/client';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { calculateDriverTariff } from '@/lib/utils/driverTariff';
+import { apiUrl } from '@/lib/utils';
 
 interface DriverFinancialPayrollTabProps {
   driver: any;
@@ -67,7 +67,6 @@ const financialsSchema = z.object({
   perDiem: z.number().min(0, 'Per diem cannot be negative').optional(),
   escrowTargetAmount: z.number().min(0, 'Target amount cannot be negative').optional(),
   escrowDeductionPerWeek: z.number().min(0, 'Deduction per week cannot be negative').optional(),
-  driverTariff: z.string().optional(),
 });
 
 type FinancialsFormData = z.infer<typeof financialsSchema>;
@@ -100,13 +99,11 @@ export default function DriverFinancialPayrollTab({ driver, onSave }: DriverFina
       perDiem: driver.perDiem || undefined,
       escrowTargetAmount: driver.escrowTargetAmount || undefined,
       escrowDeductionPerWeek: driver.escrowDeductionPerWeek || undefined,
-      driverTariff: driver.driverTariff || '',
     },
   });
 
   const payType = watch('payType');
   const payRate = watch('payRate');
-  const driverTariff = watch('driverTariff');
   const escrowTargetAmount = watch('escrowTargetAmount') || 0;
   const escrowDeductionPerWeek = watch('escrowDeductionPerWeek') || 0;
   const escrowBalance = driver.escrowBalance || 0;
@@ -211,35 +208,120 @@ export default function DriverFinancialPayrollTab({ driver, onSave }: DriverFina
     );
   };
 
-  const handleBacktrackCalculation = () => {
-    const tariff = calculateDriverTariff({
-      payType: payType as PayType,
-      payRate: parseFloat(payRate.toString()),
-      loads: driver.loads || [],
-    });
-    setValue('driverTariff', tariff);
-  };
 
-  const onSubmit = (data: FinancialsFormData) => {
-    onSave({
+  const onSubmit = useCallback((data: FinancialsFormData) => {
+    console.log('[Driver Financial Tab] onSubmit called with form data:', data);
+    console.log('[Driver Financial Tab] Current recurringDeductions:', recurringDeductions);
+    console.log('[Driver Financial Tab] Current otherPayRows:', otherPayRows);
+    console.log('[Driver Financial Tab] Current deductionRows:', deductionRows);
+    
+    // Filter out incomplete deductions (missing type, amount, or frequency)
+    const validDeductions = recurringDeductions.filter(ded => 
+      ded.type && ded.type.trim() !== '' && 
+      ded.amount > 0 && 
+      ded.frequency && ded.frequency.trim() !== ''
+    );
+    
+    console.log('[Driver Financial Tab] Valid deductions (after filtering):', validDeductions.length, 'out of', recurringDeductions.length);
+    
+    if (recurringDeductions.length > 0 && validDeductions.length === 0) {
+      console.warn('[Driver Financial Tab] WARNING: Deductions exist but none are valid!');
+      console.warn('[Driver Financial Tab] All deductions:', recurringDeductions);
+      toast.error('Please complete all deduction fields (Type, Amount, Frequency) before saving');
+    }
+    
+    if (validDeductions.length > 0) {
+      console.log('[Driver Financial Tab] Preparing to save', validDeductions.length, 'valid recurring deductions');
+      validDeductions.forEach((ded, idx) => {
+        console.log(`[Driver Financial Tab] Valid Deduction ${idx + 1}:`, {
+          type: ded.type,
+          amount: ded.amount,
+          frequency: ded.frequency,
+          id: ded.id,
+        });
+      });
+    } else {
+      console.log('[Driver Financial Tab] No valid recurring deductions to save');
+    }
+    
+    const formData = {
       payType: data.payType,
       payRate: parseFloat(data.payRate.toString()),
       perDiem: data.perDiem ? parseFloat(data.perDiem.toString()) : undefined,
       escrowTargetAmount: data.escrowTargetAmount ? parseFloat(data.escrowTargetAmount.toString()) : undefined,
       escrowDeductionPerWeek: data.escrowDeductionPerWeek ? parseFloat(data.escrowDeductionPerWeek.toString()) : undefined,
-      recurringDeductions: recurringDeductions.length > 0 ? recurringDeductions : undefined,
-      driverTariff: data.driverTariff || undefined,
-    });
-  };
+      // Only send valid deductions
+      recurringDeductions: validDeductions.length > 0 ? validDeductions : undefined,
+      otherPayRows: otherPayRows.length > 0 ? otherPayRows : undefined,
+      deductionRows: deductionRows.length > 0 ? deductionRows : undefined,
+    };
+    
+    console.log('[Driver Financial Tab] Final formData being sent to onSave:', JSON.stringify(formData, null, 2));
+    console.log('[Driver Financial Tab] recurringDeductions in formData:', formData.recurringDeductions);
+    onSave(formData);
+  }, [recurringDeductions, otherPayRows, deductionRows, onSave]);
+
+  // Load existing deduction rules for this driver
+  useEffect(() => {
+    const loadDeductionRules = async () => {
+      try {
+        const driverIdentifier = driver.driverNumber || driver.id.slice(0, 8);
+        // Fetch all active deduction rules for this driver type
+        const response = await fetch(apiUrl(`/api/deduction-rules?driverType=${driver.driverType || ''}&isActive=true`));
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            // Filter rules that match this driver (by name pattern)
+            const driverRules = result.data.filter((rule: any) => 
+              rule.name && rule.name.startsWith(`Driver ${driverIdentifier} - `) && rule.isActive
+            );
+            
+            // Convert to form format
+            const loadedDeductions: RecurringDeductionRow[] = driverRules.map((rule: any) => ({
+              id: rule.id,
+              type: rule.deductionType,
+              amount: rule.amount || 0,
+              frequency: rule.frequency || rule.deductionFrequency || 'WEEKLY',
+            }));
+            
+            if (loadedDeductions.length > 0) {
+              console.log('[Driver Financial Tab] Loaded', loadedDeductions.length, 'deduction rules');
+              setRecurringDeductions(loadedDeductions);
+            }
+          }
+        } else {
+          console.warn('[Driver Financial Tab] Failed to load deduction rules:', response.status);
+        }
+      } catch (error) {
+        console.error('[Driver Financial Tab] Error loading deduction rules:', error);
+        // Don't block the form if loading fails
+      }
+    };
+
+    if (driver.id && driver.driverType) {
+      loadDeductionRules();
+    }
+  }, [driver.id, driver.driverNumber, driver.driverType]);
 
   useEffect(() => {
     const handleSave = () => {
-      handleSubmit(onSubmit)();
+      console.log('[Driver Financial Tab] Save event received');
+      console.log('[Driver Financial Tab] Current recurringDeductions:', recurringDeductions);
+      console.log('[Driver Financial Tab] Current otherPayRows:', otherPayRows);
+      console.log('[Driver Financial Tab] Current deductionRows:', deductionRows);
+      
+      // Get current form values using watch
+      const formValues = watch();
+      console.log('[Driver Financial Tab] Current form values from watch:', formValues);
+      
+      // Manually call onSubmit with current form data
+      // This bypasses react-hook-form validation to ensure data is sent
+      onSubmit(formValues);
     };
     
     window.addEventListener('driver-form-save', handleSave);
     return () => window.removeEventListener('driver-form-save', handleSave);
-  }, [handleSubmit, recurringDeductions]);
+  }, [watch, onSubmit, recurringDeductions, otherPayRows, deductionRows]);
 
   return (
     <form id="driver-financial-payroll-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -347,7 +429,9 @@ export default function DriverFinancialPayrollTab({ driver, onSave }: DriverFina
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="perDiem">Per Diem (Cents per mile tax-free)</Label>
+              <Label htmlFor="perDiem">
+                Per Diem <span className="text-xs font-normal text-muted-foreground">(Optional - Tax-Free)</span>
+              </Label>
               <div className="flex items-center gap-2">
                 <Input
                   id="perDiem"
@@ -365,58 +449,38 @@ export default function DriverFinancialPayrollTab({ driver, onSave }: DriverFina
                 <p className="text-sm text-destructive">{errors.perDiem.message}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Tax-free per diem allowance (e.g., 0.10 = 10 cents per mile)
+                Tax-free meal allowance (IRS compliant). Example: 10 cents/mile = $100 tax-free on 1000 miles
               </p>
+            </div>
+          </div>
+          
+          {/* Payment Summary - Auto-calculated display */}
+          <div className="pt-4 border-t bg-muted/30 p-4 rounded-lg">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Payment Summary</Label>
+              <div className="text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Base Pay:</span>
+                  <span className="font-medium">
+                    {payType === 'PER_MILE' && `$${payRate?.toFixed(2) || '0.00'}/mile`}
+                    {payType === 'PERCENTAGE' && `${payRate || 0}% of revenue`}
+                    {payType === 'PER_LOAD' && `$${payRate?.toFixed(2) || '0.00'}/load`}
+                  </span>
+                </div>
+                {watch('perDiem') && watch('perDiem') > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Per Diem (Tax-Free):</span>
+                    <span className="font-medium text-green-600">
+                      + {watch('perDiem')} cents/mile
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Payment Tariff */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment Tariff</CardTitle>
-          <CardDescription>
-            Display and calculate tariff information based on pay structure
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="tariff" className="w-20">TARIFF</Label>
-            <div className="flex-1 flex items-center gap-2">
-              <div className="flex-1 relative">
-                <Input
-                  id="tariff"
-                  value={driverTariff}
-                  onChange={(e) => setValue('driverTariff', e.target.value)}
-                  placeholder="$0.65 per mile + 30 per stop"
-                  disabled={isReadOnly}
-                  readOnly={isReadOnly}
-                />
-                {driverTariff && !isReadOnly && (
-                  <button
-                    type="button"
-                    onClick={() => setValue('driverTariff', '')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2"
-                  >
-                    <X className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                )}
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleBacktrackCalculation}
-                className="whitespace-nowrap"
-                disabled={isReadOnly}
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Backtrack calculation
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Recurring Deductions */}
       <Card>

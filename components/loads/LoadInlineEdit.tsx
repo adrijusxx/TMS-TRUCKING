@@ -93,6 +93,7 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('basic');
   const [isSaving, setIsSaving] = useState(false);
+  const hasTriggeredRecalc = React.useRef(false);
 
   // Fetch full load details
   const { data: load, isLoading: isLoadingLoad } = useQuery({
@@ -200,6 +201,11 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
         totalMiles: load.totalMiles || null,
         // Notes
         dispatchNotes: load.dispatchNotes || '',
+        // Additional fields
+        tripId: load.tripId || '',
+        shipmentId: load.shipmentId || '',
+        dispatcherId: load.dispatcherId || '',
+        revenuePerMile: load.revenuePerMile || null,
       };
       
       // Always update formData when load data changes (load is source of truth)
@@ -209,6 +215,40 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
       setFormData({});
     }
   }, [load, row.id]);
+
+  // Auto-recalculate driver pay when load loads if driverPay is 0 and driver is assigned
+  // Only trigger once per load to avoid infinite loops
+  React.useEffect(() => {
+    if (
+      load &&
+      load.id &&
+      load.driverId &&
+      (!load.driverPay || load.driverPay === 0) &&
+      !hasTriggeredRecalc.current
+    ) {
+      hasTriggeredRecalc.current = true;
+      // Use the dedicated recalculation endpoint
+      fetch(apiUrl(`/api/loads/${row.id}/recalculate-driver-pay`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+        .then((response) => {
+          if (response.ok) {
+            // Refetch the load to get updated driver pay
+            queryClient.invalidateQueries({ queryKey: ['load', row.id] });
+          }
+        })
+        .catch((error) => {
+          // Silently fail - this is just to trigger recalculation
+          console.debug('Auto-recalculate driver pay:', error);
+        });
+    }
+    
+    // Reset the flag when load ID changes
+    if (load?.id !== row.id) {
+      hasTriggeredRecalc.current = false;
+    }
+  }, [load?.id, load?.driverId, load?.driverPay, row.id, queryClient]);
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => updateLoad(row.id, data),
@@ -308,11 +348,14 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
             </TabsContent>
 
             <TabsContent value="financial" className="mt-4">
-              <LoadFinancialTab
-                load={load}
-                formData={formData}
-                onFormDataChange={setFormData}
-              />
+                <LoadFinancialTab
+                  load={load}
+                  formData={formData}
+                  onFormDataChange={setFormData}
+                  onLoadRefetch={() => {
+                    queryClient.invalidateQueries({ queryKey: ['load', row.id] });
+                  }}
+                />
             </TabsContent>
 
             <TabsContent value="related" className="mt-4">

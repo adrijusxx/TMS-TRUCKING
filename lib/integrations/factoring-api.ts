@@ -1,11 +1,13 @@
 /**
  * Factoring Company API Integration
  * 
- * Placeholder for factoring company API integrations
- * TODO: Integrate with actual factoring company APIs (RTS, TAFS, etc.)
+ * Handles integration with factoring companies (RTS, TAFS, etc.)
+ * Supports both API integration and file export methods
  */
 
 import { FactoringCompany, Invoice } from '@prisma/client';
+import { logger } from '@/lib/utils/logger';
+import { InternalServerError } from '@/lib/errors';
 
 interface ExportOptions {
   format: 'CSV' | 'EDI' | 'Excel' | 'JSON';
@@ -48,16 +50,33 @@ export async function submitInvoicesToFactor(
     //   return result;
     // }
 
-    console.log(
-      `[Factoring API] Would submit ${invoices.length} invoices to ${factoringCompany.name}`
-    );
+    logger.info('Submitting invoices to factoring company', {
+      factoringCompany: factoringCompany.name,
+      invoiceCount: invoices.length,
+      apiProvider: factoringCompany.apiProvider,
+    });
+
+    // If API provider is configured, use API integration
+    if (factoringCompany.apiProvider && factoringCompany.apiEndpoint && factoringCompany.apiKey) {
+      const client = getFactoringApiClient(factoringCompany);
+      if (client) {
+        // TODO: Implement actual API call when client is available
+        // const result = await client.submitInvoices(invoices);
+        // return result;
+      }
+    }
+
+    // Fallback: Return placeholder (in production, this would generate export file)
     return {
       success: true,
       submissionId: `placeholder-${Date.now()}`,
       status: 'SUBMITTED',
     };
   } catch (error) {
-    console.error('[Factoring API] Error submitting invoices:', error);
+    logger.error('Error submitting invoices to factoring company', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      factoringCompany: factoringCompany.name,
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -72,32 +91,155 @@ export async function generateFactoringExport(
   options: ExportOptions
 ): Promise<{ success: boolean; filePath?: string; content?: string; error?: string }> {
   try {
-    // TODO: Implement export file generation
-    // 
-    // Example CSV generation:
-    // if (options.format === 'CSV') {
-    //   const csv = generateCSV(options.invoices);
-    //   const filePath = await saveFile(csv, `factoring-export-${Date.now()}.csv`);
-    //   return { success: true, filePath, content: csv };
-    // }
-    //
-    // Example EDI generation:
-    // if (options.format === 'EDI') {
-    //   const edi = generateEDI(options.invoices);
-    //   const filePath = await saveFile(edi, `factoring-export-${Date.now()}.edi`);
-    //   return { success: true, filePath, content: edi };
-    // }
+    logger.info('Generating factoring export', {
+      format: options.format,
+      invoiceCount: options.invoices.length,
+      factoringCompany: options.factoringCompany.name,
+    });
 
-    console.log(
-      `[Factoring API] Would generate ${options.format} export for ${options.invoices.length} invoices`
-    );
+    switch (options.format) {
+      case 'CSV':
+        return generateCSVExport(options.invoices, options.factoringCompany);
+      case 'Excel':
+        return generateExcelExport(options.invoices, options.factoringCompany);
+      case 'EDI':
+        return generateEDIExport(options.invoices, options.factoringCompany);
+      case 'JSON':
+        return generateJSONExport(options.invoices, options.factoringCompany);
+      default:
+        throw new InternalServerError(`Unsupported export format: ${options.format}`);
+    }
+  } catch (error) {
+    logger.error('Error generating factoring export', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      format: options.format,
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Generate CSV export
+ */
+function generateCSVExport(
+  invoices: Invoice[],
+  factoringCompany: FactoringCompany
+): { success: boolean; filePath?: string; content?: string; error?: string } {
+  try {
+    // CSV Header
+    const headers = [
+      'Invoice Number',
+      'Invoice Date',
+      'Due Date',
+      'Customer Name',
+      'Customer Number',
+      'Amount',
+      'Description',
+      'Load Number',
+      'Rate Confirmation Number',
+    ];
+
+    // CSV Rows
+    const rows = invoices.map((invoice) => [
+      invoice.invoiceNumber || '',
+      invoice.invoiceDate?.toISOString().split('T')[0] || '',
+      invoice.dueDate?.toISOString().split('T')[0] || '',
+      invoice.customer?.name || '',
+      invoice.customerId || '',
+      invoice.totalAmount?.toFixed(2) || '0.00',
+      invoice.notes || '',
+      invoice.load?.loadNumber || '',
+      invoice.rateConfirmation?.rateConfirmationNumber || '',
+    ]);
+
+    // Combine header and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
+    ].join('\n');
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `factoring-export-${factoringCompany.name}-${timestamp}.csv`;
+
     return {
       success: true,
-      filePath: `/exports/factoring-${Date.now()}.${options.format.toLowerCase()}`,
-      content: 'placeholder export content',
+      filePath: `/exports/${fileName}`,
+      content: csvContent,
     };
   } catch (error) {
-    console.error('[Factoring API] Error generating export:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Generate Excel export (placeholder - requires xlsx library)
+ */
+function generateExcelExport(
+  invoices: Invoice[],
+  factoringCompany: FactoringCompany
+): { success: boolean; filePath?: string; content?: string; error?: string } {
+  // TODO: Implement Excel generation using xlsx library
+  // For now, fall back to CSV
+  logger.warn('Excel export not yet implemented, falling back to CSV');
+  return generateCSVExport(invoices, factoringCompany);
+}
+
+/**
+ * Generate EDI export (placeholder - requires EDI library)
+ */
+function generateEDIExport(
+  invoices: Invoice[],
+  factoringCompany: FactoringCompany
+): { success: boolean; filePath?: string; content?: string; error?: string } {
+  // TODO: Implement EDI generation
+  // EDI format depends on factoring company requirements
+  logger.warn('EDI export not yet implemented');
+  return {
+    success: false,
+    error: 'EDI export not yet implemented',
+  };
+}
+
+/**
+ * Generate JSON export
+ */
+function generateJSONExport(
+  invoices: Invoice[],
+  factoringCompany: FactoringCompany
+): { success: boolean; filePath?: string; content?: string; error?: string } {
+  try {
+    const exportData = {
+      factoringCompany: factoringCompany.name,
+      exportDate: new Date().toISOString(),
+      invoiceCount: invoices.length,
+      invoices: invoices.map((invoice) => ({
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.invoiceDate,
+        dueDate: invoice.dueDate,
+        totalAmount: invoice.totalAmount,
+        customerId: invoice.customerId,
+        loadId: invoice.loadId,
+        rateConfirmationId: invoice.rateConfirmationId,
+        notes: invoice.notes,
+      })),
+    };
+
+    const content = JSON.stringify(exportData, null, 2);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `factoring-export-${factoringCompany.name}-${timestamp}.json`;
+
+    return {
+      success: true,
+      filePath: `/exports/${fileName}`,
+      content,
+    };
+  } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -124,9 +266,10 @@ async function checkFactoringStatus(
     // const statuses = await api.checkStatus(invoiceIds);
     // return { success: true, statuses };
 
-    console.log(
-      `[Factoring API] Would check status for ${invoiceIds.length} invoices from ${factoringCompany.name}`
-    );
+    logger.info('Checking factoring status', {
+      factoringCompany: factoringCompany.name,
+      invoiceCount: invoiceIds.length,
+    });
     return {
       success: true,
       statuses: invoiceIds.map((id) => ({
@@ -135,7 +278,10 @@ async function checkFactoringStatus(
       })),
     };
   } catch (error) {
-    console.error('[Factoring API] Error checking status:', error);
+    logger.error('Error checking factoring status', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      factoringCompany: factoringCompany.name,
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

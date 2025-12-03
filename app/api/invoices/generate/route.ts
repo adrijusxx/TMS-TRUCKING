@@ -6,6 +6,7 @@ import { LoadStatus } from '@prisma/client';
 import { BillingHoldManager } from '@/lib/managers/BillingHoldManager';
 import { InvoiceManager } from '@/lib/managers/InvoiceManager';
 import { z } from 'zod';
+import { invoiceReadyLoadSchema, validateLoadForAccounting } from '@/lib/validations/load';
 
 const generateInvoiceSchema = z.object({
   loadIds: z.array(z.string().cuid()).min(1, 'At least one load is required'),
@@ -88,6 +89,67 @@ export async function POST(request: NextRequest) {
         },
         { status: 404 }
       );
+    }
+
+    // 🔒 ACCOUNTING VALIDATION: Verify all loads have required fields for invoicing
+    const accountingErrors: Array<{ loadId: string; loadNumber: string; errors: string[] }> = [];
+    const accountingWarnings: Array<{ loadId: string; loadNumber: string; warnings: string[] }> = [];
+
+    for (const load of loads) {
+      // Validate using accounting schema
+      const accountingResult = validateLoadForAccounting({
+        loadNumber: load.loadNumber,
+        customerId: load.customerId,
+        revenue: load.revenue,
+        weight: load.weight,
+        driverId: load.driverId,
+        totalMiles: load.totalMiles,
+        driverPay: load.driverPay,
+        fuelAdvance: load.fuelAdvance,
+      });
+
+      // Check if load can be invoiced
+      if (!accountingResult.canInvoice) {
+        accountingErrors.push({
+          loadId: load.id,
+          loadNumber: load.loadNumber,
+          errors: accountingResult.errors.length > 0 
+            ? accountingResult.errors 
+            : [`Missing fields: ${accountingResult.missingForInvoice.join(', ')}`],
+        });
+      }
+
+      // Collect warnings
+      if (accountingResult.warnings.length > 0) {
+        accountingWarnings.push({
+          loadId: load.id,
+          loadNumber: load.loadNumber,
+          warnings: accountingResult.warnings,
+        });
+      }
+    }
+
+    // If any loads have critical accounting errors, return error
+    if (accountingErrors.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'ACCOUNTING_VALIDATION_ERROR',
+            message: 'One or more loads are missing required accounting fields',
+            details: accountingErrors.map(e => ({
+              loadNumber: e.loadNumber,
+              reason: e.errors.join('; '),
+            })),
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Log accounting warnings (but don't block invoicing)
+    if (accountingWarnings.length > 0) {
+      console.log('[Invoice Generate] Accounting warnings:', accountingWarnings);
     }
 
     // 🔥 CRITICAL: Check billing hold eligibility for each load
@@ -333,6 +395,9 @@ export async function POST(request: NextRequest) {
         success: true,
         data: invoices,
         message: `Generated ${invoices.length} invoice(s)`,
+        meta: {
+          accountingWarnings: accountingWarnings.length > 0 ? accountingWarnings : undefined,
+        },
       },
       { status: 201 }
     );

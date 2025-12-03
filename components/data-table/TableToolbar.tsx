@@ -24,6 +24,7 @@ import SavedFilters from '@/components/filters/SavedFilters';
 import { usePermissions } from '@/hooks/usePermissions';
 import { CheckSquare } from 'lucide-react';
 import { ImportWizard } from '@/components/shared/import-wizard';
+import { FilterSearchableSelect } from './FilterSearchableSelect';
 
 interface TableToolbarProps {
   /**
@@ -386,6 +387,16 @@ export function TableToolbar({
                             value={currentValue || ''}
                             onChange={(e) => handleFilterChange(filter.key, e.target.value, filter.type)}
                             placeholder={`Filter by ${filter.label.toLowerCase()}`}
+                            className="h-8"
+                          />
+                        )}
+                        {filter.type === 'searchable-select' && filter.entityType && filter.filterKey && (
+                          <FilterSearchableSelect
+                            value={currentValue || ''}
+                            onValueChange={(value) => handleFilterChange(filter.key, value || '', filter.type)}
+                            entityType={filter.entityType}
+                            filterKey={filter.filterKey}
+                            placeholder={`Select ${filter.label.toLowerCase()}`}
                             className="h-8"
                           />
                         )}

@@ -2,8 +2,25 @@
  * InvoiceManager
  * 
  * Handles invoice finalization with factoring logic and validation gates
+ * Includes accounting field validation and data consistency checks
  */
 import { prisma } from '@/lib/prisma';
+import { validateLoadForAccounting } from '@/lib/validations/load';
+
+/**
+ * Load data snapshot for invoice audit trail
+ */
+export interface LoadDataSnapshot {
+  loadId: string;
+  loadNumber: string;
+  revenue: number;
+  weight: number | null;
+  totalMiles: number | null;
+  driverPay: number | null;
+  customerId: string;
+  customerName: string;
+  snapshotAt: Date;
+}
 
 interface InvoiceFinalizationResult {
   success: boolean;
@@ -269,6 +286,156 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
 
     return {
       allReady,
+      results,
+    };
+  }
+
+  /**
+   * Create a snapshot of load data at invoice creation time
+   * Used for audit trail and detecting data changes post-invoicing
+   */
+  async createLoadDataSnapshots(loadIds: string[]): Promise<LoadDataSnapshot[]> {
+    const loads = await prisma.load.findMany({
+      where: { id: { in: loadIds } },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return loads.map(load => ({
+      loadId: load.id,
+      loadNumber: load.loadNumber,
+      revenue: load.revenue,
+      weight: load.weight,
+      totalMiles: load.totalMiles,
+      driverPay: load.driverPay,
+      customerId: load.customerId,
+      customerName: load.customer.name,
+      snapshotAt: new Date(),
+    }));
+  }
+
+  /**
+   * Check if load data has changed since invoicing
+   * Compares current load data with stored snapshot
+   */
+  async checkDataConsistency(
+    loadId: string,
+    snapshot: LoadDataSnapshot
+  ): Promise<{
+    consistent: boolean;
+    discrepancies: string[];
+  }> {
+    const load = await prisma.load.findUnique({
+      where: { id: loadId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!load) {
+      return {
+        consistent: false,
+        discrepancies: ['Load not found'],
+      };
+    }
+
+    const discrepancies: string[] = [];
+
+    // Check revenue
+    if (load.revenue !== snapshot.revenue) {
+      discrepancies.push(
+        `Revenue changed from $${snapshot.revenue.toFixed(2)} to $${load.revenue.toFixed(2)}`
+      );
+    }
+
+    // Check weight
+    if (load.weight !== snapshot.weight) {
+      discrepancies.push(
+        `Weight changed from ${snapshot.weight ?? 'null'} to ${load.weight ?? 'null'}`
+      );
+    }
+
+    // Check total miles
+    if (load.totalMiles !== snapshot.totalMiles) {
+      discrepancies.push(
+        `Total miles changed from ${snapshot.totalMiles ?? 'null'} to ${load.totalMiles ?? 'null'}`
+      );
+    }
+
+    // Check driver pay
+    if (load.driverPay !== snapshot.driverPay) {
+      discrepancies.push(
+        `Driver pay changed from $${snapshot.driverPay?.toFixed(2) ?? 'null'} to $${load.driverPay?.toFixed(2) ?? 'null'}`
+      );
+    }
+
+    // Check customer
+    if (load.customerId !== snapshot.customerId) {
+      discrepancies.push(
+        `Customer changed from ${snapshot.customerName} to ${load.customer.name}`
+      );
+    }
+
+    return {
+      consistent: discrepancies.length === 0,
+      discrepancies,
+    };
+  }
+
+  /**
+   * Validate loads for accounting requirements before invoicing
+   */
+  async validateLoadsForInvoicing(loadIds: string[]): Promise<{
+    allValid: boolean;
+    results: Array<{
+      loadId: string;
+      loadNumber: string;
+      canInvoice: boolean;
+      errors: string[];
+      warnings: string[];
+    }>;
+  }> {
+    const loads = await prisma.load.findMany({
+      where: { id: { in: loadIds } },
+      select: {
+        id: true,
+        loadNumber: true,
+        customerId: true,
+        revenue: true,
+        weight: true,
+        driverId: true,
+        totalMiles: true,
+        driverPay: true,
+        fuelAdvance: true,
+      },
+    });
+
+    const results = loads.map(load => {
+      const validation = validateLoadForAccounting(load);
+      return {
+        loadId: load.id,
+        loadNumber: load.loadNumber,
+        canInvoice: validation.canInvoice,
+        errors: validation.errors,
+        warnings: validation.warnings,
+      };
+    });
+
+    const allValid = results.every(r => r.canInvoice);
+
+    return {
+      allValid,
       results,
     };
   }

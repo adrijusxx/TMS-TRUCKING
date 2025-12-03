@@ -47,9 +47,6 @@ export async function GET(request: NextRequest) {
             nextServiceDate: {
               lte: new Date(),
             },
-            status: {
-              not: 'COMPLETED', // Only records that haven't been completed
-            },
           },
           select: {
             id: true,

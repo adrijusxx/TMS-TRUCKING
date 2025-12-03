@@ -55,7 +55,20 @@ export async function GET(request: NextRequest) {
     const [records, total] = await Promise.all([
       prisma.maintenanceRecord.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          type: true,
+          description: true,
+          cost: true,
+          odometer: true,
+          date: true,
+          nextServiceDate: true,
+          // status: true, // Removed until migration adds this column
+          vendorId: true,
+          invoiceNumber: true,
+          notes: true,
+          createdAt: true,
+          updatedAt: true,
           truck: {
             select: {
               id: true,
@@ -151,7 +164,7 @@ export async function POST(request: NextRequest) {
       odometer: validatedData.odometer,
       date: validatedData.date ? new Date(validatedData.date) : new Date(),
       nextServiceDate: validatedData.nextServiceDate ? new Date(validatedData.nextServiceDate) : null,
-      status: validatedData.status || 'OPEN',
+      // status: validatedData.status || 'OPEN', // Removed until migration adds this column
       vendorId: validatedData.vendorId || null,
       invoiceNumber: validatedData.invoiceNumber || null,
       notes: validatedData.notes || null,
@@ -172,7 +185,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Update truck's last/next maintenance if completed
-    if (record.status === 'COMPLETED') {
+    // Note: Status check removed until migration adds status column
+    // For now, update maintenance if date is set (assumes completed)
+    if (record.date) {
       await prisma.truck.update({
         where: { id: truck.id },
         data: {

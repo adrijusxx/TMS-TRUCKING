@@ -35,8 +35,8 @@ interface MaintenanceRecord {
   description: string;
   cost: number;
   mileage: number;
-  scheduledDate: Date | null;
-  completedDate: Date | null;
+  date: Date;
+  nextServiceDate: Date | null;
   vendor: string | null;
   invoiceNumber: string | null;
   truck: {
@@ -205,8 +205,8 @@ export default function MaintenanceList() {
                   <TableHead>Description</TableHead>
                   <TableHead>Cost</TableHead>
                   <TableHead>Mileage</TableHead>
-                  <TableHead>Scheduled</TableHead>
-                  <TableHead>Completed</TableHead>
+                  <TableHead>Service Date</TableHead>
+                  <TableHead>Next Service</TableHead>
                   <TableHead>Vendor</TableHead>
                 </TableRow>
               </TableHeader>
@@ -239,10 +239,10 @@ export default function MaintenanceList() {
                     <TableCell className="font-medium">{formatCurrency(record.cost)}</TableCell>
                     <TableCell>{record.mileage.toLocaleString()} mi</TableCell>
                     <TableCell>
-                      {record.scheduledDate ? formatDate(record.scheduledDate) : '-'}
+                      {formatDate(record.date)}
                     </TableCell>
                     <TableCell>
-                      {record.completedDate ? formatDate(record.completedDate) : '-'}
+                      {record.nextServiceDate ? formatDate(record.nextServiceDate) : '-'}
                     </TableCell>
                     <TableCell>{record.vendor || '-'}</TableCell>
                   </TableRow>

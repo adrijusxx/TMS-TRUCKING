@@ -87,6 +87,27 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
   escrowDeductionPerWeek: z.number().min(0).optional(),
   escrowBalance: z.number().min(0).optional(), // Read-only, but can be set manually if needed
   warnings: z.string().optional(),
+  // Recurring deductions and other pay (from driver profile form)
+  recurringDeductions: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    amount: z.number(),
+    frequency: z.string(),
+  })).optional(),
+  otherPayRows: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    note: z.string(),
+    quantity: z.number(),
+    amount: z.number(),
+  })).optional(),
+  deductionRows: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    note: z.string(),
+    quantity: z.number(),
+    amount: z.number(),
+  })).optional(),
 });
 
 export type CreateDriverInput = z.infer<typeof createDriverSchema>;

@@ -1,4 +1,4 @@
-import FleetBoard from '@/components/fleet/FleetBoard';
+import FleetDashboard from '@/components/fleet/FleetDashboard';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function FleetDashboardPage() {
@@ -7,9 +7,12 @@ export default function FleetDashboardPage() {
       <Breadcrumb items={[{ label: 'Fleet Department', href: '/dashboard/fleet' }]} />
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Fleet Department</h1>
+          <h1 className="text-3xl font-bold">Fleet Department Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            Comprehensive overview of your fleet operations, maintenance, and performance metrics
+          </p>
         </div>
-        <FleetBoard />
+        <FleetDashboard />
       </div>
     </>
   );

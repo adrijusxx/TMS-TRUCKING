@@ -7,6 +7,7 @@ import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications
 import { hasPermission } from '@/lib/permissions';
 import { LoadStatus } from '@prisma/client';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
+import { emitLoadStatusChanged, emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 
 export async function GET(
   request: NextRequest,
@@ -326,6 +327,61 @@ export async function PATCH(
       }
     }
 
+    // Validate co-driver if provided
+    if (validated.coDriverId !== undefined) {
+      if (validated.coDriverId === null || validated.coDriverId === '') {
+        updateData.coDriverId = null;
+      } else {
+        // Verify co-driver exists and belongs to company
+        const coDriver = await prisma.driver.findFirst({
+          where: {
+            id: validated.coDriverId,
+            companyId: session.user.companyId,
+            deletedAt: null,
+          },
+        });
+        if (!coDriver) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Co-driver not found or does not belong to your company',
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Validate dispatcher if provided
+    if (validated.dispatcherId !== undefined) {
+      if (validated.dispatcherId === null || validated.dispatcherId === '') {
+        updateData.dispatcherId = null;
+      } else {
+        // Verify dispatcher exists and belongs to company
+        const dispatcher = await prisma.user.findFirst({
+          where: {
+            id: validated.dispatcherId,
+            companyId: session.user.companyId,
+          },
+        });
+        if (!dispatcher) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'VALIDATION_ERROR',
+                message: 'Dispatcher not found or does not belong to your company',
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Convert date strings to Date objects if provided
     if (validated.pickupDate) {
       updateData.pickupDate = validated.pickupDate instanceof Date
@@ -337,23 +393,71 @@ export async function PATCH(
         ? validated.deliveryDate
         : new Date(validated.deliveryDate);
     }
+    // Convert time window date strings to Date objects if provided
+    if (validated.pickupTimeStart) {
+      updateData.pickupTimeStart = validated.pickupTimeStart instanceof Date
+        ? validated.pickupTimeStart
+        : new Date(validated.pickupTimeStart);
+    }
+    if (validated.pickupTimeEnd) {
+      updateData.pickupTimeEnd = validated.pickupTimeEnd instanceof Date
+        ? validated.pickupTimeEnd
+        : new Date(validated.pickupTimeEnd);
+    }
+    if (validated.deliveryTimeStart) {
+      updateData.deliveryTimeStart = validated.deliveryTimeStart instanceof Date
+        ? validated.deliveryTimeStart
+        : new Date(validated.deliveryTimeStart);
+    }
+    if (validated.deliveryTimeEnd) {
+      updateData.deliveryTimeEnd = validated.deliveryTimeEnd instanceof Date
+        ? validated.deliveryTimeEnd
+        : new Date(validated.deliveryTimeEnd);
+    }
 
-    // Track if driver was newly assigned
+    // Track if driver was newly assigned or changed
     const wasDriverAssigned = !existingLoad.driverId && validated.driverId;
+    const wasDriverChanged = existingLoad.driverId && validated.driverId && existingLoad.driverId !== validated.driverId;
     const oldStatus = existingLoad.status;
     const oldDispatchStatus = existingLoad.dispatchStatus;
 
-    // Calculate driver pay if driver is being assigned and driverPay is not manually set
-    if (wasDriverAssigned && validated.driverId) {
+    // Determine the driver ID we'll be working with
+    const effectiveDriverId = validated.driverId !== undefined 
+      ? (validated.driverId || null)  // Use the new value if provided
+      : existingLoad.driverId;  // Otherwise keep existing
+
+    // Calculate driver pay if:
+    // 1. Driver is being newly assigned or changed, OR
+    // 2. driverPay is 0 and we have a driver assigned (fix missing pay), OR
+    // 3. Pay-affecting fields changed and driverPay wasn't manually provided
+    // 4. driverPay is explicitly set to null (triggering auto-recalculation)
+    const currentDriverPay = validated.driverPay ?? existingLoad.driverPay ?? 0;
+    const driverPayExplicitlyProvided = validated.driverPay !== undefined && validated.driverPay !== null && validated.driverPay > 0;
+    
+    const shouldRecalculatePay = effectiveDriverId && !driverPayExplicitlyProvided && (
+      // New driver assigned or driver changed
+      wasDriverAssigned || wasDriverChanged ||
+      // Existing driver but pay is 0 - needs calculation
+      (existingLoad.driverId && currentDriverPay === 0) ||
+      // Explicit recalculation trigger
+      validated.driverPay === null ||
+      // Pay-affecting fields changed
+      (validated.revenue !== undefined && validated.revenue !== existingLoad.revenue) ||
+      (validated.totalMiles !== undefined && validated.totalMiles !== existingLoad.totalMiles) ||
+      (validated.loadedMiles !== undefined && validated.loadedMiles !== existingLoad.loadedMiles) ||
+      (validated.emptyMiles !== undefined && validated.emptyMiles !== existingLoad.emptyMiles)
+    );
+
+    if (shouldRecalculatePay && effectiveDriverId) {
       const driver = await prisma.driver.findUnique({
-        where: { id: validated.driverId },
+        where: { id: effectiveDriverId },
         select: {
           payType: true,
           payRate: true,
         },
       });
 
-      if (driver && (!validated.driverPay || validated.driverPay === 0)) {
+      if (driver && driver.payType && driver.payRate !== null && driver.payRate !== undefined) {
         const calculatedPay = calculateDriverPay(
           {
             payType: driver.payType,
@@ -367,6 +471,9 @@ export async function PATCH(
           }
         );
         updateData.driverPay = calculatedPay;
+        console.log(`[Load Update] Calculated driver pay: $${calculatedPay.toFixed(2)} for driver ${effectiveDriverId}`);
+      } else {
+        console.warn(`[Load Update] Driver ${effectiveDriverId} missing payType or payRate - cannot calculate driver pay`);
       }
     }
 
@@ -429,10 +536,16 @@ export async function PATCH(
     // Send notifications
     if (wasDriverAssigned && load.driverId) {
       await notifyLoadAssigned(load.id, load.driverId);
+      // Emit real-time event
+      emitLoadAssigned(load.id, load.driverId, load);
+      emitDispatchUpdated({ type: 'load_assigned', loadId: load.id, driverId: load.driverId });
     }
 
     if (validated.status && validated.status !== oldStatus) {
       await notifyLoadStatusChanged(load.id, oldStatus, validated.status, session.user.id);
+      // Emit real-time event
+      emitLoadStatusChanged(load.id, validated.status, load);
+      emitDispatchUpdated({ type: 'load_status_changed', loadId: load.id, status: validated.status });
     }
 
     return NextResponse.json({

@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
     const mcNumberIdFilter = searchParams.get('mcNumberId');
+    const skipStats = searchParams.get('skipStats') === 'true' || limit >= 500; // Skip stats for large preloads
 
     // Apply role-based filtering (separate from MC filtering)
     const roleFilter = getTrailerFilter(
@@ -138,7 +139,7 @@ export async function GET(request: NextRequest) {
     ]);
 
 
-    // Get load statistics for all trailers
+    // Get load statistics for all trailers (skip if skipStats is true for performance)
     // Note: Loads might be linked by trailerId (relation) or trailerNumber (string)
     const trailerNumbers = trailers.map((t) => t.trailerNumber);
     const trailerIds = trailers.map((t) => t.id);
@@ -151,8 +152,8 @@ export async function GET(request: NextRequest) {
     const activeLoadCountMapByNumber = new Map<string, number>();
     const lastUsedMapByNumber = new Map<string, Date>();
 
-    // Only query loads if we have trailers
-    if (trailerIds.length > 0) {
+    // Only query loads if we have trailers and stats are not skipped
+    if (!skipStats && trailerIds.length > 0) {
       try {
         // Get loads linked by trailerId (proper relation)
         const loadStatsById = await prisma.load.groupBy({
@@ -205,7 +206,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get loads linked by trailerNumber (string field) - only if not already linked by trailerId
-    if (trailerNumbers.length > 0) {
+    if (!skipStats && trailerNumbers.length > 0) {
       try {
         const loadStatsByNumber = await prisma.load.groupBy({
           by: ['trailerNumber'],
@@ -258,20 +259,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Transform trailers to include load statistics
+    // Transform trailers to include load statistics (or skip if skipStats is true)
     const trailersWithStats = trailers.map((trailer) => {
-      // Get counts from both trailerId and trailerNumber
-      const loadCountById = loadCountMapById.get(trailer.id) || 0;
-      const loadCountByNumber = loadCountMapByNumber.get(trailer.trailerNumber) || 0;
+      // Get counts from both trailerId and trailerNumber (or use defaults if stats skipped)
+      const loadCountById = skipStats ? 0 : loadCountMapById.get(trailer.id) || 0;
+      const loadCountByNumber = skipStats ? 0 : loadCountMapByNumber.get(trailer.trailerNumber) || 0;
       const loadCount = loadCountById + loadCountByNumber;
 
-      const activeLoadsById = activeLoadCountMapById.get(trailer.id) || 0;
-      const activeLoadsByNumber = activeLoadCountMapByNumber.get(trailer.trailerNumber) || 0;
+      const activeLoadsById = skipStats ? 0 : activeLoadCountMapById.get(trailer.id) || 0;
+      const activeLoadsByNumber = skipStats ? 0 : activeLoadCountMapByNumber.get(trailer.trailerNumber) || 0;
       const activeLoads = activeLoadsById + activeLoadsByNumber;
 
-      // Get last used date from both sources
-      const lastUsedById = lastUsedMapById.get(trailer.id);
-      const lastUsedByNumber = lastUsedMapByNumber.get(trailer.trailerNumber);
+      // Get last used date from both sources (or null if stats skipped)
+      const lastUsedById = skipStats ? null : lastUsedMapById.get(trailer.id);
+      const lastUsedByNumber = skipStats ? null : lastUsedMapByNumber.get(trailer.trailerNumber);
       
       // Get the most recent date
       const dates = [lastUsedById, lastUsedByNumber].filter((d) => d !== null && d !== undefined) as Date[];
@@ -404,6 +405,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if VIN already exists (only if VIN is provided)
+    if (validated.vin && validated.vin.trim()) {
+      const existingVIN = await prisma.trailer.findFirst({
+        where: {
+          vin: validated.vin.trim(),
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+      });
+
+      if (existingVIN) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'CONFLICT',
+              message: 'VIN already exists',
+            },
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // Determine MC number assignment
     // Rule: Admins and users with multiple MC access can choose MC; others use their default MC
     const isAdmin = session.user.role === 'ADMIN';
@@ -501,10 +526,14 @@ export async function POST(request: NextRequest) {
           : new Date(validated.inspectionExpiry))
       : null;
 
+    // Only set VIN if it's provided and not empty
+    // This prevents unique constraint violations with null VINs
+    const vinValue = validated.vin && validated.vin.trim() ? validated.vin.trim() : null;
+
     const trailer = await prisma.trailer.create({
       data: {
         trailerNumber: validated.trailerNumber,
-        vin: validated.vin || null,
+        vin: vinValue,
         make: validated.make,
         model: validated.model,
         year: validated.year || null,

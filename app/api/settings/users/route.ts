@@ -71,6 +71,14 @@ export async function GET(request: NextRequest) {
       baseConditions.driver = null; // Also exclude users who have a driver record
     }
 
+    // When showing drivers, exclude users whose associated Driver record is soft-deleted
+    // This ensures that when a driver is deleted from HR management, they don't appear in Team & Users
+    if (roleFilter === 'DRIVER') {
+      baseConditions.driver = {
+        deletedAt: null, // Only show users whose driver record is not soft-deleted
+      };
+    }
+
     // MC-based filtering - no companyId, only MC numbers
     const { mcNumberId } = await getCurrentMcNumber(session, request);
 

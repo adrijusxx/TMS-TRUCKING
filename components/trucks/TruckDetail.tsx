@@ -233,9 +233,14 @@ export default function TruckDetail({ truck }: TruckDetailProps) {
                       <p className="text-sm text-muted-foreground">
                         {record.description}
                       </p>
-                      {record.scheduledDate && (
+                      {record.date && (
                         <p className="text-sm text-muted-foreground">
-                          Scheduled: {formatDate(record.scheduledDate)}
+                          Service Date: {formatDate(record.date)}
+                        </p>
+                      )}
+                      {record.nextServiceDate && (
+                        <p className="text-sm text-muted-foreground">
+                          Next Service: {formatDate(record.nextServiceDate)}
                         </p>
                       )}
                     </div>

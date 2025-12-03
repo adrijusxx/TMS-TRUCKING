@@ -3,17 +3,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle, Edit, MapPin, Package, DollarSign, User, Truck, Building2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { CheckCircle, MapPin, Package, User, Truck, Plus } from 'lucide-react';
 import type { CreateLoadInput } from '@/lib/validations/load';
-import { LoadType, EquipmentType } from '@prisma/client';
 import { format } from 'date-fns';
 import CustomerCombobox from '@/components/customers/CustomerCombobox';
 import { useQuery } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
 import CreateCustomerDialog from '@/components/customers/CreateCustomerDialog';
 import { useState } from 'react';
+import {
+  PickupSection,
+  DeliverySection,
+  LoadSpecsSection,
+  FinancialSection,
+  AdditionalFieldsSection,
+} from './sections';
 
 interface Step3ReviewFinalizationProps {
   loadData: Partial<CreateLoadInput>;
@@ -45,6 +51,7 @@ export default function Step3ReviewFinalization({
   errors = {},
 }: Step3ReviewFinalizationProps) {
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const hasMultipleStops = loadData.stops && Array.isArray(loadData.stops) && loadData.stops.length > 0;
 
   const { data: customersData, refetch: refetchCustomers } = useQuery({
     queryKey: ['customers', 'wizard'],
@@ -85,6 +92,7 @@ export default function Step3ReviewFinalization({
 
   return (
     <div className="space-y-6">
+      {/* Header Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -105,16 +113,20 @@ export default function Step3ReviewFinalization({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="loadNumber" className="text-sm">
-                  Load Number *
+                  Load Number {!loadData.loadNumber && <span className="text-muted-foreground text-xs">(auto-generated if empty)</span>}
                 </Label>
                 <Input
                   id="loadNumber"
                   value={loadData.loadNumber || ''}
                   onChange={(e) => onFieldChange('loadNumber', e.target.value)}
+                  placeholder="Leave empty to auto-generate"
                   className={errors.loadNumber ? 'border-destructive' : ''}
                 />
                 {errors.loadNumber && (
                   <p className="text-xs text-destructive">{errors.loadNumber}</p>
+                )}
+                {!loadData.loadNumber && (
+                  <p className="text-xs text-muted-foreground">A unique load number will be generated automatically</p>
                 )}
               </div>
               <div className="space-y-2">
@@ -137,9 +149,21 @@ export default function Step3ReviewFinalization({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="customerId" className="text-sm">
-                  Customer (Broker) *
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="customerId" className="text-sm">
+                    Customer (Broker) *
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsCustomerDialogOpen(true)}
+                    className="h-7 text-xs"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    New Customer
+                  </Button>
+                </div>
                 <CustomerCombobox
                   value={loadData.customerId || ''}
                   onValueChange={(value) => onFieldChange('customerId', value)}
@@ -179,265 +203,7 @@ export default function Step3ReviewFinalization({
             </div>
           </div>
 
-          {/* Location Information */}
-          {loadData.stops && Array.isArray(loadData.stops) && loadData.stops.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <h3 className="font-semibold text-sm">Multi-Stop Route ({loadData.stops.length} stops)</h3>
-              </div>
-              <div className="space-y-3">
-                {loadData.stops.map((stop: any, index: number) => (
-                  <Card key={index} className="p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-medium bg-primary/10 text-primary px-2 py-1 rounded">
-                        Stop {stop.sequence} - {stop.stopType}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Company:</span>{' '}
-                        <span className="font-medium">{stop.company || 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Address:</span>{' '}
-                        <span className="font-medium">{stop.address}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">City, State:</span>{' '}
-                        <span className="font-medium">
-                          {stop.city}, {stop.state} {stop.zip}
-                        </span>
-                      </div>
-                      {stop.earliestArrival && (
-                        <div>
-                          <span className="text-muted-foreground">Earliest:</span>{' '}
-                          <span className="font-medium">{formatDate(stop.earliestArrival)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <h3 className="font-semibold text-sm">Location Information</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Pickup */}
-                <div className="space-y-3 p-4 border rounded-md">
-                  <h4 className="font-medium text-sm">Pickup</h4>
-                  <div className="space-y-2">
-                    <div>
-                      <Label htmlFor="pickupLocation" className="text-xs">
-                        Location Name
-                      </Label>
-                      <Input
-                        id="pickupLocation"
-                        value={loadData.pickupLocation || ''}
-                        onChange={(e) => onFieldChange('pickupLocation', e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="pickupAddress" className="text-xs">
-                        Address
-                      </Label>
-                      <Input
-                        id="pickupAddress"
-                        value={loadData.pickupAddress || ''}
-                        onChange={(e) => onFieldChange('pickupAddress', e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <Label htmlFor="pickupCity" className="text-xs">City</Label>
-                        <Input
-                          id="pickupCity"
-                          value={loadData.pickupCity || ''}
-                          onChange={(e) => onFieldChange('pickupCity', e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="pickupState" className="text-xs">State</Label>
-                        <Input
-                          id="pickupState"
-                          value={loadData.pickupState || ''}
-                          onChange={(e) => onFieldChange('pickupState', e.target.value.toUpperCase().slice(0, 2))}
-                          maxLength={2}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="pickupZip" className="text-xs">ZIP</Label>
-                        <Input
-                          id="pickupZip"
-                          value={loadData.pickupZip || ''}
-                          onChange={(e) => onFieldChange('pickupZip', e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="pickupDate" className="text-xs">
-                        Pickup Date
-                      </Label>
-                      <Input
-                        id="pickupDate"
-                        type="datetime-local"
-                        value={
-                          loadData.pickupDate
-                            ? typeof loadData.pickupDate === 'string'
-                              ? loadData.pickupDate.includes('T')
-                                ? loadData.pickupDate.slice(0, 16)
-                                : new Date(loadData.pickupDate).toISOString().slice(0, 16)
-                              : new Date(loadData.pickupDate).toISOString().slice(0, 16)
-                            : ''
-                        }
-                        onChange={(e) => onFieldChange('pickupDate', e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Delivery */}
-                <div className="space-y-3 p-4 border rounded-md">
-                  <h4 className="font-medium text-sm">Delivery</h4>
-                  <div className="space-y-2">
-                    <div>
-                      <Label htmlFor="deliveryLocation" className="text-xs">
-                        Location Name
-                      </Label>
-                      <Input
-                        id="deliveryLocation"
-                        value={loadData.deliveryLocation || ''}
-                        onChange={(e) => onFieldChange('deliveryLocation', e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="deliveryAddress" className="text-xs">
-                        Address
-                      </Label>
-                      <Input
-                        id="deliveryAddress"
-                        value={loadData.deliveryAddress || ''}
-                        onChange={(e) => onFieldChange('deliveryAddress', e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <Label htmlFor="deliveryCity" className="text-xs">City</Label>
-                        <Input
-                          id="deliveryCity"
-                          value={loadData.deliveryCity || ''}
-                          onChange={(e) => onFieldChange('deliveryCity', e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="deliveryState" className="text-xs">State</Label>
-                        <Input
-                          id="deliveryState"
-                          value={loadData.deliveryState || ''}
-                          onChange={(e) => onFieldChange('deliveryState', e.target.value.toUpperCase().slice(0, 2))}
-                          maxLength={2}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="deliveryZip" className="text-xs">ZIP</Label>
-                        <Input
-                          id="deliveryZip"
-                          value={loadData.deliveryZip || ''}
-                          onChange={(e) => onFieldChange('deliveryZip', e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="deliveryDate" className="text-xs">
-                        Delivery Date
-                      </Label>
-                      <Input
-                        id="deliveryDate"
-                        type="datetime-local"
-                        value={
-                          loadData.deliveryDate
-                            ? typeof loadData.deliveryDate === 'string'
-                              ? loadData.deliveryDate.includes('T')
-                                ? loadData.deliveryDate.slice(0, 16)
-                                : new Date(loadData.deliveryDate).toISOString().slice(0, 16)
-                              : new Date(loadData.deliveryDate).toISOString().slice(0, 16)
-                            : ''
-                        }
-                        onChange={(e) => onFieldChange('deliveryDate', e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Load Details */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b">
-              <Package className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-semibold text-sm">Load Details</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="weight" className="text-sm">
-                  Weight (lbs) *
-                </Label>
-                <Input
-                  id="weight"
-                  type="number"
-                  value={loadData.weight ?? ''}
-                  onChange={(e) => onFieldChange('weight', e.target.value ? Number(e.target.value) : undefined)}
-                  className={errors.weight ? 'border-destructive' : ''}
-                  placeholder="Enter weight"
-                />
-                {errors.weight && (
-                  <p className="text-xs text-destructive">{errors.weight}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pieces" className="text-sm">
-                  Pieces
-                </Label>
-                <Input
-                  id="pieces"
-                  type="number"
-                  value={loadData.pieces ?? ''}
-                  onChange={(e) => onFieldChange('pieces', e.target.value ? Number(e.target.value) : undefined)}
-                  placeholder="Enter pieces"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="commodity" className="text-sm">
-                  Commodity
-                </Label>
-                <Input
-                  id="commodity"
-                  value={loadData.commodity ?? ''}
-                  onChange={(e) => onFieldChange('commodity', e.target.value)}
-                  placeholder="Enter commodity"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Resource Assignment */}
+          {/* Resource Assignment (if driver/truck/trailer selected in step 2) */}
           {(loadData.driverId || loadData.truckId || loadData.trailerNumber) && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b">
@@ -491,49 +257,93 @@ export default function Step3ReviewFinalization({
               </div>
             </div>
           )}
-
-          {/* Financial Information */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-semibold text-sm">Financial Information</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="revenue" className="text-sm">
-                  Revenue ($) *
-                </Label>
-                <Input
-                  id="revenue"
-                  type="number"
-                  step="0.01"
-                  value={loadData.revenue ?? ''}
-                  onChange={(e) => onFieldChange('revenue', e.target.value ? Number(e.target.value) : 0)}
-                  className={errors.revenue ? 'border-destructive' : ''}
-                  placeholder="Enter revenue"
-                />
-                {errors.revenue && (
-                  <p className="text-xs text-destructive">{errors.revenue}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="dispatchNotes" className="text-sm">
-              Dispatch Notes
-            </Label>
-            <Textarea
-              id="dispatchNotes"
-              value={loadData.dispatchNotes || ''}
-              onChange={(e) => onFieldChange('dispatchNotes', e.target.value)}
-              rows={3}
-              placeholder="Any special instructions for dispatch..."
-            />
-          </div>
         </CardContent>
       </Card>
+
+      {/* Location Information */}
+      {hasMultipleStops ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">Multi-Stop Route ({loadData.stops!.length} stops)</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {loadData.stops!.map((stop: any, index: number) => (
+                <Card key={index} className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className={`text-xs font-medium px-2 py-1 rounded ${
+                      stop.stopType === 'PICKUP' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      Stop {stop.sequence} - {stop.stopType}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Company:</span>{' '}
+                      <span className="font-medium">{stop.company || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Address:</span>{' '}
+                      <span className="font-medium">{stop.address}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">City, State:</span>{' '}
+                      <span className="font-medium">
+                        {stop.city}, {stop.state} {stop.zip}
+                      </span>
+                    </div>
+                    {stop.earliestArrival && (
+                      <div>
+                        <span className="text-muted-foreground">Earliest:</span>{' '}
+                        <span className="font-medium">{formatDate(stop.earliestArrival)}</span>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <PickupSection
+            loadData={loadData}
+            onFieldChange={onFieldChange}
+            errors={errors}
+          />
+          <DeliverySection
+            loadData={loadData}
+            onFieldChange={onFieldChange}
+            errors={errors}
+          />
+        </div>
+      )}
+
+      {/* Load Specifications */}
+      <LoadSpecsSection
+        loadData={loadData}
+        onFieldChange={onFieldChange}
+        errors={errors}
+      />
+
+      {/* Financial Information */}
+      <FinancialSection
+        loadData={loadData}
+        onFieldChange={onFieldChange}
+        errors={errors}
+      />
+
+      {/* Additional Information */}
+      <AdditionalFieldsSection
+        loadData={loadData}
+        onFieldChange={onFieldChange}
+        errors={errors}
+      />
 
       {/* Customer Creation Dialog */}
       <CreateCustomerDialog
@@ -545,4 +355,3 @@ export default function Step3ReviewFinalization({
     </div>
   );
 }
-

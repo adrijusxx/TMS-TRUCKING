@@ -82,20 +82,15 @@ export function ColumnFilter({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              'h-6 w-6 p-0',
-              hasActiveFilter && 'bg-primary/10 text-primary'
-            )}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <Filter className="h-3 w-3" />
-          </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'h-6 w-6 p-0 relative',
+            hasActiveFilter && 'bg-primary/10 text-primary'
+          )}
+        >
+          <Filter className="h-3 w-3" />
           {hasActiveFilter && (
             <Badge
               variant="secondary"
@@ -104,7 +99,7 @@ export function ColumnFilter({
               {value.length}
             </Badge>
           )}
-        </div>
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         className="w-64 p-0"

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
-import { Package, Users, Truck, Calendar, CheckSquare } from 'lucide-react';
+import { Package, Users, Truck, Calendar, CheckSquare, Wifi, WifiOff } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadAssignmentDialog from './LoadAssignmentDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import RouteOptimizer from '@/components/routes/RouteOptimizer';
+import { useRealtimeDispatch } from '@/hooks/useRealtime';
 
 async function fetchDispatchBoard(date: string) {
   const response = await fetch(apiUrl(`/api/dispatch/board?date=${date}`));
@@ -42,6 +43,26 @@ export default function DispatchBoard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dispatch-board', selectedDate],
     queryFn: () => fetchDispatchBoard(selectedDate),
+  });
+
+  // Real-time updates
+  const { isConnected, lastEvent } = useRealtimeDispatch((event) => {
+    // Invalidate queries when real-time events occur
+    const eventType = event.type || (event.data as any)?.type;
+    if (eventType === 'load:assigned' || eventType === 'load:status:changed' || eventType === 'dispatch:updated') {
+      queryClient.invalidateQueries({ queryKey: ['dispatch-board'] });
+      // Show toast for important events
+      if (eventType === 'load:assigned') {
+        toast.info('Load assigned', { description: 'A load was just assigned to a driver' });
+      } else if (eventType === 'load:status:changed') {
+        toast.info('Load status updated', { description: 'A load status was just changed' });
+      } else if (eventType === 'dispatch:updated') {
+        const updateData = (event.data as any);
+        if (updateData?.type === 'bulk_assigned') {
+          toast.info('Bulk assignment completed', { description: `${updateData.count || 0} loads were assigned` });
+        }
+      }
+    }
   });
 
   const bulkAssignMutation = useMutation({
@@ -92,7 +113,18 @@ export default function DispatchBoard() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Wifi className="h-3 w-3 mr-1" />
+              Live Updates
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+              <WifiOff className="h-3 w-3 mr-1" />
+              Offline
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-muted-foreground" />

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { notifyLoadAssigned } from '@/lib/notifications/triggers';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
+import { emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 
 const bulkAssignSchema = z.object({
   loadIds: z.array(z.string().cuid()).min(1, 'At least one load is required'),
@@ -157,19 +158,33 @@ export async function POST(request: NextRequest) {
       data: statusHistoryEntries,
     });
 
-    // Send notifications for newly assigned loads
+    // Send notifications and emit real-time events for newly assigned loads
     if (validated.driverId) {
       const assignedLoads = await prisma.load.findMany({
         where: {
           id: { in: validated.loadIds },
           driverId: validated.driverId,
         },
+        include: {
+          customer: { select: { name: true } },
+          driver: { select: { driverNumber: true } },
+        },
       });
 
       for (const load of assignedLoads) {
         await notifyLoadAssigned(load.id, validated.driverId);
+        emitLoadAssigned(load.id, validated.driverId, load);
       }
     }
+
+    // Emit bulk assignment event
+    emitDispatchUpdated({ 
+      type: 'bulk_assigned', 
+      loadIds: validated.loadIds,
+      driverId: validated.driverId,
+      truckId: validated.truckId,
+      count: loads.length,
+    });
 
     return NextResponse.json({
       success: true,

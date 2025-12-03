@@ -32,6 +32,13 @@ async function fetchTrucks() {
   return response.json();
 }
 
+async function fetchTrailers() {
+  // Use skipStats=true for faster loading when preloading for combobox
+  const response = await fetch(apiUrl('/api/trailers?limit=1000&skipStats=true'));
+  if (!response.ok) throw new Error('Failed to fetch trailers');
+  return response.json();
+}
+
 interface Driver {
   id: string;
   driverNumber: string;
@@ -60,18 +67,31 @@ export default function Step2ResourceAssignment({
   const [lastDriverId, setLastDriverId] = useState<string | undefined>(undefined);
   const [hasManuallyChanged, setHasManuallyChanged] = useState({ truck: false, trailer: false });
 
-  const { data: driversData } = useQuery({
+  const { data: driversData, isLoading: isLoadingDrivers, error: driversError } = useQuery({
     queryKey: ['drivers', 'wizard'],
     queryFn: fetchDrivers,
+    enabled: true, // Always enable the query
+    retry: 2,
   });
 
-  const { data: trucksData } = useQuery({
+  const { data: trucksData, isLoading: isLoadingTrucks, error: trucksError } = useQuery({
     queryKey: ['trucks', 'wizard'],
     queryFn: fetchTrucks,
+    enabled: true, // Always enable the query
+    retry: 2,
   });
 
-  const drivers: Driver[] = driversData?.data || [];
-  const trucks = trucksData?.data || [];
+  const { data: trailersData, isLoading: isLoadingTrailers, error: trailersError } = useQuery({
+    queryKey: ['trailers', 'wizard'],
+    queryFn: fetchTrailers,
+    enabled: true, // Always enable the query
+    retry: 2,
+  });
+
+  // Extract data from API response - handle both { data: [...] } and { success: true, data: [...] } formats
+  const drivers: Driver[] = driversData?.data || (Array.isArray(driversData) ? driversData : []);
+  const trucks = trucksData?.data || (Array.isArray(trucksData) ? trucksData : []);
+  const trailers = trailersData?.data || (Array.isArray(trailersData) ? trailersData : []);
   const selectedDriver = drivers.find((d) => d.id === driverId);
 
   // Auto-fill truck and trailer when driver is selected
@@ -127,14 +147,22 @@ export default function Step2ResourceAssignment({
             <Label htmlFor="driver" className="text-sm font-medium">
               Driver *
             </Label>
+            {driversError && (
+              <Alert variant="destructive">
+                <AlertDescription className="text-xs">
+                  Failed to load drivers. Please try again.
+                </AlertDescription>
+              </Alert>
+            )}
             <DriverCombobox
               value={driverId || ''}
               onValueChange={(value) => {
                 onDriverChange(value);
                 setLastDriverId(undefined); // Reset to trigger auto-fill
               }}
-              placeholder="Search driver by name or number..."
+              placeholder={isLoadingDrivers ? 'Loading drivers...' : 'Search driver by name or number...'}
               drivers={drivers}
+              disabled={isLoadingDrivers}
             />
             {selectedDriver && (
               <div className="mt-2 p-3 bg-muted rounded-md">
@@ -199,6 +227,7 @@ export default function Step2ResourceAssignment({
               value={trailerNumber || ''}
               onValueChange={handleTrailerChange}
               placeholder="Search trailer by number..."
+              trailers={trailers}
             />
             {selectedDriver?.currentTrailer && trailerNumber === selectedDriver.currentTrailer.trailerNumber && (
               <p className="text-xs text-muted-foreground mt-1">

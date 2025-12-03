@@ -189,6 +189,11 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
     totalMiles: load.totalMiles || null,
     // Notes
     dispatchNotes: load.dispatchNotes || '',
+    // Additional fields
+    tripId: load.tripId || '',
+    shipmentId: load.shipmentId || '',
+    dispatcherId: load.dispatcherId || '',
+    revenuePerMile: load.revenuePerMile || null,
   });
 
   const updateMutation = useMutation({
@@ -276,6 +281,12 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
     // Notes
     if (hasChanged('dispatchNotes', load.dispatchNotes, formData.dispatchNotes)) updatePayload.dispatchNotes = formData.dispatchNotes || null;
     
+    // Additional fields
+    if (hasChanged('tripId', load.tripId, formData.tripId)) updatePayload.tripId = formData.tripId || null;
+    if (hasChanged('shipmentId', load.shipmentId, formData.shipmentId)) updatePayload.shipmentId = formData.shipmentId || null;
+    if (hasChanged('dispatcherId', load.dispatcherId, formData.dispatcherId)) updatePayload.dispatcherId = formData.dispatcherId || null;
+    if (hasChanged('revenuePerMile', load.revenuePerMile, formData.revenuePerMile)) updatePayload.revenuePerMile = formData.revenuePerMile ? Number(formData.revenuePerMile) : null;
+
     if (Object.keys(updatePayload).length > 0) {
       updateMutation.mutate(updatePayload);
     } else {
@@ -434,6 +445,9 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
               load={load}
               formData={formData}
               onFormDataChange={setFormData}
+              onLoadRefetch={() => {
+                queryClient.invalidateQueries({ queryKey: ['load', load.id] });
+              }}
             />
           </TabsContent>
 

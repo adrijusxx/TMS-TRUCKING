@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { createLoadSchema } from '@/lib/validations/load';
+import { createLoadSchema, validateLoadForAccounting } from '@/lib/validations/load';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
 import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
@@ -9,6 +9,7 @@ import { McStateManager } from '@/lib/managers/McStateManager';
 import { getLoadFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
+import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,8 +40,9 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const skip = (page - 1) * limit;
     const statusParams = searchParams.getAll('status');
-    const customerId = searchParams.get('customerId');
-    const driverId = searchParams.get('driverId');
+    const customerIdParams = searchParams.getAll('customerId');
+    const driverIdParams = searchParams.getAll('driverId');
+    const truckIdParams = searchParams.getAll('truckId');
     const search = searchParams.get('search');
     const pickupCity = searchParams.get('pickupCity');
     const pickupState = searchParams.get('pickupState');
@@ -113,6 +115,46 @@ export async function GET(request: NextRequest) {
       OR: where.OR,
       deletedAt: where.deletedAt,
     });
+    
+    // Debug: Check if there are any loads at all for this company (without MC filter)
+    const totalLoadsInCompany = await prisma.load.count({
+      where: {
+        companyId: where.companyId,
+        deletedAt: null,
+      },
+    });
+    console.log('[Loads API] Total loads in company (no MC filter):', totalLoadsInCompany);
+    
+    // Debug: Check loads with the current MC filter
+    const loadsWithMcFilter = await prisma.load.count({
+      where,
+    });
+    console.log('[Loads API] Loads matching current filter:', loadsWithMcFilter);
+    
+    // Debug: Check loads with null MC number
+    const loadsWithNullMc = await prisma.load.count({
+      where: {
+        companyId: where.companyId,
+        mcNumberId: null,
+        deletedAt: null,
+      },
+    });
+    console.log('[Loads API] Loads with null MC number:', loadsWithNullMc);
+    
+    // Debug: Check loads by MC number distribution
+    if (where.mcNumberId && typeof where.mcNumberId === 'object' && 'in' in where.mcNumberId) {
+      const mcIds = where.mcNumberId.in;
+      for (const mcId of mcIds) {
+        const count = await prisma.load.count({
+          where: {
+            companyId: where.companyId,
+            mcNumberId: mcId,
+            deletedAt: null,
+          },
+        });
+        console.log(`[Loads API] Loads with MC ${mcId}:`, count);
+      }
+    }
 
     // Handle explicit MC number filter from table filter (overrides default MC view)
     if (mcNumberIdFilter) {
@@ -226,12 +268,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (customerId) {
-      where.customerId = customerId;
+    if (customerIdParams.length > 0) {
+      if (customerIdParams.length === 1) {
+        where.customerId = customerIdParams[0];
+      } else {
+        where.customerId = { in: customerIdParams };
+      }
     }
 
-    if (driverId) {
-      where.driverId = driverId;
+    if (driverIdParams.length > 0) {
+      if (driverIdParams.length === 1) {
+        where.driverId = driverIdParams[0];
+      } else {
+        where.driverId = { in: driverIdParams };
+      }
+    }
+
+    if (truckIdParams.length > 0) {
+      if (truckIdParams.length === 1) {
+        where.truckId = truckIdParams[0];
+      } else {
+        where.truckId = { in: truckIdParams };
+      }
     }
 
     if (pickupCity) {
@@ -363,6 +421,15 @@ export async function GET(request: NextRequest) {
       const searchOr = [
         { loadNumber: { contains: search, mode: 'insensitive' } },
         { commodity: { contains: search, mode: 'insensitive' } },
+        { pickupCity: { contains: search, mode: 'insensitive' } },
+        { pickupState: { contains: search, mode: 'insensitive' } },
+        { deliveryCity: { contains: search, mode: 'insensitive' } },
+        { deliveryState: { contains: search, mode: 'insensitive' } },
+        { customer: { name: { contains: search, mode: 'insensitive' } } },
+        { driver: { user: { firstName: { contains: search, mode: 'insensitive' } } } },
+        { driver: { user: { lastName: { contains: search, mode: 'insensitive' } } } },
+        { truck: { truckNumber: { contains: search, mode: 'insensitive' } } },
+        { trailerNumber: { contains: search, mode: 'insensitive' } },
       ];
       
       if (where.OR) {
@@ -655,6 +722,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createLoadSchema.parse(body);
 
+    // Perform accounting validation
+    const accountingValidation = validateLoadForAccounting(validated);
+    
+    // Log accounting warnings (but don't block creation)
+    if (accountingValidation.warnings.length > 0) {
+      console.log('[Loads API] Accounting warnings:', accountingValidation.warnings);
+    }
+
     // Check if load number already exists in this company
     const existingLoad = await prisma.load.findFirst({
       where: {
@@ -805,25 +880,57 @@ export async function POST(request: NextRequest) {
         if (userMcAccess.length > 0) {
           assignedMcNumberId = userMcAccess[0];
         } else {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'FORBIDDEN',
-                message: 'No accessible MC number found. Please contact an administrator.',
+          // For admins with no mcAccess (full access), try to get a default MC from company
+          if (isAdmin) {
+            const defaultMc = await prisma.mcNumber.findFirst({
+              where: {
+                companyId: session.user.companyId,
+                isDefault: true,
+                deletedAt: null,
               },
-            },
-            { status: 403 }
-          );
+            });
+            assignedMcNumberId = defaultMc?.id || null;
+          } else {
+            return NextResponse.json(
+              {
+                success: false,
+                error: {
+                  code: 'FORBIDDEN',
+                  message: 'No accessible MC number found. Please contact an administrator.',
+                },
+              },
+              { status: 403 }
+            );
+          }
         }
+      } else if (!assignedMcNumberId && userMcAccess.length > 0) {
+        // No default MC but user has accessible MCs - use first one
+        assignedMcNumberId = userMcAccess[0];
+      } else if (!assignedMcNumberId && isAdmin) {
+        // Admin with no default MC - try to get company default
+        const defaultMc = await prisma.mcNumber.findFirst({
+          where: {
+            companyId: session.user.companyId,
+            isDefault: true,
+            deletedAt: null,
+          },
+        });
+        assignedMcNumberId = defaultMc?.id || null;
       }
+      
+      console.log('[Loads API] Assigned MC Number ID:', assignedMcNumberId);
     }
 
-    // Validate driver has MC number if driver is assigned
+    // Validate driver has MC number if driver is assigned and calculate driver pay
+    let calculatedDriverPay: number | null = null;
     if (validated.driverId) {
       const driver = await prisma.driver.findUnique({
         where: { id: validated.driverId },
-        select: { mcNumberId: true },
+        select: { 
+          mcNumberId: true,
+          payType: true,
+          payRate: true,
+        },
       });
 
       if (!driver) {
@@ -850,6 +957,25 @@ export async function POST(request: NextRequest) {
           },
           { status: 400 }
         );
+      }
+
+      // Calculate driver pay based on driver's pay type and rate
+      if (driver.payType && driver.payRate !== null && driver.payRate !== undefined) {
+        calculatedDriverPay = calculateDriverPay(
+          {
+            payType: driver.payType,
+            payRate: driver.payRate,
+          },
+          {
+            totalMiles: validated.totalMiles ?? null,
+            loadedMiles: validated.loadedMiles ?? null,
+            emptyMiles: validated.emptyMiles ?? null,
+            revenue: validated.revenue ?? null,
+          }
+        );
+        console.log(`[Loads API] Calculated driver pay: $${calculatedDriverPay?.toFixed(2)} for driver using ${driver.payType} at rate ${driver.payRate}`);
+      } else {
+        console.warn(`[Loads API] Driver ${validated.driverId} missing payType or payRate - driver pay will be $0`);
       }
     }
 
@@ -893,7 +1019,29 @@ export async function POST(request: NextRequest) {
       revenue: loadData.revenue || 0,
       fuelAdvance: loadData.fuelAdvance || 0,
       expenses: 0,
+      driverPay: calculatedDriverPay ?? (loadData.driverPay ?? 0),
       hazmat: loadData.hazmat || false,
+      // Additional fields
+      pickupCompany: loadData.pickupCompany || null,
+      pickupContact: loadData.pickupContact || null,
+      pickupPhone: loadData.pickupPhone || null,
+      pickupNotes: loadData.pickupNotes || null,
+      deliveryCompany: loadData.deliveryCompany || null,
+      deliveryContact: loadData.deliveryContact || null,
+      deliveryPhone: loadData.deliveryPhone || null,
+      deliveryNotes: loadData.deliveryNotes || null,
+      // Load specifications
+      pallets: loadData.pallets || null,
+      temperature: loadData.temperature || null,
+      hazmatClass: loadData.hazmatClass || null,
+      // Financial
+      serviceFee: loadData.serviceFee || null,
+      revenuePerMile: loadData.revenuePerMile || null,
+      // Additional assignments
+      coDriverId: loadData.coDriverId || null,
+      dispatcherId: loadData.dispatcherId || null,
+      tripId: loadData.tripId || null,
+      shipmentId: loadData.shipmentId || null,
       // Create stops if provided
       stops: stops && stops.length > 0 ? {
           create: stops.map((stop) => ({
@@ -944,6 +1092,15 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         data: load,
+        meta: {
+          accounting: {
+            canInvoice: accountingValidation.canInvoice,
+            canSettle: accountingValidation.canSettle,
+            warnings: accountingValidation.warnings,
+            missingForInvoice: accountingValidation.missingForInvoice,
+            missingForSettlement: accountingValidation.missingForSettlement,
+          },
+        },
       },
       { status: 201 }
     );

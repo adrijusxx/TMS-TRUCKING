@@ -217,8 +217,13 @@ export async function POST(request: NextRequest) {
             } else {
               // Create RateConfirmation record linked to the document
               // Note: This creates a basic record - rate details should be entered separately
-              await prisma.rateConfirmation.create({
-                data: {
+              // Use upsert to handle case where rateConfirmation already exists
+              await prisma.rateConfirmation.upsert({
+                where: { loadId: validated.loadId },
+                update: {
+                  documentId: document.id,
+                },
+                create: {
                   companyId: session.user.companyId,
                   loadId: validated.loadId,
                   documentId: document.id,

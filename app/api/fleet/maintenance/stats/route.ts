@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
           companyId: session.user.companyId,
           deletedAt: null,
         },
-        status: 'COMPLETED',
+        date: { not: null }, // Only records with a service date (completed)
         truckId: { in: trucks.map((t) => t.id) },
       },
       select: {
@@ -94,14 +94,13 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Count completed this month
+    // Count completed this month (records with a service date in this month)
     completed = await prisma.maintenanceRecord.count({
       where: {
         truck: {
           companyId: session.user.companyId,
           deletedAt: null,
         },
-        status: 'COMPLETED',
         date: {
           gte: monthStart,
           lte: now,

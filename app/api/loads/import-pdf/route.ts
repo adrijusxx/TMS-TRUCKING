@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { createLoadSchema } from '@/lib/validations/load';
 
 // DeepSeek API configuration
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-be6d955aafb84e25bfb9c18ef425ca31';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-// Note: In production, store the API key in environment variables
-// Add DEEPSEEK_API_KEY=your_key_here to your .env file
+// Accounting-critical fields that MUST be extracted for invoicing/settlements
+const CRITICAL_FIELDS = ['loadNumber', 'customerName', 'revenue', 'weight'] as const;
+const IMPORTANT_FIELDS = ['pickupAddress', 'pickupCity', 'pickupState', 'deliveryAddress', 'deliveryCity', 'deliveryState'] as const;
 
 interface StopItem {
   orderId?: string;
@@ -44,7 +44,6 @@ interface ExtractedLoadData {
   loadNumber?: string;
   customerName?: string;
   customerNumber?: string;
-  // Single pickup/delivery (for backward compatibility)
   pickupLocation?: string;
   pickupAddress?: string;
   pickupCity?: string;
@@ -55,6 +54,7 @@ interface ExtractedLoadData {
   pickupTimeEnd?: string;
   pickupContact?: string;
   pickupPhone?: string;
+  pickupCompany?: string;
   deliveryLocation?: string;
   deliveryAddress?: string;
   deliveryCity?: string;
@@ -65,9 +65,8 @@ interface ExtractedLoadData {
   deliveryTimeEnd?: string;
   deliveryContact?: string;
   deliveryPhone?: string;
-  // Multi-stop support
+  deliveryCompany?: string;
   stops?: LoadStop[];
-  // Load details
   weight?: number;
   pieces?: number;
   commodity?: string;
@@ -84,29 +83,32 @@ interface ExtractedLoadData {
   pickupNotes?: string;
   deliveryNotes?: string;
   totalMiles?: number;
+  loadedMiles?: number;
+  emptyMiles?: number;
+}
+
+interface ExtractionResult {
+  data: ExtractedLoadData;
+  missingCritical: string[];
+  missingImportant: string[];
+  extractedCount: number;
+  confidence: 'high' | 'medium' | 'low';
 }
 
 async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
-    // Dynamically import pdf-parse to avoid issues in Next.js
     const pdfParse = (await import('pdf-parse')).default;
     const data = await pdfParse(buffer);
     
     let text = data.text;
-    
-    // Optimize: Remove excessive whitespace and normalize line breaks
-    // This reduces token count without losing information
     text = text
-      .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with 2
-      .replace(/[ \t]+/g, ' ') // Replace multiple spaces/tabs with single space
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/[ \t]+/g, ' ')
       .trim();
     
-    // For rate confirmations, we typically only need the first portion
-    // Most rate confirmations are 1-3 pages, so limit to first 25k chars (balanced for speed and accuracy)
-    if (text.length > 25000) {
-      // Take first 25k characters (roughly 2-3 pages)
-      // This is usually enough for rate confirmations while maintaining accuracy
-      text = text.substring(0, 25000);
+    // Increase limit to 30k chars for better extraction
+    if (text.length > 30000) {
+      text = text.substring(0, 30000);
     }
     
     return text;
@@ -116,203 +118,340 @@ async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   }
 }
 
-async function extractLoadDataWithAI(pdfText: string): Promise<ExtractedLoadData> {
-  // Optimized: More concise prompt for faster processing
-  // Reduced from ~200 lines to ~80 lines while maintaining all functionality
-  const prompt = `Extract load data from rate confirmation PDF. Return ONLY valid JSON, no markdown.
+/**
+ * Enhanced AI prompt with explicit field requirements and examples
+ */
+function buildExtractionPrompt(pdfText: string, pass: 'full' | 'financial' | 'details' = 'full'): string {
+  if (pass === 'financial') {
+    return `Extract ONLY financial and mileage data from this rate confirmation. Return valid JSON only.
 
-REQUIRED FIELDS:
-- loadNumber: Load/confirmation number (REQUIRED)
-- customerName: Shipper/customer name (REQUIRED - look for "Shipper", "Customer", "Bill To", etc.)
+REQUIRED FINANCIAL FIELDS (extract ALL that are present):
+- revenue: Total rate/pay amount in dollars (look for "Rate:", "Total:", "Amount:", "$")
+- weight: Total weight in lbs (look for "Weight:", "lbs", "pounds")
+- totalMiles: Total miles (look for "Miles:", "Distance:", "Total Miles")
+- loadedMiles: Loaded miles if separate from total
+- emptyMiles: Empty/deadhead miles if listed
+- pieces: Number of pieces/units
+- pallets: Number of pallets
 
-MULTI-STOP (preferred): stops array with stopType ("PICKUP"/"DELIVERY"), sequence, company, address, city, state, zip, phone, earliestArrival, latestArrival (ISO: YYYY-MM-DDTHH:MM), contactName, contactPhone, items[], totalPieces, totalWeight, notes, specialInstructions
-
-SINGLE-STOP: pickupLocation, pickupAddress, pickupCity, pickupState, pickupZip, pickupDate (ISO: YYYY-MM-DD), pickupTimeStart/End (HH:MM), pickupContact/Phone, deliveryLocation, deliveryAddress, deliveryCity, deliveryState, deliveryZip, deliveryDate, deliveryTimeStart/End, deliveryContact/Phone
-
-LOAD DETAILS: weight, pieces, commodity, pallets, temperature, equipmentType (DRY_VAN/REEFER/FLATBED/STEP_DECK/LOWBOY/TANKER/CONESTOGA/POWER_ONLY/HOTSHOT), loadType (FTL/LTL/PARTIAL/INTERMODAL), revenue, driverPay, fuelAdvance, totalMiles, hazmat (boolean), hazmatClass, dispatchNotes, pickupNotes, deliveryNotes
-
-DATE FORMAT: Convert all dates to ISO (YYYY-MM-DDTHH:MM:SS). For "11-14-25 17:00" = "2025-11-14T17:00:00". Use 2025 if year ambiguous.
+Look for dollar amounts like "$2,500.00" or "2500" near words like Rate, Total, Amount.
+Look for weight like "42,000 lbs" or "42000 pounds".
 
 PDF Text:
-${pdfText.substring(0, 8000)}
+${pdfText.substring(0, 12000)}
+
+Return ONLY JSON with these fields:`;
+  }
+  
+  if (pass === 'details') {
+    return `Extract contact and detail information from this rate confirmation. Return valid JSON only.
+
+DETAIL FIELDS TO EXTRACT:
+- pickupContact: Contact person name at pickup
+- pickupPhone: Phone number at pickup
+- pickupCompany: Company name at pickup location
+- pickupNotes: Special instructions for pickup
+- deliveryContact: Contact person name at delivery
+- deliveryPhone: Phone number at delivery
+- deliveryCompany: Company name at delivery location
+- deliveryNotes: Special instructions for delivery
+- commodity: What is being shipped
+- temperature: Temperature requirement (for reefer)
+- hazmat: true/false if hazardous materials
+- hazmatClass: Hazmat class if applicable
+- dispatchNotes: Any general notes or instructions
+
+PDF Text:
+${pdfText.substring(0, 12000)}
+
+Return ONLY JSON with these fields:`;
+  }
+
+  // Full extraction prompt - comprehensive
+  return `Extract ALL load data from this rate confirmation PDF. Return ONLY valid JSON, no markdown.
+
+## ACCOUNTING-CRITICAL FIELDS (REQUIRED - extract carefully):
+- loadNumber: Load/confirmation/reference number (REQUIRED - look for "Load #", "Confirmation #", "Reference #", "Order #")
+- customerName: Broker/customer name (REQUIRED - look for "Shipper", "Customer", "Bill To", "Broker", company name at top)
+- revenue: Total rate amount in dollars (REQUIRED - look for "Rate:", "Total:", "Amount:", "$X,XXX.XX")
+- weight: Total weight in lbs (REQUIRED - look for "Weight:", "lbs", "pounds", "42,000")
+
+## LOCATION FIELDS (extract all available):
+### Pickup:
+- pickupLocation: Facility/location name
+- pickupAddress: Street address
+- pickupCity: City name
+- pickupState: 2-letter state code (e.g., TX, CA)
+- pickupZip: ZIP code
+- pickupDate: Date in ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM)
+- pickupTimeStart: Earliest pickup time
+- pickupTimeEnd: Latest pickup time
+- pickupContact: Contact person name
+- pickupPhone: Contact phone
+- pickupCompany: Company name at pickup
+
+### Delivery:
+- deliveryLocation: Facility/location name
+- deliveryAddress: Street address
+- deliveryCity: City name
+- deliveryState: 2-letter state code
+- deliveryZip: ZIP code
+- deliveryDate: Date in ISO format
+- deliveryTimeStart: Earliest delivery time
+- deliveryTimeEnd: Latest delivery time
+- deliveryContact: Contact person name
+- deliveryPhone: Contact phone
+- deliveryCompany: Company name at delivery
+
+## MULTI-STOP (if more than 1 pickup or delivery):
+- stops: Array of objects with: stopType ("PICKUP"/"DELIVERY"), sequence (1,2,3...), company, address, city, state, zip, phone, earliestArrival (ISO), latestArrival (ISO), contactName, contactPhone, notes
+
+## LOAD DETAILS:
+- pieces: Number of pieces/units
+- commodity: What is being shipped
+- pallets: Number of pallets
+- temperature: Temperature setting (reefer loads)
+- equipmentType: DRY_VAN, REEFER, FLATBED, STEP_DECK, LOWBOY, TANKER, CONESTOGA, POWER_ONLY, HOTSHOT
+- loadType: FTL, LTL, PARTIAL, INTERMODAL
+- totalMiles: Total miles for the load
+- loadedMiles: Loaded miles
+- emptyMiles: Empty/deadhead miles
+- hazmat: true/false
+- hazmatClass: Hazmat classification if hazmat=true
+- dispatchNotes: Special instructions
+
+## DATE FORMAT:
+Convert dates to ISO: "11-14-25 17:00" = "2025-11-14T17:00:00"
+Use current year (2025) if year is ambiguous.
+
+## EXAMPLES:
+- "Rate: $2,500.00" → revenue: 2500
+- "Weight: 42,000 lbs" → weight: 42000
+- "Load # 123456" → loadNumber: "123456"
+- "TQL Logistics" → customerName: "TQL Logistics"
+
+PDF Text:
+${pdfText.substring(0, 15000)}
+
+Return ONLY valid JSON:`;
+}
+
+/**
+ * Call AI API for extraction
+ */
+async function callAIForExtraction(prompt: string, maxTokens: number = 6000): Promise<ExtractedLoadData> {
+  const response = await fetch(DEEPSEEK_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a data extraction expert. Extract structured data from documents. Return ONLY valid JSON, no markdown, no code blocks, no explanations.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.05, // Very low for consistency
+      max_tokens: maxTokens,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('DeepSeek API error:', error);
+    throw new Error(`AI processing failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '{}';
+  
+  return parseAIResponse(content);
+}
+
+/**
+ * Parse and clean AI response
+ */
+function parseAIResponse(content: string): ExtractedLoadData {
+  let jsonText = content.trim();
+  
+  // Remove markdown code blocks
+  if (jsonText.startsWith('```json')) {
+    jsonText = jsonText.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
+  } else if (jsonText.startsWith('```')) {
+    jsonText = jsonText.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
+  }
+  
+  // Extract JSON object
+  const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    jsonText = jsonMatch[0];
+  }
+  
+  try {
+    return JSON.parse(jsonText) as ExtractedLoadData;
+  } catch (parseError) {
+    // Try to fix incomplete JSON
+    const fixed = fixIncompleteJSON(jsonText);
+    return JSON.parse(fixed) as ExtractedLoadData;
+  }
+}
+
+/**
+ * Fix incomplete JSON by closing open structures
+ */
+function fixIncompleteJSON(text: string): string {
+  let fixed = text.trim();
+  fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+  
+  const openBraces = (fixed.match(/\{/g) || []).length;
+  const closeBraces = (fixed.match(/\}/g) || []).length;
+  const openBrackets = (fixed.match(/\[/g) || []).length;
+  const closeBrackets = (fixed.match(/\]/g) || []).length;
+  
+  if (openBraces > closeBraces || openBrackets > closeBrackets) {
+    fixed += ']'.repeat(openBrackets - closeBrackets);
+    fixed += '}'.repeat(openBraces - closeBraces);
+  }
+  
+  return fixed;
+}
+
+/**
+ * Validate extraction results and identify missing fields
+ */
+function validateExtraction(data: ExtractedLoadData): ExtractionResult {
+  const missingCritical: string[] = [];
+  const missingImportant: string[] = [];
+  
+  // Check critical fields
+  for (const field of CRITICAL_FIELDS) {
+    const value = data[field as keyof ExtractedLoadData];
+    if (value === undefined || value === null || value === '') {
+      missingCritical.push(field);
+    }
+  }
+  
+  // Check important fields (only if no stops - stops contain their own location data)
+  if (!data.stops || data.stops.length === 0) {
+    for (const field of IMPORTANT_FIELDS) {
+      const value = data[field as keyof ExtractedLoadData];
+      if (value === undefined || value === null || value === '') {
+        missingImportant.push(field);
+      }
+    }
+  }
+  
+  // Count extracted fields
+  const extractedCount = Object.keys(data).filter(k => {
+    const val = data[k as keyof ExtractedLoadData];
+    return val !== undefined && val !== null && val !== '';
+  }).length;
+  
+  // Determine confidence
+  let confidence: 'high' | 'medium' | 'low' = 'high';
+  if (missingCritical.length > 0) {
+    confidence = 'low';
+  } else if (missingImportant.length > 2) {
+    confidence = 'medium';
+  }
+  
+  return {
+    data,
+    missingCritical,
+    missingImportant,
+    extractedCount,
+    confidence,
+  };
+}
+
+/**
+ * Multi-pass extraction strategy for comprehensive data extraction
+ */
+async function extractLoadDataWithMultiPass(pdfText: string): Promise<ExtractionResult> {
+  // Pass 1: Full extraction
+  console.log('[PDF Import] Starting full extraction pass...');
+  let extractedData = await callAIForExtraction(buildExtractionPrompt(pdfText, 'full'), 8000);
+  let result = validateExtraction(extractedData);
+  
+  console.log(`[PDF Import] Pass 1: Extracted ${result.extractedCount} fields, missing critical: ${result.missingCritical.join(', ') || 'none'}`);
+  
+  // Pass 2: If critical financial fields missing, do focused financial extraction
+  if (result.missingCritical.includes('revenue') || result.missingCritical.includes('weight')) {
+    console.log('[PDF Import] Starting financial extraction pass...');
+    try {
+      const financialData = await callAIForExtraction(buildExtractionPrompt(pdfText, 'financial'), 3000);
+      
+      // Merge financial data into main data
+      if (financialData.revenue && !extractedData.revenue) {
+        extractedData.revenue = financialData.revenue;
+      }
+      if (financialData.weight && !extractedData.weight) {
+        extractedData.weight = financialData.weight;
+      }
+      if (financialData.totalMiles && !extractedData.totalMiles) {
+        extractedData.totalMiles = financialData.totalMiles;
+      }
+      if (financialData.loadedMiles && !extractedData.loadedMiles) {
+        extractedData.loadedMiles = financialData.loadedMiles;
+      }
+      if (financialData.pieces && !extractedData.pieces) {
+        extractedData.pieces = financialData.pieces;
+      }
+      if (financialData.pallets && !extractedData.pallets) {
+        extractedData.pallets = financialData.pallets;
+      }
+      
+      result = validateExtraction(extractedData);
+      console.log(`[PDF Import] Pass 2: Now have ${result.extractedCount} fields`);
+    } catch (error) {
+      console.error('[PDF Import] Financial pass failed:', error);
+    }
+  }
+  
+  // Pass 3: If still missing critical fields, try one more focused extraction
+  if (result.missingCritical.length > 0 && result.confidence === 'low') {
+    console.log('[PDF Import] Starting retry extraction for critical fields...');
+    const retryPrompt = `Extract ONLY these specific fields from the rate confirmation:
+${result.missingCritical.map(f => `- ${f}`).join('\n')}
+
+Look very carefully for:
+${result.missingCritical.includes('loadNumber') ? '- Load number, confirmation number, reference number, order number' : ''}
+${result.missingCritical.includes('customerName') ? '- Customer name, broker name, shipper name, "Bill To" company' : ''}
+${result.missingCritical.includes('revenue') ? '- Rate amount, total amount, dollar value (look for $ signs)' : ''}
+${result.missingCritical.includes('weight') ? '- Weight in lbs or pounds' : ''}
+
+PDF Text:
+${pdfText.substring(0, 10000)}
 
 Return ONLY JSON:`;
 
-  try {
-    const response = await fetch(DEEPSEEK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-      },
-          body: JSON.stringify({
-            model: 'deepseek-chat',
-            messages: [
-              {
-                role: 'system',
-                content: 'Extract structured data. Return ONLY valid JSON, no markdown, no code blocks.',
-              },
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-            temperature: 0.1,
-            max_tokens: 5000, // Balanced: Enough for complex loads but faster than 6000
-            stream: false,
-          }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('DeepSeek API error:', error);
-      throw new Error(`AI processing failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '{}';
-    
-    // Check if response was truncated (finish_reason === 'length')
-    const finishReason = data.choices?.[0]?.finish_reason;
-    const wasTruncated = finishReason === 'length';
-    
-    // Clean the response - remove markdown code blocks if present
-    let jsonText = content.trim();
-    
-    // Remove markdown code blocks if present
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
-    } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
-    }
-    
-    // Try to extract JSON object if wrapped in text
-    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[0];
-    }
-    
-    // Function to fix incomplete JSON by closing open structures
-    const fixIncompleteJSON = (text: string): string => {
-      let fixed = text.trim();
-      
-      // Remove trailing commas before closing brackets/braces
-      fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
-      
-      // Count open/close braces and brackets
-      const openBraces = (fixed.match(/\{/g) || []).length;
-      const closeBraces = (fixed.match(/\}/g) || []).length;
-      const openBrackets = (fixed.match(/\[/g) || []).length;
-      const closeBrackets = (fixed.match(/\]/g) || []).length;
-      
-      // If JSON appears incomplete, try to close it
-      if (openBraces > closeBraces || openBrackets > closeBrackets) {
-        // Find the last complete value before the truncation
-        // Look for the last complete object or array
-        let lastValidIndex = -1;
-        let depth = 0;
-        let inString = false;
-        let escapeNext = false;
-        
-        for (let i = 0; i < fixed.length; i++) {
-          const char = fixed[i];
-          
-          if (escapeNext) {
-            escapeNext = false;
-            continue;
-          }
-          
-          if (char === '\\') {
-            escapeNext = true;
-            continue;
-          }
-          
-          if (char === '"' && !escapeNext) {
-            inString = !inString;
-            continue;
-          }
-          
-          if (!inString) {
-            if (char === '{' || char === '[') {
-              depth++;
-            } else if (char === '}' || char === ']') {
-              depth--;
-              if (depth === 0) {
-                lastValidIndex = i;
-              }
-            } else if (char === ',' && depth === 1) {
-              // At top level, this might be a good place to cut
-              const nextChar = fixed.substring(i + 1).trim()[0];
-              if (nextChar === '{' || nextChar === '[') {
-                // This is between top-level objects, safe to cut here
-                lastValidIndex = i;
-              }
-            }
-          }
-        }
-        
-        // If we found a good cut point, use it
-        if (lastValidIndex > 0) {
-          fixed = fixed.substring(0, lastValidIndex + 1);
-        }
-        
-        // Close any remaining open structures
-        const bracesToClose = openBraces - closeBraces;
-        const bracketsToClose = openBrackets - closeBrackets;
-        
-        // Close arrays first, then objects
-        fixed += '\n' + ']'.repeat(bracketsToClose);
-        fixed += '\n' + '}'.repeat(bracesToClose);
-      }
-      
-      return fixed;
-    };
-    
     try {
-      const extracted = JSON.parse(jsonText);
-      return extracted as ExtractedLoadData;
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.error('Response was truncated:', wasTruncated);
-      console.error('Response text length:', jsonText.length);
-      console.error('Response text (first 1000 chars):', jsonText.substring(0, 1000));
-      console.error('Response text (last 500 chars):', jsonText.substring(Math.max(0, jsonText.length - 500)));
+      const retryData = await callAIForExtraction(retryPrompt, 2000);
       
-      // Try to fix incomplete JSON
-      try {
-        const fixedJson = fixIncompleteJSON(jsonText);
-        const extracted = JSON.parse(fixedJson);
-        return extracted as ExtractedLoadData;
-      } catch (fixError) {
-        console.error('Failed to fix JSON:', fixError);
-        // Log more details for debugging
-        if (parseError instanceof SyntaxError) {
-          const errorMessage = parseError.message;
-          const positionMatch = errorMessage.match(/position (\d+)/);
-          if (positionMatch) {
-            const position = parseInt(positionMatch[1]);
-            const start = Math.max(0, position - 200);
-            const end = Math.min(jsonText.length, position + 200);
-            console.error('Error around position', position, ':', jsonText.substring(start, end));
-          }
+      // Merge retry data
+      for (const field of result.missingCritical) {
+        const value = retryData[field as keyof ExtractedLoadData];
+        if (value !== undefined && value !== null && value !== '') {
+          (extractedData as any)[field] = value;
         }
-        throw new Error(
-          wasTruncated 
-            ? 'AI response was too long and got truncated. The PDF may have too many stops. Please try a simpler PDF or contact support.'
-            : 'Failed to parse AI response as JSON. Please try again or upload a clearer PDF.'
-        );
       }
+      
+      result = validateExtraction(extractedData);
+      console.log(`[PDF Import] Retry pass: Now have ${result.extractedCount} fields, missing critical: ${result.missingCritical.join(', ') || 'none'}`);
+    } catch (error) {
+      console.error('[PDF Import] Retry pass failed:', error);
     }
-  } catch (error) {
-    console.error('AI extraction error:', error);
-    if (error instanceof SyntaxError || (error instanceof Error && error.message.includes('parse'))) {
-      throw new Error('Failed to parse AI response. The PDF may be too complex or unclear.');
-    }
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Unknown error occurred during AI extraction');
   }
+  
+  return result;
 }
 
 export async function POST(request: NextRequest) {
@@ -331,57 +470,41 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'No file provided' },
-        },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'No file provided' } },
         { status: 400 }
       );
     }
 
     if (file.type !== 'application/pdf') {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'File must be a PDF' },
-        },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'File must be a PDF' } },
         { status: 400 }
       );
     }
 
-    // Check file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'File size must be less than 10MB' },
-        },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'File size must be less than 10MB' } },
         { status: 400 }
       );
     }
 
-    // Convert File to Buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-
-    // Extract text from PDF
     const pdfText = await extractTextFromPDF(buffer);
 
     if (!pdfText || pdfText.trim().length === 0) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'PDF appears to be empty or unreadable' },
-        },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'PDF appears to be empty or unreadable' } },
         { status: 400 }
       );
     }
 
-    // Extract load data using AI
-    const extractedData = await extractLoadDataWithAI(pdfText);
+    // Use multi-pass extraction
+    const extractionResult = await extractLoadDataWithMultiPass(pdfText);
+    const extractedData = extractionResult.data;
 
-    // Try to match customer if customerName or customerNumber is provided
-    // Optimized: Use more efficient query - check customerNumber first (indexed), then name
+    // Match or create customer
     let customerId: string | undefined;
     let customerMatched = false;
     let customerCreated = false;
@@ -389,7 +512,6 @@ export async function POST(request: NextRequest) {
     if (extractedData.customerName || extractedData.customerNumber) {
       let customer = null;
       
-      // Optimize: Check customerNumber first (usually indexed and faster)
       if (extractedData.customerNumber) {
         customer = await prisma.customer.findFirst({
           where: {
@@ -400,12 +522,9 @@ export async function POST(request: NextRequest) {
           },
           select: { id: true, name: true },
         });
-        if (customer) {
-          customerMatched = true;
-        }
+        if (customer) customerMatched = true;
       }
       
-      // If not found by number, try exact name match first
       if (!customer && extractedData.customerName) {
         customer = await prisma.customer.findFirst({
           where: {
@@ -416,12 +535,9 @@ export async function POST(request: NextRequest) {
           },
           select: { id: true, name: true },
         });
-        if (customer) {
-          customerMatched = true;
-        }
+        if (customer) customerMatched = true;
       }
       
-      // If still not found, try partial name match
       if (!customer && extractedData.customerName) {
         customer = await prisma.customer.findFirst({
           where: {
@@ -432,30 +548,24 @@ export async function POST(request: NextRequest) {
           },
           select: { id: true, name: true },
         });
-        if (customer) {
-          customerMatched = true;
-        }
+        if (customer) customerMatched = true;
       }
 
-      // If customer not found, create a new one
       if (!customer && extractedData.customerName) {
-        // Generate customer number if not provided
         const customerNumber = extractedData.customerNumber || `CUST-${Date.now()}`;
-        
         const newCustomer = await prisma.customer.create({
           data: {
             companyId: session.user.companyId,
             name: extractedData.customerName,
             customerNumber,
-            type: 'DIRECT', // Default customer type
-            address: '', // Required field - set empty if not available
+            type: 'BROKER',
+            address: '',
             city: '',
             state: '',
             zip: '',
             phone: '',
             email: '',
             isActive: true,
-            // Set default payment terms (30 days)
             paymentTerms: 30,
           },
           select: { id: true, name: true },
@@ -469,46 +579,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Helper function to convert date to datetime-local format for HTML input
+    // Format dates helper
     const formatDateForInput = (dateStr: string | undefined, timeStr?: string): string | undefined => {
       if (!dateStr) return undefined;
       try {
-        // Try to parse the date string
         let date: Date;
-        
-        // Handle various date formats
         if (dateStr.includes('T')) {
-          // ISO format with time
           date = new Date(dateStr);
         } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          // YYYY-MM-DD format
           date = new Date(dateStr + 'T00:00:00');
         } else {
-          // Try to parse as-is
           date = new Date(dateStr);
         }
         
-        if (isNaN(date.getTime())) {
-          return undefined;
-        }
+        if (isNaN(date.getTime())) return undefined;
         
-        // Format as YYYY-MM-DDTHH:MM for datetime-local input
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         
-        // Parse time if provided (HH:MM format)
         let hours = '00';
         let minutes = '00';
         if (timeStr) {
           const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
           if (timeMatch) {
-            const parsedHours = parseInt(timeMatch[1]);
-            hours = String(parsedHours % 24).padStart(2, '0');
+            hours = String(parseInt(timeMatch[1]) % 24).padStart(2, '0');
             minutes = timeMatch[2];
           }
         } else if (dateStr.includes('T')) {
-          // Extract time from ISO string
           const timeMatch = dateStr.match(/T(\d{2}):(\d{2})/);
           if (timeMatch) {
             hours = timeMatch[1];
@@ -517,20 +615,18 @@ export async function POST(request: NextRequest) {
         }
         
         return `${year}-${month}-${day}T${hours}:${minutes}`;
-      } catch (error) {
+      } catch {
         return undefined;
       }
     };
 
-    // Process stops if available (multi-stop load)
+    // Process stops
     let processedStops: LoadStop[] | undefined;
     if (extractedData.stops && Array.isArray(extractedData.stops) && extractedData.stops.length > 0) {
       processedStops = extractedData.stops.map((stop, index) => {
-        // Format dates for stops
         const formatStopDate = (dateStr: string | undefined): string | undefined => {
           if (!dateStr) return undefined;
           try {
-            // Try to parse ISO format or other formats
             const date = new Date(dateStr);
             if (isNaN(date.getTime())) return undefined;
             return date.toISOString();
@@ -544,43 +640,34 @@ export async function POST(request: NextRequest) {
           state: stop.state?.toUpperCase().slice(0, 2) || '',
           earliestArrival: formatStopDate(stop.earliestArrival),
           latestArrival: formatStopDate(stop.latestArrival),
-          // Ensure sequence is set if not provided
           sequence: stop.sequence || index + 1,
         };
       });
     }
 
-    // Prepare response with extracted data
+    // Build response
     const response: any = {
       ...extractedData,
       customerId,
-      // Multi-stop support
       stops: processedStops,
-      // Convert dates to datetime-local format for form inputs (single-stop fallback)
       pickupDate: extractedData.stops 
         ? undefined 
         : formatDateForInput(extractedData.pickupDate, extractedData.pickupTimeStart),
       deliveryDate: extractedData.stops 
         ? undefined 
         : formatDateForInput(extractedData.deliveryDate, extractedData.deliveryTimeStart),
-      // Remove separate time fields as they're now combined with dates
-      pickupTimeStart: extractedData.stops ? undefined : undefined,
-      pickupTimeEnd: extractedData.stops ? undefined : undefined,
-      deliveryTimeStart: extractedData.stops ? undefined : undefined,
-      deliveryTimeEnd: extractedData.stops ? undefined : undefined,
-      // Ensure equipmentType is uppercase and valid
+      pickupTimeStart: undefined,
+      pickupTimeEnd: undefined,
+      deliveryTimeStart: undefined,
+      deliveryTimeEnd: undefined,
       equipmentType: extractedData.equipmentType?.toUpperCase().replace(/-/g, '_') || 'DRY_VAN',
-      // Ensure loadType is uppercase
       loadType: extractedData.loadType?.toUpperCase() || 'FTL',
-      // Ensure state codes are uppercase and 2 characters (for single-stop fallback)
       pickupState: extractedData.stops 
         ? undefined 
         : extractedData.pickupState?.toUpperCase().slice(0, 2),
       deliveryState: extractedData.stops 
         ? undefined 
         : extractedData.deliveryState?.toUpperCase().slice(0, 2),
-      // Store total miles if extracted
-      totalMiles: extractedData.totalMiles,
     };
 
     return NextResponse.json({
@@ -589,10 +676,12 @@ export async function POST(request: NextRequest) {
       meta: {
         customerMatched,
         customerCreated,
-        extractedFields: Object.keys(extractedData).filter(k => 
-          // Count only actual data fields, not metadata
-          !['customerName', 'customerNumber'].includes(k) && extractedData[k as keyof ExtractedLoadData] !== undefined
-        ).length,
+        extractedFields: extractionResult.extractedCount,
+        missingCritical: extractionResult.missingCritical,
+        missingImportant: extractionResult.missingImportant,
+        confidence: extractionResult.confidence,
+        // Accounting validation warnings
+        accountingWarnings: buildAccountingWarnings(extractionResult),
       },
     });
   } catch (error) {
@@ -610,3 +699,27 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Build accounting-specific warnings for the frontend
+ */
+function buildAccountingWarnings(result: ExtractionResult): string[] {
+  const warnings: string[] = [];
+  
+  if (result.missingCritical.includes('revenue')) {
+    warnings.push('Revenue not extracted - required for invoicing. Please enter manually.');
+  }
+  if (result.missingCritical.includes('weight')) {
+    warnings.push('Weight not extracted - required for BOL validation. Please enter manually.');
+  }
+  if (result.missingCritical.includes('loadNumber')) {
+    warnings.push('Load number not extracted - will be auto-generated if not provided.');
+  }
+  if (result.missingCritical.includes('customerName')) {
+    warnings.push('Customer/broker not identified - must be selected before saving.');
+  }
+  if (!result.data.totalMiles && !result.data.loadedMiles) {
+    warnings.push('Mileage not extracted - driver pay calculation may be affected.');
+  }
+  
+  return warnings;
+}

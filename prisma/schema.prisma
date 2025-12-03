@@ -41,7 +41,7 @@ model User {
   reconciliations            Reconciliation[]
   dispatchedLoads            Load[]                   @relation("LoadDispatcher")
   createdLoads               Load[]                   @relation("LoadCreatedBy")
-  createdLoadTemplates        LoadTemplate[]          @relation("LoadTemplateCreatedBy")
+  createdLoadTemplates       LoadTemplate[]           @relation("LoadTemplateCreatedBy")
   assignedDrivers            Driver[]                 @relation("DriverDispatcher")
   hrManagedDrivers           Driver[]                 @relation("DriverHRManager")
   safetyManagedDrivers       Driver[]                 @relation("DriverSafetyManager")
@@ -378,6 +378,11 @@ model Load {
   @@index([loadNumber])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
+  // Composite indexes for common query patterns
+  @@index([companyId, mcNumberId, status])
+  @@index([companyId, mcNumberId, createdAt])
+  @@index([companyId, driverId, status])
+  @@index([companyId, status, createdAt])
 }
 
 model LoadStop {
@@ -441,14 +446,14 @@ model LoadStop {
 // ============================================
 
 model LoadTemplate {
-  id         String   @id @default(cuid())
-  name       String   // Template name (e.g., "Weekly Dallas-Houston")
-  companyId  String
-  company    Company  @relation(fields: [companyId], references: [id])
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id])
+  id          String   @id @default(cuid())
+  name        String // Template name (e.g., "Weekly Dallas-Houston")
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
   createdById String?
-  createdBy   User?   @relation("LoadTemplateCreatedBy", fields: [createdById], references: [id])
+  createdBy   User?    @relation("LoadTemplateCreatedBy", fields: [createdById], references: [id])
 
   // Load Details (no driver, no dates)
   loadType      LoadType      @default(FTL)
@@ -459,28 +464,28 @@ model LoadTemplate {
   pickupAddress  String?
   pickupCity     String?
   pickupState    String?
-  pickupZip       String?
-  pickupCompany   String?
-  pickupContact   String?
-  pickupPhone     String?
-  pickupNotes     String?
+  pickupZip      String?
+  pickupCompany  String?
+  pickupContact  String?
+  pickupPhone    String?
+  pickupNotes    String?
 
   // Delivery Information (no dates)
-  deliveryLocation  String?
-  deliveryAddress   String?
-  deliveryCity      String?
-  deliveryState     String?
-  deliveryZip       String?
-  deliveryCompany   String?
-  deliveryContact   String?
-  deliveryPhone     String?
-  deliveryNotes     String?
+  deliveryLocation String?
+  deliveryAddress  String?
+  deliveryCity     String?
+  deliveryState    String?
+  deliveryZip      String?
+  deliveryCompany  String?
+  deliveryContact  String?
+  deliveryPhone    String?
+  deliveryNotes    String?
 
   // Load Specifications
   weight      Float
   pieces      Int?
   commodity   String?
-  pallets      Int?
+  pallets     Int?
   temperature String?
   hazmat      Boolean @default(false)
   hazmatClass String?
@@ -519,9 +524,9 @@ model LoadTemplate {
 }
 
 model LoadTemplateStop {
-  id            String       @id @default(cuid())
-  templateId    String
-  template      LoadTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  id         String       @id @default(cuid())
+  templateId String
+  template   LoadTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   // Stop Details
   stopType StopType
@@ -822,10 +827,10 @@ model Driver {
   payTo        String? // Who to pay to (e.g., company name)
 
   // Deduction Configuration
-  escrowBalance        Float @default(0) // Current escrow balance (read-only, calculated)
-  escrowTargetAmount   Float? // Target escrow amount (e.g., $2,500)
+  escrowBalance          Float  @default(0) // Current escrow balance (read-only, calculated)
+  escrowTargetAmount     Float? // Target escrow amount (e.g., $2,500)
   escrowDeductionPerWeek Float? // Deduction per week (e.g., $100)
-  advanceLimit        Float @default(1000) // Maximum advance allowed
+  advanceLimit           Float  @default(1000) // Maximum advance allowed
 
   // Warnings
   warnings String?
@@ -1077,9 +1082,9 @@ model Truck {
   ownerName String? // Owner name from Excel
 
   // Maintenance
-  lastMaintenance DateTime?
-  nextMaintenance DateTime?
-  odometerReading Float     @default(0)
+  lastMaintenance     DateTime?
+  nextMaintenance     DateTime?
+  odometerReading     Float     @default(0)
   nextServiceOdometer Float? // Odometer reading when next service is due
 
   // Registration & Insurance
@@ -1280,10 +1285,10 @@ model MaintenanceRecord {
 }
 
 enum MaintenanceType {
-  PM_A    // Preventive Maintenance A
-  PM_B    // Preventive Maintenance B
-  TIRES   // Tire service
-  REPAIR  // Repair work
+  PM_A // Preventive Maintenance A
+  PM_B // Preventive Maintenance B
+  TIRES // Tire service
+  REPAIR // Repair work
 }
 
 enum MaintenanceRecordStatus {
@@ -1646,13 +1651,13 @@ model Customer {
   preferredPaymentMethod PaymentMethod?
 
   // Relations
-  loads         Load[]
-  loadTemplates LoadTemplate[]
-  invoices      Invoice[]
-  contacts      CustomerContact[]
-  tags          CustomerTag[]
+  loads          Load[]
+  loadTemplates  LoadTemplate[]
+  invoices       Invoice[]
+  contacts       CustomerContact[]
+  tags           CustomerTag[]
   invoiceBatches InvoiceBatch[]
-  tariffs       Tariff[]
+  tariffs        Tariff[]
 
   @@index([companyId])
   @@index([customerNumber])
@@ -1910,6 +1915,11 @@ model Invoice {
   @@index([subStatus])
   @@index([factoringBatchId])
   @@index([invoiceBatchId])
+  // Composite indexes for common query patterns
+  @@index([customerId, status])
+  @@index([customerId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([mcNumber, status])
 }
 
 enum InvoiceStatus {
@@ -1980,6 +1990,11 @@ model Settlement {
   @@index([approvedById])
   @@index([periodStart])
   @@index([periodEnd])
+  // Composite indexes for common query patterns
+  @@index([driverId, status])
+  @@index([driverId, status, createdAt])
+  @@index([driverId, createdAt])
+  @@index([status, createdAt])
 }
 
 // ============================================
@@ -2113,15 +2128,15 @@ model LoadExpense {
   expenseType LoadExpenseType
   category    String? // Additional categorization
   amount      Float
-  
+
   // Vendor relation
   vendorId String?
   vendor   Vendor? @relation(fields: [vendorId], references: [id])
-  
+
   receiptUrl  String? // URL to uploaded receipt
   description String?
-  date        DateTime        @default(now())
-  
+  date        DateTime @default(now())
+
   // Reimbursable flag - if true, creates Credit LedgerEntry for driver
   reimbursable Boolean @default(false)
 
@@ -2183,15 +2198,15 @@ model DeductionRule {
   name          String
   deductionType DeductionType
   driverType    DriverType? // Apply to specific driver type (COMPANY, OWNER_OPERATOR, LEASE)
-  
+
   // Per-driver rule (simplified model for automated deductions)
-  driverId      String? // Specific driver for this rule (if null, applies to driverType)
-  driver        Driver? @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  type          DeductionRuleType? // Simplified type: LEASE, INSURANCE, ELD
-  amount        Float? // Fixed amount for simplified rules
-  frequency     DeductionRuleFrequency? // WEEKLY or MONTHLY for simplified rules
-  startDate     DateTime? // When rule becomes active
-  endDate       DateTime? // When rule expires (null = no end date)
+  driverId  String? // Specific driver for this rule (if null, applies to driverType)
+  driver    Driver?                 @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type      DeductionRuleType? // Simplified type: LEASE, INSURANCE, ELD
+  amount    Float? // Fixed amount for simplified rules
+  frequency DeductionRuleFrequency? // WEEKLY or MONTHLY for simplified rules
+  startDate DateTime? // When rule becomes active
+  endDate   DateTime? // When rule expires (null = no end date)
 
   // Amount configuration (existing complex model)
   calculationType CalculationType // FIXED, PERCENTAGE, PER_MILE
@@ -2379,7 +2394,7 @@ model InvoiceBatch {
   batchNumber String          @unique
   postStatus  BatchPostStatus @default(UNPOSTED)
   customerId  String? // Optional: primary customer for the batch (for filtering)
-  customer    Customer? @relation(fields: [customerId], references: [id])
+  customer    Customer?       @relation(fields: [customerId], references: [id])
   mcNumber    String?
   totalAmount Float           @default(0)
 
@@ -2397,7 +2412,7 @@ model InvoiceBatch {
   updatedAt DateTime @updatedAt
 
   // Relations
-  items InvoiceBatchItem[]
+  items    InvoiceBatchItem[]
   invoices Invoice[]
 
   @@index([companyId])
@@ -2651,15 +2666,15 @@ model FactoringCompany {
 // ============================================
 
 model FactoringBatch {
-  id        String              @id @default(cuid())
+  id        String  @id @default(cuid())
   companyId String
-  company   Company             @relation(fields: [companyId], references: [id])
+  company   Company @relation(fields: [companyId], references: [id])
 
   vendorId String
-  vendor   Vendor               @relation(fields: [vendorId], references: [id])
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
 
   status      FactoringBatchStatus @default(PENDING)
-  totalAmount Float               @default(0)
+  totalAmount Float                @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2921,9 +2936,9 @@ model Inspection {
   defectDetails String? // Description of any defects found
 
   // DVIR Fields (Daily Vehicle Inspection Report)
-  defectsFound    Boolean   @default(false) // Whether defects were found
-  defectsList     String[]  @default([]) // List of defects found
-  mechanicSignoff Boolean   @default(false) // Mechanic signoff status
+  defectsFound    Boolean  @default(false) // Whether defects were found
+  defectsList     String[] @default([]) // List of defects found
+  mechanicSignoff Boolean  @default(false) // Mechanic signoff status
 
   // OOS (Out of Service) Information
   oosStatus   Boolean @default(false) // Out of Service
@@ -3126,11 +3141,11 @@ model Vendor {
   tag String? // Tag field from Excel
 
   // Relations
-  contacts          VendorContact[]
-  inventoryItems    InventoryItem[]
-  transactions      InventoryTransaction[]
-  expenses          LoadExpense[]
-  factoringBatches  FactoringBatch[]
+  contacts           VendorContact[]
+  inventoryItems     InventoryItem[]
+  transactions       InventoryTransaction[]
+  expenses           LoadExpense[]
+  factoringBatches   FactoringBatch[]
   maintenanceRecords MaintenanceRecord[]
 
   isActive  Boolean   @default(true)
@@ -5165,7 +5180,7 @@ model McNumber {
   trucks                Truck[] // Trucks assigned to this MC number
   trailers              Trailer[] // Trailers assigned to this MC number
   loads                 Load[] // Loads assigned to this MC number
-  loadTemplates          LoadTemplate[] // Load templates assigned to this MC number
+  loadTemplates         LoadTemplate[] // Load templates assigned to this MC number
   paymentConfigurations PaymentConfiguration[]
   orderPaymentTypes     OrderPaymentType[]
   dynamicStatuses       DynamicStatus[]
@@ -5354,32 +5369,32 @@ model ExpenseType {
 // ============================================
 
 model Tariff {
-  id            String     @id @default(cuid())
-  companyId     String
-  company       Company    @relation(fields: [companyId], references: [id])
-  customerId    String?
-  customer      Customer?  @relation(fields: [customerId], references: [id])
-  mcNumberId    String?
-  mcNumber      McNumber?  @relation(fields: [mcNumberId], references: [id])
-  name          String
-  code          String?
-  description   String?
-  type          TariffType @default(RATE_PER_MILE)
-  rate          Float
-  minimumRate   Float?
-  perStop       Float?
-  perPound      Float?
-  perMile       Float?
-  fuelSurcharge Float? // Percentage or fixed amount
-  effectiveDate DateTime?
-  expiryDate    DateTime?
-  originZip     String? // Origin ZIP code for lane-based tariffs
+  id             String     @id @default(cuid())
+  companyId      String
+  company        Company    @relation(fields: [companyId], references: [id])
+  customerId     String?
+  customer       Customer?  @relation(fields: [customerId], references: [id])
+  mcNumberId     String?
+  mcNumber       McNumber?  @relation(fields: [mcNumberId], references: [id])
+  name           String
+  code           String?
+  description    String?
+  type           TariffType @default(RATE_PER_MILE)
+  rate           Float
+  minimumRate    Float?
+  perStop        Float?
+  perPound       Float?
+  perMile        Float?
+  fuelSurcharge  Float? // Percentage or fixed amount
+  effectiveDate  DateTime?
+  expiryDate     DateTime?
+  originZip      String? // Origin ZIP code for lane-based tariffs
   destinationZip String? // Destination ZIP code for lane-based tariffs
-  isDefault     Boolean    @default(false)
-  isActive      Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  deletedAt     DateTime?
+  isDefault      Boolean    @default(false)
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
 
   // Relations
   tariffRules TariffRule[]
@@ -5903,8 +5918,8 @@ model SystemConfig {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   // Detention Configuration
-  defaultDetentionRate    Float   @default(50) // $/hour
-  defaultFreeTimeMinutes  Int     @default(120) // minutes (2 hours)
+  defaultDetentionRate   Float @default(50) // $/hour
+  defaultFreeTimeMinutes Int   @default(120) // minutes (2 hours)
 
   // TONU Configuration
   standardTonuFee Float @default(150) // $150 default

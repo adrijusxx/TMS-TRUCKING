@@ -13,6 +13,7 @@ import IntegrationsCategory from '@/components/settings/categories/IntegrationsC
 import NotificationsCategory from '@/components/settings/categories/NotificationsCategory';
 import SecurityPrivacyCategory from '@/components/settings/categories/SecurityPrivacyCategory';
 import BillingSubscriptionCategory from '@/components/settings/categories/BillingSubscriptionCategory';
+import DataManagementCategory from '@/components/settings/categories/DataManagementCategory';
 
 // Map old tab names to new category names for backward compatibility
 const tabMapping: Record<string, string> = {
@@ -28,6 +29,7 @@ const tabMapping: Record<string, string> = {
   'custom-fields': 'system',
   'appearance': 'system',
   'branding': 'company',
+  'data-management': 'data-management',
 };
 
 export default function AdminSettingsPage() {
@@ -92,6 +94,8 @@ export default function AdminSettingsPage() {
         return <SecurityPrivacyCategory />;
       case 'billing':
         return <BillingSubscriptionCategory />;
+      case 'data-management':
+        return <DataManagementCategory />;
       default:
         return <CompanyOrganizationCategory />;
     }

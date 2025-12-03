@@ -14,6 +14,8 @@ import {
   Building2,
   Bell,
   User,
+  Activity,
+  Database,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -119,6 +121,20 @@ export function getSettingsNavigationCategories(baseSettingsPath: string): NavCa
       ],
     },
     {
+      name: 'Data Management',
+      adminOnly: true,
+      items: [
+        { 
+          name: 'Bulk Delete', 
+          href: baseSettingsPath, 
+          icon: Database, 
+          query: 'tab=data-management', 
+          category: 'Data Management', 
+          adminOnly: true 
+        },
+      ],
+    },
+    {
       name: 'Other',
       adminOnly: false,
       items: [
@@ -139,6 +155,13 @@ export function getSettingsNavigationCategories(baseSettingsPath: string): NavCa
           href: '/dashboard/apps/marketplace', 
           icon: ShoppingBag, 
           category: 'Other' 
+        },
+        { 
+          name: 'System Monitoring', 
+          href: '/dashboard/admin/monitoring', 
+          icon: Activity, 
+          category: 'Other',
+          adminOnly: true 
         },
       ],
     },

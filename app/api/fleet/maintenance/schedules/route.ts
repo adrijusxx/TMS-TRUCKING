@@ -39,15 +39,21 @@ export async function GET(request: NextRequest) {
     });
 
     // Get maintenance records to calculate schedules
-    const maintenanceRecords = await prisma.maintenanceRecord.findMany({
-      where: {
-        truck: {
-          companyId: session.user.companyId,
-          deletedAt: null,
-        },
-        status: 'COMPLETED',
-        truckId: { in: trucks.map((t) => t.id) },
+    // Build where clause - only filter by status if column exists
+    const maintenanceWhere: any = {
+      truck: {
+        companyId: session.user.companyId,
+        deletedAt: null,
       },
+      truckId: { in: trucks.map((t) => t.id) },
+    };
+    
+    // Only filter by status if the column exists (will be added by migration)
+    // For now, filter by date being not null (completed records have dates)
+    maintenanceWhere.date = { not: null };
+    
+    const maintenanceRecords = await prisma.maintenanceRecord.findMany({
+      where: maintenanceWhere,
       select: {
         id: true,
         truckId: true,

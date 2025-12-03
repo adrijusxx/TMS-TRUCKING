@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,8 +37,12 @@ import {
   XCircle,
   Download,
   Mail,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 interface SettlementDetailProps {
   settlementId: string;
@@ -46,8 +50,15 @@ interface SettlementDetailProps {
 
 async function fetchSettlement(id: string) {
   const response = await fetch(apiUrl(`/api/settlements/${id}`));
-  if (!response.ok) throw new Error('Failed to fetch settlement');
-  return response.json();
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || `Failed to fetch settlement: ${response.status} ${response.statusText}`);
+  }
+  const result = await response.json();
+  if (!result.success || !result.data) {
+    throw new Error('Invalid settlement data received from server');
+  }
+  return result;
 }
 
 async function updateSettlement(id: string, data: any) {
@@ -108,6 +119,36 @@ async function sendSettlementEmail(id: string) {
   }
 }
 
+async function fetchDeductions(settlementId: string) {
+  const response = await fetch(apiUrl(`/api/settlements/${settlementId}/deductions`));
+  if (!response.ok) throw new Error('Failed to fetch deductions');
+  return response.json();
+}
+
+async function createDeduction(settlementId: string, data: any) {
+  const response = await fetch(apiUrl(`/api/settlements/${settlementId}/deductions`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Failed to create deduction');
+  }
+  return response.json();
+}
+
+async function deleteDeduction(settlementId: string, deductionId: string) {
+  const response = await fetch(apiUrl(`/api/settlements/${settlementId}/deductions?deductionId=${deductionId}`), {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Failed to delete deduction');
+  }
+  return response.json();
+}
+
 export default function SettlementDetail({ settlementId }: SettlementDetailProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SettlementStatus | ''>('');
@@ -115,10 +156,70 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
   const [isEditing, setIsEditing] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isDeductionDialogOpen, setIsDeductionDialogOpen] = useState(false);
+  const [newDeduction, setNewDeduction] = useState({
+    deductionType: 'OTHER',
+    description: '',
+    amount: '',
+  });
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: settlementError } = useQuery({
     queryKey: ['settlement', settlementId],
     queryFn: () => fetchSettlement(settlementId),
+    retry: 1,
+    onError: (error) => {
+      console.error('[SettlementDetail] Error fetching settlement:', error);
+    },
+    onSuccess: (data) => {
+      console.log('[SettlementDetail] Settlement data loaded:', data);
+    },
+  });
+  
+  // Initialize state from settlement data when it loads
+  useEffect(() => {
+    if (data?.data && !isEditing) {
+      const settlement = data.data;
+      if (settlement.status && !status) {
+        setStatus(settlement.status as SettlementStatus);
+      }
+      if (settlement.notes && !notes) {
+        setNotes(settlement.notes);
+      }
+    }
+  }, [data, isEditing, status, notes]);
+
+  const { data: deductionsData, refetch: refetchDeductions } = useQuery({
+    queryKey: ['settlement-deductions', settlementId],
+    queryFn: () => fetchDeductions(settlementId),
+    enabled: !!settlementId,
+  });
+
+  const createDeductionMutation = useMutation({
+    mutationFn: (data: any) => createDeduction(settlementId, data),
+    onSuccess: () => {
+      toast.success('Deduction added successfully');
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+      queryClient.invalidateQueries({ queryKey: ['settlement-deductions', settlementId] });
+      setIsDeductionDialogOpen(false);
+      setNewDeduction({ deductionType: 'OTHER', description: '', amount: '' });
+      refetchDeductions();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to add deduction');
+    },
+  });
+
+  const deleteDeductionMutation = useMutation({
+    mutationFn: (deductionId: string) => deleteDeduction(settlementId, deductionId),
+    onSuccess: () => {
+      toast.success('Deduction deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+      queryClient.invalidateQueries({ queryKey: ['settlement-deductions', settlementId] });
+      refetchDeductions();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete deduction');
+    },
   });
 
   const updateMutation = useMutation({
@@ -136,7 +237,70 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
   });
 
   const settlement = data?.data;
-  if (!settlement) return null;
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Loading settlement...</span>
+      </div>
+    );
+  }
+
+  if (settlementError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <XCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Error Loading Settlement</h2>
+        <p className="text-muted-foreground mb-4">
+          {settlementError instanceof Error ? settlementError.message : 'Failed to load settlement data'}
+        </p>
+        <Link href="/dashboard/settlements">
+          <Button variant="outline">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Settlements
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (!settlement) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <XCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Settlement Not Found</h2>
+        <p className="text-muted-foreground mb-4">
+          The settlement you're looking for doesn't exist or you don't have access to it.
+        </p>
+        <Link href="/dashboard/settlements">
+          <Button variant="outline">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Settlements
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // Safety check for driver data
+  if (!settlement.driver) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <XCircle className="h-12 w-12 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Driver Information Missing</h2>
+        <p className="text-muted-foreground mb-4">
+          This settlement is missing driver information. Please contact support.
+        </p>
+        <Link href="/dashboard/settlements">
+          <Button variant="outline">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Settlements
+          </Button>
+        </Link>
+      </div>
+    );
+  }
 
   const handleSave = () => {
     const updateData: any = {};
@@ -162,6 +326,36 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
       setIsSendingEmail(false);
     }
   };
+
+  const handleAddDeduction = () => {
+    if (!newDeduction.description || !newDeduction.amount) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    createDeductionMutation.mutate({
+      deductionType: newDeduction.deductionType,
+      description: newDeduction.description,
+      amount: parseFloat(newDeduction.amount),
+    });
+  };
+
+  const handleDeleteDeduction = (deductionId: string) => {
+    if (confirm('Are you sure you want to delete this deduction?')) {
+      deleteDeductionMutation.mutate(deductionId);
+    }
+  };
+
+  const deductionTypeLabels: Record<string, string> = {
+    FUEL_ADVANCE: 'Fuel Advance',
+    CASH_ADVANCE: 'Cash Advance',
+    INSURANCE: 'Insurance',
+    ESCROW: 'Escrow',
+    FINE: 'Fine',
+    REPAIR: 'Repair',
+    OTHER: 'Other',
+  };
+
+  const deductions = deductionsData?.data || [];
 
   return (
     <div className="space-y-6">
@@ -245,13 +439,13 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="font-medium">
-              {settlement.driver.user.firstName} {settlement.driver.user.lastName}
+              {settlement.driver?.user?.firstName} {settlement.driver?.user?.lastName}
             </p>
             <p className="text-sm text-muted-foreground">
-              {settlement.driver.driverNumber}
+              {settlement.driver?.driverNumber || 'N/A'}
             </p>
             <p className="text-sm text-muted-foreground">
-              {settlement.driver.user.email}
+              {settlement.driver?.user?.email || 'N/A'}
             </p>
             <Link href={`/dashboard/drivers/${settlement.driverId}`}>
               <Button variant="ghost" size="sm" className="mt-2">
@@ -260,6 +454,149 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
             </Link>
           </CardContent>
         </Card>
+
+        {/* Pay Structure - Combined single display */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Pay Structure
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-semibold">
+              {(() => {
+                const payType = settlement.driver?.payType;
+                const payRate = settlement.driver?.payRate;
+                
+                if (!payType || payRate === null || payRate === undefined) {
+                  return <span className="text-muted-foreground">Not Configured</span>;
+                }
+                
+                switch (payType) {
+                  case 'PER_MILE':
+                    return `CPM: ${formatCurrency(payRate)}/mile`;
+                  case 'PERCENTAGE':
+                    return `Percentage: ${payRate}%`;
+                  case 'PER_LOAD':
+                    return `Per Load: ${formatCurrency(payRate)}/load`;
+                  case 'HOURLY':
+                    return `Hourly: ${formatCurrency(payRate)}/hour`;
+                  default:
+                    return <span className="text-muted-foreground">{payType}</span>;
+                }
+              })()}
+            </div>
+            {settlement.driver?.perDiem && settlement.driver.perDiem > 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                + {settlement.driver.perDiem} cents/mile per diem (tax-free)
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Escrow Information */}
+        {(settlement.driver?.escrowTargetAmount || settlement.driver?.escrowDeductionPerWeek) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Escrow / Holdings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {settlement.driver?.escrowTargetAmount && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Target Amount</p>
+                  <p className="font-medium">{formatCurrency(settlement.driver.escrowTargetAmount)}</p>
+                </div>
+              )}
+              {settlement.driver?.escrowDeductionPerWeek && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Deduction Per Week</p>
+                  <p className="font-medium">{formatCurrency(settlement.driver.escrowDeductionPerWeek)}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-sm text-muted-foreground">Current Balance</p>
+                <p className="font-medium">{formatCurrency(settlement.driver?.escrowBalance || 0)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Recurring Deductions */}
+        {settlement.driver?.deductionRules && settlement.driver.deductionRules.length > 0 && (
+          <Card className="md:col-span-2 lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Recurring Deductions
+              </CardTitle>
+              <CardDescription>
+                Automatic deductions configured for this driver
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Frequency</TableHead>
+                      <TableHead>Calculation</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {settlement.driver.deductionRules.map((rule: any) => {
+                      let amountDisplay = '';
+                      if (rule.calculationType === 'FIXED' && rule.amount) {
+                        amountDisplay = formatCurrency(rule.amount);
+                      } else if (rule.calculationType === 'PERCENTAGE' && rule.percentage) {
+                        amountDisplay = `${rule.percentage}%`;
+                      } else if (rule.calculationType === 'PER_MILE' && rule.perMileRate) {
+                        amountDisplay = `${formatCurrency(rule.perMileRate)}/mile`;
+                      } else {
+                        amountDisplay = 'N/A';
+                      }
+
+                      const frequencyLabels: Record<string, string> = {
+                        PER_SETTLEMENT: 'Per Settlement',
+                        WEEKLY: 'Weekly',
+                        BIWEEKLY: 'Bi-Weekly',
+                        MONTHLY: 'Monthly',
+                        ONE_TIME: 'One Time',
+                      };
+
+                      // Use frequency if available, otherwise fallback to deductionFrequency or 'N/A'
+                      const frequencyValue = rule.frequency || rule.deductionFrequency || 'N/A';
+
+                      return (
+                        <TableRow key={rule.id}>
+                          <TableCell>
+                            {deductionTypeLabels[rule.deductionType] || rule.deductionType}
+                          </TableCell>
+                          <TableCell>{rule.name}</TableCell>
+                          <TableCell className="font-medium">{amountDisplay}</TableCell>
+                          <TableCell>
+                            {frequencyLabels[frequencyValue] || frequencyValue}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {rule.calculationType === 'FIXED' ? 'Fixed' :
+                             rule.calculationType === 'PERCENTAGE' ? 'Percentage' :
+                             rule.calculationType === 'PER_MILE' ? 'Per Mile' : rule.calculationType}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Period */}
         <Card>
@@ -300,6 +637,24 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
               <span className="text-sm text-muted-foreground">Gross Pay</span>
               <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
             </div>
+            {(() => {
+              // Calculate total miles from loads
+              const totalMiles = settlement.loads?.reduce((sum: number, load: any) => 
+                sum + (load.totalMiles || load.route?.totalDistance || 0), 0) || 0;
+              // Calculate per diem if configured
+              const perDiemAmount = settlement.driver?.perDiem && settlement.driver.perDiem > 0
+                ? (totalMiles * settlement.driver.perDiem) / 100 // Convert cents to dollars
+                : 0;
+              
+              return perDiemAmount > 0 ? (
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Per Diem (Tax-Free)</span>
+                  <span className="font-medium text-green-600">
+                    +{formatCurrency(perDiemAmount)}
+                  </span>
+                </div>
+              ) : null;
+            })()}
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Deductions</span>
               <span className="font-medium text-red-600">
@@ -433,6 +788,147 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
             </CardContent>
           </Card>
         )}
+
+        {/* Deductions */}
+        <Card className="md:col-span-2 lg:col-span-3">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Deductions ({deductions.length})
+              </CardTitle>
+              <Dialog open={isDeductionDialogOpen} onOpenChange={setIsDeductionDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Deduction
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Deduction</DialogTitle>
+                    <DialogDescription>
+                      Add a deduction to this settlement. The settlement totals will be recalculated automatically.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="deductionType">Type</Label>
+                      <Select
+                        value={newDeduction.deductionType}
+                        onValueChange={(value) => setNewDeduction({ ...newDeduction, deductionType: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="FUEL_ADVANCE">Fuel Advance</SelectItem>
+                          <SelectItem value="CASH_ADVANCE">Cash Advance</SelectItem>
+                          <SelectItem value="INSURANCE">Insurance</SelectItem>
+                          <SelectItem value="ESCROW">Escrow</SelectItem>
+                          <SelectItem value="FINE">Fine</SelectItem>
+                          <SelectItem value="REPAIR">Repair</SelectItem>
+                          <SelectItem value="OTHER">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Input
+                        id="description"
+                        value={newDeduction.description}
+                        onChange={(e) => setNewDeduction({ ...newDeduction, description: e.target.value })}
+                        placeholder="Enter deduction description"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="amount">Amount</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newDeduction.amount}
+                        onChange={(e) => setNewDeduction({ ...newDeduction, amount: e.target.value })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDeductionDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleAddDeduction}
+                      disabled={createDeductionMutation.isPending}
+                    >
+                      {createDeductionMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        'Add Deduction'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {deductions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No deductions added yet. Click "Add Deduction" to add one.
+              </p>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deductions.map((deduction: any) => (
+                      <TableRow key={deduction.id}>
+                        <TableCell>{deductionTypeLabels[deduction.deductionType] || deduction.deductionType}</TableCell>
+                        <TableCell>{deduction.description}</TableCell>
+                        <TableCell className="text-right text-red-600">
+                          -{formatCurrency(deduction.amount)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteDeduction(deduction.id)}
+                            disabled={deleteDeductionMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="p-4 bg-muted border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Total Deductions:</span>
+                    <span className="text-lg font-bold text-red-600">
+                      -{formatCurrency(deductions.reduce((sum: number, d: any) => sum + d.amount, 0))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

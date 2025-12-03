@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createLoadSchema, type CreateLoadInput } from '@/lib/validations/load';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Stepper } from '@/components/ui/stepper';
@@ -25,7 +26,19 @@ async function createLoad(data: CreateLoadInput) {
   });
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error?.message || 'Failed to create load');
+    const errorMessage = error.error?.message || error.message || 'Failed to create load';
+    
+    // If load already exists, suggest generating a new load number
+    if (error.error?.code === 'CONFLICT' && errorMessage.includes('already exists')) {
+      throw new Error('Load number already exists. Please use a different load number or leave it blank to auto-generate one.');
+    }
+    
+    // Include validation details if available
+    if (error.error?.details && Array.isArray(error.error.details)) {
+      const details = error.error.details.map((d: any) => `${d.path?.join('.') || 'field'}: ${d.message}`).join(', ');
+      throw new Error(`${errorMessage}. ${details}`);
+    }
+    throw new Error(errorMessage);
   }
   return response.json();
 }
@@ -58,6 +71,21 @@ export default function CreateLoadWizard() {
     mutationFn: createLoad,
     onSuccess: async (data) => {
       const newLoadId = data.data.id;
+      
+      // Immediately verify the load exists by fetching it
+      try {
+        const verifyResponse = await fetch(apiUrl(`/api/loads?page=1&limit=1&search=${encodeURIComponent(data.data.loadNumber || newLoadId)}`));
+        if (verifyResponse.ok) {
+          const verifyData = await verifyResponse.json();
+          console.log('[CreateLoadWizard] Load verification - API returned:', {
+            total: verifyData.meta?.total || 0,
+            found: verifyData.data?.length || 0,
+            loadNumber: data.data.loadNumber,
+          });
+        }
+      } catch (error) {
+        console.error('[CreateLoadWizard] Error verifying load:', error);
+      }
       
       // Upload pending files
       if (pendingFiles.length > 0) {
@@ -93,8 +121,67 @@ export default function CreateLoadWizard() {
         toast.success('Load created successfully');
       }
       
-      queryClient.invalidateQueries({ queryKey: ['loads'] });
-      router.push(`/dashboard/loads/${newLoadId}`);
+      console.log('[CreateLoadWizard] Load created successfully!', { newLoadId, data });
+      console.log('[CreateLoadWizard] Created load details:', {
+        id: newLoadId,
+        loadNumber: data.data?.loadNumber,
+        mcNumberId: data.data?.mcNumberId,
+        mcNumber: data.data?.mcNumber,
+        status: data.data?.status,
+        companyId: data.data?.companyId,
+      });
+      
+      // AGGRESSIVE cache clearing - remove ALL loads queries from cache
+      queryClient.removeQueries({ 
+        predicate: (query) => {
+          const firstKey = query.queryKey[0];
+          return firstKey === 'loads' || (typeof firstKey === 'string' && firstKey.startsWith('load'));
+        }
+      });
+      
+      // Invalidate all loads queries
+      await queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const firstKey = query.queryKey[0];
+          return firstKey === 'loads' || (typeof firstKey === 'string' && firstKey.startsWith('load'));
+        }
+      });
+      
+      console.log('[CreateLoadWizard] Created load details:', {
+        id: newLoadId,
+        loadNumber: data.data?.loadNumber,
+        mcNumberId: data.data?.mcNumberId,
+        mcNumber: data.data?.mcNumber,
+        status: data.data?.status,
+        companyId: data.data?.companyId,
+      });
+      
+      // IMPORTANT: Check if MC number matches current view
+      const createdMcNumberId = data.data?.mcNumberId;
+      if (createdMcNumberId) {
+        console.warn('[CreateLoadWizard] ⚠️ Load created with MC Number ID:', createdMcNumberId);
+        console.warn('[CreateLoadWizard] ⚠️ Make sure your MC view mode is set to "All MCs" or includes this MC number');
+      } else {
+        console.warn('[CreateLoadWizard] ⚠️ Load created WITHOUT an MC Number (mcNumberId is null)');
+        console.warn('[CreateLoadWizard] ⚠️ This load may not appear if you have MC filtering enabled');
+      }
+      
+      // Show success message with MC number info
+      const loadNumber = data.data?.loadNumber || newLoadId;
+      const mcWarning = createdMcNumberId 
+        ? `MC Number: ${createdMcNumberId}. Switch to "All MCs" view to see this load.`
+        : 'No MC Number assigned. Switch to "All MCs" view to see this load.';
+      
+      toast.success(`Load ${loadNumber} created successfully!`, {
+        description: mcWarning,
+        duration: 6000,
+      });
+      
+      // Force a hard page refresh to ensure the list updates
+      // This is the most reliable way to ensure the load appears
+      setTimeout(() => {
+        window.location.href = '/dashboard/loads';
+      }, 500);
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Failed to create load');
@@ -173,31 +260,104 @@ export default function CreateLoadWizard() {
   };
 
   const onSubmit = async (data: CreateLoadInput) => {
-    // Ensure all data from state is included
-    const submissionData: CreateLoadInput = {
-      ...loadData,
-      ...data,
-    } as CreateLoadInput;
+    try {
+      // Ensure all data from state is included
+      const submissionData: CreateLoadInput = {
+        ...loadData,
+        ...data,
+      } as CreateLoadInput;
 
-    // Validate customer
-    if (!submissionData.customerId || submissionData.customerId.trim() === '') {
-      toast.error('Customer is required');
-      setValidationErrors({ customerId: 'Customer is required' });
-      return;
-    }
+      console.log('[CreateLoadWizard] onSubmit called', { 
+        loadData, 
+        formData: data, 
+        submissionData 
+      });
 
-    // Ensure required fields have defaults
-    if (!submissionData.loadType) {
-      submissionData.loadType = 'FTL';
-    }
-    if (!submissionData.equipmentType) {
-      submissionData.equipmentType = 'DRY_VAN';
-    }
-    if (submissionData.revenue === undefined || submissionData.revenue === null) {
-      submissionData.revenue = 0;
-    }
+      // Validate customer
+      if (!submissionData.customerId || (typeof submissionData.customerId === 'string' && submissionData.customerId.trim() === '')) {
+        toast.error('Customer is required');
+        setValidationErrors({ customerId: 'Customer is required' });
+        return;
+      }
 
-    createMutation.mutate(submissionData);
+      // Auto-generate load number if not provided
+      if (!submissionData.loadNumber || (typeof submissionData.loadNumber === 'string' && submissionData.loadNumber.trim() === '')) {
+        const timestamp = Date.now();
+        const random = Math.floor(Math.random() * 1000);
+        submissionData.loadNumber = `LOAD-${timestamp}-${random}`;
+        console.log('[CreateLoadWizard] Auto-generated load number:', submissionData.loadNumber);
+      }
+
+      // Ensure required fields have defaults
+      if (!submissionData.loadType) {
+        submissionData.loadType = 'FTL';
+      }
+      if (!submissionData.equipmentType) {
+        submissionData.equipmentType = 'DRY_VAN';
+      }
+      if (submissionData.revenue === undefined || submissionData.revenue === null) {
+        submissionData.revenue = 0;
+      }
+
+      // Clean up the data - remove undefined values and convert empty strings to undefined for optional fields
+      const cleanedData: any = { ...submissionData };
+      Object.keys(cleanedData).forEach((key) => {
+        const value = cleanedData[key];
+        if (value === '' || value === null) {
+          // Only remove empty strings/null for optional fields
+          // Required fields like customerId, loadNumber should keep their values
+          if (key !== 'customerId' && key !== 'loadNumber' && key !== 'loadType' && key !== 'equipmentType') {
+            delete cleanedData[key];
+          }
+        }
+      });
+
+      // Validate using Zod schema
+      console.log('[CreateLoadWizard] Validating cleaned data:', cleanedData);
+      const validated = createLoadSchema.parse(cleanedData);
+      console.log('[CreateLoadWizard] Validation passed:', validated);
+      createMutation.mutate(validated);
+    } catch (error) {
+      console.error('[CreateLoadWizard] Validation error:', error);
+      
+      if (error instanceof z.ZodError) {
+        // Convert Zod errors to validation errors
+        const errors: Record<string, string> = {};
+        const errorMessages: string[] = [];
+        
+        error.issues.forEach((issue) => {
+          const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
+          const fieldName = issue.path.length > 0 ? issue.path[issue.path.length - 1] : 'form';
+          errors[path] = issue.message;
+          errorMessages.push(`${fieldName}: ${issue.message}`);
+        });
+        
+        console.error('[CreateLoadWizard] Validation errors:', {
+          errors,
+          errorMessages,
+          issues: error.issues,
+          formatted: error.format(),
+        });
+        
+        setValidationErrors(errors);
+        
+        // Show a more helpful error message
+        if (errorMessages.length > 0) {
+          const firstError = errorMessages[0];
+          const remainingCount = errorMessages.length - 1;
+          const message = remainingCount > 0 
+            ? `${firstError} (and ${remainingCount} more error${remainingCount > 1 ? 's' : ''})`
+            : firstError;
+          toast.error(`Validation failed: ${message}`);
+        } else {
+          toast.error('Please fix validation errors before submitting');
+        }
+      } else {
+        console.error('[CreateLoadWizard] Non-Zod error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An error occurred while submitting the form';
+        toast.error(errorMessage);
+      }
+    }
   };
 
   return (
@@ -241,7 +401,14 @@ export default function CreateLoadWizard() {
           />
         )}
         {currentStep === 3 && (
-          <form onSubmit={handleSubmit(onSubmit)}>
+          <form 
+            id="create-load-form" 
+            onSubmit={(e) => {
+              e.preventDefault();
+              // Pass loadData directly since inputs use controlled state, not react-hook-form
+              onSubmit(loadData as CreateLoadInput);
+            }}
+          >
             <Step3ReviewFinalization
               loadData={loadData}
               onFieldChange={handleFieldChange}
@@ -274,7 +441,7 @@ export default function CreateLoadWizard() {
           ) : (
             <Button
               type="submit"
-              onClick={handleSubmit(onSubmit)}
+              form="create-load-form"
               disabled={createMutation.isPending}
             >
               {createMutation.isPending ? (

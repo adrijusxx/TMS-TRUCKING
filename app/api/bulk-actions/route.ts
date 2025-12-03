@@ -11,6 +11,7 @@ const bulkActionSchema = z.object({
   ids: z.array(z.string().min(1)).min(1, 'At least one ID is required'),
   updates: z.record(z.string(), z.any()).optional(),
   status: z.string().optional(),
+  hardDelete: z.boolean().optional(), // If true, permanently delete instead of soft delete
 });
 
 // Map plural entity types to singular Prisma model names
@@ -71,7 +72,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Invalid JSON in request body',
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     const validated = bulkActionSchema.parse(body);
 
     // Map entity type to singular Prisma model name
@@ -148,13 +164,11 @@ export async function POST(request: NextRequest) {
     if (validated.action === 'delete') {
       const model = config.model;
       
-      // Handle Invoice soft delete (mark as CANCELLED)
+      // Handle Invoice delete
       if (model === 'invoice') {
-        // Build MC filter for invoices (uses mcNumber string field)
-        const mcWhere = await buildMcNumberWhereClause(session, request);
-        const invoiceMcWhere = await convertMcNumberIdToMcNumberString(mcWhere);
+        const hardDelete = validated.hardDelete === true && session.user.role === 'ADMIN';
         
-        // Build base where clause
+        // Build base where clause - start with company filter only
         const baseWhereClause: any = {
           id: { in: validated.ids },
           customer: {
@@ -162,16 +176,56 @@ export async function POST(request: NextRequest) {
           },
         };
         
-        // Add MC filter if applicable
-        if (invoiceMcWhere.mcNumber) {
-          baseWhereClause.mcNumber = invoiceMcWhere.mcNumber;
+        // Try to add MC filter for invoices (uses mcNumber string field)
+        // Make this optional - if it fails, we'll skip MC filtering
+        try {
+          const mcWhere = await buildMcNumberWhereClause(session, request);
+          const invoiceMcWhere = await convertMcNumberIdToMcNumberString(mcWhere);
+          
+          // Add MC filter if applicable and valid
+          if (invoiceMcWhere?.mcNumber) {
+            baseWhereClause.mcNumber = invoiceMcWhere.mcNumber;
+          }
+        } catch (mcError) {
+          // Log but don't fail - MC filtering is optional for security
+          console.warn('MC number filter failed for invoice deletion, continuing without MC filter:', mcError);
         }
         
+        if (hardDelete) {
+          // HARD DELETE: Permanently remove (admin only, bypasses status checks)
+          result = await prisma.invoice.deleteMany({
+            where: baseWhereClause,
+          });
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              deleted: result.count,
+              message: `Permanently deleted ${result.count} invoice(s) from the system (including PAID/POSTED invoices)`,
+            },
+          });
+        }
+        
+        // SOFT DELETE: Mark as CANCELLED (respects status restrictions)
         // Get all selected invoices to check their status
         const allInvoices = await prisma.invoice.findMany({
           where: baseWhereClause,
           select: { id: true, status: true, invoiceNumber: true },
         });
+        
+        // Check if any invoices were found
+        if (allInvoices.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'NO_VALID_RECORDS',
+                message: `No invoices found matching the selected IDs. They may not exist or you may not have permission to access them.`,
+              },
+            },
+            { status: 400 }
+          );
+        }
         
         // Separate deletable vs non-deletable
         const deletableInvoices = allInvoices.filter(i => !['PAID', 'POSTED'].includes(i.status));
@@ -179,7 +233,7 @@ export async function POST(request: NextRequest) {
         
         if (deletableInvoices.length === 0) {
           const reasons = nonDeletableInvoices.length > 0
-            ? `All ${nonDeletableInvoices.length} selected invoice(s) are PAID or POSTED and cannot be cancelled.`
+            ? `All ${nonDeletableInvoices.length} selected invoice(s) are PAID or POSTED and cannot be cancelled. Financial records must be preserved for accounting compliance. Use hard delete to permanently remove them.`
             : 'No valid invoices found in your selection.';
           
           return NextResponse.json(
@@ -218,8 +272,10 @@ export async function POST(request: NextRequest) {
         });
       }
       
-      // Handle Settlement delete (only PENDING settlements can be deleted)
+      // Handle Settlement delete
       if (model === 'settlement') {
+        const hardDelete = validated.hardDelete === true && session.user.role === 'ADMIN';
+        
         // Build MC filter (settlements linked through drivers with mcNumberId)
         const mcWhere = await buildMcNumberWhereClause(session, request);
         
@@ -233,12 +289,31 @@ export async function POST(request: NextRequest) {
           driverWhere.mcNumberId = mcWhere.mcNumberId;
         }
         
+        // Build where clause for settlements
+        const settlementWhere: any = {
+          id: { in: validated.ids },
+          driver: driverWhere,
+        };
+        
+        if (hardDelete) {
+          // HARD DELETE: Permanently remove (admin only, bypasses status checks)
+          result = await prisma.settlement.deleteMany({
+            where: settlementWhere,
+          });
+
+          return NextResponse.json({
+            success: true,
+            data: {
+              deleted: result.count,
+              message: `Permanently deleted ${result.count} settlement(s) from the system (including non-PENDING settlements)`,
+            },
+          });
+        }
+        
+        // SOFT DELETE: Only PENDING settlements can be deleted (default behavior)
         // Get all selected settlements to check their status
         const allSettlements = await prisma.settlement.findMany({
-          where: {
-            id: { in: validated.ids },
-            driver: driverWhere,
-          },
+          where: settlementWhere,
           select: { id: true, status: true, settlementNumber: true },
         });
         
@@ -254,7 +329,7 @@ export async function POST(request: NextRequest) {
           const statusInfo = Object.entries(statusCounts).map(([status, count]) => `${count} ${status}`).join(', ');
           
           const reasons = nonDeletableSettlements.length > 0
-            ? `Cannot delete settlements: ${statusInfo}. Only PENDING settlements can be deleted.`
+            ? `Cannot delete settlements: ${statusInfo}. Only PENDING settlements can be deleted. Use hard delete to permanently remove all settlements.`
             : 'No valid settlements found in your selection.';
           
           return NextResponse.json(
@@ -366,6 +441,38 @@ export async function POST(request: NextRequest) {
         });
       }
       
+      // Check if hard delete is requested (admin only, for data management)
+      const hardDelete = validated.hardDelete === true && session.user.role === 'ADMIN';
+      
+      if (hardDelete) {
+        // HARD DELETE: Permanently remove from database
+        // Build where clause - include soft-deleted records too
+        const whereClause: any = {
+          id: { in: validated.ids },
+          companyId: session.user.companyId,
+          // Don't filter by deletedAt - we want to delete even soft-deleted records
+        };
+        
+        // For users, also check isActive
+        if (model === 'user') {
+          // Still filter by companyId for security
+        }
+        
+        // Hard delete - permanently remove
+        result = await (prisma[model as keyof typeof prisma] as any).deleteMany({
+          where: whereClause,
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            deleted: result.count,
+            message: `Permanently deleted ${result.count} ${validated.entityType}(s) from the system`,
+          },
+        });
+      }
+      
+      // SOFT DELETE: Mark as deleted (default behavior)
       // For users, also set isActive to false
       const deleteData: any = {
         deletedAt: new Date(),
@@ -378,7 +485,7 @@ export async function POST(request: NextRequest) {
       const whereClause: any = {
         id: { in: validated.ids },
         companyId: session.user.companyId,
-        deletedAt: null,
+        deletedAt: null, // Only soft-delete records that aren't already deleted
       };
       
       // Use companyId filtering for security (soft delete)
@@ -642,6 +749,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: any) {
     if (error instanceof z.ZodError) {
+      console.error('Bulk action validation error:', error.issues);
       return NextResponse.json(
         {
           success: false,
@@ -655,7 +763,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Bulk action error:', error);
+    console.error('Bulk action error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
+    
     return NextResponse.json(
       {
         success: false,

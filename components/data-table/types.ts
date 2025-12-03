@@ -213,7 +213,7 @@ export interface FilterDefinition {
   /**
    * Filter type
    */
-  type: 'text' | 'select' | 'multiselect' | 'date' | 'daterange' | 'number' | 'numberrange' | 'boolean';
+  type: 'text' | 'select' | 'multiselect' | 'date' | 'daterange' | 'number' | 'numberrange' | 'boolean' | 'searchable-select';
   /**
    * Options for select/multiselect
    */
@@ -230,6 +230,14 @@ export interface FilterDefinition {
    * Help text for boolean filters
    */
   helpText?: string;
+  /**
+   * Entity type for searchable-select (e.g., 'loads', 'drivers')
+   */
+  entityType?: string;
+  /**
+   * Filter key for searchable-select column-values API
+   */
+  filterKey?: string;
 }
 
 /**

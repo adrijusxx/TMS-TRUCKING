@@ -38,7 +38,7 @@ interface FleetBoardData {
     maintenanceRecords: Array<{
       id: string;
       type: string;
-      scheduledDate?: Date | null;
+      nextServiceDate?: Date | null;
     }>;
   }>;
   stats: {
@@ -54,8 +54,15 @@ interface FleetBoardData {
 
 async function fetchFleetBoard() {
   const response = await fetch(apiUrl('/api/fleet-board'));
-  if (!response.ok) throw new Error('Failed to fetch fleet board');
-  return response.json();
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `Failed to fetch fleet board: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error?.message || 'Failed to fetch fleet board');
+  }
+  return data;
 }
 
 function getStatusColor(status: string): string {
@@ -91,7 +98,11 @@ export default function FleetBoard() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <p className="text-destructive mb-2">Error loading fleet board</p>
+          <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive" />
+          <p className="text-destructive mb-2 font-semibold">Error loading fleet board</p>
+          <p className="text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : 'An unexpected error occurred'}
+          </p>
         </div>
       </div>
     );

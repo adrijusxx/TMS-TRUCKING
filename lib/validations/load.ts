@@ -41,7 +41,10 @@ const stopItemSchema = z.object({
 const loadStopSchema = z.object({
   stopType: z.enum(['PICKUP', 'DELIVERY']),
   sequence: z.number().int().positive(),
-  company: z.string().optional(),
+  company: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
   address: z.preprocess(
     (val) => (typeof val === 'string' ? val.trim() : val || ''),
     z.string().min(1, 'Address is required')
@@ -64,9 +67,13 @@ const loadStopSchema = z.object({
     (val) => (typeof val === 'string' ? val.trim() : val || ''),
     z.string().min(5, 'ZIP code is required (minimum 5 characters)')
   ),
-  phone: z.string().optional(),
+  phone: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
   earliestArrival: z.preprocess(
     (val) => {
+      if (val === null || val === undefined) return undefined;
       if (val instanceof Date) return val.toISOString();
       if (typeof val === 'string') return val;
       return val;
@@ -75,18 +82,37 @@ const loadStopSchema = z.object({
   ),
   latestArrival: z.preprocess(
     (val) => {
+      if (val === null || val === undefined) return undefined;
       if (val instanceof Date) return val.toISOString();
       if (typeof val === 'string') return val;
       return val;
     },
     z.string().or(z.date()).optional()
   ),
-  contactName: z.string().optional(),
-  contactPhone: z.string().optional(),
+  contactName: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
+  contactPhone: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
   items: z.preprocess(
     (val) => {
-      if (!val) return undefined;
-      if (Array.isArray(val)) return val;
+      if (!val || val === null) return undefined;
+      if (Array.isArray(val)) {
+        // Handle array of strings that should be objects
+        return val.map((item) => {
+          if (typeof item === 'string') {
+            try {
+              return JSON.parse(item);
+            } catch {
+              return { description: item };
+            }
+          }
+          return item;
+        });
+      }
       if (typeof val === 'string') {
         try {
           const parsed = JSON.parse(val);
@@ -127,8 +153,14 @@ const loadStopSchema = z.object({
     },
     z.number().positive().optional()
   ),
-  notes: z.string().optional(),
-  specialInstructions: z.string().optional(),
+  notes: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
+  specialInstructions: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
 });
 
 // Base schema without superRefine - used for updates
@@ -213,10 +245,29 @@ const baseLoadSchema = z.object({
     z.number().int().positive().optional()
   ),
   commodity: z.string().optional(),
-  pallets: z.number().int().positive().optional(),
-  temperature: z.string().optional(),
+  pallets: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '' || val === 'NaN') return undefined;
+      if (typeof val === 'string') {
+        const num = parseInt(val, 10);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().int().positive().optional()
+  ),
+  temperature: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
   hazmat: z.boolean().default(false),
-  hazmatClass: z.string().optional(),
+  hazmatClass: z.preprocess(
+    (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
+    z.string().optional()
+  ),
   
   // Financial
   revenue: z.number().nonnegative('Revenue cannot be negative'),
@@ -282,10 +333,51 @@ const baseLoadSchema = z.object({
       trailerNumber: z.string().optional(),
       dispatchNotes: z.string().optional(),
       // Additional fields from import
-      coDriverId: z.string().optional(),
-      dispatcherId: z.string().optional(),
+      coDriverId: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            return trimmed === '' ? undefined : trimmed;
+          }
+          return val;
+        },
+        z.string().cuid().optional()
+      ),
+      dispatcherId: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            return trimmed === '' ? undefined : trimmed;
+          }
+          return val;
+        },
+        z.string().cuid().optional()
+      ),
       createdById: z.string().optional(),
-      tripId: z.string().optional(),
+      tripId: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            return trimmed === '' ? undefined : trimmed;
+          }
+          return val;
+        },
+        z.string().optional()
+      ),
+      shipmentId: z.preprocess(
+        (val) => {
+          if (val === undefined || val === null || val === '') return undefined;
+          if (typeof val === 'string') {
+            const trimmed = val.trim();
+            return trimmed === '' ? undefined : trimmed;
+          }
+          return val;
+        },
+        z.string().optional()
+      ),
       mcNumber: z.string().optional(),
       // Driver and equipment assignment
       driverId: z.preprocess(
@@ -563,9 +655,191 @@ export const updateLoadSchema = baseLoadSchema
       },
       z.string().min(5, 'ZIP code is required').optional()
     ),
+    // Additional update fields
+    coDriverId: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().cuid().optional()
+    ),
+    dispatcherId: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().cuid().optional()
+    ),
+    tripId: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().optional()
+    ),
+    shipmentId: z.preprocess(
+      (val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? undefined : trimmed;
+        }
+        return val;
+      },
+      z.string().optional()
+    ),
   })
   .passthrough(); // Allow any additional fields for flexibility
 
 export type CreateLoadInput = z.infer<typeof createLoadSchema>;
 export type UpdateLoadInput = z.infer<typeof updateLoadSchema>;
+
+// ============================================
+// ACCOUNTING-CRITICAL FIELD VALIDATION
+// ============================================
+
+/**
+ * Fields required for invoicing
+ */
+export const INVOICE_REQUIRED_FIELDS = [
+  'loadNumber',
+  'customerId', 
+  'revenue',
+  'weight',
+] as const;
+
+/**
+ * Fields required for driver settlement
+ */
+export const SETTLEMENT_REQUIRED_FIELDS = [
+  'loadNumber',
+  'driverId',
+  'totalMiles',
+] as const;
+
+export interface AccountingValidationResult {
+  isValid: boolean;
+  canInvoice: boolean;
+  canSettle: boolean;
+  errors: string[];
+  warnings: string[];
+  missingForInvoice: string[];
+  missingForSettlement: string[];
+}
+
+/**
+ * Validate load data for accounting operations
+ * Returns detailed information about what's missing for invoicing and settlements
+ */
+export function validateLoadForAccounting(data: Partial<CreateLoadInput> | any): AccountingValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const missingForInvoice: string[] = [];
+  const missingForSettlement: string[] = [];
+  
+  // Check invoice-required fields
+  if (!data.loadNumber) {
+    missingForInvoice.push('loadNumber');
+  }
+  if (!data.customerId) {
+    missingForInvoice.push('customerId');
+    errors.push('Customer is required for invoicing');
+  }
+  if (data.revenue === undefined || data.revenue === null) {
+    missingForInvoice.push('revenue');
+    errors.push('Revenue is required for invoicing');
+  } else if (data.revenue <= 0) {
+    warnings.push('Revenue is $0 - invoice will have no amount');
+  }
+  if (!data.weight || data.weight <= 0) {
+    missingForInvoice.push('weight');
+    warnings.push('Weight is missing or zero - BOL validation may fail');
+  }
+  
+  // Check settlement-required fields
+  if (!data.loadNumber) {
+    missingForSettlement.push('loadNumber');
+  }
+  if (!data.driverId) {
+    missingForSettlement.push('driverId');
+    // Not an error - driver may not be assigned yet
+  }
+  
+  // Check mileage for driver pay calculation
+  const hasMileage = (data.totalMiles && data.totalMiles > 0) || 
+                     (data.loadedMiles && data.loadedMiles > 0);
+  if (!hasMileage) {
+    missingForSettlement.push('totalMiles');
+    warnings.push('No mileage data - driver pay calculation may be inaccurate');
+  }
+  
+  // Check driver pay
+  if (data.driverId && (!data.driverPay || data.driverPay <= 0)) {
+    warnings.push('Driver is assigned but driver pay is $0 - verify pay calculation');
+  }
+  
+  // Check for data consistency
+  if (data.revenue && data.driverPay && data.driverPay > data.revenue) {
+    warnings.push('Driver pay exceeds revenue - this load will be unprofitable');
+  }
+  
+  // Check fuel advance
+  if (data.fuelAdvance && data.fuelAdvance > 0) {
+    if (data.driverPay && data.fuelAdvance > data.driverPay) {
+      warnings.push('Fuel advance exceeds driver pay - driver will owe money');
+    }
+  }
+  
+  const canInvoice = missingForInvoice.filter(f => f !== 'loadNumber').length === 0;
+  const canSettle = missingForSettlement.length === 0 || 
+                    (missingForSettlement.length === 1 && missingForSettlement[0] === 'driverId');
+  
+  return {
+    isValid: errors.length === 0,
+    canInvoice,
+    canSettle,
+    errors,
+    warnings,
+    missingForInvoice,
+    missingForSettlement,
+  };
+}
+
+/**
+ * Schema for validating load before invoicing
+ */
+export const invoiceReadyLoadSchema = z.object({
+  loadNumber: z.string().min(1, 'Load number is required'),
+  customerId: z.string().min(1, 'Customer is required for invoicing'),
+  revenue: z.number().positive('Revenue must be greater than 0 for invoicing'),
+  weight: z.number().positive('Weight is required for BOL validation'),
+  status: z.enum(['DELIVERED', 'INVOICED', 'PAID']).optional(),
+});
+
+/**
+ * Schema for validating load before driver settlement
+ */
+export const settlementReadyLoadSchema = z.object({
+  loadNumber: z.string().min(1, 'Load number is required'),
+  driverId: z.string().min(1, 'Driver must be assigned for settlement'),
+  totalMiles: z.number().positive('Miles are required for pay calculation').optional(),
+  loadedMiles: z.number().nonnegative().optional(),
+  driverPay: z.number().nonnegative('Driver pay cannot be negative').optional(),
+  fuelAdvance: z.number().nonnegative().default(0),
+});
+
+export type InvoiceReadyLoad = z.infer<typeof invoiceReadyLoadSchema>;
+export type SettlementReadyLoad = z.infer<typeof settlementReadyLoadSchema>;
 

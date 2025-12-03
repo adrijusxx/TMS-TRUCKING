@@ -85,6 +85,32 @@ export default function CustomerCombobox({
     ? (Array.isArray(customersData?.data) ? customersData.data : [])
     : (Array.isArray(filteredPreloaded) ? filteredPreloaded : []);
   
+  // Fetch selected customer if we have a value but don't have the customer data
+  // Use the list endpoint and search by ID (though not ideal, it works)
+  const needsFetch = React.useMemo(() => {
+    if (!value || value.trim() === '') return false;
+    if (selectedCustomerData && selectedCustomerData.id === value) return false;
+    if (customers.find((c) => c.id === value)) return false;
+    if (preloadedCustomers?.find((c) => c.id === value)) return false;
+    return true;
+  }, [value, selectedCustomerData, customers, preloadedCustomers]);
+
+  const { data: selectedCustomerDataFromApi, isLoading: isLoadingCustomer } = useQuery({
+    queryKey: ['customer', value, 'by-id'],
+    queryFn: async () => {
+      if (!value || value.trim() === '') return null;
+      // Try to fetch from the list endpoint - we'll search all customers
+      // This is a workaround since there's no single customer endpoint
+      const response = await fetch(apiUrl(`/api/customers?limit=1000`));
+      if (!response.ok) return null;
+      const data = await response.json();
+      const found = data.data?.find((c: Customer) => c.id === value);
+      return found || null;
+    },
+    enabled: needsFetch,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
   // Find selected customer - check multiple sources
   const selectedCustomer = React.useMemo(() => {
     if (!value || value.trim() === '') return null;
@@ -92,6 +118,11 @@ export default function CustomerCombobox({
     // First check the cached selected customer data
     if (selectedCustomerData && selectedCustomerData.id === value) {
       return selectedCustomerData;
+    }
+    
+    // Check API-fetched customer data
+    if (selectedCustomerDataFromApi && selectedCustomerDataFromApi.id === value) {
+      return selectedCustomerDataFromApi;
     }
     
     // Then check current filtered list
@@ -105,7 +136,7 @@ export default function CustomerCombobox({
     // Finally check API data
     const fromApi = customersData?.data?.find((c: Customer) => c.id === value);
     return fromApi || null;
-  }, [value, selectedCustomerData, customers, preloadedCustomers, customersData]);
+  }, [value, selectedCustomerData, selectedCustomerDataFromApi, customers, preloadedCustomers, customersData]);
 
   // Update cached selected customer when value changes
   React.useEffect(() => {
@@ -115,6 +146,13 @@ export default function CustomerCombobox({
       setSelectedCustomerData(null);
     }
   }, [value, selectedCustomer]);
+
+  // Update cached data when API-fetched customer is available
+  React.useEffect(() => {
+    if (selectedCustomerDataFromApi && selectedCustomerDataFromApi.id === value) {
+      setSelectedCustomerData(selectedCustomerDataFromApi);
+    }
+  }, [selectedCustomerDataFromApi, value]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -129,8 +167,12 @@ export default function CustomerCombobox({
         >
           {selectedCustomer ? (
             <span className="truncate">
-              {selectedCustomer.name} ({selectedCustomer.customerNumber})
+              {selectedCustomer.name} {selectedCustomer.customerNumber ? `(${selectedCustomer.customerNumber})` : ''}
             </span>
+          ) : value && isLoadingCustomer ? (
+            <span className="text-muted-foreground">Loading customer...</span>
+          ) : value ? (
+            <span className="text-muted-foreground">Customer ID: {value}</span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}
