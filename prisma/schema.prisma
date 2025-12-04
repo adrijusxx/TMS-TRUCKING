@@ -12,24 +12,25 @@ datasource db {
 // ============================================
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  password     String
-  tempPassword String? // Temporary plaintext password for admin viewing (cleared after first login)
-  firstName    String
-  lastName     String
-  phone        String?
-  role         UserRole
-  companyId    String // Primary/default company
-  company      Company   @relation(fields: [companyId], references: [id])
-  mcNumberId   String // MC Number assignment (required for all users; for DRIVER role, synced from Driver record)
-  mcNumber     McNumber  @relation(fields: [mcNumberId], references: [id])
-  mcAccess     String[]  @default([]) // Array of MC IDs user can access (empty for admins = access to all)
-  isActive     Boolean   @default(true)
-  lastLogin    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id             String    @id @default(cuid())
+  employeeNumber String?   @unique // User-facing employee identifier (e.g., EMP-001, EMP-102)
+  email          String    @unique
+  password       String
+  tempPassword   String? // Temporary plaintext password for admin viewing (cleared after first login)
+  firstName      String
+  lastName       String
+  phone          String?
+  role           UserRole
+  companyId      String // Primary/default company
+  company        Company   @relation(fields: [companyId], references: [id])
+  mcNumberId     String // MC Number assignment (required for all users; for DRIVER role, synced from Driver record)
+  mcNumber       McNumber  @relation(fields: [mcNumberId], references: [id])
+  mcAccess       String[]  @default([]) // Array of MC IDs user can access (empty for admins = access to all)
+  isActive       Boolean   @default(true)
+  lastLogin      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
   // Relations for driver-specific data
   driver                     Driver?
@@ -73,6 +74,7 @@ model User {
   @@index([companyId])
   @@index([email])
   @@index([mcNumberId])
+  @@index([employeeNumber])
 }
 
 // Multi-company support - Users can access multiple companies
@@ -822,7 +824,6 @@ model Driver {
   // Pay
   payType      PayType @default(PER_MILE)
   payRate      Float
-  perDiem      Float? // Cents per mile tax-free
   driverTariff String? // Calculated tariff display (e.g., "$0.65 per mile + 30 per stop")
   payTo        String? // Who to pay to (e.g., company name)
 
@@ -1007,6 +1008,7 @@ enum PayType {
   PER_LOAD
   PERCENTAGE
   HOURLY
+  WEEKLY
 }
 
 model HOSRecord {
@@ -1199,13 +1201,14 @@ model Trailer {
 }
 
 model FuelEntry {
-  id         String    @id @default(cuid())
-  truckId    String
-  truck      Truck     @relation(fields: [truckId], references: [id])
-  driverId   String?
-  driver     Driver?   @relation(fields: [driverId], references: [id])
-  mcNumberId String?
-  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
+  id              String    @id @default(cuid())
+  fuelEntryNumber String    @unique // User-facing fuel entry identifier (e.g., FUEL-2024-001)
+  truckId         String
+  truck           Truck     @relation(fields: [truckId], references: [id])
+  driverId        String?
+  driver          Driver?   @relation(fields: [driverId], references: [id])
+  mcNumberId      String?
+  mcNumber        McNumber? @relation(fields: [mcNumberId], references: [id])
 
   date          DateTime
   gallons       Float
@@ -1218,7 +1221,7 @@ model FuelEntry {
   longitude Float?
 
   fuelType      FuelType @default(DIESEL)
-  receiptNumber String?
+  receiptNumber String? // Vendor receipt number (external)
   notes         String?
 
   createdAt DateTime @default(now())
@@ -1232,6 +1235,7 @@ model FuelEntry {
   @@index([driverId])
   @@index([mcNumberId])
   @@index([date])
+  @@index([fuelEntryNumber])
 }
 
 enum FuelType {
@@ -1251,11 +1255,12 @@ enum TruckStatus {
 }
 
 model MaintenanceRecord {
-  id        String  @id @default(cuid())
-  truckId   String
-  truck     Truck   @relation(fields: [truckId], references: [id])
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id])
+  id                String  @id @default(cuid())
+  maintenanceNumber String  @unique // User-facing maintenance identifier (e.g., MAINT-2024-001)
+  truckId           String
+  truck             Truck   @relation(fields: [truckId], references: [id])
+  companyId         String
+  company           Company @relation(fields: [companyId], references: [id])
 
   type        MaintenanceType
   description String
@@ -1267,7 +1272,7 @@ model MaintenanceRecord {
 
   vendorId      String?
   vendor        Vendor? @relation(fields: [vendorId], references: [id])
-  invoiceNumber String?
+  invoiceNumber String? // Vendor invoice number (external)
 
   status MaintenanceRecordStatus @default(OPEN)
 
@@ -1282,6 +1287,7 @@ model MaintenanceRecord {
   @@index([companyId])
   @@index([vendorId])
   @@index([status])
+  @@index([maintenanceNumber])
 }
 
 enum MaintenanceType {
@@ -1467,9 +1473,10 @@ enum BreakdownStatus {
 // ============================================
 
 model Communication {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id])
+  id           String  @id @default(cuid())
+  ticketNumber String? @unique // User-facing ticket/comm identifier (e.g., COMM-2024-001)
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id])
 
   // Linked to Breakdown Case
   breakdownId String?
@@ -1528,6 +1535,7 @@ model Communication {
   @@index([direction])
   @@index([createdAt])
   @@index([telegramChatId])
+  @@index([ticketNumber])
 }
 
 enum CommunicationChannel {
@@ -2043,9 +2051,10 @@ enum SettlementStatus {
 // ============================================
 
 model DriverAdvance {
-  id       String @id @default(cuid())
-  driverId String
-  driver   Driver @relation(fields: [driverId], references: [id])
+  id            String @id @default(cuid())
+  advanceNumber String @unique // User-facing advance identifier (e.g., ADV-2024-001)
+  driverId      String
+  driver        Driver @relation(fields: [driverId], references: [id])
 
   amount          Float
   requestDate     DateTime       @default(now())
@@ -2080,6 +2089,7 @@ model DriverAdvance {
   @@index([driverId])
   @@index([loadId])
   @@index([settlementId])
+  @@index([advanceNumber])
 }
 
 // ============================================
@@ -2121,9 +2131,10 @@ model DriverNegativeBalance {
 // ============================================
 
 model LoadExpense {
-  id     String @id @default(cuid())
-  loadId String
-  load   Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  id            String @id @default(cuid())
+  expenseNumber String @unique // User-facing expense identifier (e.g., EXP-2024-001)
+  loadId        String
+  load          Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
 
   expenseType LoadExpenseType
   category    String? // Additional categorization
@@ -2164,6 +2175,7 @@ model LoadExpense {
   @@index([approvalStatus])
   @@index([approvedById])
   @@index([date])
+  @@index([expenseNumber])
 }
 
 enum LoadExpenseType {
@@ -2198,6 +2210,9 @@ model DeductionRule {
   name          String
   deductionType DeductionType
   driverType    DriverType? // Apply to specific driver type (COMPANY, OWNER_OPERATOR, LEASE)
+  
+  // Unified addition/deduction flag
+  isAddition    Boolean @default(false) // true = addition (bonus, overtime), false = deduction
 
   // Per-driver rule (simplified model for automated deductions)
   driverId  String? // Specific driver for this rule (if null, applies to driverType)
@@ -2232,6 +2247,7 @@ model DeductionRule {
   @@index([driverType])
   @@index([driverId])
   @@index([isActive])
+  @@index([isAddition])
   @@index([startDate])
   @@index([endDate])
 }
@@ -2562,6 +2578,7 @@ enum AccessorialChargeStatus {
 }
 
 enum DeductionType {
+  // Deductions
   FUEL_ADVANCE
   CASH_ADVANCE
   INSURANCE
@@ -2577,6 +2594,11 @@ enum DeductionType {
   FUEL_CARD_FEE
   TRAILER_RENTAL
   OTHER
+  // Additions (Payments)
+  BONUS
+  OVERTIME
+  INCENTIVE
+  REIMBURSEMENT
 }
 
 // ============================================

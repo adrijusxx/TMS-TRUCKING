@@ -189,6 +189,9 @@ export async function GET(request: NextRequest) {
             } else if (driver.payType === 'HOURLY') {
               const estimatedHours = miles > 0 ? miles / 50 : 10;
               calculatedDriverPay = estimatedHours * driver.payRate;
+            } else if (driver.payType === 'WEEKLY') {
+              // WEEKLY pay is calculated at settlement level, not per load
+              calculatedDriverPay = 0; // Don't show per-load pay for weekly drivers
             }
           }
 

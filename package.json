@@ -40,6 +40,7 @@
     "db:fix-admin": "tsx scripts/fix-admin-user.ts",
     "db:verify-users": "tsx scripts/verify-and-fix-users.ts",
     "cache:cleanup": "tsx scripts/cleanup-api-cache.ts",
+    "docs:check": "powershell -ExecutionPolicy Bypass -File scripts/check-context-update.ps1",
     "audit:schema": "tsx scripts/extract-schema-reference.ts",
     "audit:mappings": "tsx scripts/audit-database-mappings.ts",
     "audit:validate": "tsx scripts/validate-database-mappings.ts",

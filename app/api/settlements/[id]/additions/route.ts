@@ -3,20 +3,13 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
-const createDeductionSchema = z.object({
-  deductionType: z.enum(['FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'ESCROW', 'FINE', 'REPAIR', 'OTHER']),
+const createAdditionSchema = z.object({
+  deductionType: z.enum(['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']),
   description: z.string().min(1, 'Description is required'),
   amount: z.number().positive('Amount must be positive'),
-  fuelEntryId: z.string().optional(),
-  driverAdvanceId: z.string().optional(),
-  loadExpenseId: z.string().optional(),
 });
 
-const updateDeductionSchema = createDeductionSchema.partial().extend({
-  id: z.string().cuid(),
-});
-
-// GET - List all deductions for a settlement
+// GET - List all additions for a settlement (additions saved as SettlementDeduction with addition types)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -54,12 +47,12 @@ export async function GET(
       );
     }
 
-    // Get only actual deductions (exclude addition types)
-    const deductions = await prisma.settlementDeduction.findMany({
+    // Get additions (SettlementDeduction records with addition types)
+    const additions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
         deductionType: {
-          notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
         },
       },
       orderBy: {
@@ -69,10 +62,10 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: deductions,
+      data: additions,
     });
   } catch (error) {
-    console.error('Deductions fetch error:', error);
+    console.error('Additions fetch error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -83,7 +76,7 @@ export async function GET(
   }
 }
 
-// POST - Create a new deduction
+// POST - Create a new addition
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -122,23 +115,20 @@ export async function POST(
     }
 
     const body = await request.json();
-    const validated = createDeductionSchema.parse(body);
+    const validated = createAdditionSchema.parse(body);
 
-    // Create deduction
-    const deduction = await prisma.settlementDeduction.create({
+    // Create addition (stored as SettlementDeduction with addition type)
+    const addition = await prisma.settlementDeduction.create({
       data: {
         settlementId,
         deductionType: validated.deductionType,
         description: validated.description,
         amount: validated.amount,
-        fuelEntryId: validated.fuelEntryId || null,
-        driverAdvanceId: validated.driverAdvanceId || null,
-        loadExpenseId: validated.loadExpenseId || null,
       },
     });
 
     // Recalculate settlement totals
-    // Get only actual deductions (exclude addition types)
+    // Get all deductions (excluding additions)
     const allDeductions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
@@ -159,8 +149,8 @@ export async function POST(
       },
     });
     const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
-    
-    // Also get advances total
+
+    // Get advances
     const advances = await prisma.driverAdvance.findMany({
       where: { settlementId },
     });
@@ -174,13 +164,13 @@ export async function POST(
       where: { id: settlementId },
       data: {
         deductions: totalDeductions,
-        netPay,
+        netPay: netPay < 0 ? 0 : netPay,
       },
     });
 
     return NextResponse.json({
       success: true,
-      data: deduction,
+      data: addition,
     }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -197,7 +187,7 @@ export async function POST(
       );
     }
 
-    console.error('Deduction creation error:', error);
+    console.error('Addition creation error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -208,139 +198,7 @@ export async function POST(
   }
 }
 
-// PATCH - Update a deduction
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await auth();
-
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    const resolvedParams = await params;
-    const settlementId = resolvedParams.id;
-
-    const body = await request.json();
-    const validated = updateDeductionSchema.parse(body);
-
-    // Verify deduction belongs to settlement and settlement belongs to company
-    const deduction = await prisma.settlementDeduction.findFirst({
-      where: {
-        id: validated.id,
-        settlementId,
-        settlement: {
-          driver: {
-            companyId: session.user.companyId,
-          },
-        },
-      },
-    });
-
-    if (!deduction) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'NOT_FOUND', message: 'Deduction not found' },
-        },
-        { status: 404 }
-      );
-    }
-
-    // Update deduction
-    const updated = await prisma.settlementDeduction.update({
-      where: { id: validated.id },
-      data: {
-        ...(validated.deductionType && { deductionType: validated.deductionType }),
-        ...(validated.description && { description: validated.description }),
-        ...(validated.amount !== undefined && { amount: validated.amount }),
-        ...(validated.fuelEntryId !== undefined && { fuelEntryId: validated.fuelEntryId || null }),
-        ...(validated.driverAdvanceId !== undefined && { driverAdvanceId: validated.driverAdvanceId || null }),
-        ...(validated.loadExpenseId !== undefined && { loadExpenseId: validated.loadExpenseId || null }),
-      },
-    });
-
-    // Recalculate settlement totals
-    const settlement = await prisma.settlement.findUnique({
-      where: { id: settlementId },
-    });
-
-    if (settlement) {
-      // Get only actual deductions (exclude addition types)
-      const allDeductions = await prisma.settlementDeduction.findMany({
-        where: {
-          settlementId,
-          deductionType: {
-            notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
-          },
-        },
-      });
-      const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
-
-      // Get all additions
-      const allAdditions = await prisma.settlementDeduction.findMany({
-        where: {
-          settlementId,
-          deductionType: {
-            in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
-          },
-        },
-      });
-      const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
-      
-      const advances = await prisma.driverAdvance.findMany({
-        where: { settlementId },
-      });
-      const totalAdvances = advances.reduce((sum, a) => sum + a.amount, 0);
-
-      // CRITICAL FIX: netPay = grossPay + additions - deductions - advances
-      const netPay = settlement.grossPay + totalAdditions - totalDeductions - totalAdvances;
-
-      await prisma.settlement.update({
-        where: { id: settlementId },
-        data: {
-          deductions: totalDeductions,
-          netPay: netPay < 0 ? 0 : netPay,
-        },
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: updated,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
-            details: error.issues,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('Deduction update error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE - Delete a deduction
+// DELETE - Delete an addition
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -358,23 +216,26 @@ export async function DELETE(
     const resolvedParams = await params;
     const settlementId = resolvedParams.id;
     const { searchParams } = new URL(request.url);
-    const deductionId = searchParams.get('deductionId');
+    const additionId = searchParams.get('additionId');
 
-    if (!deductionId) {
+    if (!additionId) {
       return NextResponse.json(
         {
           success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'Deduction ID is required' },
+          error: { code: 'VALIDATION_ERROR', message: 'Addition ID is required' },
         },
         { status: 400 }
       );
     }
 
-    // Verify deduction belongs to settlement and settlement belongs to company
-    const deduction = await prisma.settlementDeduction.findFirst({
+    // Verify addition belongs to settlement and settlement belongs to company
+    const addition = await prisma.settlementDeduction.findFirst({
       where: {
-        id: deductionId,
+        id: additionId,
         settlementId,
+        deductionType: {
+          in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+        },
         settlement: {
           driver: {
             companyId: session.user.companyId,
@@ -383,19 +244,19 @@ export async function DELETE(
       },
     });
 
-    if (!deduction) {
+    if (!addition) {
       return NextResponse.json(
         {
           success: false,
-          error: { code: 'NOT_FOUND', message: 'Deduction not found' },
+          error: { code: 'NOT_FOUND', message: 'Addition not found' },
         },
         { status: 404 }
       );
     }
 
-    // Delete deduction
+    // Delete addition
     await prisma.settlementDeduction.delete({
-      where: { id: deductionId },
+      where: { id: additionId },
     });
 
     // Recalculate settlement totals
@@ -404,7 +265,7 @@ export async function DELETE(
     });
 
     if (settlement) {
-      // Get only actual deductions (exclude addition types)
+      // Get all deductions (excluding additions)
       const allDeductions = await prisma.settlementDeduction.findMany({
         where: {
           settlementId,
@@ -425,7 +286,8 @@ export async function DELETE(
         },
       });
       const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
-      
+
+      // Get advances
       const advances = await prisma.driverAdvance.findMany({
         where: { settlementId },
       });
@@ -445,10 +307,10 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Deduction deleted successfully',
+      message: 'Addition deleted successfully',
     });
   } catch (error) {
-    console.error('Deduction deletion error:', error);
+    console.error('Addition deletion error:', error);
     return NextResponse.json(
       {
         success: false,

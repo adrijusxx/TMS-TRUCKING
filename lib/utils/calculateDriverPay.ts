@@ -163,6 +163,20 @@ export function calculateDriverPayWithDetails(
       };
     }
 
+    case 'WEEKLY': {
+      // Fixed weekly rate - no load-specific calculation needed
+      // This is typically calculated at settlement level, not per load
+      return {
+        amount: effectivePayRate,
+        calculationMethod: payType,
+        inputs: {
+          payRate: effectivePayRate,
+        },
+        formula: `Weekly flat rate = $${effectivePayRate.toFixed(2)}`,
+        warnings: ['WEEKLY pay is typically calculated at settlement level, not per load'],
+      };
+    }
+
     default:
       return {
         amount: 0,
@@ -218,6 +232,10 @@ export function validateDriverPayInputs(
     if (!load.revenue || load.revenue <= 0) {
       errors.push('Revenue is required for percentage-based driver pay');
     }
+  }
+
+  if (driver.payType === 'WEEKLY') {
+    warnings.push('WEEKLY pay type is calculated at settlement level, not per load');
   }
 
   return {

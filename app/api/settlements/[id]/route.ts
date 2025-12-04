@@ -7,6 +7,9 @@ const updateSettlementSchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'PAID', 'DISPUTED']).optional(),
   notes: z.string().optional(),
   paidDate: z.string().or(z.date()).optional(),
+  grossPay: z.number().positive().optional(),
+  periodStart: z.string().or(z.date()).optional(),
+  periodEnd: z.string().or(z.date()).optional(),
 });
 
 export async function GET(
@@ -46,7 +49,6 @@ export async function GET(
             },
             payType: true,
             payRate: true,
-            perDiem: true,
             driverTariff: true,
             escrowBalance: true,
             escrowTargetAmount: true,
@@ -131,6 +133,7 @@ export async function GET(
         maxAmount: true,
         driverType: true,
         notes: true,
+        isAddition: true, // Needed to distinguish additions from deductions
       },
       orderBy: {
         createdAt: 'desc',
@@ -205,6 +208,17 @@ export async function PATCH(
       updateData.paidDate = validated.paidDate instanceof Date
         ? validated.paidDate
         : new Date(validated.paidDate);
+    }
+    if (validated.grossPay !== undefined) updateData.grossPay = validated.grossPay;
+    if (validated.periodStart) {
+      updateData.periodStart = validated.periodStart instanceof Date
+        ? validated.periodStart
+        : new Date(validated.periodStart);
+    }
+    if (validated.periodEnd) {
+      updateData.periodEnd = validated.periodEnd instanceof Date
+        ? validated.periodEnd
+        : new Date(validated.periodEnd);
     }
 
     const settlement = await prisma.settlement.update({

@@ -281,7 +281,7 @@ export async function PATCH(
       'emergencyContactRelation', 'emergencyContactAddress1', 'emergencyContactAddress2',
       'emergencyContactCity', 'emergencyContactState', 'emergencyContactZip',
       'emergencyContactCountry', 'emergencyContactPhone', 'emergencyContactEmail',
-      'driverTariff', 'payTo', 'perDiem', 'escrowTargetAmount', 'escrowDeductionPerWeek',
+      'driverTariff', 'payTo', 'escrowTargetAmount', 'escrowDeductionPerWeek',
       'escrowBalance', 'warnings', 'licenseNumber', 'licenseState',
       'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
       'payType', 'payRate', 'homeTerminal', 'emergencyContact', 'emergencyPhone',
@@ -299,9 +299,9 @@ export async function PATCH(
       }
     });
 
-    // Handle recurring deductions - save as DeductionRule records
-    if (validated.recurringDeductions !== undefined) {
-      console.log('[Driver Update] Processing recurring deductions:', validated.recurringDeductions);
+    // Handle unified recurring transactions (both additions and deductions) - save as DeductionRule records
+    if (validated.recurringTransactions !== undefined) {
+      console.log('[Driver Update] Processing recurring transactions:', validated.recurringTransactions);
       
       // Get driver number for naming pattern
       const driverIdentifier = existingDriver.driverNumber || id.slice(0, 8);
@@ -329,39 +329,57 @@ export async function PATCH(
         console.log('[Driver Update] Deactivated', existingRules.length, 'old rules');
       }
 
-      // Create new deduction rules for each recurring deduction
-      if (Array.isArray(validated.recurringDeductions) && validated.recurringDeductions.length > 0) {
-        console.log('[Driver Update] Creating', validated.recurringDeductions.length, 'new deduction rules');
-        for (const deduction of validated.recurringDeductions) {
-          if (deduction.type && deduction.amount > 0 && deduction.frequency) {
-            const frequencyValue = deduction.frequency === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY';
+      // Create new deduction rules for each recurring transaction
+      if (Array.isArray(validated.recurringTransactions) && validated.recurringTransactions.length > 0) {
+        console.log('[Driver Update] Creating', validated.recurringTransactions.length, 'new transaction rules');
+        
+        // Transaction types that are additions (payments to driver)
+        const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
+        
+        // Map frontend transaction types to valid DeductionType enum values
+        const mapTransactionTypeToDeductionType = (type: string): string => {
+          const typeMap: Record<string, string> = {
+            'LEASE': 'TRUCK_LEASE',
+            'ELD': 'EQUIPMENT_RENTAL', // ELD not in DeductionType, map to EQUIPMENT_RENTAL
+          };
+          return typeMap[type] || type;
+        };
+        
+        for (const transaction of validated.recurringTransactions) {
+          if (transaction.type && transaction.amount > 0 && transaction.frequency) {
+            const frequencyValue = transaction.frequency === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY';
+            const isAddition = additionTypes.includes(transaction.type);
+            const deductionType = mapTransactionTypeToDeductionType(transaction.type);
+            
             try {
               const newRule = await prisma.deductionRule.create({
                 data: {
                   companyId: session.user.companyId,
-                  name: `Driver ${driverIdentifier} - ${deduction.type}`,
-                  deductionType: deduction.type as any,
+                  name: `Driver ${driverIdentifier} - ${transaction.type}${transaction.note ? ` (${transaction.note})` : ''}`,
+                  deductionType: deductionType as any,
                   driverType: existingDriver.driverType as any,
+                  isAddition: isAddition, // Set based on transaction type
                   calculationType: 'FIXED',
-                  amount: deduction.amount,
+                  amount: transaction.amount,
                   frequency: frequencyValue as any, // DeductionRuleFrequency (WEEKLY or MONTHLY)
                   deductionFrequency: frequencyValue as any, // DeductionFrequency (WEEKLY or MONTHLY) - for settlement generation
+                  notes: transaction.note || null,
                   isActive: true,
                 },
               });
-              console.log('[Driver Update] Created deduction rule:', newRule.id, newRule.name);
+              console.log('[Driver Update] Created transaction rule:', newRule.id, newRule.name, 'isAddition:', isAddition, 'deductionType:', deductionType);
             } catch (error) {
-              console.error('[Driver Update] Error creating deduction rule:', error);
+              console.error('[Driver Update] Error creating transaction rule:', error);
             }
           } else {
-            console.warn('[Driver Update] Skipping invalid deduction:', deduction);
+            console.warn('[Driver Update] Skipping invalid transaction:', transaction);
           }
         }
       } else {
-        console.log('[Driver Update] No deductions to create (empty array)');
+        console.log('[Driver Update] No transactions to create (empty array)');
       }
     } else {
-      console.log('[Driver Update] recurringDeductions is undefined, skipping');
+      console.log('[Driver Update] recurringTransactions is undefined, skipping');
     }
 
     // Convert date strings to Date objects

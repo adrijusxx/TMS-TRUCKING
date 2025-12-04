@@ -7,6 +7,7 @@ const updateRuleSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   deductionType: z
     .enum([
+      // Deductions
       'FUEL_ADVANCE',
       'CASH_ADVANCE',
       'INSURANCE',
@@ -22,6 +23,11 @@ const updateRuleSchema = z.object({
       'FUEL_CARD_FEE',
       'TRAILER_RENTAL',
       'OTHER',
+      // Additions (Payments to driver)
+      'BONUS',
+      'OVERTIME',
+      'INCENTIVE',
+      'REIMBURSEMENT',
     ])
     .optional(),
   driverType: z.enum(['COMPANY_DRIVER', 'OWNER_OPERATOR', 'LEASE']).optional(),

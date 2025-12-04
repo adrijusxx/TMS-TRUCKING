@@ -6,6 +6,7 @@ import { z } from 'zod';
 const createRuleSchema = z.object({
   name: z.string().min(1).max(100),
   deductionType: z.enum([
+    // Deductions
     'FUEL_ADVANCE',
     'CASH_ADVANCE',
     'INSURANCE',
@@ -21,6 +22,11 @@ const createRuleSchema = z.object({
     'FUEL_CARD_FEE',
     'TRAILER_RENTAL',
     'OTHER',
+    // Additions (Payments to driver)
+    'BONUS',
+    'OVERTIME',
+    'INCENTIVE',
+    'REIMBURSEMENT',
   ]),
   driverType: z.enum(['COMPANY_DRIVER', 'OWNER_OPERATOR', 'LEASE']).optional(),
   calculationType: z.enum(['FIXED', 'PERCENTAGE', 'PER_MILE']),

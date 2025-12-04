@@ -28,7 +28,7 @@ function canReadFinancialFields(role: UserRole): boolean {
 const FINANCIAL_FIELDS = [
   'payType',
   'payRate',
-  'perDiem',
+  // 'perDiem', // Removed - use recurring transactions
   'escrowTargetAmount',
   'escrowDeductionPerWeek',
   'escrowBalance',

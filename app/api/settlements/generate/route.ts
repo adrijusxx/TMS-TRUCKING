@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
         driverType: true,
         payType: true,
         payRate: true,
-        perDiem: true,
         driverTariff: true,
         escrowBalance: true,
         escrowTargetAmount: true,
@@ -124,6 +123,7 @@ export async function POST(request: NextRequest) {
         maxAmount: true,
         driverType: true,
         notes: true,
+        isAddition: true, // CRITICAL: Needed to distinguish additions from deductions
       },
     });
 
@@ -178,24 +178,21 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================
-    // STEP 3: ADD PER DIEM TO GROSS PAY
+    // STEP 3: PER DIEM (REMOVED - use recurring transactions instead)
     // ============================================
     let perDiemAmount = 0;
-    if (driver.perDiem && driver.perDiem > 0 && totalMiles > 0) {
-      // perDiem is stored as cents per mile
-      perDiemAmount = (totalMiles * driver.perDiem) / 100;
-      grossPay += perDiemAmount;
-      console.log(`[Settlement Generate] Per Diem added: $${perDiemAmount.toFixed(2)} (${driver.perDiem} cents/mile * ${totalMiles} miles)`);
-    }
+    // Note: perDiem field has been removed from Driver model
+    // Use recurring transactions with type REIMBURSEMENT for per diem payments
     
     console.log('[Settlement Generate] Load breakdown:', loadBreakdown);
     console.log('[Settlement Generate] Total gross pay (with per diem):', grossPay);
 
     // ============================================
-    // STEP 4: CALCULATE AUTO-APPLIED DEDUCTIONS
+    // STEP 4: CALCULATE AUTO-APPLIED DEDUCTIONS AND ADDITIONS
     // ============================================
     const autoAppliedDeductions: DeductionItem[] = [];
     let autoDeductionsTotal = 0;
+    let autoAdditionsTotal = 0; // Track additions separately
 
     // Check for already applied deductions this week/month (for frequency checks)
     const now = new Date();
@@ -270,15 +267,24 @@ export async function POST(request: NextRequest) {
       }
 
       if (deductionAmount > 0) {
+        // Check if this is an addition or deduction
+        const isAddition = rule.isAddition === true;
+        
         autoAppliedDeductions.push({
           deductionType: rule.deductionType,
           description: rule.name,
-          amount: deductionAmount,
+          amount: isAddition ? -deductionAmount : deductionAmount, // Negative amount for additions (will be subtracted from deductions)
           source: 'rule',
           ruleId: rule.id,
         });
-        autoDeductionsTotal += deductionAmount;
-        console.log(`[Settlement Generate] Applied deduction "${rule.name}": $${deductionAmount.toFixed(2)}`);
+        
+        if (isAddition) {
+          autoAdditionsTotal += deductionAmount;
+          console.log(`[Settlement Generate] Applied addition "${rule.name}": +$${deductionAmount.toFixed(2)}`);
+        } else {
+          autoDeductionsTotal += deductionAmount;
+          console.log(`[Settlement Generate] Applied deduction "${rule.name}": -$${deductionAmount.toFixed(2)}`);
+        }
       }
     }
 
@@ -311,7 +317,14 @@ export async function POST(request: NextRequest) {
     // STEP 6: CALCULATE TOTAL DEDUCTIONS AND NET PAY
     // ============================================
     const totalDeductions = validated.deductions + autoDeductionsTotal;
-    const netPay = grossPay - totalDeductions - validated.advances;
+    const netPay = grossPay + autoAdditionsTotal - totalDeductions - validated.advances;
+    
+    console.log(`[Settlement Generate] Gross Pay: $${grossPay.toFixed(2)}`);
+    console.log(`[Settlement Generate] Auto Additions: +$${autoAdditionsTotal.toFixed(2)}`);
+    console.log(`[Settlement Generate] Auto Deductions: -$${autoDeductionsTotal.toFixed(2)}`);
+    console.log(`[Settlement Generate] Manual Deductions: -$${validated.deductions.toFixed(2)}`);
+    console.log(`[Settlement Generate] Advances: -$${validated.advances.toFixed(2)}`);
+    console.log(`[Settlement Generate] Net Pay: $${netPay.toFixed(2)}`);
     
     // Warn if gross pay is 0
     if (grossPay === 0) {

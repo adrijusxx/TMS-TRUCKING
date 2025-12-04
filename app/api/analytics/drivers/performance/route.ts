@@ -118,6 +118,10 @@ export async function GET(request: NextRequest) {
             // Estimate hours (50 mph average)
             const estimatedHours = miles > 0 ? miles / 50 : 10;
             return sum + (estimatedHours * driver.payRate);
+          } else if (driver.payType === 'WEEKLY') {
+            // WEEKLY pay is calculated at settlement level, not per load
+            // For analytics, estimate based on number of weeks in the period
+            return sum; // Don't add per-load pay for weekly drivers
           }
           return sum;
         }

@@ -217,17 +217,20 @@ Before a Load can transition from `PENDING` to `ASSIGNED`, the system must valid
    - **Per Load Pay:** `driverPay` (from Load)
    - **Percentage Pay:** `(revenue - fuelSurcharge) × driverPercentage`
    - **Hourly Pay:** `hoursWorked × hourlyRate`
+   - **Weekly Flat Rate:** `driverRate` (fixed weekly amount, calculated once per settlement)
 
 4. **Aggregate Additions:**
    - Stop Pay (from `AccessorialCharge` where `type = STOP_PAY`)
    - Reimbursements (from `LoadExpense` where `reimbursable = true`)
    - Lumper Fees (if driver paid, mark as reimbursement)
+   - Recurring Additions (from `DeductionRule` where `isAddition = true`: BONUS, OVERTIME, INCENTIVE)
 
 5. **Calculate Deductions:**
    - **Advances:** Sum of `DriverAdvance[]` where `settlementId = null` and `approvedStatus = APPROVED`
-   - **Recurring Deductions:** From `DeductionRule[]` (truck lease, insurance, ELD subscription)
+   - **Recurring Deductions:** From `DeductionRule[]` where `isAddition = false` (truck lease, insurance, ELD subscription)
    - **Load Expenses:** From `LoadExpense[]` where `reimbursable = false` (fuel, tolls, scales)
    - **Escrow:** Calculate based on driver's escrow balance
+   - **Note:** Unified system - `DeductionRule` table handles both additions (`isAddition = true`) and deductions (`isAddition = false`)
 
 6. **Calculate Net Pay:**
    ```typescript
