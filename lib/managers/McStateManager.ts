@@ -266,7 +266,7 @@ export class McStateManager {
           { mcNumberId: { in: mcState.mcNumberIds } },
           { mcNumberId: null },
         ],
-      };
+      } as any;
     }
 
     // No MCs accessible - return empty filter (no results)

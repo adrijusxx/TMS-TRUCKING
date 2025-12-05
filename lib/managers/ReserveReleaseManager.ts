@@ -40,7 +40,7 @@ export class ReserveReleaseManager {
     const invoices = await prisma.invoice.findMany({
       where: {
         companyId,
-        factoringStatus: 'SUBMITTED',
+        factoringStatus: 'SUBMITTED_TO_FACTOR',
         factoringSubmittedAt: {
           not: null,
           lte: cutoffDate,
@@ -64,8 +64,9 @@ export class ReserveReleaseManager {
       );
 
       const reservePercentage = invoice.factoringCompany.reservePercentage || 10;
-      const reserveAmount = (invoice.totalAmount || 0) * (reservePercentage / 100);
-      const netAmount = (invoice.totalAmount || 0) - reserveAmount;
+      const totalAmount = invoice.totalAmount || invoice.total || 0;
+      const reserveAmount = totalAmount * (reservePercentage / 100);
+      const netAmount = totalAmount - reserveAmount;
 
       return {
         invoiceId: invoice.id,
@@ -92,7 +93,7 @@ export class ReserveReleaseManager {
     const invoicesToRelease = await prisma.invoice.findMany({
       where: {
         companyId,
-        factoringStatus: 'SUBMITTED',
+        factoringStatus: 'SUBMITTED_TO_FACTOR',
         factoringSubmittedAt: {
           not: null,
           lte: new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000), // 90 days ago
@@ -111,13 +112,15 @@ export class ReserveReleaseManager {
       if (!invoice.factoringCompany) continue;
 
       const reservePercentage = invoice.factoringCompany.reservePercentage || 10;
-      const reserveAmount = (invoice.totalAmount || 0) * (reservePercentage / 100);
+      const totalAmount = invoice.totalAmount || invoice.total || 0;
+      const reserveAmount = totalAmount * (reservePercentage / 100);
 
       // Update invoice status to indicate reserve released
       await prisma.invoice.update({
         where: { id: invoice.id },
         data: {
           factoringStatus: 'RESERVE_RELEASED',
+          reserveReleaseDate: new Date(),
           factoringReserveReleasedAt: new Date(),
         },
       });
@@ -150,7 +153,7 @@ export class ReserveReleaseManager {
     const invoices = await prisma.invoice.findMany({
       where: {
         companyId,
-        factoringStatus: 'SUBMITTED',
+        factoringStatus: 'SUBMITTED_TO_FACTOR',
         factoringSubmittedAt: { not: null },
         deletedAt: null,
       },
@@ -171,7 +174,8 @@ export class ReserveReleaseManager {
       if (!invoice.factoringCompany || !invoice.factoringSubmittedAt) continue;
 
       const reservePercentage = invoice.factoringCompany.reservePercentage || 10;
-      const reserveAmount = (invoice.totalAmount || 0) * (reservePercentage / 100);
+      const totalAmount = invoice.totalAmount || invoice.total || 0;
+      const reserveAmount = totalAmount * (reservePercentage / 100);
       totalReserveAmount += reserveAmount;
 
       const releaseDate = this.calculateReleaseDate(invoice.factoringSubmittedAt);

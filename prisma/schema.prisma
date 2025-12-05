@@ -70,6 +70,9 @@ model User {
   appliedAISuggestions       AISuggestion[]           @relation("AISuggestionApplier")
   // User Preferences
   columnPreferences          UserColumnPreference[]
+  // Samsara Integration
+  reviewedSamsaraDevices     SamsaraDeviceQueue[]
+  resolvedFaults             TruckFaultHistory[]
 
   @@index([companyId])
   @@index([email])
@@ -163,6 +166,7 @@ model Company {
   expenseTypes              ExpenseType[]
   tariffs                   Tariff[]
   // Accounting Relations
+  invoices                  Invoice[]
   factoringCompanies        FactoringCompany[]
   factoringBatches          FactoringBatch[]
   accessorialCharges        AccessorialCharge[]
@@ -222,6 +226,9 @@ model Company {
   companySettings           CompanySettings?
   customFields              CustomField[]
   systemConfig              SystemConfig?
+  // Samsara Integration
+  samsaraDeviceQueue        SamsaraDeviceQueue[]
+  truckFaultHistory         TruckFaultHistory[]
 }
 
 // ============================================
@@ -363,6 +370,7 @@ model Load {
   // Accounting Relations
   accessorialCharges AccessorialCharge[]
   rateConfirmation   RateConfirmation?
+  invoices           Invoice[]           @relation("InvoiceLoad")
   iftaEntry          IFTAEntry?
   segments           LoadSegment[]
   driverAdvances     DriverAdvance[]
@@ -603,6 +611,7 @@ enum LoadDispatchStatus {
   AT_DELIVERY
   DELIVERED
   PENDING_DISPATCH
+  NEEDS_DISPATCH
   DISPATCHED
   CANCELLED
 }
@@ -1101,6 +1110,14 @@ model Truck {
   tollTagNumber String? // Toll tag number from Excel
   fuelCard      String? // Fuel card from Excel
 
+  // Samsara Integration
+  samsaraId           String?   @unique // Samsara vehicle ID
+  samsaraSyncedAt     DateTime?          // Last sync timestamp
+  samsaraSyncStatus   String?            // SYNCED | PENDING | ERROR
+  lastOdometerReading Float?             // Latest odometer from Samsara
+  lastOdometerUpdate  DateTime?          // When odometer was updated
+  lastEngineHours     Float?             // Latest engine hours from Samsara
+
   // Additional Fields from Excel
   legacyTags Json? // Tags as JSON array (legacy, use tags relation instead)
   notes      String? // Notes field
@@ -1113,6 +1130,7 @@ model Truck {
 
   // Relations
   loads               Load[]
+  faultHistory        TruckFaultHistory[]
   loadSegments        LoadSegment[]
   breakdowns          Breakdown[]
   documents           Document[]
@@ -1137,6 +1155,7 @@ model Truck {
   @@index([truckNumber])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
+  @@index([samsaraId])
 }
 
 // ============================================
@@ -1179,6 +1198,11 @@ model Trailer {
   insuranceExpiry    DateTime?
   inspectionExpiry   DateTime?
 
+  // Samsara Integration
+  samsaraId         String?   @unique // Samsara asset ID
+  samsaraSyncedAt   DateTime?          // Last sync timestamp
+  samsaraSyncStatus String?            // SYNCED | PENDING | ERROR
+
   // Additional Fields from Excel
   legacyTags Json? // Tags as JSON array (legacy)
 
@@ -1198,6 +1222,7 @@ model Trailer {
   @@index([assignedTruckId])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
+  @@index([samsaraId])
 }
 
 model FuelEntry {
@@ -1256,7 +1281,7 @@ enum TruckStatus {
 
 model MaintenanceRecord {
   id                String  @id @default(cuid())
-  maintenanceNumber String  @unique // User-facing maintenance identifier (e.g., MAINT-2024-001)
+  maintenanceNumber String? @unique // User-facing maintenance identifier (e.g., MAINT-2024-001)
   truckId           String
   truck             Truck   @relation(fields: [truckId], references: [id])
   companyId         String
@@ -1607,6 +1632,9 @@ model Customer {
   billingEmails  String? // Multiple billing emails (comma-separated)
   billingType    String? // Billing type from Excel
 
+  // QuickBooks
+  qbCustomerId String? // QuickBooks customer ID
+
   // Terms
   paymentTerms         Int       @default(30) // days
   paymentTermsType     String? // NET, QUICK_PAY, DISCOUNT
@@ -1823,6 +1851,8 @@ enum DocumentType {
 
 model Invoice {
   id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
@@ -1845,9 +1875,12 @@ model Invoice {
   paidDate    DateTime?
 
   // QuickBooks
-  qbSynced    Boolean   @default(false)
-  qbInvoiceId String?
-  qbSyncedAt  DateTime?
+  qbSynced     Boolean   @default(false)
+  qbInvoiceId  String?
+  qbSyncedAt   DateTime?
+  qbSyncStatus String? // QB sync status tracking (PENDING, SYNCING, SYNCED, FAILED)
+  qbSyncError  String? // QB sync error message
+  qbCustomerId String? // Customer QB ID reference
 
   // Enhanced fields
   mcNumber             String?
@@ -1856,21 +1889,27 @@ model Invoice {
   invoiceNote          String?
   paymentNote          String?
   loadId               String? // Single load reference for display
+  load                 Load?    @relation("InvoiceLoad", fields: [loadId], references: [id])
+
+  // Total amount alias (for compatibility)
+  totalAmount          Float? // Alias for total (computed or synchronized)
 
   // Payment Information
   paymentMethod       PaymentMethod?
   expectedPaymentDate DateTime? // Calculated from invoiceDate + paymentTerms
 
   // Factoring Fields
-  factoringStatus     FactoringStatus   @default(NOT_FACTORED)
-  factoringCompanyId  String?
-  factoringCompany    FactoringCompany? @relation(fields: [factoringCompanyId], references: [id])
-  submittedToFactorAt DateTime?
-  fundedAt            DateTime?
-  reserveReleaseDate  DateTime?
-  factoringFee        Float?
-  reserveAmount       Float?
-  advanceAmount       Float?
+  factoringStatus        FactoringStatus   @default(NOT_FACTORED)
+  factoringCompanyId     String?
+  factoringCompany       FactoringCompany? @relation(fields: [factoringCompanyId], references: [id])
+  submittedToFactorAt    DateTime?
+  factoringSubmittedAt   DateTime? // Alias for submittedToFactorAt
+  fundedAt               DateTime?
+  reserveReleaseDate     DateTime?
+  factoringReserveReleasedAt DateTime? // For reserve release tracking
+  factoringFee           Float?
+  reserveAmount          Float?
+  advanceAmount          Float?
 
   // Short Pay Tracking
   shortPayAmount       Float     @default(0)
@@ -1893,8 +1932,9 @@ model Invoice {
 
   notes String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Factoring Batch
   factoringBatchId String?
@@ -1912,6 +1952,7 @@ model Invoice {
   accessorialCharges AccessorialCharge[]
   rateConfirmation   RateConfirmation?
 
+  @@index([companyId])
   @@index([customerId])
   @@index([status])
   @@index([invoiceNumber])
@@ -1922,6 +1963,7 @@ model Invoice {
   @@index([paymentMethod])
   @@index([subStatus])
   @@index([factoringBatchId])
+  @@index([loadId])
   @@index([invoiceBatchId])
   // Composite indexes for common query patterns
   @@index([customerId, status])
@@ -2051,10 +2093,10 @@ enum SettlementStatus {
 // ============================================
 
 model DriverAdvance {
-  id            String @id @default(cuid())
-  advanceNumber String @unique // User-facing advance identifier (e.g., ADV-2024-001)
+  id            String  @id @default(cuid())
+  advanceNumber String? @unique // User-facing advance identifier (e.g., ADV-2024-001)
   driverId      String
-  driver        Driver @relation(fields: [driverId], references: [id])
+  driver        Driver  @relation(fields: [driverId], references: [id])
 
   amount          Float
   requestDate     DateTime       @default(now())
@@ -2131,10 +2173,10 @@ model DriverNegativeBalance {
 // ============================================
 
 model LoadExpense {
-  id            String @id @default(cuid())
-  expenseNumber String @unique // User-facing expense identifier (e.g., EXP-2024-001)
+  id            String  @id @default(cuid())
+  expenseNumber String? @unique // User-facing expense identifier (e.g., EXP-2024-001)
   loadId        String
-  load          Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  load          Load    @relation(fields: [loadId], references: [id], onDelete: Cascade)
 
   expenseType LoadExpenseType
   category    String? // Additional categorization
@@ -6078,4 +6120,71 @@ model UserColumnPreference {
   @@unique([userId, entityType])
   @@index([userId])
   @@index([entityType])
+}
+
+// ============================================
+// SAMSARA INTEGRATION
+// ============================================
+
+// Queue for Samsara devices pending review/approval
+model SamsaraDeviceQueue {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  samsaraId       String    @unique // Samsara vehicle/asset ID
+  deviceType      String    // TRUCK | TRAILER
+  name            String    // Samsara device name
+  vin             String?
+  licensePlate    String?
+  make            String?
+  model           String?
+  year            Int?
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED | LINKED
+  matchedRecordId String?   // If matched to existing TMS record (Truck.id or Trailer.id)
+  matchedType     String?   // TRUCK | TRAILER - type of matched record
+  reviewedAt      DateTime?
+  reviewedById    String?
+  reviewedBy      User?     @relation(fields: [reviewedById], references: [id])
+  rejectionReason String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([deviceType])
+  @@index([samsaraId])
+}
+
+// Fault code history for trucks (from Samsara diagnostics)
+model TruckFaultHistory {
+  id             String    @id @default(cuid())
+  truckId        String
+  truck          Truck     @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  faultCode      String    // DTC code (e.g., P0128, U0100)
+  description    String?   // Fault description
+  severity       String?   // CRITICAL | WARNING | INFO
+  source         String    @default("SAMSARA") // SAMSARA | MANUAL | ELD
+  samsaraFaultId String?   // Original Samsara fault ID for deduplication
+  occurredAt     DateTime  // When fault occurred
+  detectedAt     DateTime  @default(now()) // When TMS detected it
+  resolvedAt     DateTime? // When fault was resolved
+  isActive       Boolean   @default(true)
+  notifiedFleet  Boolean   @default(false) // Whether fleet dept was notified
+  notifiedAt     DateTime?
+  resolvedById   String?   // User who marked it resolved
+  resolvedBy     User?     @relation(fields: [resolvedById], references: [id])
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([truckId])
+  @@index([companyId])
+  @@index([faultCode])
+  @@index([isActive])
+  @@index([occurredAt])
+  @@index([severity])
+  @@index([truckId, isActive])
 }

@@ -301,10 +301,17 @@ DATABASE_URL_POOLER=   # Pooled connection (runtime)
 NEXTAUTH_SECRET=       # Session encryption key
 NEXTAUTH_URL=          # Application URL
 
+# AI Features (Required for Rate Con Parser)
+OPENAI_API_KEY=        # OpenAI API key for GPT-4o-mini
+
 # Integrations (if configured)
 SAMSARA_API_KEY=       # ELD integration
 GOOGLE_MAPS_API_KEY=   # Maps integration
 QUICKBOOKS_CLIENT_ID=  # Accounting integration
+
+# Background Jobs (Inngest)
+INNGEST_EVENT_KEY=     # Inngest event key (optional for dev)
+INNGEST_SIGNING_KEY=   # Inngest signing key (production)
 ```
 
 ### Build Process

@@ -1,5 +1,6 @@
-import { NextRequest } from 'next/server';
-import { withAuth } from '@/lib/api/route-helpers';
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { UnauthorizedError } from '@/lib/errors';
 import { eventEmitter, EventTypes } from '@/lib/realtime/EventEmitter';
 import { logger } from '@/lib/utils/logger';
 
@@ -7,7 +8,11 @@ import { logger } from '@/lib/utils/logger';
  * Server-Sent Events endpoint for real-time updates
  * Clients can subscribe to different event types
  */
-export const GET = withAuth(async (request: NextRequest, session) => {
+export async function GET(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.companyId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const searchParams = request.nextUrl.searchParams;
   const eventTypes = searchParams.get('types')?.split(',') || ['all'];
 
@@ -98,5 +103,5 @@ export const GET = withAuth(async (request: NextRequest, session) => {
       'X-Accel-Buffering': 'no', // Disable buffering in nginx
     },
   });
-});
+}
 

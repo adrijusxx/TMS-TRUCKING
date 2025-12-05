@@ -12,8 +12,10 @@ import { emitLoadStatusChanged } from '@/lib/realtime/emitEvent';
 const createLoadSchema = z.object({
   loadNumber: z.string().min(1),
   customerId: z.string(),
+  equipmentType: z.enum(['DRY_VAN', 'REEFER', 'FLATBED', 'STEP_DECK', 'LOWBOY', 'TANKER', 'CONESTOGA', 'POWER_ONLY', 'HOTSHOT']),
+  weight: z.number().positive(),
   revenue: z.number().positive(),
-  status: z.enum(['PENDING', 'DISPATCHED', 'IN_TRANSIT', 'DELIVERED']).optional(),
+  status: z.enum(['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY', 'DELIVERED', 'BILLING_HOLD', 'READY_TO_BILL', 'INVOICED', 'PAID', 'CANCELLED']).optional(),
 });
 
 /**

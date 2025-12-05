@@ -510,6 +510,7 @@ async function main() {
       const invoiceNumber = `INV-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
       
       const invoiceData = {
+        companyId: company.id,
         loadIds: [load.id],
         loadId: load.id,
         customerId: load.customerId,

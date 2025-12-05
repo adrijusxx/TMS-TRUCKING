@@ -29,17 +29,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import LoadBasicInfoTab from './LoadDetailTabs/LoadBasicInfoTab';
-import LoadLocationDetailsTab from './LoadDetailTabs/LoadLocationDetailsTab';
-import LoadSpecificationsTab from './LoadDetailTabs/LoadSpecificationsTab';
+import LoadDetailsTab from './LoadDetailTabs/LoadDetailsTab';
+import LoadRouteTab from './LoadDetailTabs/LoadRouteTab';
 import LoadFinancialTab from './LoadDetailTabs/LoadFinancialTab';
-import LoadRelatedItemsTab from './LoadDetailTabs/LoadRelatedItemsTab';
 import LoadHistoryDocumentsTab from './LoadDetailTabs/LoadHistoryDocumentsTab';
 
 interface LoadDetailProps {
-  load: any; // Full load object from Prisma
-  availableDrivers?: any[]; // Available drivers for assignment
-  availableTrucks?: any[]; // Available trucks for assignment
+  load: any;
+  availableDrivers?: any[];
+  availableTrucks?: any[];
 }
 
 const statusColors: Record<LoadStatus, string> = {
@@ -99,24 +97,20 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
   const { can } = usePermissions();
   const { data: session } = useSession();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState('details');
 
-  // Fetch customers for the combobox
   const { data: customersData } = useQuery({
     queryKey: ['customers'],
     queryFn: fetchCustomers,
   });
 
-  // Prepare customers list - include current customer if not already in list
   const customers = React.useMemo(() => {
     const fetchedCustomers = customersData?.data || [];
     const currentCustomer = load.customer;
     
-    // Check if current customer is already in the list
     const hasCurrentCustomer = fetchedCustomers.some((c: any) => c.id === currentCustomer?.id);
     
     if (currentCustomer && !hasCurrentCustomer) {
-      // Add current customer to the list
       return [
         {
           id: currentCustomer.id,
@@ -131,11 +125,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
     return fetchedCustomers;
   }, [customersData, load.customer]);
   
-  // MC state is managed via cookies, not URL params
-  
-  // Form state for editable fields - expanded to include all fields from all tabs
   const [formData, setFormData] = useState({
-    // Basic Info
     truckId: load.truckId || '',
     trailerId: load.trailerId || '',
     trailerNumber: load.trailerNumber || '',
@@ -146,7 +136,6 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
     dispatchStatus: load.dispatchStatus || null,
     loadType: load.loadType || 'FTL',
     equipmentType: load.equipmentType || '',
-    // Location Details
     pickupLocation: load.pickupLocation || '',
     pickupAddress: load.pickupAddress || '',
     pickupCity: load.pickupCity || '',
@@ -171,7 +160,6 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
     deliveryContact: load.deliveryContact || '',
     deliveryPhone: load.deliveryPhone || '',
     deliveryNotes: load.deliveryNotes || '',
-    // Specifications
     weight: load.weight || null,
     pieces: load.pieces || null,
     commodity: load.commodity || '',
@@ -179,7 +167,6 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
     temperature: load.temperature || '',
     hazmat: load.hazmat || false,
     hazmatClass: load.hazmatClass || '',
-    // Financial
     revenue: load.revenue || 0,
     driverPay: load.driverPay || null,
     fuelAdvance: load.fuelAdvance || 0,
@@ -187,9 +174,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
     loadedMiles: load.loadedMiles || null,
     emptyMiles: load.emptyMiles || null,
     totalMiles: load.totalMiles || null,
-    // Notes
     dispatchNotes: load.dispatchNotes || '',
-    // Additional fields
     tripId: load.tripId || '',
     shipmentId: load.shipmentId || '',
     dispatcherId: load.dispatcherId || '',
@@ -212,7 +197,6 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
   const handleSave = () => {
     const updatePayload: any = {};
     
-    // Helper to check if value changed
     const hasChanged = (field: string, oldValue: any, newValue: any) => {
       if (oldValue === newValue) return false;
       if (oldValue === null && !newValue) return false;
@@ -221,71 +205,35 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
       return true;
     };
 
-    // Basic Info fields
-    if (hasChanged('truckId', load.truckId, formData.truckId)) updatePayload.truckId = formData.truckId || null;
-    if (hasChanged('trailerId', load.trailerId, formData.trailerId)) updatePayload.trailerId = formData.trailerId || null;
-    if (hasChanged('trailerNumber', load.trailerNumber, formData.trailerNumber)) updatePayload.trailerNumber = formData.trailerNumber || null;
-    if (hasChanged('driverId', load.driverId, formData.driverId)) updatePayload.driverId = formData.driverId || null;
-    if (hasChanged('coDriverId', load.coDriverId, formData.coDriverId)) updatePayload.coDriverId = formData.coDriverId || null;
-    if (hasChanged('customerId', load.customerId, formData.customerId)) updatePayload.customerId = formData.customerId || null;
-    if (hasChanged('status', load.status, formData.status)) updatePayload.status = formData.status;
-    if (hasChanged('dispatchStatus', load.dispatchStatus, formData.dispatchStatus)) updatePayload.dispatchStatus = formData.dispatchStatus || null;
-    if (hasChanged('loadType', load.loadType, formData.loadType)) updatePayload.loadType = formData.loadType;
-    if (hasChanged('equipmentType', load.equipmentType, formData.equipmentType)) updatePayload.equipmentType = formData.equipmentType || null;
+    // All fields
+    const fields = [
+      'truckId', 'trailerId', 'trailerNumber', 'driverId', 'coDriverId', 'customerId',
+      'status', 'dispatchStatus', 'loadType', 'equipmentType',
+      'pickupLocation', 'pickupAddress', 'pickupCity', 'pickupState', 'pickupZip',
+      'pickupCompany', 'pickupDate', 'pickupTimeStart', 'pickupTimeEnd', 
+      'pickupContact', 'pickupPhone', 'pickupNotes',
+      'deliveryLocation', 'deliveryAddress', 'deliveryCity', 'deliveryState', 'deliveryZip',
+      'deliveryCompany', 'deliveryDate', 'deliveryTimeStart', 'deliveryTimeEnd',
+      'deliveryContact', 'deliveryPhone', 'deliveryNotes',
+      'commodity', 'hazmat', 'hazmatClass', 'dispatchNotes',
+      'tripId', 'shipmentId', 'dispatcherId'
+    ];
 
-    // Location fields
-    if (hasChanged('pickupLocation', load.pickupLocation, formData.pickupLocation)) updatePayload.pickupLocation = formData.pickupLocation || null;
-    if (hasChanged('pickupAddress', load.pickupAddress, formData.pickupAddress)) updatePayload.pickupAddress = formData.pickupAddress || null;
-    if (hasChanged('pickupCity', load.pickupCity, formData.pickupCity)) updatePayload.pickupCity = formData.pickupCity || null;
-    if (hasChanged('pickupState', load.pickupState, formData.pickupState)) updatePayload.pickupState = formData.pickupState || null;
-    if (hasChanged('pickupZip', load.pickupZip, formData.pickupZip)) updatePayload.pickupZip = formData.pickupZip || null;
-    if (hasChanged('pickupCompany', load.pickupCompany, formData.pickupCompany)) updatePayload.pickupCompany = formData.pickupCompany || null;
-    if (hasChanged('pickupDate', load.pickupDate, formData.pickupDate)) updatePayload.pickupDate = formData.pickupDate || null;
-    if (hasChanged('pickupTimeStart', load.pickupTimeStart, formData.pickupTimeStart)) updatePayload.pickupTimeStart = formData.pickupTimeStart || null;
-    if (hasChanged('pickupTimeEnd', load.pickupTimeEnd, formData.pickupTimeEnd)) updatePayload.pickupTimeEnd = formData.pickupTimeEnd || null;
-    if (hasChanged('pickupContact', load.pickupContact, formData.pickupContact)) updatePayload.pickupContact = formData.pickupContact || null;
-    if (hasChanged('pickupPhone', load.pickupPhone, formData.pickupPhone)) updatePayload.pickupPhone = formData.pickupPhone || null;
-    if (hasChanged('pickupNotes', load.pickupNotes, formData.pickupNotes)) updatePayload.pickupNotes = formData.pickupNotes || null;
-    
-    if (hasChanged('deliveryLocation', load.deliveryLocation, formData.deliveryLocation)) updatePayload.deliveryLocation = formData.deliveryLocation || null;
-    if (hasChanged('deliveryAddress', load.deliveryAddress, formData.deliveryAddress)) updatePayload.deliveryAddress = formData.deliveryAddress || null;
-    if (hasChanged('deliveryCity', load.deliveryCity, formData.deliveryCity)) updatePayload.deliveryCity = formData.deliveryCity || null;
-    if (hasChanged('deliveryState', load.deliveryState, formData.deliveryState)) updatePayload.deliveryState = formData.deliveryState || null;
-    if (hasChanged('deliveryZip', load.deliveryZip, formData.deliveryZip)) updatePayload.deliveryZip = formData.deliveryZip || null;
-    if (hasChanged('deliveryCompany', load.deliveryCompany, formData.deliveryCompany)) updatePayload.deliveryCompany = formData.deliveryCompany || null;
-    if (hasChanged('deliveryDate', load.deliveryDate, formData.deliveryDate)) updatePayload.deliveryDate = formData.deliveryDate || null;
-    if (hasChanged('deliveryTimeStart', load.deliveryTimeStart, formData.deliveryTimeStart)) updatePayload.deliveryTimeStart = formData.deliveryTimeStart || null;
-    if (hasChanged('deliveryTimeEnd', load.deliveryTimeEnd, formData.deliveryTimeEnd)) updatePayload.deliveryTimeEnd = formData.deliveryTimeEnd || null;
-    if (hasChanged('deliveryContact', load.deliveryContact, formData.deliveryContact)) updatePayload.deliveryContact = formData.deliveryContact || null;
-    if (hasChanged('deliveryPhone', load.deliveryPhone, formData.deliveryPhone)) updatePayload.deliveryPhone = formData.deliveryPhone || null;
-    if (hasChanged('deliveryNotes', load.deliveryNotes, formData.deliveryNotes)) updatePayload.deliveryNotes = formData.deliveryNotes || null;
+    const numericFields = ['weight', 'pieces', 'pallets', 'revenue', 'driverPay', 
+      'fuelAdvance', 'serviceFee', 'loadedMiles', 'emptyMiles', 'totalMiles', 'revenuePerMile'];
 
-    // Specification fields
-    if (hasChanged('weight', load.weight, formData.weight)) updatePayload.weight = formData.weight ? Number(formData.weight) : null;
-    if (hasChanged('pieces', load.pieces, formData.pieces)) updatePayload.pieces = formData.pieces ? Number(formData.pieces) : null;
-    if (hasChanged('commodity', load.commodity, formData.commodity)) updatePayload.commodity = formData.commodity || null;
-    if (hasChanged('pallets', load.pallets, formData.pallets)) updatePayload.pallets = formData.pallets ? Number(formData.pallets) : null;
-    if (hasChanged('temperature', load.temperature, formData.temperature)) updatePayload.temperature = formData.temperature || null;
-    if (hasChanged('hazmat', load.hazmat, formData.hazmat)) updatePayload.hazmat = formData.hazmat || false;
-    if (hasChanged('hazmatClass', load.hazmatClass, formData.hazmatClass)) updatePayload.hazmatClass = formData.hazmatClass || null;
+    fields.forEach(field => {
+      if (hasChanged(field, (load as any)[field], (formData as any)[field])) {
+        updatePayload[field] = (formData as any)[field] || null;
+      }
+    });
 
-    // Financial fields
-    if (hasChanged('revenue', load.revenue, formData.revenue)) updatePayload.revenue = formData.revenue ? Number(formData.revenue) : 0;
-    if (hasChanged('driverPay', load.driverPay, formData.driverPay)) updatePayload.driverPay = formData.driverPay ? Number(formData.driverPay) : null;
-    if (hasChanged('fuelAdvance', load.fuelAdvance, formData.fuelAdvance)) updatePayload.fuelAdvance = formData.fuelAdvance ? Number(formData.fuelAdvance) : 0;
-    if (hasChanged('serviceFee', load.serviceFee, formData.serviceFee)) updatePayload.serviceFee = formData.serviceFee ? Number(formData.serviceFee) : null;
-    if (hasChanged('loadedMiles', load.loadedMiles, formData.loadedMiles)) updatePayload.loadedMiles = formData.loadedMiles ? Number(formData.loadedMiles) : null;
-    if (hasChanged('emptyMiles', load.emptyMiles, formData.emptyMiles)) updatePayload.emptyMiles = formData.emptyMiles ? Number(formData.emptyMiles) : null;
-    if (hasChanged('totalMiles', load.totalMiles, formData.totalMiles)) updatePayload.totalMiles = formData.totalMiles ? Number(formData.totalMiles) : null;
-
-    // Notes
-    if (hasChanged('dispatchNotes', load.dispatchNotes, formData.dispatchNotes)) updatePayload.dispatchNotes = formData.dispatchNotes || null;
-    
-    // Additional fields
-    if (hasChanged('tripId', load.tripId, formData.tripId)) updatePayload.tripId = formData.tripId || null;
-    if (hasChanged('shipmentId', load.shipmentId, formData.shipmentId)) updatePayload.shipmentId = formData.shipmentId || null;
-    if (hasChanged('dispatcherId', load.dispatcherId, formData.dispatcherId)) updatePayload.dispatcherId = formData.dispatcherId || null;
-    if (hasChanged('revenuePerMile', load.revenuePerMile, formData.revenuePerMile)) updatePayload.revenuePerMile = formData.revenuePerMile ? Number(formData.revenuePerMile) : null;
+    numericFields.forEach(field => {
+      if (hasChanged(field, (load as any)[field], (formData as any)[field])) {
+        const value = (formData as any)[field];
+        updatePayload[field] = value ? Number(value) : null;
+      }
+    });
 
     if (Object.keys(updatePayload).length > 0) {
       updateMutation.mutate(updatePayload);
@@ -307,24 +255,22 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-3">
+      {/* Header - Compact */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <Link href="/dashboard/loads">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-2xl font-bold">{load.loadNumber}</h1>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={statusColors[load.status as LoadStatus]}>
+          <h1 className="text-lg font-bold">{load.loadNumber}</h1>
+          <Badge variant="outline" className={`text-xs ${statusColors[load.status as LoadStatus]}`}>
             {formatStatus(load.status)}
           </Badge>
           <DispatchStatusBadge status={load.dispatchStatus} />
+        </div>
+        <div className="flex items-center gap-1">
           <DispatchStatusSelector
             loadId={load.id}
             currentDispatchStatus={load.dispatchStatus}
@@ -335,10 +281,10 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
               size="sm"
               onClick={handleSave}
               disabled={updateMutation.isPending}
-              className="h-8 text-xs"
+              className="h-7 text-xs px-2"
             >
-              <Save className="h-3.5 w-3.5 mr-1.5" />
-              {updateMutation.isPending ? 'Saving...' : 'Save All'}
+              <Save className="h-3 w-3 mr-1" />
+              {updateMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           )}
           {can('loads.delete') && (
@@ -346,40 +292,23 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
               variant="outline"
               size="sm"
               onClick={() => setShowDeleteDialog(true)}
-              className="h-8 text-xs text-destructive hover:text-destructive"
+              className="h-7 text-xs px-2 text-destructive hover:text-destructive"
             >
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              Delete
+              <Trash2 className="h-3 w-3" />
             </Button>
           )}
         </div>
       </div>
 
-      {/* Billing Hold Warning Banner */}
+      {/* Billing Hold Warning */}
       {load.isBillingHold && (
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-sm font-medium text-yellow-800">
-                INVOICING BLOCKED
-              </h3>
-              <div className="mt-2 text-sm text-yellow-700">
-                <p>{load.billingHoldReason || 'This load is on billing hold. Rate Con update required before invoicing.'}</p>
-                <p className="mt-1 text-xs text-yellow-600">
-                  Note: Driver settlement (AP) can proceed independently.
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2 rounded text-xs">
+          <p className="font-medium text-yellow-800">INVOICING BLOCKED</p>
+          <p className="text-yellow-700">{load.billingHoldReason || 'Rate Con update required'}</p>
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -389,10 +318,10 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="h-8 text-xs">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteMutation.mutate(load.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 h-8 text-xs"
               disabled={deleteMutation.isPending}
             >
               {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
@@ -401,71 +330,49 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Main Content - Tabs */}
-      <div className="space-y-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="basic" className="text-xs sm:text-sm">Basic Info</TabsTrigger>
-            <TabsTrigger value="location" className="text-xs sm:text-sm">Location</TabsTrigger>
-            <TabsTrigger value="specifications" className="text-xs sm:text-sm">Specifications</TabsTrigger>
-            <TabsTrigger value="financial" className="text-xs sm:text-sm">Financial</TabsTrigger>
-            <TabsTrigger value="related" className="text-xs sm:text-sm">Related Items</TabsTrigger>
-            <TabsTrigger value="history" className="text-xs sm:text-sm">History & Docs</TabsTrigger>
-          </TabsList>
+      {/* Tabs - Merged to 4 */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 h-8">
+          <TabsTrigger value="details" className="text-xs h-7">Details</TabsTrigger>
+          <TabsTrigger value="route" className="text-xs h-7">Route</TabsTrigger>
+          <TabsTrigger value="financial" className="text-xs h-7">Financial</TabsTrigger>
+          <TabsTrigger value="documents" className="text-xs h-7">Documents</TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="basic" className="mt-4">
-            <LoadBasicInfoTab
-              load={load}
-              formData={formData}
-              onFormDataChange={setFormData}
-                              availableDrivers={availableDrivers}
-                              availableTrucks={availableTrucks}
-              customers={customers}
-            />
-          </TabsContent>
+        <TabsContent value="details" className="mt-3">
+          <LoadDetailsTab
+            load={load}
+            formData={formData}
+            onFormDataChange={setFormData}
+            availableDrivers={availableDrivers}
+            availableTrucks={availableTrucks}
+            customers={customers}
+          />
+        </TabsContent>
 
-          <TabsContent value="location" className="mt-4">
-            <LoadLocationDetailsTab
-              load={load}
-              formData={formData}
-              onFormDataChange={setFormData}
-            />
-          </TabsContent>
+        <TabsContent value="route" className="mt-3">
+          <LoadRouteTab
+            load={load}
+            formData={formData}
+            onFormDataChange={setFormData}
+          />
+        </TabsContent>
 
-          <TabsContent value="specifications" className="mt-4">
-            <LoadSpecificationsTab
-              load={load}
-              formData={formData}
-              onFormDataChange={setFormData}
-            />
-          </TabsContent>
+        <TabsContent value="financial" className="mt-3">
+          <LoadFinancialTab
+            load={load}
+            formData={formData}
+            onFormDataChange={setFormData}
+            onLoadRefetch={() => {
+              queryClient.invalidateQueries({ queryKey: ['load', load.id] });
+            }}
+          />
+        </TabsContent>
 
-          <TabsContent value="financial" className="mt-4">
-            <LoadFinancialTab
-              load={load}
-              formData={formData}
-              onFormDataChange={setFormData}
-              onLoadRefetch={() => {
-                queryClient.invalidateQueries({ queryKey: ['load', load.id] });
-              }}
-            />
-          </TabsContent>
-
-          <TabsContent value="related" className="mt-4">
-            <LoadRelatedItemsTab
-              load={load}
-              formData={formData}
-              onFormDataChange={setFormData}
-              availableDrivers={availableDrivers}
-              availableTrucks={availableTrucks}
-            />
-          </TabsContent>
-
-          <TabsContent value="history" className="mt-4">
-            <LoadHistoryDocumentsTab load={load} />
-          </TabsContent>
-        </Tabs>
-              </div>
+        <TabsContent value="documents" className="mt-3">
+          <LoadHistoryDocumentsTab load={load} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

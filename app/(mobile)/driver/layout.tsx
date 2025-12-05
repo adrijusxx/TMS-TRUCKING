@@ -1,11 +1,19 @@
 'use client';
 
+/**
+ * Driver Mobile PWA Layout
+ * 
+ * Enhanced layout with PWA features for offline support.
+ * @see docs/specs/OPERATIONAL_OVERHAUL.MD Section 6
+ */
+
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Home, Truck, DollarSign, LifeBuoy, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { signOut } from 'next-auth/react';
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
+import { OfflineIndicator } from '@/components/driver/OfflineIndicator';
+import { PWAInstallBanner } from '@/components/driver/PWAInstallBanner';
 
 export default function DriverMobileLayout({
   children,
@@ -21,22 +29,22 @@ export default function DriverMobileLayout({
 
   const navItems = [
     {
-      href: '/mobile/driver',
+      href: '/driver',
       icon: Home,
-      label: 'Dashboard',
+      label: 'Home',
     },
     {
-      href: '/mobile/driver/loads',
+      href: '/driver/loads',
       icon: Truck,
-      label: 'My Loads',
+      label: 'Loads',
     },
     {
-      href: '/mobile/driver/settlements',
+      href: '/driver/settlements',
       icon: DollarSign,
       label: 'Pay',
     },
     {
-      href: '/mobile/driver/support',
+      href: '/driver/support',
       icon: LifeBuoy,
       label: 'Support',
     },
@@ -44,14 +52,17 @@ export default function DriverMobileLayout({
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
+      {/* Offline Indicator */}
+      <OfflineIndicator />
+      
       {/* Top Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-50">
+      <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
             <h1 className="text-lg font-bold">
               {session?.user?.firstName} {session?.user?.lastName}
             </h1>
-            <p className="text-xs text-muted-foreground">Driver</p>
+            <p className="text-xs text-muted-foreground">Driver Portal</p>
           </div>
           <Button
             variant="ghost"
@@ -70,13 +81,16 @@ export default function DriverMobileLayout({
         {children}
       </main>
 
+      {/* PWA Install Banner */}
+      <PWAInstallBanner />
+
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom">
         <div className="flex items-center justify-around h-16">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || 
-              (item.href !== '/mobile/driver' && pathname?.startsWith(item.href + '/'));
+              (item.href !== '/driver' && pathname?.startsWith(item.href + '/'));
             
             return (
               <Link
@@ -98,4 +112,3 @@ export default function DriverMobileLayout({
     </div>
   );
 }
-

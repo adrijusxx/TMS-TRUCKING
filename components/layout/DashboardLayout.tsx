@@ -253,7 +253,8 @@ export default function DashboardLayout({
     pathname?.startsWith('/dashboard/loadboard') ||
     pathname?.startsWith('/dashboard/dispatch') ||
     pathname?.startsWith('/dashboard/calendar') ||
-    pathname?.startsWith('/dashboard/map');
+    pathname?.startsWith('/dashboard/map') ||
+    pathname?.startsWith('/dashboard/operations');
   
   // Check if we're in HR Management section
   const isHRSection = pathname?.startsWith('/dashboard/hr') ||

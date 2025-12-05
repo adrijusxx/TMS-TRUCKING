@@ -58,7 +58,7 @@ export async function GET() {
     uptime: Math.floor(health.uptime),
     services: health.services,
   }, {
-    status: health.status === 'unhealthy' ? 503 : 200,
+    status: 200, // unhealthy case already returns 503 earlier
   });
 }
 

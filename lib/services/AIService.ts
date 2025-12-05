@@ -1,76 +1,123 @@
 /**
  * Base AI Service
- * Provides shared DeepSeek API integration and utilities for all AI services
+ * 
+ * Provides shared OpenAI API integration and utilities for all AI services.
+ * Uses GPT-4o-mini for fast, cost-effective extraction.
+ * 
+ * @see docs/specs/OPERATIONAL_OVERHAUL.MD - Target: <3s extraction time
  */
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-be6d955aafb84e25bfb9c18ef425ca31';
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+// ============================================
+// CONFIGURATION
+// ============================================
+
+/**
+ * OpenAI Configuration
+ * GPT-4o-mini is optimized for fast responses (~1-2s)
+ */
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const DEFAULT_MODEL = 'gpt-4o-mini';
+
+// ============================================
+// TYPES
+// ============================================
 
 interface AICallOptions {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
   stream?: boolean;
+  /** Override the default model */
+  model?: string;
+  /** Use JSON mode for structured output */
+  jsonMode?: boolean;
 }
 
-export interface AICallResult<T = any> {
+export interface AICallResult<T = unknown> {
   data: T;
   finishReason?: string;
   wasTruncated: boolean;
   tokensUsed?: number;
+  latencyMs?: number;
 }
+
+// ============================================
+// SERVICE CLASS
+// ============================================
 
 export class AIService {
   protected apiKey: string;
   protected apiUrl: string;
+  protected defaultModel: string;
 
   constructor() {
-    this.apiKey = DEEPSEEK_API_KEY;
-    this.apiUrl = DEEPSEEK_API_URL;
+    this.apiKey = OPENAI_API_KEY;
+    this.apiUrl = OPENAI_API_URL;
+    this.defaultModel = DEFAULT_MODEL;
+    
+    if (!this.apiKey) {
+      console.warn('[AIService] OPENAI_API_KEY not set. AI features will fail.');
+    }
   }
 
   /**
-   * Make a call to DeepSeek API
+   * Make a call to OpenAI API
+   * Uses GPT-4o-mini for fast, cost-effective responses
    */
-  protected async callAI<T = any>(
+  protected async callAI<T = unknown>(
     userPrompt: string,
     options: AICallOptions = {}
   ): Promise<AICallResult<T>> {
+    const startTime = Date.now();
     const {
       temperature = 0.1,
-      maxTokens = 5000,
+      maxTokens = 4000,
       systemPrompt = 'You are a helpful AI assistant. Return ONLY valid JSON, no markdown, no code blocks.',
       stream = false,
+      model = this.defaultModel,
+      jsonMode = true,
     } = options;
 
+    if (!this.apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+
     try {
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+        temperature,
+        max_tokens: maxTokens,
+        stream,
+      };
+
+      // Enable JSON mode for structured output
+      if (jsonMode) {
+        requestBody.response_format = { type: 'json_object' };
+      }
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: userPrompt,
-            },
-          ],
-          temperature,
-          max_tokens: maxTokens,
-          stream,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const error = await response.text();
-        console.error('DeepSeek API error:', error);
+        console.error('[AIService] OpenAI API error:', error);
         throw new Error(`AI processing failed: ${response.statusText}`);
       }
 
@@ -79,48 +126,55 @@ export class AIService {
       const finishReason = data.choices?.[0]?.finish_reason;
       const wasTruncated = finishReason === 'length';
       const tokensUsed = data.usage?.total_tokens;
+      const latencyMs = Date.now() - startTime;
 
-      // Clean the response - remove markdown code blocks if present
-      let jsonText = content.trim();
-      
-      if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
-      } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
-      }
-      
-      // Try to extract JSON object if wrapped in text
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonText = jsonMatch[0];
-      }
+      // Log performance
+      console.log(`[AIService] ${model} response in ${latencyMs}ms, ${tokensUsed} tokens`);
 
-      // Parse JSON
-      try {
-        const parsed = JSON.parse(jsonText);
-        return {
-          data: parsed as T,
-          finishReason,
-          wasTruncated,
-          tokensUsed,
-        };
-      } catch (parseError) {
-        // Try to fix incomplete JSON
-        const fixedJson = this.fixIncompleteJSON(jsonText);
-        const parsed = JSON.parse(fixedJson);
-        return {
-          data: parsed as T,
-          finishReason,
-          wasTruncated: true, // Mark as truncated since we had to fix it
-          tokensUsed,
-        };
-      }
+      // Parse JSON response
+      const parsed = this.parseJsonResponse<T>(content);
+      
+      return {
+        data: parsed,
+        finishReason,
+        wasTruncated,
+        tokensUsed,
+        latencyMs,
+      };
     } catch (error) {
-      console.error('AI call error:', error);
+      console.error('[AIService] Error:', error);
       if (error instanceof Error) {
         throw error;
       }
       throw new Error('Unknown error occurred during AI call');
+    }
+  }
+
+  /**
+   * Parse JSON response, handling markdown code blocks
+   */
+  private parseJsonResponse<T>(content: string): T {
+    let jsonText = content.trim();
+    
+    // Remove markdown code blocks if present
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
+    }
+    
+    // Try to extract JSON object if wrapped in text
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[0];
+    }
+
+    try {
+      return JSON.parse(jsonText) as T;
+    } catch {
+      // Try to fix incomplete JSON
+      const fixedJson = this.fixIncompleteJSON(jsonText);
+      return JSON.parse(fixedJson) as T;
     }
   }
 
@@ -139,7 +193,7 @@ export class AIService {
     const openBrackets = (fixed.match(/\[/g) || []).length;
     const closeBrackets = (fixed.match(/\]/g) || []).length;
     
-    // If JSON appears incomplete, try to close it
+    // If JSON appears incomplete, close it
     if (openBraces > closeBraces || openBrackets > closeBrackets) {
       // Find the last complete value before the truncation
       let lastValidIndex = -1;
@@ -190,15 +244,15 @@ export class AIService {
       const bracesToClose = openBraces - closeBraces;
       const bracketsToClose = openBrackets - closeBrackets;
       
-      fixed += '\n' + ']'.repeat(bracketsToClose);
-      fixed += '\n' + '}'.repeat(bracesToClose);
+      fixed += ']'.repeat(Math.max(0, bracketsToClose));
+      fixed += '}'.repeat(Math.max(0, bracesToClose));
     }
     
     return fixed;
   }
 
   /**
-   * Extract text from PDF buffer
+   * Extract text from PDF buffer using pdf-parse
    */
   protected async extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
@@ -220,7 +274,7 @@ export class AIService {
       
       return text;
     } catch (error) {
-      console.error('PDF parsing error:', error);
+      console.error('[AIService] PDF parsing error:', error);
       throw new Error('Failed to parse PDF. Please ensure the file is a valid PDF.');
     }
   }
@@ -235,6 +289,3 @@ export class AIService {
     return text.substring(0, maxChars);
   }
 }
-
-
-

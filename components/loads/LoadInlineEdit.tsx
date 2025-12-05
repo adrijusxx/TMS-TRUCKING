@@ -10,11 +10,9 @@ import { Save, X } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import LoadDocumentWarnings from './LoadDocumentWarnings';
-import LoadBasicInfoTab from './LoadDetailTabs/LoadBasicInfoTab';
-import LoadLocationDetailsTab from './LoadDetailTabs/LoadLocationDetailsTab';
-import LoadSpecificationsTab from './LoadDetailTabs/LoadSpecificationsTab';
+import LoadDetailsTab from './LoadDetailTabs/LoadDetailsTab';
+import LoadRouteTab from './LoadDetailTabs/LoadRouteTab';
 import LoadFinancialTab from './LoadDetailTabs/LoadFinancialTab';
-import LoadRelatedItemsTab from './LoadDetailTabs/LoadRelatedItemsTab';
 import LoadHistoryDocumentsTab from './LoadDetailTabs/LoadHistoryDocumentsTab';
 
 interface LoadInlineEditProps {
@@ -69,13 +67,6 @@ async function fetchTrucks() {
   return result.data || [];
 }
 
-async function fetchTrailers() {
-  const response = await fetch(apiUrl('/api/trailers?limit=1000'));
-  if (!response.ok) throw new Error('Failed to fetch trailers');
-  const result = await response.json();
-  return result.data || [];
-}
-
 async function updateLoad(loadId: string, data: any) {
   const response = await fetch(apiUrl(`/api/loads/${loadId}`), {
     method: 'PATCH',
@@ -91,21 +82,19 @@ async function updateLoad(loadId: string, data: any) {
 
 export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEditProps) {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('basic');
+  const [activeTab, setActiveTab] = useState('details');
   const [isSaving, setIsSaving] = useState(false);
   const hasTriggeredRecalc = React.useRef(false);
 
-  // Fetch full load details
   const { data: load, isLoading: isLoadingLoad } = useQuery({
     queryKey: ['load', row.id],
     queryFn: () => fetchLoadWithDetails(row.id),
     enabled: !!row.id,
-    staleTime: 0, // Always refetch to get fresh data
-    refetchOnMount: true, // Refetch when component mounts
-    refetchOnWindowFocus: false, // Don't refetch on window focus
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 
-  // Fetch available resources
   const { data: customersData } = useQuery({
     queryKey: ['customers'],
     queryFn: fetchCustomers,
@@ -121,9 +110,7 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
     queryFn: fetchTrucks,
   });
 
-  // Prepare data arrays - ensure they're always arrays
   const customers = React.useMemo(() => {
-    // Ensure customersData is an array
     const fetched = Array.isArray(customersData) ? customersData : [];
     const current = load?.customer;
     if (current && !fetched.some((c: any) => c.id === current.id)) {
@@ -135,19 +122,15 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
   const availableDrivers = Array.isArray(driversData) ? driversData : [];
   const availableTrucks = Array.isArray(trucksData) ? trucksData : [];
 
-  // Form state for editable fields - expanded to include all fields from all tabs
   const [formData, setFormData] = useState<Record<string, any>>({});
   
-  // Reset formData when row.id changes (e.g., switching to a different load)
   React.useEffect(() => {
     setFormData({});
   }, [row.id]);
 
-  // Initialize formData when load is available
   React.useEffect(() => {
     if (load && load.id) {
       const initialFormData = {
-        // Basic Info
         truckId: load.truckId || '',
         trailerId: load.trailerId || '',
         trailerNumber: load.trailerNumber || '',
@@ -158,7 +141,6 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
         dispatchStatus: load.dispatchStatus || null,
         loadType: load.loadType || 'FTL',
         equipmentType: load.equipmentType || '',
-        // Location Details
         pickupLocation: load.pickupLocation || '',
         pickupAddress: load.pickupAddress || '',
         pickupCity: load.pickupCity || '',
@@ -183,7 +165,6 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
         deliveryContact: load.deliveryContact || '',
         deliveryPhone: load.deliveryPhone || '',
         deliveryNotes: load.deliveryNotes || '',
-        // Specifications
         weight: load.weight || null,
         pieces: load.pieces || null,
         commodity: load.commodity || '',
@@ -191,7 +172,6 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
         temperature: load.temperature || '',
         hazmat: load.hazmat || false,
         hazmatClass: load.hazmatClass || '',
-        // Financial
         revenue: load.revenue || 0,
         driverPay: load.driverPay || null,
         fuelAdvance: load.fuelAdvance || 0,
@@ -199,25 +179,19 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
         loadedMiles: load.loadedMiles || null,
         emptyMiles: load.emptyMiles || null,
         totalMiles: load.totalMiles || null,
-        // Notes
         dispatchNotes: load.dispatchNotes || '',
-        // Additional fields
         tripId: load.tripId || '',
         shipmentId: load.shipmentId || '',
         dispatcherId: load.dispatcherId || '',
         revenuePerMile: load.revenuePerMile || null,
       };
       
-      // Always update formData when load data changes (load is source of truth)
       setFormData(initialFormData);
     } else if (!load && Object.keys(formData).length > 0) {
-      // Reset formData when load is cleared
       setFormData({});
     }
   }, [load, row.id]);
 
-  // Auto-recalculate driver pay when load loads if driverPay is 0 and driver is assigned
-  // Only trigger once per load to avoid infinite loops
   React.useEffect(() => {
     if (
       load &&
@@ -227,24 +201,20 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
       !hasTriggeredRecalc.current
     ) {
       hasTriggeredRecalc.current = true;
-      // Use the dedicated recalculation endpoint
       fetch(apiUrl(`/api/loads/${row.id}/recalculate-driver-pay`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
         .then((response) => {
           if (response.ok) {
-            // Refetch the load to get updated driver pay
             queryClient.invalidateQueries({ queryKey: ['load', row.id] });
           }
         })
         .catch((error) => {
-          // Silently fail - this is just to trigger recalculation
           console.debug('Auto-recalculate driver pay:', error);
         });
     }
     
-    // Reset the flag when load ID changes
     if (load?.id !== row.id) {
       hasTriggeredRecalc.current = false;
     }
@@ -270,14 +240,12 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
 
     setIsSaving(true);
     
-    // Compare formData with original load and only include changed fields
     const updatePayload: any = {};
     
     Object.keys(formData).forEach((key) => {
       const formValue = (formData as any)[key];
       const originalValue = (load as any)[key];
       
-      // Handle date comparisons
       if (formValue instanceof Date && originalValue instanceof Date) {
         if (formValue.getTime() !== originalValue.getTime()) {
           updatePayload[key] = formValue;
@@ -298,30 +266,29 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
 
   if (isLoadingLoad || !load) {
     return (
-      <Card className="m-4 border-l-4 border-l-primary">
-        <CardContent className="pt-6">
-          <div className="text-center py-8">Loading load details...</div>
+      <Card className="m-2 border-l-4 border-l-primary">
+        <CardContent className="py-4">
+          <div className="text-center text-sm text-muted-foreground">Loading...</div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="m-4 border-l-4 border-l-primary">
-      <CardContent className="pt-6">
-        <div className="space-y-4">
+    <Card className="m-2 border-l-4 border-l-primary">
+      <CardContent className="py-3">
+        <div className="space-y-3">
+          {/* Tabs - 4 tabs matching LoadDetail */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="basic" className="text-xs sm:text-sm">Basic Info</TabsTrigger>
-              <TabsTrigger value="location" className="text-xs sm:text-sm">Location</TabsTrigger>
-              <TabsTrigger value="specifications" className="text-xs sm:text-sm">Specifications</TabsTrigger>
-              <TabsTrigger value="financial" className="text-xs sm:text-sm">Financial</TabsTrigger>
-              <TabsTrigger value="related" className="text-xs sm:text-sm">Related Items</TabsTrigger>
-              <TabsTrigger value="history" className="text-xs sm:text-sm">History & Docs</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 h-7">
+              <TabsTrigger value="details" className="text-xs h-6">Details</TabsTrigger>
+              <TabsTrigger value="route" className="text-xs h-6">Route</TabsTrigger>
+              <TabsTrigger value="financial" className="text-xs h-6">Financial</TabsTrigger>
+              <TabsTrigger value="documents" className="text-xs h-6">Documents</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="basic" className="mt-4">
-              <LoadBasicInfoTab
+            <TabsContent value="details" className="mt-3">
+              <LoadDetailsTab
                 load={load}
                 formData={formData}
                 onFormDataChange={setFormData}
@@ -331,71 +298,57 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
               />
             </TabsContent>
 
-            <TabsContent value="location" className="mt-4">
-              <LoadLocationDetailsTab
+            <TabsContent value="route" className="mt-3">
+              <LoadRouteTab
                 load={load}
                 formData={formData}
                 onFormDataChange={setFormData}
               />
             </TabsContent>
 
-            <TabsContent value="specifications" className="mt-4">
-              <LoadSpecificationsTab
+            <TabsContent value="financial" className="mt-3">
+              <LoadFinancialTab
                 load={load}
                 formData={formData}
                 onFormDataChange={setFormData}
+                onLoadRefetch={() => {
+                  queryClient.invalidateQueries({ queryKey: ['load', row.id] });
+                }}
               />
             </TabsContent>
 
-            <TabsContent value="financial" className="mt-4">
-                <LoadFinancialTab
-                  load={load}
-                  formData={formData}
-                  onFormDataChange={setFormData}
-                  onLoadRefetch={() => {
-                    queryClient.invalidateQueries({ queryKey: ['load', row.id] });
-                  }}
-                />
-            </TabsContent>
-
-            <TabsContent value="related" className="mt-4">
-              <LoadRelatedItemsTab
-                load={load}
-                formData={formData}
-                onFormDataChange={setFormData}
-                availableDrivers={availableDrivers}
-                availableTrucks={availableTrucks}
-              />
-            </TabsContent>
-
-            <TabsContent value="history" className="mt-4">
+            <TabsContent value="documents" className="mt-3">
               <LoadHistoryDocumentsTab load={load} />
             </TabsContent>
           </Tabs>
 
           {/* Document Warnings */}
-          <div className="pt-4 border-t">
+          <div className="pt-2 border-t">
             <LoadDocumentWarnings loadId={row.id} loadNumber={row.loadNumber} />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          {/* Action Buttons - Compact */}
+          <div className="flex justify-end gap-1 pt-2 border-t">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={onCancel}
               disabled={isSaving || updateMutation.isPending}
+              className="h-7 text-xs px-2"
             >
-              <X className="h-4 w-4 mr-2" />
+              <X className="h-3 w-3 mr-1" />
               Cancel
             </Button>
             <Button
               type="button"
+              size="sm"
               onClick={handleSave}
               disabled={isSaving || updateMutation.isPending}
+              className="h-7 text-xs px-2"
             >
-              <Save className="h-4 w-4 mr-2" />
-              {isSaving || updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              <Save className="h-3 w-3 mr-1" />
+              {isSaving || updateMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </div>
@@ -403,7 +356,3 @@ export default function LoadInlineEdit({ row, onSave, onCancel }: LoadInlineEdit
     </Card>
   );
 }
-
-
-
-

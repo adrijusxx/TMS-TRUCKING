@@ -66,6 +66,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@googlemaps/markerclusterer": "^2.6.2",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^6.19.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -86,6 +87,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-visually-hidden": "^1.1.1",
     "@react-pdf/renderer": "^4.3.1",
+    "@serwist/next": "^9.2.3",
     "@tanstack/react-query": "^5.90.8",
     "@tanstack/react-table": "^8.21.3",
     "@types/pdf-parse": "^1.1.5",
@@ -97,6 +99,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
+    "inngest": "^3.46.0",
     "lucide-react": "^0.553.0",
     "next": "^16.0.3",
     "next-auth": "^5.0.0-beta.30",
@@ -106,7 +109,9 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.66.0",
+    "react-is": "^19.2.1",
     "recharts": "^3.4.1",
+    "serwist": "^9.2.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "typescript": "^5.9.3",

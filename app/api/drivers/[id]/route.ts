@@ -237,12 +237,12 @@ export async function PATCH(
 
     const body = await request.json();
     console.log('[Driver Update API] Raw request body:', JSON.stringify(body, null, 2));
-    console.log('[Driver Update API] recurringDeductions in body:', body.recurringDeductions);
-    console.log('[Driver Update API] Type of recurringDeductions:', typeof body.recurringDeductions);
-    console.log('[Driver Update API] Is array?', Array.isArray(body.recurringDeductions));
+    console.log('[Driver Update API] recurringTransactions in body:', body.recurringTransactions);
+    console.log('[Driver Update API] Type of recurringTransactions:', typeof body.recurringTransactions);
+    console.log('[Driver Update API] Is array?', Array.isArray(body.recurringTransactions));
     
     const validated = updateDriverSchema.parse(body);
-    console.log('[Driver Update API] Validated data - recurringDeductions:', validated.recurringDeductions);
+    console.log('[Driver Update API] Validated data - recurringTransactions:', validated.recurringTransactions);
 
     const role = session.user.role as 'ADMIN' | 'ACCOUNTANT' | 'DISPATCHER' | 'DRIVER' | 'CUSTOMER';
 

@@ -16,10 +16,8 @@ import { loadsTableConfig, getLoadRowClassName } from '@/lib/config/entities/loa
 import { apiUrl } from '@/lib/utils';
 import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
-import { Badge } from '@/components/ui/badge';
 import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
 import { toast } from 'sonner';
-import { exportToCSV } from '@/lib/export';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface LoadData {
@@ -83,7 +81,7 @@ export default function LoadListNew() {
     try {
       const result = await bulkDeleteEntities('load', ids);
       if (result.success) {
-        toast.success(`Successfully deleted ${result.deletedCount || ids.length} load(s)`);
+        toast.success(`Deleted ${result.deletedCount || ids.length} load(s)`);
         queryClient.invalidateQueries({ queryKey: ['loads'] });
         setSelectedIds([]);
       } else {
@@ -96,12 +94,7 @@ export default function LoadListNew() {
   }, [queryClient]);
 
   const handleExport = React.useCallback(() => {
-    toast.info('Export all loads functionality - use the export button in the toolbar');
-  }, []);
-
-  const handleImport = React.useCallback(() => {
-    console.log('Import loads - PDF Rate Con Upload');
-    toast.info('Import functionality - PDF Rate Con Upload');
+    toast.info('Use the export button in the toolbar');
   }, []);
 
   const fetchLoads = async (params: {
@@ -119,7 +112,6 @@ export default function LoadListNew() {
     if (params.page) queryParams.set('page', params.page.toString());
     if (params.pageSize) queryParams.set('limit', params.pageSize.toString());
 
-    // Handle sorting - default to createdAt desc (newest first)
     if (params.sorting && params.sorting.length > 0) {
       const sort = params.sorting[0];
       const sortField = sort.id === 'createdAt' ? 'createdAt' : 
@@ -127,19 +119,16 @@ export default function LoadListNew() {
                        sort.id === 'pickupDate' ? 'pickupDate' :
                        sort.id === 'deliveryDate' ? 'deliveryDate' :
                        sort.id === 'revenue' ? 'revenue' :
-                       'createdAt'; // Default fallback
+                       'createdAt';
       queryParams.set('sortBy', sortField);
       queryParams.set('sortOrder', sort.desc ? 'desc' : 'asc');
     } else {
-      // Default: newest first
       queryParams.set('sortBy', 'createdAt');
       queryParams.set('sortOrder', 'desc');
     }
 
-    // Convert filters and search to query params using the converter
     const filterParams = convertFiltersToQueryParams(params.filters || [], params.search);
     filterParams.forEach((value, key) => {
-      // Handle multiple values for same key (e.g., status[]=x&status[]=y)
       if (queryParams.has(key)) {
         queryParams.append(key, value);
       } else {
@@ -147,18 +136,9 @@ export default function LoadListNew() {
       }
     });
 
-    // Add quick filter params - read from params object (passed from DataTableWrapper)
     if (params.createdToday) queryParams.set('createdToday', 'true');
     if (params.pickupToday) queryParams.set('pickupToday', 'true');
     if (params.createdLast24h) queryParams.set('createdLast24h', 'true');
-
-    // Debug: Log quick filter params being sent
-    console.log('[LoadListNew] Quick filter params:', {
-      createdToday: params.createdToday,
-      pickupToday: params.pickupToday,
-      createdLast24h: params.createdLast24h,
-      queryString: queryParams.toString(),
-    });
 
     const response = await fetch(apiUrl(`/api/loads?${queryParams}`));
     if (!response.ok) throw new Error('Failed to fetch loads');
@@ -183,19 +163,19 @@ export default function LoadListNew() {
   };
 
   const rowActions = (row: LoadData) => (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <Button
         variant="ghost"
         size="sm"
         onClick={() => setSelectedLoadId(row.id)}
+        className="h-6 text-xs px-2"
       >
         View
       </Button>
       {can('loads.edit') && (
         <Link href={`/dashboard/loads/${row.id}`}>
-          <Button variant="ghost" size="sm">
-            <Edit className="h-4 w-4 mr-1" />
-            Edit
+          <Button variant="ghost" size="sm" className="h-6 text-xs px-2">
+            <Edit className="h-3 w-3" />
           </Button>
         </Link>
       )}
@@ -203,64 +183,35 @@ export default function LoadListNew() {
   );
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div className="flex items-center gap-2">
-            {can('data.import') && (
-              <ImportDialog entityType="loads">
-                <Button variant="outline" size="sm">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import
-                </Button>
-              </ImportDialog>
-            )}
-            {can('data.export') && (
-              <ExportDialog entityType="loads">
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-              </ExportDialog>
-            )}
-            {can('loads.create') && (
-              <Link href="/dashboard/loads/new">
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Load
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
-        
-        {/* Quick Filters */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Quick Filters:</span>
+    <div className="space-y-2">
+      {/* Header - Compact */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-xs text-muted-foreground mr-1">Quick:</span>
           <Button
             variant={createdToday ? 'default' : 'outline'}
             size="sm"
             onClick={() => setCreatedToday(!createdToday)}
+            className="h-6 text-xs px-2"
           >
             <Sparkles className="h-3 w-3 mr-1" />
-            Created Today
+            Today
           </Button>
           <Button
             variant={pickupToday ? 'default' : 'outline'}
             size="sm"
             onClick={() => setPickupToday(!pickupToday)}
+            className="h-6 text-xs px-2"
           >
-            <Sparkles className="h-3 w-3 mr-1" />
             Pickup Today
           </Button>
           <Button
             variant={createdLast24h ? 'default' : 'outline'}
             size="sm"
             onClick={() => setCreatedLast24h(!createdLast24h)}
+            className="h-6 text-xs px-2"
           >
-            <Sparkles className="h-3 w-3 mr-1" />
-            Created Last 24h
+            Last 24h
           </Button>
           {(createdToday || pickupToday || createdLast24h) && (
             <Button
@@ -271,12 +222,42 @@ export default function LoadListNew() {
                 setPickupToday(false);
                 setCreatedLast24h(false);
               }}
+              className="h-6 text-xs px-2"
             >
-              Clear Filters
+              Clear
             </Button>
           )}
         </div>
+        <div className="flex items-center gap-1">
+          {can('data.import') && (
+            <ImportDialog entityType="loads">
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2">
+                <Upload className="h-3 w-3 mr-1" />
+                Import
+              </Button>
+            </ImportDialog>
+          )}
+          {can('data.export') && (
+            <ExportDialog entityType="loads">
+              <Button variant="outline" size="sm" className="h-6 text-xs px-2">
+                <Download className="h-3 w-3 mr-1" />
+                Export
+              </Button>
+            </ExportDialog>
+          )}
+          {can('loads.create') && (
+            <Link href="/dashboard/loads/new">
+              <Button size="sm" className="h-6 text-xs px-2">
+                <Plus className="h-3 w-3 mr-1" />
+                New Load
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
+
+      {/* Statistics Card - Collapsible Header */}
+      <LoadStatisticsCard />
 
       {/* Data Table */}
       <DataTableWrapper
@@ -290,7 +271,7 @@ export default function LoadListNew() {
         rowActions={rowActions}
         onRowClick={(row) => setSelectedLoadId(row.id)}
         inlineEditComponent={can('loads.edit') ? LoadInlineEdit : undefined}
-        emptyMessage="No loads found. Get started by creating your first load."
+        emptyMessage="No loads found. Create your first load."
         enableColumnVisibility={can('data.column_visibility')}
         enableRowSelection={true}
         onRowSelectionChange={React.useCallback((selection: Record<string, boolean>) => {
@@ -325,10 +306,6 @@ export default function LoadListNew() {
           if (!open) setSelectedLoadId(null);
         }}
       />
-
-      {/* Statistics Card */}
-      <LoadStatisticsCard />
     </div>
   );
 }
-

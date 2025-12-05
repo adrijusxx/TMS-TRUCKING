@@ -246,10 +246,10 @@ export class AccountingFieldMapper {
     // Fetch all invoices for the company
     const invoices = await prisma.invoice.findMany({
       where: {
+        companyId,
         customer: {
           companyId,
         },
-        deletedAt: null,
       },
       select: {
         id: true,

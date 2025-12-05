@@ -5,6 +5,7 @@ import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { AppError, UnauthorizedError, ForbiddenError, ValidationError, NotFoundError } from '@/lib/errors';
 import { ZodSchema } from 'zod';
 import { logger } from '@/lib/utils/logger';
+import type { Session } from 'next-auth';
 
 /**
  * Standardized API error handler
@@ -71,7 +72,7 @@ export function handleApiError(error: unknown): NextResponse {
  * Wrapper for API routes that require authentication
  */
 export function withAuth<T extends any[]>(
-  handler: (request: NextRequest, session: Awaited<ReturnType<typeof auth>>, ...args: T) => Promise<NextResponse>
+  handler: (request: NextRequest, session: Session, ...args: T) => Promise<NextResponse>
 ) {
   return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
     try {
@@ -93,7 +94,7 @@ export function withAuth<T extends any[]>(
  */
 export function withPermission(
   permission: string,
-  handler: (request: NextRequest, session: Awaited<ReturnType<typeof auth>>, ...args: any[]) => Promise<NextResponse>
+  handler: (request: NextRequest, session: Session, ...args: any[]) => Promise<NextResponse>
 ) {
   return withAuth(async (request, session, ...args) => {
     const role = (session.user.role as any) || 'CUSTOMER';
@@ -111,14 +112,14 @@ export function withPermission(
 export function withMcFilter<T extends any[]>(
   handler: (
     request: NextRequest,
-    session: Awaited<ReturnType<typeof auth>>,
+    session: Session,
     mcWhere: Record<string, unknown>,
     ...args: T
   ) => Promise<NextResponse>
 ) {
-  return withAuth(async (request, session, ...args) => {
+  return withAuth(async (request, session, ...args: any[]) => {
     const mcWhere = await buildMcNumberWhereClause(session, request);
-    return await handler(request, session, mcWhere, ...args);
+    return await handler(request, session, mcWhere, ...(args as T));
   });
 }
 
@@ -210,7 +211,7 @@ export function getPaginationParams(request: NextRequest): { page: number; limit
  */
 export async function handleApiRequest<T = unknown>(
   request: NextRequest,
-  handler: (session: Awaited<ReturnType<typeof auth>>) => Promise<T>,
+  handler: (session: Session) => Promise<T>,
   options?: {
     permission?: string;
     loggable?: boolean;

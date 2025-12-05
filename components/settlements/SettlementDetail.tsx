@@ -206,13 +206,17 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
     queryKey: ['settlement', settlementId],
     queryFn: () => fetchSettlement(settlementId),
     retry: 1,
-    onError: (error) => {
-      console.error('[SettlementDetail] Error fetching settlement:', error);
-    },
-    onSuccess: (data) => {
-      console.log('[SettlementDetail] Settlement data loaded:', data);
-    },
   });
+
+  // Log settlement data when loaded (React Query v5 pattern)
+  useEffect(() => {
+    if (data) {
+      console.log('[SettlementDetail] Settlement data loaded:', data);
+    }
+    if (settlementError) {
+      console.error('[SettlementDetail] Error fetching settlement:', settlementError);
+    }
+  }, [data, settlementError]);
   
   // Initialize state from settlement data when it loads
   useEffect(() => {
@@ -866,9 +870,9 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                             });
                           }
                         }}
-                        disabled={createAdditionMutation.isLoading}
+                        disabled={createAdditionMutation.isPending}
                       >
-                        {createAdditionMutation.isLoading ? 'Adding...' : 'Add Addition'}
+                        {createAdditionMutation.isPending ? 'Adding...' : 'Add Addition'}
                       </Button>
                     </DialogFooter>
                   </DialogContent>

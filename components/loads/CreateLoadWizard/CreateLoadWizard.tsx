@@ -1,22 +1,44 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { createLoadSchema, type CreateLoadInput } from '@/lib/validations/load';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Stepper } from '@/components/ui/stepper';
-import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, ArrowRight, Loader2, Save, FileStack, User, Truck, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import Step1IntelligentIngestion from './Step1IntelligentIngestion';
-import Step2ResourceAssignment from './Step2ResourceAssignment';
 import Step3ReviewFinalization from './Step3ReviewFinalization';
+import DriverCombobox from '@/components/drivers/DriverCombobox';
+import TruckCombobox from '@/components/trucks/TruckCombobox';
+import TrailerCombobox from '@/components/trailers/TrailerCombobox';
 import { apiUrl } from '@/lib/utils';
+import {
+  saveDraft,
+  getDraft,
+  deleteDraft,
+  getDraftsList,
+  type LoadDraftListItem,
+} from '@/lib/managers/LoadDraftManager';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { showErrorFeedback } from '@/components/ui/error-feedback-toast';
+
+interface CreateLoadError extends Error {
+  code?: string;
+  details?: string;
+}
 
 async function createLoad(data: CreateLoadInput) {
   const response = await fetch(apiUrl('/api/loads'), {
@@ -27,35 +49,179 @@ async function createLoad(data: CreateLoadInput) {
   if (!response.ok) {
     const error = await response.json();
     const errorMessage = error.error?.message || error.message || 'Failed to create load';
+    const errorCode = error.error?.code;
     
-    // If load already exists, suggest generating a new load number
-    if (error.error?.code === 'CONFLICT' && errorMessage.includes('already exists')) {
-      throw new Error('Load number already exists. Please use a different load number or leave it blank to auto-generate one.');
+    let details = '';
+    if (error.error?.details) {
+      if (typeof error.error.details === 'string') {
+        details = error.error.details;
+      } else if (Array.isArray(error.error.details)) {
+        details = error.error.details
+          .map((d: { path?: string[]; message?: string }) => `${d.path?.join('.') || 'field'}: ${d.message}`)
+          .join('\n');
+      }
     }
     
-    // Include validation details if available
-    if (error.error?.details && Array.isArray(error.error.details)) {
-      const details = error.error.details.map((d: any) => `${d.path?.join('.') || 'field'}: ${d.message}`).join(', ');
-      throw new Error(`${errorMessage}. ${details}`);
-    }
-    throw new Error(errorMessage);
+    showErrorFeedback('Load Creation Failed', errorMessage, {
+      errorCode,
+      details: details || `Load Number: ${data.loadNumber}\nCustomer ID: ${data.customerId}\nTimestamp: ${error.error?.timestamp || new Date().toISOString()}`,
+    });
+    
+    const err = new Error(errorMessage) as CreateLoadError;
+    err.code = errorCode;
+    err.details = details;
+    throw err;
   }
   return response.json();
 }
 
+async function fetchDrivers() {
+  const response = await fetch(apiUrl('/api/drivers?limit=1000&status=AVAILABLE'));
+  if (!response.ok) throw new Error('Failed to fetch drivers');
+  return response.json();
+}
+
+async function fetchTrucks() {
+  const response = await fetch(apiUrl('/api/trucks?limit=1000'));
+  if (!response.ok) throw new Error('Failed to fetch trucks');
+  return response.json();
+}
+
+async function fetchTrailers() {
+  const response = await fetch(apiUrl('/api/trailers?limit=1000&skipStats=true'));
+  if (!response.ok) throw new Error('Failed to fetch trailers');
+  return response.json();
+}
+
+interface Driver {
+  id: string;
+  driverNumber: string;
+  currentTruck?: { id: string; truckNumber: string } | null;
+  currentTrailer?: { id: string; trailerNumber: string } | null;
+  user: { firstName: string; lastName: string };
+}
+
+// Reduced to 2 steps - Resource Assignment merged into Review
 const STEPS = [
-  { label: 'Intelligent Ingestion', description: 'Upload Rate Confirmation' },
-  { label: 'Resource Assignment', description: 'Assign Driver & Equipment' },
-  { label: 'Review & Finalize', description: 'Review and Create Load' },
+  { label: 'Import', description: 'Upload Rate Con' },
+  { label: 'Review & Create', description: 'Assign & Submit' },
 ];
 
 export default function CreateLoadWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(1);
   const [loadData, setLoadData] = useState<Partial<CreateLoadInput>>({});
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [savedDrafts, setSavedDrafts] = useState<LoadDraftListItem[]>([]);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [lastDriverId, setLastDriverId] = useState<string | undefined>(undefined);
+
+  // Fetch resources for assignment
+  const { data: driversData } = useQuery({
+    queryKey: ['drivers', 'wizard'],
+    queryFn: fetchDrivers,
+  });
+  const { data: trucksData } = useQuery({
+    queryKey: ['trucks', 'wizard'],
+    queryFn: fetchTrucks,
+  });
+  const { data: trailersData } = useQuery({
+    queryKey: ['trailers', 'wizard'],
+    queryFn: fetchTrailers,
+  });
+
+  const drivers: Driver[] = driversData?.data || [];
+  const trucks = trucksData?.data || [];
+  const trailers = trailersData?.data || [];
+  const selectedDriver = drivers.find((d) => d.id === loadData.driverId);
+
+  // Auto-fill truck/trailer when driver is selected
+  useEffect(() => {
+    if (selectedDriver && loadData.driverId !== lastDriverId) {
+      if (selectedDriver.currentTruck?.id && !loadData.truckId) {
+        setLoadData((prev) => ({ ...prev, truckId: selectedDriver.currentTruck!.id }));
+      }
+      if (selectedDriver.currentTrailer?.trailerNumber && !loadData.trailerNumber) {
+        setLoadData((prev) => ({ ...prev, trailerNumber: selectedDriver.currentTrailer!.trailerNumber }));
+      }
+      setLastDriverId(loadData.driverId);
+    }
+  }, [selectedDriver, loadData.driverId, lastDriverId, loadData.truckId, loadData.trailerNumber]);
+
+  // Load draft from URL
+  useEffect(() => {
+    const draftId = searchParams.get('draftId');
+    if (draftId) {
+      const draft = getDraft(draftId);
+      if (draft) {
+        setLoadData(draft.data);
+        setCurrentStep(Math.min(draft.step, 2)); // Map old step 3 to 2
+        setCurrentDraftId(draftId);
+        toast.success('Draft loaded');
+      }
+    }
+    setSavedDrafts(getDraftsList());
+  }, [searchParams]);
+
+  // Auto-save draft
+  useEffect(() => {
+    if (Object.keys(loadData).length === 0) return;
+    const autoSaveInterval = setInterval(() => {
+      try {
+        const id = saveDraft(
+          loadData,
+          currentStep,
+          currentDraftId || undefined,
+          loadData.loadNumber || `Draft - ${new Date().toLocaleDateString()}`,
+          pendingFiles.map((f) => f.name)
+        );
+        setCurrentDraftId(id);
+        setSavedDrafts(getDraftsList());
+      } catch (error) {}
+    }, 30000);
+    return () => clearInterval(autoSaveInterval);
+  }, [loadData, currentStep, currentDraftId, pendingFiles]);
+
+  const handleSaveDraft = useCallback(() => {
+    setIsSavingDraft(true);
+    try {
+      const id = saveDraft(
+        loadData,
+        currentStep,
+        currentDraftId || undefined,
+        loadData.loadNumber || `Draft - ${new Date().toLocaleDateString()}`,
+        pendingFiles.map((f) => f.name)
+      );
+      setCurrentDraftId(id);
+      setSavedDrafts(getDraftsList());
+      toast.success('Draft saved');
+    } catch (error) {
+      toast.error('Failed to save draft');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }, [loadData, currentStep, currentDraftId, pendingFiles]);
+
+  const handleLoadDraft = useCallback((draftId: string) => {
+    const draft = getDraft(draftId);
+    if (draft) {
+      setLoadData(draft.data);
+      setCurrentStep(Math.min(draft.step, 2));
+      setCurrentDraftId(draftId);
+      toast.success('Draft loaded');
+    }
+  }, []);
+
+  const handleDeleteDraft = useCallback((draftId: string) => {
+    deleteDraft(draftId);
+    setSavedDrafts(getDraftsList());
+    if (draftId === currentDraftId) setCurrentDraftId(null);
+    toast.success('Draft deleted');
+  }, [currentDraftId]);
 
   const {
     handleSubmit,
@@ -72,22 +238,6 @@ export default function CreateLoadWizard() {
     onSuccess: async (data) => {
       const newLoadId = data.data.id;
       
-      // Immediately verify the load exists by fetching it
-      try {
-        const verifyResponse = await fetch(apiUrl(`/api/loads?page=1&limit=1&search=${encodeURIComponent(data.data.loadNumber || newLoadId)}`));
-        if (verifyResponse.ok) {
-          const verifyData = await verifyResponse.json();
-          console.log('[CreateLoadWizard] Load verification - API returned:', {
-            total: verifyData.meta?.total || 0,
-            found: verifyData.data?.length || 0,
-            loadNumber: data.data.loadNumber,
-          });
-        }
-      } catch (error) {
-        console.error('[CreateLoadWizard] Error verifying load:', error);
-      }
-      
-      // Upload pending files
       if (pendingFiles.length > 0) {
         try {
           await Promise.all(
@@ -106,32 +256,17 @@ export default function CreateLoadWizard() {
                 method: 'POST',
                 body: formData,
               });
-              
-              if (!response.ok) {
-                throw new Error(`Failed to upload ${file.name}`);
-              }
+              if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
             })
           );
-          toast.success(`Load created and ${pendingFiles.length} file(s) attached successfully`);
+          toast.success(`Load created with ${pendingFiles.length} file(s)`);
         } catch (error) {
-          console.error('Error uploading files:', error);
-          toast.error('Load created but some files failed to upload');
+          toast.error('Load created but some files failed');
         }
       } else {
         toast.success('Load created successfully');
       }
       
-      console.log('[CreateLoadWizard] Load created successfully!', { newLoadId, data });
-      console.log('[CreateLoadWizard] Created load details:', {
-        id: newLoadId,
-        loadNumber: data.data?.loadNumber,
-        mcNumberId: data.data?.mcNumberId,
-        mcNumber: data.data?.mcNumber,
-        status: data.data?.status,
-        companyId: data.data?.companyId,
-      });
-      
-      // AGGRESSIVE cache clearing - remove ALL loads queries from cache
       queryClient.removeQueries({ 
         predicate: (query) => {
           const firstKey = query.queryKey[0];
@@ -139,7 +274,6 @@ export default function CreateLoadWizard() {
         }
       });
       
-      // Invalidate all loads queries
       await queryClient.invalidateQueries({ 
         predicate: (query) => {
           const firstKey = query.queryKey[0];
@@ -147,53 +281,18 @@ export default function CreateLoadWizard() {
         }
       });
       
-      console.log('[CreateLoadWizard] Created load details:', {
-        id: newLoadId,
-        loadNumber: data.data?.loadNumber,
-        mcNumberId: data.data?.mcNumberId,
-        mcNumber: data.data?.mcNumber,
-        status: data.data?.status,
-        companyId: data.data?.companyId,
-      });
+      if (currentDraftId) deleteDraft(currentDraftId);
       
-      // IMPORTANT: Check if MC number matches current view
-      const createdMcNumberId = data.data?.mcNumberId;
-      if (createdMcNumberId) {
-        console.warn('[CreateLoadWizard] ⚠️ Load created with MC Number ID:', createdMcNumberId);
-        console.warn('[CreateLoadWizard] ⚠️ Make sure your MC view mode is set to "All MCs" or includes this MC number');
-      } else {
-        console.warn('[CreateLoadWizard] ⚠️ Load created WITHOUT an MC Number (mcNumberId is null)');
-        console.warn('[CreateLoadWizard] ⚠️ This load may not appear if you have MC filtering enabled');
-      }
-      
-      // Show success message with MC number info
-      const loadNumber = data.data?.loadNumber || newLoadId;
-      const mcWarning = createdMcNumberId 
-        ? `MC Number: ${createdMcNumberId}. Switch to "All MCs" view to see this load.`
-        : 'No MC Number assigned. Switch to "All MCs" view to see this load.';
-      
-      toast.success(`Load ${loadNumber} created successfully!`, {
-        description: mcWarning,
-        duration: 6000,
-      });
-      
-      // Force a hard page refresh to ensure the list updates
-      // This is the most reliable way to ensure the load appears
       setTimeout(() => {
         window.location.href = '/dashboard/loads';
       }, 500);
     },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Failed to create load');
-    },
+    onError: () => {},
   });
 
   const handleDataExtracted = useCallback((data: Partial<CreateLoadInput>, pdfFile?: File) => {
     setLoadData((prev) => ({ ...prev, ...data }));
-    if (pdfFile) {
-      setPendingFiles((prev) => [...prev, pdfFile]);
-    }
-    // Move to next step
+    if (pdfFile) setPendingFiles((prev) => [...prev, pdfFile]);
     setCurrentStep(2);
   }, []);
 
@@ -204,7 +303,6 @@ export default function CreateLoadWizard() {
   const handleFieldChange = useCallback((field: keyof CreateLoadInput, value: any) => {
     setLoadData((prev) => ({ ...prev, [field]: value }));
     setValue(field, value);
-    // Clear validation error for this field
     if (validationErrors[field]) {
       setValidationErrors((prev) => {
         const newErrors = { ...prev };
@@ -214,176 +312,101 @@ export default function CreateLoadWizard() {
     }
   }, [setValue, validationErrors]);
 
-  const validateCurrentStep = async (): Promise<boolean> => {
-    if (currentStep === 1) {
-      // Step 1 validation is handled by the component itself
-      return true;
-    }
-    
-    if (currentStep === 2) {
-      // Step 2: Driver is optional but recommended
-      return true;
-    }
-    
-    if (currentStep === 3) {
-      // Step 3: Validate all required fields
-      const result = await trigger();
-      if (!result) {
-        // Convert form errors to validation errors
-        const errors: Record<string, string> = {};
-        Object.keys(formErrors).forEach((key) => {
-          const error = formErrors[key as keyof typeof formErrors];
-          if (error?.message) {
-            errors[key] = error.message;
-          }
-        });
-        setValidationErrors(errors);
-        toast.error('Please fix validation errors before proceeding');
-      }
-      return result;
-    }
-    
-    return true;
-  };
-
   const handleNext = async () => {
-    const isValid = await validateCurrentStep();
-    if (isValid && currentStep < STEPS.length) {
-      setCurrentStep((prev) => prev + 1);
-    }
+    if (currentStep < STEPS.length) setCurrentStep((prev) => prev + 1);
   };
 
   const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep((prev) => prev - 1);
-    }
+    if (currentStep > 1) setCurrentStep((prev) => prev - 1);
   };
 
   const onSubmit = async (data: CreateLoadInput) => {
     try {
-      // Ensure all data from state is included
-      const submissionData: CreateLoadInput = {
-        ...loadData,
-        ...data,
-      } as CreateLoadInput;
+      const submissionData: CreateLoadInput = { ...loadData, ...data } as CreateLoadInput;
 
-      console.log('[CreateLoadWizard] onSubmit called', { 
-        loadData, 
-        formData: data, 
-        submissionData 
-      });
-
-      // Validate customer
       if (!submissionData.customerId || (typeof submissionData.customerId === 'string' && submissionData.customerId.trim() === '')) {
         toast.error('Customer is required');
         setValidationErrors({ customerId: 'Customer is required' });
         return;
       }
 
-      // Auto-generate load number if not provided
-      if (!submissionData.loadNumber || (typeof submissionData.loadNumber === 'string' && submissionData.loadNumber.trim() === '')) {
-        const timestamp = Date.now();
-        const random = Math.floor(Math.random() * 1000);
-        submissionData.loadNumber = `LOAD-${timestamp}-${random}`;
-        console.log('[CreateLoadWizard] Auto-generated load number:', submissionData.loadNumber);
+      if (!submissionData.loadNumber || submissionData.loadNumber.trim() === '') {
+        submissionData.loadNumber = `LOAD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       }
 
-      // Ensure required fields have defaults
-      if (!submissionData.loadType) {
-        submissionData.loadType = 'FTL';
-      }
-      if (!submissionData.equipmentType) {
-        submissionData.equipmentType = 'DRY_VAN';
-      }
-      if (submissionData.revenue === undefined || submissionData.revenue === null) {
-        submissionData.revenue = 0;
-      }
+      if (!submissionData.loadType) submissionData.loadType = 'FTL';
+      if (!submissionData.equipmentType) submissionData.equipmentType = 'DRY_VAN';
+      if (submissionData.revenue === undefined || submissionData.revenue === null) submissionData.revenue = 0;
 
-      // Clean up the data - remove undefined values and convert empty strings to undefined for optional fields
       const cleanedData: any = { ...submissionData };
       Object.keys(cleanedData).forEach((key) => {
         const value = cleanedData[key];
         if (value === '' || value === null) {
-          // Only remove empty strings/null for optional fields
-          // Required fields like customerId, loadNumber should keep their values
-          if (key !== 'customerId' && key !== 'loadNumber' && key !== 'loadType' && key !== 'equipmentType') {
+          if (!['customerId', 'loadNumber', 'loadType', 'equipmentType'].includes(key)) {
             delete cleanedData[key];
           }
         }
       });
 
-      // Validate using Zod schema
-      console.log('[CreateLoadWizard] Validating cleaned data:', cleanedData);
       const validated = createLoadSchema.parse(cleanedData);
-      console.log('[CreateLoadWizard] Validation passed:', validated);
       createMutation.mutate(validated);
     } catch (error) {
-      console.error('[CreateLoadWizard] Validation error:', error);
-      
       if (error instanceof z.ZodError) {
-        // Convert Zod errors to validation errors
         const errors: Record<string, string> = {};
-        const errorMessages: string[] = [];
-        
         error.issues.forEach((issue) => {
           const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
-          const fieldName = issue.path.length > 0 ? issue.path[issue.path.length - 1] : 'form';
           errors[path] = issue.message;
-          errorMessages.push(`${fieldName}: ${issue.message}`);
         });
-        
-        console.error('[CreateLoadWizard] Validation errors:', {
-          errors,
-          errorMessages,
-          issues: error.issues,
-          formatted: error.format(),
-        });
-        
         setValidationErrors(errors);
-        
-        // Show a more helpful error message
-        if (errorMessages.length > 0) {
-          const firstError = errorMessages[0];
-          const remainingCount = errorMessages.length - 1;
-          const message = remainingCount > 0 
-            ? `${firstError} (and ${remainingCount} more error${remainingCount > 1 ? 's' : ''})`
-            : firstError;
-          toast.error(`Validation failed: ${message}`);
-        } else {
-          toast.error('Please fix validation errors before submitting');
-        }
+        toast.error('Please fix validation errors');
       } else {
-        console.error('[CreateLoadWizard] Non-Zod error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'An error occurred while submitting the form';
-        toast.error(errorMessage);
+        toast.error(error instanceof Error ? error.message : 'An error occurred');
       }
     }
   };
 
   return (
-    <div className="space-y-6 pb-6">
-      {/* Header */}
+    <div className="space-y-4 pb-4">
+      {/* Header - Compact */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Create New Load</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Use AI to extract data from Rate Confirmations or enter manually
+          <h1 className="text-xl font-bold">Create Load</h1>
+          <p className="text-xs text-muted-foreground">
+            Import from Rate Con or enter manually
           </p>
         </div>
         <Link href="/dashboard/loads">
-          <Button type="button" variant="ghost" size="icon">
+          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
       </div>
 
-      {/* Stepper */}
-      <Card className="p-6">
-        <Stepper steps={STEPS} currentStep={currentStep} />
-      </Card>
+      {/* Compact Stepper - Inline */}
+      <div className="flex items-center gap-2 text-xs">
+        {STEPS.map((step, idx) => {
+          const stepNum = idx + 1;
+          const isActive = currentStep === stepNum;
+          const isComplete = currentStep > stepNum;
+          return (
+            <div key={step.label} className="flex items-center gap-1">
+              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium ${
+                isActive ? 'bg-primary text-primary-foreground' : 
+                isComplete ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'
+              }`}>
+                {isComplete ? '✓' : stepNum}
+              </div>
+              <span className={`${isActive ? 'font-medium' : 'text-muted-foreground'}`}>
+                {step.label}
+              </span>
+              {idx < STEPS.length - 1 && <div className="w-8 h-px bg-border mx-1" />}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Step Content */}
-      <div className="min-h-[400px]">
+      <div className="min-h-[300px]">
         {currentStep === 1 && (
           <Step1IntelligentIngestion
             onDataExtracted={handleDataExtracted}
@@ -391,24 +414,66 @@ export default function CreateLoadWizard() {
           />
         )}
         {currentStep === 2 && (
-          <Step2ResourceAssignment
-            driverId={loadData.driverId}
-            truckId={loadData.truckId}
-            trailerNumber={loadData.trailerNumber}
-            onDriverChange={(id) => handleFieldChange('driverId', id)}
-            onTruckChange={(id) => handleFieldChange('truckId', id)}
-            onTrailerChange={(number) => handleFieldChange('trailerNumber', number)}
-          />
-        )}
-        {currentStep === 3 && (
           <form 
             id="create-load-form" 
             onSubmit={(e) => {
               e.preventDefault();
-              // Pass loadData directly since inputs use controlled state, not react-hook-form
               onSubmit(loadData as CreateLoadInput);
             }}
           >
+            {/* Resource Assignment - Inline in Step 2 */}
+            <Card className="mb-4 shadow-sm">
+              <CardHeader className="py-2 px-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Resource Assignment</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="py-2 px-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Driver</Label>
+                    <DriverCombobox
+                      value={loadData.driverId || ''}
+                      onValueChange={(value) => {
+                        handleFieldChange('driverId', value);
+                        setLastDriverId(undefined);
+                      }}
+                      placeholder="Select driver..."
+                      drivers={drivers}
+                      className="h-8 text-xs"
+                    />
+                    {selectedDriver && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {selectedDriver.user.firstName} {selectedDriver.user.lastName}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Truck</Label>
+                    <TruckCombobox
+                      value={loadData.truckId || ''}
+                      onValueChange={(value) => handleFieldChange('truckId', value)}
+                      placeholder="Select truck..."
+                      trucks={trucks}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Trailer</Label>
+                    <TrailerCombobox
+                      value={loadData.trailerNumber || ''}
+                      onValueChange={(value) => handleFieldChange('trailerNumber', value)}
+                      placeholder="Select trailer..."
+                      trailers={trailers}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Review Section */}
             <Step3ReviewFinalization
               loadData={loadData}
               onFieldChange={handleFieldChange}
@@ -418,37 +483,72 @@ export default function CreateLoadWizard() {
         )}
       </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between items-center pt-4 border-t">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleBack}
-          disabled={currentStep === 1}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <div className="flex gap-2">
+      {/* Navigation - Compact */}
+      <div className="flex justify-between items-center pt-3 border-t">
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleBack}
+            disabled={currentStep === 1}
+            className="h-7 text-xs px-2"
+          >
+            <ArrowLeft className="h-3 w-3 mr-1" />
+            Back
+          </Button>
+
+          {savedDrafts.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="h-7 w-7 p-0">
+                  <FileStack className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <div className="px-2 py-1 text-xs font-medium">Drafts ({savedDrafts.length})</div>
+                <DropdownMenuSeparator />
+                {savedDrafts.map((draft) => (
+                  <DropdownMenuItem
+                    key={draft.id}
+                    className="text-xs cursor-pointer"
+                    onClick={() => handleLoadDraft(draft.id)}
+                  >
+                    {draft.name || `Draft ${draft.id.slice(-6)}`}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleSaveDraft}
+            disabled={isSavingDraft || Object.keys(loadData).length === 0}
+            className="h-7 text-xs px-2"
+          >
+            {isSavingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+            Save Draft
+          </Button>
+
           {currentStep < STEPS.length ? (
-            <Button
-              type="button"
-              onClick={handleNext}
-            >
-              Next
-              <ArrowRight className="h-4 w-4 ml-2" />
+            <Button type="button" size="sm" onClick={handleNext} className="h-7 text-xs px-2">
+              Next <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
           ) : (
             <Button
               type="submit"
               form="create-load-form"
+              size="sm"
               disabled={createMutation.isPending}
+              className="h-7 text-xs px-2"
             >
               {createMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
+                <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Creating...</>
               ) : (
                 'Create Load'
               )}
@@ -459,4 +559,3 @@ export default function CreateLoadWizard() {
     </div>
   );
 }
-

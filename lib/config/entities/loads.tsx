@@ -366,11 +366,18 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     accessorKey: 'emptyMiles',
     header: 'Empty Miles',
     cell: ({ row }) => {
+      // Use stored emptyMiles first
+      const storedEmpty = (row.original as any).emptyMiles ?? row.original.emptyMiles;
+      if (storedEmpty !== null && storedEmpty !== undefined && storedEmpty > 0) {
+        return storedEmpty.toLocaleString();
+      }
+      // Fallback: calculate from total - loaded
       const totalMiles = (row.original as any).totalMiles ?? row.original.miles ?? 0;
       const loadedMiles = (row.original as any).loadedMiles ?? row.original.loadedMiles ?? 0;
-      // Empty miles = total miles - loaded miles (includes deadhead to pickup)
-      const emptyMiles = Math.max(totalMiles - loadedMiles, 0);
-      return emptyMiles > 0 ? emptyMiles.toLocaleString() : 'N/A';
+      if (loadedMiles > 0 && totalMiles > loadedMiles) {
+        return Math.max(totalMiles - loadedMiles, 0).toLocaleString();
+      }
+      return 'N/A';
     },
     defaultVisible: false,
   },
@@ -394,11 +401,19 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'RPM (Empty)',
     cell: ({ row }) => {
       const revenue = row.original.revenue || 0;
-      const totalMiles = (row.original as any).totalMiles ?? row.original.miles ?? 0;
-      const loadedMiles = (row.original as any).loadedMiles ?? row.original.loadedMiles ?? 0;
-      const storedEmptyMiles = (row.original as any).emptyMiles ?? row.original.emptyMiles ?? 0;
-      // Empty miles = stored emptyMiles + loadedMiles (loadedMiles are deadhead in this context)
-      const emptyMiles = storedEmptyMiles + loadedMiles;
+      // Use stored emptyMiles first
+      const storedEmpty = (row.original as any).emptyMiles ?? row.original.emptyMiles;
+      let emptyMiles = 0;
+      if (storedEmpty !== null && storedEmpty !== undefined && storedEmpty > 0) {
+        emptyMiles = storedEmpty;
+      } else {
+        // Fallback: calculate from total - loaded
+        const totalMiles = (row.original as any).totalMiles ?? row.original.miles ?? 0;
+        const loadedMiles = (row.original as any).loadedMiles ?? row.original.loadedMiles ?? 0;
+        if (loadedMiles > 0 && totalMiles > loadedMiles) {
+          emptyMiles = totalMiles - loadedMiles;
+        }
+      }
       if (emptyMiles > 0) {
         const rpm = revenue / emptyMiles;
         return formatCurrency(rpm);

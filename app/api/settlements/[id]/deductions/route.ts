@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const createDeductionSchema = z.object({
-  deductionType: z.enum(['FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'ESCROW', 'FINE', 'REPAIR', 'OTHER']),
+  deductionType: z.enum(['FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'ESCROW', 'MAINTENANCE', 'PERMITS', 'OTHER']),
   description: z.string().min(1, 'Description is required'),
   amount: z.number().positive('Amount must be positive'),
   fuelEntryId: z.string().optional(),

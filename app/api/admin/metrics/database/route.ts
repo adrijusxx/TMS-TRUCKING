@@ -3,6 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { handleApiRequest } from '@/lib/api/route-helpers';
 import { ForbiddenError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
+import type { Session } from 'next-auth';
 
 /**
  * Get database performance metrics
@@ -11,7 +12,7 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: NextRequest) {
   return handleApiRequest(
     request,
-    async (session) => {
+    async (session: Session) => {
       // Check admin role - admin routes require ADMIN role
       if (session.user.role !== 'ADMIN') {
         throw new ForbiddenError('Admin access required');

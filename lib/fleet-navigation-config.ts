@@ -8,6 +8,7 @@ import {
   BarChart3,
   Building2,
   Calendar,
+  Wifi,
 } from 'lucide-react';
 
 // Navigation sections configuration
@@ -28,6 +29,12 @@ export const fleetNavigationSections = [
         href: '/dashboard/trailers',
         icon: Container,
         description: 'Manage your trailer fleet including trailer numbers, types, specifications, and status. Track trailer assignments to trucks, ownership information, and current location.',
+      },
+      {
+        name: 'Samsara Devices',
+        href: '/dashboard/fleet/devices',
+        icon: Wifi,
+        description: 'Sync and manage Samsara-connected trucks and trailers. Review pending devices, approve new units, and link to existing TMS records. Track fault codes and odometer readings.',
       },
     ],
   },
