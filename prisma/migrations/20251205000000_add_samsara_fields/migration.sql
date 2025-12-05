@@ -2,6 +2,9 @@
 ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "samsaraId" TEXT;
 ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "samsaraSyncedAt" TIMESTAMP(3);
 ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "samsaraSyncStatus" TEXT;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "lastOdometerReading" DOUBLE PRECISION;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "lastOdometerUpdate" TIMESTAMP(3);
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "lastEngineHours" DOUBLE PRECISION;
 
 -- Add Samsara Integration fields to Trailer table
 ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "samsaraId" TEXT;
