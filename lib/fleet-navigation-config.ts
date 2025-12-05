@@ -9,6 +9,7 @@ import {
   Building2,
   Calendar,
   Wifi,
+  Gauge,
 } from 'lucide-react';
 
 // Navigation sections configuration
@@ -48,6 +49,12 @@ export const fleetNavigationSections = [
         href: '/dashboard/fleet/breakdowns',
         icon: AlertTriangle,
         description: 'Real-time dashboard showing all active vehicle breakdowns requiring immediate attention. Includes Quick Entry button and tabs for History, Hotspots, and Cost Tracking.',
+      },
+      {
+        name: 'Diagnostics',
+        href: '/dashboard/fleet/diagnostics',
+        icon: Gauge,
+        description: 'View and analyze vehicle fault codes from Samsara. Track diagnostic trends, get troubleshooting steps, monitor fleet health, and resolve issues proactively.',
       },
       {
         name: 'Maintenance',

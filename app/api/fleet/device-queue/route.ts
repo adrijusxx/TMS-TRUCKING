@@ -35,18 +35,68 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '50');
 
+    // Enhanced filtering parameters
+    const search = searchParams.get('search'); // Search name, VIN, license plate
+    const make = searchParams.get('make');
+    const model = searchParams.get('model');
+    const yearMin = searchParams.get('yearMin') ? parseInt(searchParams.get('yearMin')!) : undefined;
+    const yearMax = searchParams.get('yearMax') ? parseInt(searchParams.get('yearMax')!) : undefined;
+    const reviewedById = searchParams.get('reviewedById');
+    const createdFrom = searchParams.get('createdFrom'); // ISO date string
+    const createdTo = searchParams.get('createdTo'); // ISO date string
+
     // Check if table exists by trying a simple query
     try {
       const where: any = {
         companyId: session.user.companyId,
       };
 
+      // Status filter
       if (status !== 'all') {
         where.status = status;
       }
 
+      // Device type filter
       if (deviceType) {
         where.deviceType = deviceType;
+      }
+
+      // Search filter (name, VIN, license plate)
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { vin: { contains: search, mode: 'insensitive' } },
+          { licensePlate: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      // Make filter
+      if (make) {
+        where.make = { contains: make, mode: 'insensitive' };
+      }
+
+      // Model filter
+      if (model) {
+        where.model = { contains: model, mode: 'insensitive' };
+      }
+
+      // Year range filter
+      if (yearMin || yearMax) {
+        where.year = {};
+        if (yearMin) where.year.gte = yearMin;
+        if (yearMax) where.year.lte = yearMax;
+      }
+
+      // Reviewer filter
+      if (reviewedById) {
+        where.reviewedById = reviewedById;
+      }
+
+      // Date range filter
+      if (createdFrom || createdTo) {
+        where.createdAt = {};
+        if (createdFrom) where.createdAt.gte = new Date(createdFrom);
+        if (createdTo) where.createdAt.lte = new Date(createdTo);
       }
 
       const [items, total] = await Promise.all([
@@ -71,6 +121,41 @@ export async function GET(request: NextRequest) {
         _count: true,
       });
 
+      // Get counts by status AND device type (for linked breakdown)
+      const statusDeviceTypeCounts = await prisma.samsaraDeviceQueue.groupBy({
+        by: ['status', 'deviceType'],
+        where: { companyId: session.user.companyId },
+        _count: true,
+      });
+
+      // Get distinct filter options
+      const [makes, models, years] = await Promise.all([
+        prisma.samsaraDeviceQueue.findMany({
+          where: { companyId: session.user.companyId, make: { not: null } },
+          select: { make: true },
+          distinct: ['make'],
+        }),
+        prisma.samsaraDeviceQueue.findMany({
+          where: { companyId: session.user.companyId, model: { not: null } },
+          select: { model: true },
+          distinct: ['model'],
+        }),
+        prisma.samsaraDeviceQueue.findMany({
+          where: { companyId: session.user.companyId, year: { not: null } },
+          select: { year: true },
+          distinct: ['year'],
+          orderBy: { year: 'desc' },
+        }),
+      ]);
+
+      // Calculate linked trucks vs trailers
+      const linkedTrucks = statusDeviceTypeCounts.find(
+        s => s.status === 'LINKED' && s.deviceType === 'TRUCK'
+      )?._count || 0;
+      const linkedTrailers = statusDeviceTypeCounts.find(
+        s => s.status === 'LINKED' && s.deviceType === 'TRAILER'
+      )?._count || 0;
+
       return NextResponse.json({
         success: true,
         data: {
@@ -85,7 +170,14 @@ export async function GET(request: NextRequest) {
             pending: statusCounts.find(s => s.status === 'PENDING')?._count || 0,
             approved: statusCounts.find(s => s.status === 'APPROVED')?._count || 0,
             linked: statusCounts.find(s => s.status === 'LINKED')?._count || 0,
+            linkedTrucks, // Trucks only
+            linkedTrailers, // Trailers only
             rejected: statusCounts.find(s => s.status === 'REJECTED')?._count || 0,
+          },
+          filterOptions: {
+            makes: makes.map(m => m.make).filter(Boolean),
+            models: models.map(m => m.model).filter(Boolean),
+            years: years.map(y => y.year).filter(Boolean),
           },
         },
       });

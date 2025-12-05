@@ -380,9 +380,19 @@ export class SamsaraDeviceSyncService {
   }
 
   /**
-   * Add device to pending review queue
+   * Add device to pending review queue (only if not already queued)
    */
   private async addToQueue(device: SamsaraDevice, deviceType: 'TRUCK' | 'TRAILER') {
+    // Check if already in queue
+    const existingQueueItem = await prisma.samsaraDeviceQueue.findUnique({
+      where: { samsaraId: device.id },
+    });
+
+    if (existingQueueItem) {
+      console.log(`[SamsaraSync] Device ${device.name} already in queue, skipping`);
+      return;
+    }
+
     // Convert year to number if it's a string
     const yearValue = device.year 
       ? (typeof device.year === 'string' ? parseInt(device.year, 10) : device.year)
@@ -451,14 +461,13 @@ export class SamsaraDeviceSyncService {
               matchedRecordId: alreadyLinked.id,
               matchedType: 'TRUCK',
               reviewedAt: now,
-              reviewedById: userId,
+              reviewedBy: { connect: { id: userId } },
             },
           });
           return { success: true, recordId: alreadyLinked.id, action: 'linked' };
         }
 
-        // Check if truck with this number already exists
-        // Get ALL trucks to do flexible matching
+        // Get ALL trucks to check for duplicates
         const allCompanyTrucks = await prisma.truck.findMany({
           where: {
             companyId: queueItem.companyId,
@@ -469,59 +478,153 @@ export class SamsaraDeviceSyncService {
 
         console.log(`[SamsaraSync] Looking for match for ${truckNumber} (VIN: ${queueItem.vin}) among ${allCompanyTrucks.length} trucks`);
 
-        // Try to find a match with normalized comparison
-        const normalizedTarget = this.normalize(truckNumber);
-        const normalizedVin = this.normalize(queueItem.vin);
+        // Check if truck with this VIN already exists (most reliable match)
+        let existingTruck = null;
+        
+        if (queueItem.vin) {
+          existingTruck = allCompanyTrucks.find(truck => 
+            truck.vin && truck.vin.toUpperCase() === queueItem.vin?.toUpperCase()
+          ) || null;
+          
+          if (existingTruck) {
+            console.log(`[SamsaraSync] Found existing truck by VIN: ${existingTruck.truckNumber} (${existingTruck.vin})`);
+          }
+        }
 
-        let existingTruck = allCompanyTrucks.find(truck => {
-          const normalizedTruckNumber = this.normalize(truck.truckNumber);
-          const normalizedTruckVin = this.normalize(truck.vin);
-          
-          // Match by truck number
-          if (normalizedTarget && normalizedTruckNumber === normalizedTarget) {
-            console.log(`[SamsaraSync] Found match by truck number: ${truck.truckNumber}`);
-            return true;
+        // If no VIN match, try truck number with multiple strategies
+        if (!existingTruck) {
+          const normalizedTarget = this.normalize(truckNumber);
+          // Also extract just numeric part for fuzzy matching
+          const numericPart = truckNumber.replace(/\D/g, '');
+
+          existingTruck = allCompanyTrucks.find(truck => {
+            const normalizedTruckNumber = this.normalize(truck.truckNumber);
+            const truckNumericPart = truck.truckNumber.replace(/\D/g, '');
+            
+            // Strategy 1: Exact normalized match
+            if (normalizedTarget && normalizedTruckNumber === normalizedTarget) {
+              console.log(`[SamsaraSync] Found match by truck number: ${truck.truckNumber}`);
+              return true;
+            }
+            
+            // Strategy 2: Numeric part match (e.g. "854" matches "T854", "854-A", "#854")
+            if (numericPart && numericPart.length >= 2 && truckNumericPart === numericPart) {
+              console.log(`[SamsaraSync] Found match by numeric part: ${truck.truckNumber} (${numericPart})`);
+              return true;
+            }
+            
+            // Strategy 3: Contains match for short numbers (e.g. "854" in "854 JOHN")
+            if (numericPart && numericPart.length >= 3 && truck.truckNumber.includes(numericPart)) {
+              console.log(`[SamsaraSync] Found match by contains: ${truck.truckNumber} contains ${numericPart}`);
+              return true;
+            }
+            
+            return false;
+          }) || null;
+        }
+        
+        // Last resort: Check if ANY truck has this VIN (even with different company filter issues)
+        if (!existingTruck && queueItem.vin) {
+          const vinCheck = await prisma.truck.findFirst({
+            where: { vin: queueItem.vin },
+            select: { id: true, truckNumber: true, vin: true, samsaraId: true, companyId: true },
+          });
+          if (vinCheck) {
+            console.log(`[SamsaraSync] Found truck with same VIN in database: ${vinCheck.truckNumber} (companyId: ${vinCheck.companyId})`);
+            if (vinCheck.companyId === queueItem.companyId) {
+              existingTruck = vinCheck;
+            } else {
+              return { success: false, error: `VIN ${queueItem.vin} exists but belongs to a different company. Cannot create duplicate.` };
+            }
           }
-          
-          // Match by VIN
-          if (normalizedVin && normalizedTruckVin === normalizedVin) {
-            console.log(`[SamsaraSync] Found match by VIN: ${truck.vin}`);
-            return true;
-          }
-          
-          return false;
-        });
+        }
 
         let truckId: string | undefined;
         let action: 'created' | 'linked';
 
         if (existingTruck) {
-          if (existingTruck.samsaraId && existingTruck.samsaraId !== queueItem.samsaraId) {
-            return { success: false, error: `Truck ${existingTruck.truckNumber} is already linked to a different Samsara device.` };
+          // Case 1: Truck already linked to THIS SAME samsaraId → already done, just update queue status
+          if (existingTruck.samsaraId === queueItem.samsaraId) {
+            await prisma.samsaraDeviceQueue.update({
+              where: { id: queueId },
+              data: {
+                status: 'LINKED',
+                matchedRecordId: existingTruck.id,
+                matchedType: 'TRUCK',
+                reviewedAt: now,
+                reviewedBy: { connect: { id: userId } },
+              },
+            });
+            console.log(`[SamsaraSync] Truck ${existingTruck.truckNumber} already linked to this device, marking queue as LINKED`);
+            return { success: true, recordId: existingTruck.id, action: 'linked' };
           }
           
-          // Link to existing truck instead of creating
-          await prisma.truck.update({
-            where: { id: existingTruck.id },
-            data: {
-              samsaraId: queueItem.samsaraId,
-              samsaraSyncedAt: now,
-              samsaraSyncStatus: 'SYNCED',
-              // Update with Samsara data (Samsara is master)
-              make: queueItem.make || undefined,
-              model: queueItem.model || undefined,
-              year: queueItem.year || undefined,
-            },
-          });
+          // Case 2: Truck already linked to DIFFERENT samsaraId → conflict
+          if (existingTruck.samsaraId && existingTruck.samsaraId !== queueItem.samsaraId) {
+            // Auto-reject this queue item as it's a duplicate/conflict
+            await prisma.samsaraDeviceQueue.update({
+              where: { id: queueId },
+              data: {
+                status: 'REJECTED',
+                reviewedAt: now,
+                reviewedBy: { connect: { id: userId } },
+                rejectionReason: `Truck ${existingTruck.truckNumber} already linked to different Samsara device`,
+              },
+            });
+            console.log(`[SamsaraSync] REJECTED: Truck ${existingTruck.truckNumber} already linked to different Samsara device`);
+            return { success: true, recordId: existingTruck.id, action: 'rejected' };
+          }
+          
+          // Case 3: Truck exists but not linked → link it
+          await prisma.$transaction([
+            prisma.truck.update({
+              where: { id: existingTruck.id },
+              data: {
+                samsaraId: queueItem.samsaraId,
+                samsaraSyncedAt: now,
+                samsaraSyncStatus: 'SYNCED',
+                // Update with Samsara data (Samsara is master)
+                make: queueItem.make || undefined,
+                model: queueItem.model || undefined,
+                year: queueItem.year || undefined,
+                vin: queueItem.vin || undefined, // Update VIN if missing
+              },
+            }),
+            // Update queue status to LINKED
+            prisma.samsaraDeviceQueue.update({
+              where: { id: queueId },
+              data: {
+                status: 'LINKED',
+                matchedRecordId: existingTruck.id,
+                matchedType: 'TRUCK',
+                reviewedAt: now,
+                reviewedBy: { connect: { id: userId } },
+              },
+            }),
+          ]);
           truckId = existingTruck.id;
           action = 'linked';
-          console.log(`[SamsaraSync] Linked existing truck ${existingTruck.truckNumber} to Samsara device ${queueItem.name}`);
+          console.log(`[SamsaraSync] AUTO-LINKED existing truck ${existingTruck.truckNumber} to Samsara device ${queueItem.name}`);
         } else {
+          // Check if this looks like a gateway/deactivated device (not a real truck)
+          const isGatewayOrDeactivated = 
+            queueItem.name.toLowerCase().includes('deactivated') ||
+            queueItem.name.toLowerCase().includes('gateway') ||
+            /^[A-Z0-9]{4}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(queueItem.name) || // Gateway pattern like GHHA-BNJ-SYW
+            queueItem.name.toLowerCase().includes('previously paired');
+            
+          if (isGatewayOrDeactivated) {
+            return { success: false, error: `"${queueItem.name}" appears to be a gateway or deactivated device, not a truck. Please reject this item.` };
+          }
+
           // Create new truck with a unique number if there's a conflict
           let finalTruckNumber = truckNumber;
           let attempt = 0;
           let created = false;
           let truckId: string | undefined;
+          
+          // Generate a truly unique VIN if none provided
+          const uniqueVin = queueItem.vin || `PENDING-${queueItem.samsaraId}-${Date.now()}`;
           
           while (!created && attempt < 5) {
             try {
@@ -529,7 +632,7 @@ export class SamsaraDeviceSyncService {
                 data: {
                   companyId: queueItem.companyId,
                   truckNumber: finalTruckNumber,
-                  vin: queueItem.vin || `UNKNOWN-${queueItem.samsaraId.slice(0, 8)}`,
+                  vin: attempt === 0 ? uniqueVin : `${uniqueVin}-${attempt}`,
                   make: queueItem.make || 'Unknown',
                   model: queueItem.model || 'Unknown',
                   year: queueItem.year || new Date().getFullYear(),
@@ -550,13 +653,73 @@ export class SamsaraDeviceSyncService {
               created = true;
             } catch (createError: any) {
               if (createError.code === 'P2002') {
-                // If VIN conflict, can't proceed
-                if (createError.meta?.target?.includes('vin')) {
-                  return { success: false, error: `VIN ${queueItem.vin} already exists in TMS. Use "Link" action to connect to existing truck.` };
+                const target = createError.meta?.target;
+                // If VIN conflict - check if it's a real VIN or a generated one
+                if (target?.includes('vin')) {
+                  if (queueItem.vin) {
+                    // Real VIN conflict - try to link to existing truck
+                    const existingByVin = await prisma.truck.findFirst({
+                      where: { vin: queueItem.vin },
+                      select: { id: true, truckNumber: true, samsaraId: true },
+                    });
+                    if (existingByVin && !existingByVin.samsaraId) {
+                      // Link to existing truck
+                      await prisma.truck.update({
+                        where: { id: existingByVin.id },
+                        data: {
+                          samsaraId: queueItem.samsaraId,
+                          samsaraSyncedAt: now,
+                          samsaraSyncStatus: 'SYNCED',
+                        },
+                      });
+                      truckId = existingByVin.id;
+                      created = true;
+                      action = 'linked';
+                      console.log(`[SamsaraSync] Auto-linked to existing truck ${existingByVin.truckNumber} by VIN`);
+                    } else {
+                      return { success: false, error: `VIN ${queueItem.vin} already linked to truck ${existingByVin?.truckNumber || 'unknown'}. Use "Link" action instead.` };
+                    }
+                  } else {
+                    // Generated VIN conflict - just increment and retry
+                    attempt++;
+                    console.log(`[SamsaraSync] Generated VIN conflict, retrying with attempt ${attempt}`);
+                  }
+                } else if (target?.includes('truckNumber')) {
+                  // If truck number conflict, DIRECTLY query for that truck (don't rely on allCompanyTrucks)
+                  const existingByNumber = await prisma.truck.findFirst({
+                    where: { 
+                      companyId: queueItem.companyId,
+                      truckNumber: finalTruckNumber,
+                      deletedAt: null,
+                    },
+                    select: { id: true, truckNumber: true, vin: true, samsaraId: true },
+                  });
+                  
+                  if (existingByNumber && !existingByNumber.samsaraId) {
+                    // Link to existing truck
+                    await prisma.truck.update({
+                      where: { id: existingByNumber.id },
+                      data: {
+                        samsaraId: queueItem.samsaraId,
+                        samsaraSyncedAt: now,
+                        samsaraSyncStatus: 'SYNCED',
+                        vin: queueItem.vin || existingByNumber.vin,
+                      },
+                    });
+                    truckId = existingByNumber.id;
+                    created = true;
+                    action = 'linked';
+                    console.log(`[SamsaraSync] Auto-linked to existing truck ${existingByNumber.truckNumber} by number (via conflict)`);
+                  } else if (existingByNumber?.samsaraId) {
+                    return { success: false, error: `Truck ${existingByNumber.truckNumber} already linked to a different Samsara device. Use "Reject" to dismiss this queue item.` };
+                  } else {
+                    // Try with suffix
+                    attempt++;
+                    finalTruckNumber = `${truckNumber}-S${attempt}`;
+                  }
+                } else {
+                  attempt++;
                 }
-                // If truck number conflict, try with suffix
-                attempt++;
-                finalTruckNumber = `${truckNumber}-${attempt}`;
               } else {
                 throw createError;
               }
@@ -564,10 +727,10 @@ export class SamsaraDeviceSyncService {
           }
           
           if (!created) {
-            return { success: false, error: 'Failed to create truck after multiple attempts - duplicate exists' };
+            return { success: false, error: `Failed to create truck "${truckNumber}" - already exists in TMS. Use "Link" action to connect to existing truck.` };
           }
           
-          action = 'created';
+          if (!action) action = 'created';
         }
 
         if (!truckId) {
@@ -581,7 +744,7 @@ export class SamsaraDeviceSyncService {
             matchedRecordId: truckId,
             matchedType: 'TRUCK',
             reviewedAt: now,
-            reviewedById: userId,
+            reviewedBy: { connect: { id: userId } },
           },
         });
 
@@ -605,7 +768,7 @@ export class SamsaraDeviceSyncService {
               matchedRecordId: alreadyLinked.id,
               matchedType: 'TRAILER',
               reviewedAt: now,
-              reviewedById: userId,
+              reviewedBy: { connect: { id: userId } },
             },
           });
           return { success: true, recordId: alreadyLinked.id, action: 'linked' };
@@ -622,23 +785,37 @@ export class SamsaraDeviceSyncService {
 
         console.log(`[SamsaraSync] Looking for match for ${trailerNumber} (VIN: ${queueItem.vin}) among ${allCompanyTrailers.length} trailers`);
 
-        // Try to find a match with normalized comparison
+        // Try to find a match with multiple strategies
         const normalizedTarget = this.normalize(trailerNumber);
         const normalizedVin = this.normalize(queueItem.vin);
+        const numericPart = trailerNumber.replace(/\D/g, '');
 
         let existingTrailer = allCompanyTrailers.find(trailer => {
           const normalizedTrailerNumber = this.normalize(trailer.trailerNumber);
           const normalizedTrailerVin = this.normalize(trailer.vin);
+          const trailerNumericPart = trailer.trailerNumber.replace(/\D/g, '');
           
-          // Match by trailer number
+          // Strategy 1: Exact normalized match
           if (normalizedTarget && normalizedTrailerNumber === normalizedTarget) {
             console.log(`[SamsaraSync] Found match by trailer number: ${trailer.trailerNumber}`);
             return true;
           }
           
-          // Match by VIN
+          // Strategy 2: Match by VIN
           if (normalizedVin && normalizedTrailerVin === normalizedVin) {
             console.log(`[SamsaraSync] Found match by VIN: ${trailer.vin}`);
+            return true;
+          }
+          
+          // Strategy 3: Numeric part match
+          if (numericPart && numericPart.length >= 2 && trailerNumericPart === numericPart) {
+            console.log(`[SamsaraSync] Found match by numeric part: ${trailer.trailerNumber} (${numericPart})`);
+            return true;
+          }
+          
+          // Strategy 4: Contains match for longer numbers
+          if (numericPart && numericPart.length >= 3 && trailer.trailerNumber.includes(numericPart)) {
+            console.log(`[SamsaraSync] Found match by contains: ${trailer.trailerNumber} contains ${numericPart}`);
             return true;
           }
           
@@ -649,27 +826,79 @@ export class SamsaraDeviceSyncService {
         let action: 'created' | 'linked';
 
         if (existingTrailer) {
-          if (existingTrailer.samsaraId && existingTrailer.samsaraId !== queueItem.samsaraId) {
-            return { success: false, error: `Trailer ${existingTrailer.trailerNumber} is already linked to a different Samsara device.` };
+          // Case 1: Trailer already linked to THIS SAME samsaraId
+          if (existingTrailer.samsaraId === queueItem.samsaraId) {
+            await prisma.samsaraDeviceQueue.update({
+              where: { id: queueId },
+              data: {
+                status: 'LINKED',
+                matchedRecordId: existingTrailer.id,
+                matchedType: 'TRAILER',
+                reviewedAt: now,
+                reviewedBy: { connect: { id: userId } },
+              },
+            });
+            console.log(`[SamsaraSync] Trailer ${existingTrailer.trailerNumber} already linked to this device, marking queue as LINKED`);
+            return { success: true, recordId: existingTrailer.id, action: 'linked' };
           }
           
-          // Link to existing trailer
-          await prisma.trailer.update({
-            where: { id: existingTrailer.id },
-            data: {
-              samsaraId: queueItem.samsaraId,
-              samsaraSyncedAt: now,
-              samsaraSyncStatus: 'SYNCED',
-              // Update with Samsara data
-              make: queueItem.make || undefined,
-              model: queueItem.model || undefined,
-              year: queueItem.year || undefined,
-            },
-          });
+          // Case 2: Trailer already linked to DIFFERENT samsaraId
+          if (existingTrailer.samsaraId && existingTrailer.samsaraId !== queueItem.samsaraId) {
+            await prisma.samsaraDeviceQueue.update({
+              where: { id: queueId },
+              data: {
+                status: 'REJECTED',
+                reviewedAt: now,
+                reviewedBy: { connect: { id: userId } },
+                rejectionReason: `Trailer ${existingTrailer.trailerNumber} already linked to different Samsara device`,
+              },
+            });
+            console.log(`[SamsaraSync] REJECTED: Trailer ${existingTrailer.trailerNumber} already linked to different Samsara device`);
+            return { success: true, recordId: existingTrailer.id, action: 'rejected' };
+          }
+          
+          // Case 3: Trailer exists but not linked → link it
+          await prisma.$transaction([
+            prisma.trailer.update({
+              where: { id: existingTrailer.id },
+              data: {
+                samsaraId: queueItem.samsaraId,
+                samsaraSyncedAt: now,
+                samsaraSyncStatus: 'SYNCED',
+                // Update with Samsara data
+                make: queueItem.make || undefined,
+                model: queueItem.model || undefined,
+                year: queueItem.year || undefined,
+                vin: queueItem.vin || undefined,
+              },
+            }),
+            // Update queue status to LINKED
+            prisma.samsaraDeviceQueue.update({
+              where: { id: queueId },
+              data: {
+                status: 'LINKED',
+                matchedRecordId: existingTrailer.id,
+                matchedType: 'TRAILER',
+                reviewedAt: now,
+                reviewedBy: { connect: { id: userId } },
+              },
+            }),
+          ]);
           trailerId = existingTrailer.id;
           action = 'linked';
-          console.log(`[SamsaraSync] Linked existing trailer ${existingTrailer.trailerNumber} to Samsara device ${queueItem.name}`);
+          console.log(`[SamsaraSync] AUTO-LINKED existing trailer ${existingTrailer.trailerNumber} to Samsara device ${queueItem.name}`);
         } else {
+          // Check if this looks like a gateway/deactivated device
+          const isGatewayOrDeactivated = 
+            queueItem.name.toLowerCase().includes('deactivated') ||
+            queueItem.name.toLowerCase().includes('gateway') ||
+            /^[A-Z0-9]{4}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(queueItem.name) ||
+            queueItem.name.toLowerCase().includes('previously paired');
+            
+          if (isGatewayOrDeactivated) {
+            return { success: false, error: `"${queueItem.name}" appears to be a gateway or deactivated device, not a trailer. Please reject this item.` };
+          }
+
           // Create new trailer with unique number handling
           let finalTrailerNumber = trailerNumber;
           let attempt = 0;
@@ -697,13 +926,70 @@ export class SamsaraDeviceSyncService {
               created = true;
             } catch (createError: any) {
               if (createError.code === 'P2002') {
-                // If VIN conflict, can't proceed
-                if (createError.meta?.target?.includes('vin')) {
-                  return { success: false, error: `VIN ${queueItem.vin} already exists in TMS. Use "Link" action to connect to existing trailer.` };
+                const target = createError.meta?.target;
+                // If VIN conflict
+                if (target?.includes('vin')) {
+                  if (queueItem.vin) {
+                    // Real VIN conflict - try to link
+                    const existingByVin = await prisma.trailer.findFirst({
+                      where: { vin: queueItem.vin },
+                      select: { id: true, trailerNumber: true, samsaraId: true },
+                    });
+                    if (existingByVin && !existingByVin.samsaraId) {
+                      await prisma.trailer.update({
+                        where: { id: existingByVin.id },
+                        data: {
+                          samsaraId: queueItem.samsaraId,
+                          samsaraSyncedAt: now,
+                          samsaraSyncStatus: 'SYNCED',
+                        },
+                      });
+                      trailerId = existingByVin.id;
+                      created = true;
+                      action = 'linked';
+                      console.log(`[SamsaraSync] Auto-linked to existing trailer ${existingByVin.trailerNumber} by VIN`);
+                    } else {
+                      return { success: false, error: `VIN ${queueItem.vin} already linked to trailer ${existingByVin?.trailerNumber || 'unknown'}. Use "Link" action instead.` };
+                    }
+                  } else {
+                    // No VIN provided, just increment attempt
+                    attempt++;
+                    console.log(`[SamsaraSync] VIN conflict for trailer, retrying with attempt ${attempt}`);
+                  }
+                } else if (target?.includes('trailerNumber')) {
+                  // Trailer number conflict - DIRECTLY query for that trailer
+                  const existingByNumber = await prisma.trailer.findFirst({
+                    where: {
+                      companyId: queueItem.companyId,
+                      trailerNumber: finalTrailerNumber,
+                      deletedAt: null,
+                    },
+                    select: { id: true, trailerNumber: true, vin: true, samsaraId: true },
+                  });
+                  
+                  if (existingByNumber && !existingByNumber.samsaraId) {
+                    await prisma.trailer.update({
+                      where: { id: existingByNumber.id },
+                      data: {
+                        samsaraId: queueItem.samsaraId,
+                        samsaraSyncedAt: now,
+                        samsaraSyncStatus: 'SYNCED',
+                        vin: queueItem.vin || existingByNumber.vin,
+                      },
+                    });
+                    trailerId = existingByNumber.id;
+                    created = true;
+                    action = 'linked';
+                    console.log(`[SamsaraSync] Auto-linked to existing trailer ${existingByNumber.trailerNumber} by number (via conflict)`);
+                  } else if (existingByNumber?.samsaraId) {
+                    return { success: false, error: `Trailer ${existingByNumber.trailerNumber} already linked to a different Samsara device. Use "Reject" to dismiss this queue item.` };
+                  } else {
+                    attempt++;
+                    finalTrailerNumber = `${trailerNumber}-S${attempt}`;
+                  }
+                } else {
+                  attempt++;
                 }
-                // If trailer number conflict, try with suffix
-                attempt++;
-                finalTrailerNumber = `${trailerNumber}-${attempt}`;
               } else {
                 throw createError;
               }
@@ -711,10 +997,10 @@ export class SamsaraDeviceSyncService {
           }
           
           if (!created) {
-            return { success: false, error: 'Failed to create trailer after multiple attempts - duplicate exists' };
+            return { success: false, error: `Failed to create trailer "${trailerNumber}" - already exists in TMS. Use "Link" action to connect to existing trailer.` };
           }
           
-          action = 'created';
+          if (!action) action = 'created';
         }
 
         if (!trailerId) {
@@ -728,7 +1014,7 @@ export class SamsaraDeviceSyncService {
             matchedRecordId: trailerId,
             matchedType: 'TRAILER',
             reviewedAt: now,
-            reviewedById: userId,
+            reviewedBy: { connect: { id: userId } },
           },
         });
 
@@ -755,7 +1041,7 @@ export class SamsaraDeviceSyncService {
               });
               await prisma.samsaraDeviceQueue.update({
                 where: { id: queueId },
-                data: { status: 'LINKED', matchedRecordId: truck.id, matchedType: 'TRUCK', reviewedAt: now, reviewedById: userId },
+                data: { status: 'LINKED', matchedRecordId: truck.id, matchedType: 'TRUCK', reviewedAt: now, reviewedBy: { connect: { id: userId } } },
               });
               return { success: true, recordId: truck.id, action: 'linked' };
             }
@@ -770,7 +1056,7 @@ export class SamsaraDeviceSyncService {
               });
               await prisma.samsaraDeviceQueue.update({
                 where: { id: queueId },
-                data: { status: 'LINKED', matchedRecordId: trailer.id, matchedType: 'TRAILER', reviewedAt: now, reviewedById: userId },
+                data: { status: 'LINKED', matchedRecordId: trailer.id, matchedType: 'TRAILER', reviewedAt: now, reviewedBy: { connect: { id: userId } } },
               });
               return { success: true, recordId: trailer.id, action: 'linked' };
             }
@@ -829,7 +1115,7 @@ export class SamsaraDeviceSyncService {
           matchedRecordId: recordId,
           matchedType: recordType,
           reviewedAt: now,
-          reviewedById: userId,
+          reviewedBy: { connect: { id: userId } },
         },
       });
 
@@ -853,7 +1139,7 @@ export class SamsaraDeviceSyncService {
         data: {
           status: 'REJECTED',
           reviewedAt: new Date(),
-          reviewedById: userId,
+          reviewedBy: { connect: { id: userId } },
           rejectionReason: reason,
         },
       });

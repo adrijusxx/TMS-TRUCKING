@@ -62,7 +62,7 @@ const navigationSections = [
         name: 'Samsara Devices',
         href: '/dashboard/fleet/devices',
         icon: Wifi,
-        description: 'Sync and manage Samsara-connected trucks and trailers. Review pending devices from Samsara, approve new units to create TMS records, or link to existing records. Track fault codes, odometer readings, and device status.',
+        description: 'Review and approve Samsara devices before adding to TMS. Two views available: Smart Sections (auto-organized by confidence: High/Good/Unknown/Missing) or Table View (with select all for bulk actions). Filter by device type, make, model, year, or search by name/VIN/plate.',
       },
     ],
   },

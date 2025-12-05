@@ -331,14 +331,14 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     id: 'pickupDate',
     accessorKey: 'pickupDate',
     header: 'Pickup Date',
-    cell: ({ row }) => (row.original.pickupDate ? formatDate(row.original.pickupDate) : 'N/A'),
+    cell: ({ row }) => (row.original.pickupDate ? formatDate(row.original.pickupDate) : '—'),
     defaultVisible: true,
   },
   {
     id: 'deliveryDate',
     accessorKey: 'deliveryDate',
     header: 'Delivery Date',
-    cell: ({ row }) => (row.original.deliveryDate ? formatDate(row.original.deliveryDate) : 'N/A'),
+    cell: ({ row }) => (row.original.deliveryDate ? formatDate(row.original.deliveryDate) : '—'),
     defaultVisible: true,
   },
   {
@@ -347,7 +347,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'Miles',
     cell: ({ row }) => {
       const miles = (row.original as any).totalMiles ?? row.original.miles;
-      return miles ? miles.toLocaleString() : 'N/A';
+      return miles ? miles.toLocaleString() : '—';
     },
     defaultVisible: true,
   },
@@ -356,8 +356,14 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     accessorKey: 'loadedMiles',
     header: 'Loaded Miles',
     cell: ({ row }) => {
+      // Use stored loadedMiles first, fallback to totalMiles (since loaded miles ≈ total when empty is unknown)
       const loadedMiles = (row.original as any).loadedMiles ?? row.original.loadedMiles;
-      return loadedMiles ? loadedMiles.toLocaleString() : 'N/A';
+      if (loadedMiles !== null && loadedMiles !== undefined && loadedMiles > 0) {
+        return loadedMiles.toLocaleString();
+      }
+      // Fallback to totalMiles as loaded miles (assumes empty miles = 0 when not specified)
+      const totalMiles = (row.original as any).totalMiles ?? row.original.miles ?? 0;
+      return totalMiles > 0 ? totalMiles.toLocaleString() : '—';
     },
     defaultVisible: false,
   },
@@ -377,7 +383,8 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       if (loadedMiles > 0 && totalMiles > loadedMiles) {
         return Math.max(totalMiles - loadedMiles, 0).toLocaleString();
       }
-      return 'N/A';
+      // Show 0 if we have total miles but no empty miles data (assumes all loaded)
+      return totalMiles > 0 ? '0' : '—';
     },
     defaultVisible: false,
   },
@@ -386,12 +393,17 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'RPM (Loaded)',
     cell: ({ row }) => {
       const revenue = row.original.revenue || 0;
-      const loadedMiles = (row.original as any).loadedMiles ?? row.original.loadedMiles ?? 0;
-      if (loadedMiles > 0) {
+      // Use stored loadedMiles first, fallback to totalMiles
+      let loadedMiles = (row.original as any).loadedMiles ?? row.original.loadedMiles ?? 0;
+      if (loadedMiles === 0) {
+        // Fallback: use totalMiles as loaded miles when loadedMiles not specified
+        loadedMiles = (row.original as any).totalMiles ?? row.original.miles ?? 0;
+      }
+      if (loadedMiles > 0 && revenue > 0) {
         const rpm = revenue / loadedMiles;
         return formatCurrency(rpm);
       }
-      return 'N/A';
+      return '—';
     },
     defaultVisible: true,
     enableHiding: true,
@@ -414,11 +426,11 @@ const columns: ExtendedColumnDef<LoadData>[] = [
           emptyMiles = totalMiles - loadedMiles;
         }
       }
-      if (emptyMiles > 0) {
+      if (emptyMiles > 0 && revenue > 0) {
         const rpm = revenue / emptyMiles;
         return formatCurrency(rpm);
       }
-      return 'N/A';
+      return '—';
     },
     defaultVisible: false,
     enableHiding: true,
@@ -429,11 +441,11 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     cell: ({ row }) => {
       const revenue = row.original.revenue || 0;
       const totalMiles = (row.original as any).totalMiles ?? row.original.miles ?? 0;
-      if (totalMiles > 0) {
+      if (totalMiles > 0 && revenue > 0) {
         const rpm = revenue / totalMiles;
         return formatCurrency(rpm);
       }
-      return 'N/A';
+      return '—';
     },
     defaultVisible: false,
     enableHiding: true,
@@ -442,7 +454,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     id: 'weight',
     accessorKey: 'weight',
     header: 'Weight',
-    cell: ({ row }) => row.original.weight ? `${row.original.weight.toLocaleString()} lbs` : 'N/A',
+    cell: ({ row }) => row.original.weight ? `${row.original.weight.toLocaleString()} lbs` : '—',
     defaultVisible: false,
   },
   {
@@ -466,7 +478,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'Trailer',
     cell: ({ row }) => {
       const trailerNumber = (row.original as any).trailerNumber;
-      return trailerNumber ? trailerNumber : 'Unassigned';
+      return trailerNumber || '—';
     },
     defaultVisible: true,
   },
@@ -476,7 +488,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'MC Number',
     cell: ({ row }) => {
       const mcNumber = row.original.mcNumber;
-      if (!mcNumber) return 'N/A';
+      if (!mcNumber) return '—';
       // Handle both object format (from API) and string format
       if (isMcNumberObject(mcNumber)) {
         return (
@@ -548,7 +560,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     cell: ({ row }) => {
       // createdAt might be a string or Date
       const date = row.original.createdAt || (row.original as any).createdAt;
-      if (!date) return 'N/A';
+      if (!date) return '—';
       
       const dateObj = new Date(date);
       const now = new Date();

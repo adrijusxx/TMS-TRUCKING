@@ -6163,11 +6163,17 @@ model TruckFaultHistory {
   truck          Truck     @relation(fields: [truckId], references: [id], onDelete: Cascade)
   companyId      String
   company        Company   @relation(fields: [companyId], references: [id])
-  faultCode      String    // DTC code (e.g., P0128, U0100)
+  faultCode      String    // DTC code (e.g., P0128, U0100, SPN123)
   description    String?   // Fault description
   severity       String?   // CRITICAL | WARNING | INFO
+  category       String?   // engine, transmission, brake, exhaust, electrical, emissions
   source         String    @default("SAMSARA") // SAMSARA | MANUAL | ELD
   samsaraFaultId String?   // Original Samsara fault ID for deduplication
+  samsaraVehicleId String? // Samsara vehicle ID
+  spnId          Int?      // SPN number for J1939 codes
+  fmiId          Int?      // FMI number for J1939 codes
+  checkEngineLight Boolean @default(false)
+  mileageAtOccur Float?    // Odometer reading when fault occurred
   occurredAt     DateTime  // When fault occurred
   detectedAt     DateTime  @default(now()) // When TMS detected it
   resolvedAt     DateTime? // When fault was resolved
@@ -6176,15 +6182,43 @@ model TruckFaultHistory {
   notifiedAt     DateTime?
   resolvedById   String?   // User who marked it resolved
   resolvedBy     User?     @relation(fields: [resolvedById], references: [id])
+  resolutionNotes String?  // Notes about how fault was resolved
   notes          String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  @@unique([truckId, faultCode, occurredAt]) // Prevent duplicate entries
   @@index([truckId])
   @@index([companyId])
   @@index([faultCode])
   @@index([isActive])
   @@index([occurredAt])
   @@index([severity])
+  @@index([category])
   @@index([truckId, isActive])
+  @@index([companyId, isActive])
+  @@index([companyId, category])
+}
+
+// Static reference data for diagnostic trouble codes with troubleshooting info
+model DiagnosticCodeReference {
+  id              String   @id @default(cuid())
+  code            String   @unique  // e.g., "SPN123", "P0420"
+  spnId           Int?     // SPN number for J1939 codes
+  fmiId           Int?     // FMI number for J1939 codes
+  name            String   // Short name
+  description     String   // Full description
+  category        String   // engine, transmission, brake, exhaust, electrical, emissions, aftertreatment
+  severity        String   // critical, warning, info
+  commonCauses    String[] // Array of common causes
+  troubleshooting String[] // Array of troubleshooting steps
+  estimatedCost   String?  // e.g., "$100-$500"
+  urgency         String   // immediate, soon, monitor
+  vehicleTypes    String[] @default([]) // Empty = all, or ["diesel", "gas", "electric"]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([severity])
+  @@index([spnId])
 }

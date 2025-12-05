@@ -82,7 +82,7 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
           {row.original.loadId}
         </Link>
       ) : (
-        'N/A'
+        '—'
       ),
     defaultVisible: true,
   },
@@ -148,7 +148,7 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     id: 'subStatus',
     accessorKey: 'subStatus',
     header: 'Sub Status',
-    cell: ({ row }) => row.original.subStatus || 'N/A',
+    cell: ({ row }) => row.original.subStatus || '—',
     defaultVisible: true,
   },
   {
@@ -195,21 +195,21 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     id: 'factoringStatus',
     accessorKey: 'factoringStatus',
     header: 'Factoring Status',
-    cell: ({ row }) => row.original.factoringStatus || 'N/A',
+    cell: ({ row }) => row.original.factoringStatus || '—',
     defaultVisible: false,
   },
   {
     id: 'paymentMethod',
     accessorKey: 'paymentMethod',
     header: 'Payment Method',
-    cell: ({ row }) => row.original.paymentMethod || 'N/A',
+    cell: ({ row }) => row.original.paymentMethod || '—',
     defaultVisible: false,
   },
   {
     id: 'mcNumber',
     accessorKey: 'mcNumber',
     header: 'MC Number',
-    cell: ({ row }) => row.original.mcNumber ?? 'N/A',
+    cell: ({ row }) => row.original.mcNumber ?? '—',
     defaultVisible: true,
     permission: 'mc_numbers.view',
   },
@@ -237,7 +237,7 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
           {row.original.loadId}
         </Link>
       ) : (
-        'N/A'
+        '—'
       ),
     defaultVisible: false,
   },
