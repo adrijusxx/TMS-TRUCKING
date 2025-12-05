@@ -8,10 +8,11 @@ const fields = [
   { name: 'name', label: 'Rule Name', type: 'text' as const, required: true },
   { 
     name: 'deductionType', 
-    label: 'Deduction Type', 
+    label: 'Transaction Type', 
     type: 'select' as const, 
     required: true, 
     options: [
+      // Deductions
       { value: 'FUEL_ADVANCE', label: 'Fuel Advance' },
       { value: 'CASH_ADVANCE', label: 'Cash Advance' },
       { value: 'INSURANCE', label: 'Insurance' },
@@ -27,6 +28,11 @@ const fields = [
       { value: 'FUEL_CARD_FEE', label: 'Fuel Card Fee' },
       { value: 'TRAILER_RENTAL', label: 'Trailer Rental' },
       { value: 'OTHER', label: 'Other' },
+      // Additions (Payments to driver)
+      { value: 'BONUS', label: 'Bonus' },
+      { value: 'OVERTIME', label: 'Overtime' },
+      { value: 'INCENTIVE', label: 'Incentive' },
+      { value: 'REIMBURSEMENT', label: 'Reimbursement' },
     ]
   },
   { 
@@ -79,6 +85,7 @@ const columns = [
     label: 'Type',
     render: (val: string) => {
       const labels: Record<string, string> = {
+        // Deductions
         FUEL_ADVANCE: 'Fuel Advance',
         CASH_ADVANCE: 'Cash Advance',
         INSURANCE: 'Insurance',
@@ -94,6 +101,11 @@ const columns = [
         FUEL_CARD_FEE: 'Fuel Card Fee',
         TRAILER_RENTAL: 'Trailer Rental',
         OTHER: 'Other',
+        // Additions (Payments to driver)
+        BONUS: 'Bonus',
+        OVERTIME: 'Overtime',
+        INCENTIVE: 'Incentive',
+        REIMBURSEMENT: 'Reimbursement',
       };
       return labels[val] || val;
     }

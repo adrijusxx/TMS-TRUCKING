@@ -186,6 +186,7 @@ export function DataTable<TData extends Record<string, any>>({
           checked={table.getIsAllPageRowsSelected()}
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
+          className="h-3.5 w-3.5"
         />
       ),
       cell: ({ row }) => (
@@ -193,11 +194,12 @@ export function DataTable<TData extends Record<string, any>>({
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
+          className="h-3.5 w-3.5"
         />
       ),
       enableSorting: false,
       enableHiding: false,
-      size: 50,
+      size: 32,
     };
 
     return [selectionColumn, ...(columns as ColumnDef<TData>[])];
@@ -290,10 +292,10 @@ export function DataTable<TData extends Record<string, any>>({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex items-center justify-center h-32">
         <div className="text-center">
-          <p className="text-destructive mb-2">Error loading data</p>
-          <p className="text-sm text-muted-foreground">{error.message}</p>
+          <p className="text-destructive text-xs mb-1">Error loading data</p>
+          <p className="text-[11px] text-muted-foreground">{error.message}</p>
         </div>
       </div>
     );
@@ -301,24 +303,24 @@ export function DataTable<TData extends Record<string, any>>({
 
   if (isLoading && showLoadingSkeleton) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-2">
         <div className="border rounded-lg">
           <Table>
             <TableHeader>
               <TableRow>
                 {tableColumns.slice(0, 5).map((_, index) => (
                   <TableHead key={index}>
-                    <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                    <div className="h-3 w-16 bg-muted animate-pulse rounded" />
                   </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Array.from({ length: 5 }).map((_, rowIndex) => (
+              {Array.from({ length: 8 }).map((_, rowIndex) => (
                 <TableRow key={rowIndex}>
                   {tableColumns.slice(0, 5).map((_, colIndex) => (
                     <TableCell key={colIndex}>
-                      <div className="h-4 w-full bg-muted animate-pulse rounded" />
+                      <div className="h-3 w-full bg-muted animate-pulse rounded" />
                     </TableCell>
                   ))}
                 </TableRow>
@@ -331,7 +333,7 @@ export function DataTable<TData extends Record<string, any>>({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Toolbar: Search, Filters, Columns, Import, Export */}
       {(filterKey || onImport || onExport) && (
         <DataTableToolbar
@@ -349,7 +351,7 @@ export function DataTable<TData extends Record<string, any>>({
         onExport={onExportSelected}
         onClearSelection={handleClearSelection}
       />
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-md overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -428,7 +430,7 @@ export function DataTable<TData extends Record<string, any>>({
                       </TableHead>
                     );
                   })}
-                  {(rowActions || InlineEditComponent) && <TableHead className="w-[100px]">Actions</TableHead>}
+                  {(rowActions || InlineEditComponent) && <TableHead className="w-[70px]">Actions</TableHead>}
                 </TableRow>
               ))}
             </TableHeader>
@@ -470,12 +472,13 @@ export function DataTable<TData extends Record<string, any>>({
                         ))}
                         {(rowActions || hasInlineEdit) && (
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1">
                               {rowActions && rowActions(row.original)}
                               {hasInlineEdit && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
+                                  className="h-6 w-6 p-0"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     toggleRow(row.id);
@@ -483,9 +486,9 @@ export function DataTable<TData extends Record<string, any>>({
                                   type="button"
                                 >
                                   {isExpanded ? (
-                                    <ChevronUp className="h-4 w-4" />
+                                    <ChevronUp className="h-3 w-3" />
                                   ) : (
-                                    <ChevronDown className="h-4 w-4" />
+                                    <ChevronDown className="h-3 w-3" />
                                   )}
                                 </Button>
                               )}
@@ -519,15 +522,15 @@ export function DataTable<TData extends Record<string, any>>({
                 <TableRow>
                   <TableCell
                     colSpan={tableColumns.length + (rowActions ? 1 : 0)}
-                    className="h-24 text-center"
+                    className="h-16 text-center"
                   >
                     {isLoading ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-muted-foreground">Loading...</span>
+                      <div className="flex items-center justify-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span className="text-muted-foreground text-[11px]">Loading...</span>
                       </div>
                     ) : (
-                      <div className="text-muted-foreground">{emptyMessage}</div>
+                      <div className="text-muted-foreground text-[11px]">{emptyMessage}</div>
                     )}
                   </TableCell>
                 </TableRow>
@@ -539,36 +542,38 @@ export function DataTable<TData extends Record<string, any>>({
 
       {/* Pagination */}
       {!controlledPagination || controlledPagination.totalCount !== undefined ? (
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
+        <div className="flex items-center justify-between px-1 py-1">
+          <div className="flex items-center gap-1">
+            <p className="text-[11px] text-muted-foreground">
+              {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
               {Math.min(
                 (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
                 controlledPagination?.totalCount ?? data.length
               )}{' '}
-              of {controlledPagination?.totalCount ?? data.length} results
+              of {controlledPagination?.totalCount ?? data.length}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Button
               variant="outline"
               size="sm"
+              className="h-6 w-6 p-0"
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
             >
-              <ChevronsLeft className="h-4 w-4" />
+              <ChevronsLeft className="h-3 w-3" />
             </Button>
             <Button
               variant="outline"
               size="sm"
+              className="h-6 w-6 p-0"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3 w-3" />
             </Button>
             <div className="flex items-center gap-1">
-              <span className="text-sm">Page</span>
+              <span className="text-[11px]">Page</span>
               <Input
                 type="number"
                 min={1}
@@ -578,25 +583,27 @@ export function DataTable<TData extends Record<string, any>>({
                   const page = e.target.value ? Number(e.target.value) - 1 : 0;
                   table.setPageIndex(page);
                 }}
-                className="w-16 h-8"
+                className="w-12 h-6 text-[11px] px-1"
               />
-              <span className="text-sm">of {table.getPageCount()}</span>
+              <span className="text-[11px]">of {table.getPageCount()}</span>
             </div>
             <Button
               variant="outline"
               size="sm"
+              className="h-6 w-6 p-0"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3 w-3" />
             </Button>
             <Button
               variant="outline"
               size="sm"
+              className="h-6 w-6 p-0"
               onClick={() => table.setPageIndex(table.getPageCount() - 1)}
               disabled={!table.getCanNextPage()}
             >
-              <ChevronsRight className="h-4 w-4" />
+              <ChevronsRight className="h-3 w-3" />
             </Button>
             <Select
               value={String(table.getState().pagination.pageSize)}
@@ -604,12 +611,12 @@ export function DataTable<TData extends Record<string, any>>({
                 table.setPageSize(Number(value));
               }}
             >
-              <SelectTrigger className="h-8 w-[70px]">
+              <SelectTrigger className="h-6 w-[55px] text-[11px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {[10, 20, 30, 50, 100].map((size) => (
-                  <SelectItem key={size} value={String(size)}>
+                  <SelectItem key={size} value={String(size)} className="text-[11px]">
                     {size}
                   </SelectItem>
                 ))}

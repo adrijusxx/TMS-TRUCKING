@@ -16,6 +16,8 @@ import {
   User,
   Activity,
   Database,
+  RotateCcw,
+  History,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -129,6 +131,22 @@ export function getSettingsNavigationCategories(baseSettingsPath: string): NavCa
           href: baseSettingsPath, 
           icon: Database, 
           query: 'tab=data-management', 
+          category: 'Data Management', 
+          adminOnly: true 
+        },
+        { 
+          name: 'Deleted Items', 
+          href: baseSettingsPath, 
+          icon: RotateCcw, 
+          query: 'tab=deleted-items', 
+          category: 'Data Management', 
+          adminOnly: true 
+        },
+        { 
+          name: 'Audit History', 
+          href: baseSettingsPath, 
+          icon: History, 
+          query: 'tab=audit-history', 
           category: 'Data Management', 
           adminOnly: true 
         },

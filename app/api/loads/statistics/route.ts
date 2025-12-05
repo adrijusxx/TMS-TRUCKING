@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
     };
 
-    // 6. Calculate statistics
+    // 6. Calculate statistics - fetch all required fields
     const loads = await prisma.load.findMany({
       where,
       select: {
@@ -65,63 +65,81 @@ export async function GET(request: NextRequest) {
 
     // Calculate totals
     const totalLoads = loads.length;
-    const totalMiles = loads.reduce((sum, load) => sum + (load.totalMiles || 0), 0);
-    const totalRevenue = loads.reduce((sum, load) => sum + (load.revenue || 0), 0);
-    const totalDriverPay = loads.reduce((sum, load) => sum + (load.driverPay || 0), 0);
-    const totalProfit = loads.reduce((sum, load) => sum + (load.profit || 0), 0);
-
-    // Calculate loaded and empty miles
-    // Empty miles = total miles - loaded miles (includes deadhead to pickup + empty miles after delivery)
-    // First try to use direct fields from Load model, then fall back to segments
+    let totalMiles = 0;
     let loadedMiles = 0;
     let emptyMiles = 0;
+    let totalRevenue = 0;
+    let totalDriverPay = 0;
+    let totalProfit = 0;
+
     loads.forEach((load) => {
-      const totalMiles = load.totalMiles || 0;
+      // Add revenue, driverPay, profit
+      totalRevenue += load.revenue || 0;
+      totalDriverPay += load.driverPay || 0;
       
-      if (load.loadedMiles !== null && load.loadedMiles !== undefined) {
-        // Use direct loadedMiles field if available
-        const loadLoadedMiles = load.loadedMiles || 0;
-        loadedMiles += loadLoadedMiles;
-        // Empty miles = total miles - loaded miles (includes deadhead to pickup)
-        emptyMiles += Math.max(totalMiles - loadLoadedMiles, 0);
-      } else if (load.segments && load.segments.length > 0) {
-        // Calculate from segments
+      // Calculate profit: use stored profit if available, otherwise revenue - driverPay
+      if (load.profit !== null && load.profit !== undefined) {
+        totalProfit += load.profit;
+      } else {
+        totalProfit += (load.revenue || 0) - (load.driverPay || 0);
+      }
+
+      // Calculate miles - only count what we actually know
+      const loadTotalMiles = load.totalMiles || 0;
+      totalMiles += loadTotalMiles;
+
+      // For loaded/empty miles: use direct fields first, then segments
+      // Don't assume values if not explicitly set
+      if (load.loadedMiles !== null && load.loadedMiles !== undefined && load.loadedMiles > 0) {
+        // Use direct loadedMiles field
+        loadedMiles += load.loadedMiles;
+      }
+      
+      if (load.emptyMiles !== null && load.emptyMiles !== undefined && load.emptyMiles > 0) {
+        // Use direct emptyMiles field
+        emptyMiles += load.emptyMiles;
+      } else if (load.loadedMiles !== null && load.loadedMiles !== undefined && loadTotalMiles > load.loadedMiles) {
+        // Calculate empty miles as total - loaded (only if we have loadedMiles)
+        emptyMiles += loadTotalMiles - load.loadedMiles;
+      }
+      
+      // Check segments as fallback if no direct fields
+      if ((!load.loadedMiles || load.loadedMiles === 0) && load.segments && load.segments.length > 0) {
         let segmentLoadedMiles = 0;
         let segmentEmptyMiles = 0;
         load.segments.forEach((segment) => {
           segmentLoadedMiles += segment.loadedMiles || 0;
           segmentEmptyMiles += segment.emptyMiles || 0;
         });
-        loadedMiles += segmentLoadedMiles;
-        // For segments, use calculated empty miles or total - loaded
-        emptyMiles += segmentEmptyMiles > 0 ? segmentEmptyMiles : Math.max(totalMiles - segmentLoadedMiles, 0);
-      } else {
-        // Fallback: if no segments and no direct fields, assume all miles are loaded
-        loadedMiles += totalMiles;
-        // No empty miles in this case
+        if (segmentLoadedMiles > 0) {
+          loadedMiles += segmentLoadedMiles;
+        }
+        if (segmentEmptyMiles > 0) {
+          emptyMiles += segmentEmptyMiles;
+        } else if (segmentLoadedMiles > 0 && loadTotalMiles > segmentLoadedMiles) {
+          emptyMiles += loadTotalMiles - segmentLoadedMiles;
+        }
       }
     });
 
-    // Calculate averages
+    // Calculate averages (guard against division by zero)
     const averageMilesPerLoad = totalLoads > 0 ? totalMiles / totalLoads : 0;
     const averageRevenuePerLoad = totalLoads > 0 ? totalRevenue / totalLoads : 0;
     const averageProfitPerLoad = totalLoads > 0 ? totalProfit / totalLoads : 0;
 
-    // Calculate utilization rate (loaded miles / total miles)
+    // Calculate utilization rate (loaded miles / total miles) as percentage
     const utilizationRate = totalMiles > 0 ? (loadedMiles / totalMiles) * 100 : 0;
 
-    // Calculate RPM (Revenue Per Mile)
-    // Empty miles includes both stored emptyMiles AND loadedMiles (which are deadhead miles in this context)
-    const totalEmptyMiles = emptyMiles + loadedMiles;
+    // Calculate RPM (Revenue Per Mile) - fixed calculations
     const rpmLoadedMiles = loadedMiles > 0 ? totalRevenue / loadedMiles : null;
-    const rpmEmptyMiles = totalEmptyMiles > 0 ? totalRevenue / totalEmptyMiles : null;
+    const rpmEmptyMiles = emptyMiles > 0 ? totalRevenue / emptyMiles : null;
     const rpmTotalMiles = totalMiles > 0 ? totalRevenue / totalMiles : null;
 
     const statistics = {
       totalLoads,
       totalMiles,
       loadedMiles,
-      emptyMiles: totalEmptyMiles, // Empty miles includes loaded miles (deadhead)
+      emptyMiles,
       totalRevenue,
       totalDriverPay,
       totalProfit,
@@ -152,4 +170,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

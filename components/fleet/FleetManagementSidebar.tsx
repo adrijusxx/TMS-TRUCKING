@@ -21,6 +21,7 @@ import {
   MessageCircle,
   ChevronLeft,
   ChevronRight,
+  Wifi,
 } from 'lucide-react';
 import SafetyNavSection from '@/components/safety/SafetyNavSection';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -56,6 +57,12 @@ const navigationSections = [
         href: '/dashboard/trailers',
         icon: Container,
         description: 'Manage your trailer fleet including trailer numbers, types, specifications, and status. Track trailer assignments to trucks, ownership information, and current location. Monitor trailer condition, maintenance history, and availability. Add new trailers, update trailer information, and manage trailer assignments for load planning.',
+      },
+      {
+        name: 'Samsara Devices',
+        href: '/dashboard/fleet/devices',
+        icon: Wifi,
+        description: 'Review and approve Samsara devices before adding to TMS. Two views available: Smart Sections (auto-organized by confidence: High/Good/Unknown/Missing) or Table View (with select all for bulk actions). Filter by device type, make, model, year, or search by name/VIN/plate.',
       },
     ],
   },

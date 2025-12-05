@@ -1,13 +1,23 @@
 # TMS (Transportation Management System) - Cursor Rules
 
+> **Note:** For current project state, tech stack details, and active goals, see `PROJECT-CONTEXT.md`  
+> **This document** focuses on coding standards, patterns, and architectural rules.
+
 ## Project Context
 - USA trucking company with 150-truck fleet operating under MULTIPLE MC numbers
 - Single company, multiple MC numbers (different operating authorities)
 - Users can switch between MC numbers they have access to
 - Admins can view data across all MC numbers
-- Tech Stack: Next.js 16 (App Router), TypeScript, PostgreSQL, Prisma ORM, TailwindCSS, NextAuth v5
+- **Tech Stack:** Next.js 16, React 19, TypeScript 5.9, PostgreSQL (Neon), Prisma 6.19
+- **UI:** Tailwind CSS 3.4 + shadcn/ui (Radix UI primitives)
+- **Auth:** NextAuth v5 (beta.30) with JWT strategy
 - Focus: Replace DataTruck, eliminate integration costs, full customer control
 - Operations: Long-haul + local delivery, DOT compliance required
+
+**📖 Related Documents:**
+- `PROJECT-CONTEXT.md` - Current state, goals, tech stack details, recent changes
+- `docs/PROJECT_ORGANIZATION_GUIDELINES.md` - File organization and size limits
+- `docs/cleanup/` - Cleanup logs and refactoring history
 
 ## Multi-MC Architecture
 
@@ -117,10 +127,12 @@ types/             # TypeScript type definitions
 
 ### Components
 - Functional components with hooks (NO class components)
-- Keep components under 300 lines (split if larger)
+- **CRITICAL:** Keep components under 400 lines (split before 300)
+- **HARD LIMIT:** 500 lines maximum - must refactor immediately if exceeded
 - Use PascalCase for component files: `LoadList.tsx`
 - Server Components by default, add "use client" only when needed
 - Extract reusable logic into custom hooks in `hooks/` directory
+- See `docs/PROJECT_ORGANIZATION_GUIDELINES.md` for refactoring strategies
 
 ### API Routes - Standard Pattern
 ```typescript
@@ -434,10 +446,12 @@ const filtered = filterSensitiveFields(data, session);
 
 ### Code Quality
 - Keep functions under 30-40 lines
-- Keep components under 300 lines
+- Keep components under 400 lines (refactor at 300)
+- **NEVER exceed 500 lines** (except auto-generated files)
 - Use descriptive variable names
 - Add JSDoc comments for complex functions
 - Follow single responsibility principle
+- Check `docs/PROJECT_ORGANIZATION_GUIDELINES.md` for file size enforcement
 
 ### Testing MC Filtering
 - Test with different MC selections
@@ -518,44 +532,71 @@ const mutation = useMutation({
 
 ## When Creating New Features
 
-1. Check these rules for project standards
-2. Review existing similar features for patterns
+1. **Check Documentation First:**
+   - Read `PROJECT_RULES.md` (this file) for standards
+   - Check `PROJECT-CONTEXT.md` for current state and goals
+   - Review `docs/PROJECT_ORGANIZATION_GUIDELINES.md` for organization rules
+2. **Search Before Creating:** Check for similar functionality (HIGHLANDER rule)
 3. Create/update Prisma schema (include `mcNumberId` if needed)
-4. Create Zod validation schema
+4. Create Zod validation schema in `lib/validations/`
 5. Build API route with: auth, permissions, MC filtering
 6. Create UI components (Server Components first)
 7. Add MC switcher awareness to UI
 8. Add error handling and loading states
 9. Test with different MC selections
 10. Test with different user roles/access levels
-11. Update documentation if needed
+11. **Verify file sizes** - keep under 400 lines
+12. Update `PROJECT-CONTEXT.md` if this is a major feature
 
 ## Always Consider
 
+### Security & Data Isolation
 - Company isolation (`companyId`)
 - MC number filtering (`mcNumberId`)
 - User's MC access permissions
 - Admin "All MCs" view special case
 - Role-based permissions
 - Sensitive field filtering
+- Soft deletes for audit trail (never hard delete)
+
+### User Experience
 - Driver experience (mobile-first)
-- DOT compliance requirements per MC
+- MC indicator in UI (show which MC a record belongs to)
 - Real-time updates for dispatch
+- Loading states and error handling
+- Keyboard shortcuts and accessibility
+
+### Business Requirements
+- DOT compliance requirements per MC
 - Data accuracy for billing/settlements per MC
 - Integration points with existing systems
 - Scalability for 150+ trucks across multiple MCs
-- Soft deletes for audit trail
-- MC indicator in UI (show which MC a record belongs to)
+
+### Code Quality
+- **File size limits** (400 line warning, 500 line maximum)
+- Search before creating (no duplication)
+- Proper separation of concerns
+- See `docs/PROJECT_ORGANIZATION_GUIDELINES.md` for details
 
 ## Reference Documents
 
-- `PROJECT_RULES.md` - Complete project rules and standards
-- `docs/COMPLETION_SUMMARY.md` - Feature completion status
+### Primary Documents
+- `PROJECT_RULES.md` (this file) - Coding standards and architectural patterns
+- `PROJECT-CONTEXT.md` - Current project state, goals, tech stack, recent changes
+- `docs/PROJECT_ORGANIZATION_GUIDELINES.md` - File organization and size limits
+
+### Technical Reference
 - `prisma/schema.prisma` - Database schema (includes MC relationships)
-- `lib/managers/` - Business logic managers
-- `lib/services/` - Service classes
-- `lib/validations/` - Zod validation schemas
+- `lib/managers/` - Business logic managers (18 files)
+- `lib/services/` - Service classes (34 AI & domain services)
+- `lib/validations/` - Zod validation schemas (9 files)
 - `lib/filters/` - MC filtering, role filtering, sensitive field filtering
+
+### Documentation
+- `docs/setup/` - Setup and deployment guides
+- `docs/implementation/` - Feature implementation docs
+- `docs/cleanup/` - Cleanup logs and refactoring summaries
+- `docs/NEXT_STEPS.md` - Upcoming features and priorities
 
 ## Key Libraries
 

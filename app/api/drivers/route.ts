@@ -268,7 +268,6 @@ export async function GET(request: NextRequest) {
           emergencyPhone: true,
           payType: true,
           payRate: true,
-          perDiem: true,
           escrowTargetAmount: true,
           escrowDeductionPerWeek: true,
           escrowBalance: true,

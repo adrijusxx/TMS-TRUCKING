@@ -5,13 +5,19 @@
  * Supports both API integration and file export methods
  */
 
-import { FactoringCompany, Invoice } from '@prisma/client';
+import { FactoringCompany, Invoice, Customer, Load, RateConfirmation } from '@prisma/client';
 import { logger } from '@/lib/utils/logger';
 import { InternalServerError } from '@/lib/errors';
 
+type InvoiceWithRelations = Invoice & {
+  customer?: Customer | null;
+  load?: Load | null;
+  rateConfirmation?: RateConfirmation | null;
+};
+
 interface ExportOptions {
   format: 'CSV' | 'EDI' | 'Excel' | 'JSON';
-  invoices: Invoice[];
+  invoices: InvoiceWithRelations[];
   factoringCompany: FactoringCompany;
 }
 
@@ -27,7 +33,7 @@ interface FactoringSubmissionResult {
  */
 export async function submitInvoicesToFactor(
   factoringCompany: FactoringCompany,
-  invoices: Invoice[]
+  invoices: InvoiceWithRelations[]
 ): Promise<FactoringSubmissionResult> {
   try {
     // TODO: Implement actual API integration based on factoringCompany.apiProvider
@@ -125,7 +131,7 @@ export async function generateFactoringExport(
  * Generate CSV export
  */
 function generateCSVExport(
-  invoices: Invoice[],
+  invoices: InvoiceWithRelations[],
   factoringCompany: FactoringCompany
 ): { success: boolean; filePath?: string; content?: string; error?: string } {
   try {
@@ -149,10 +155,10 @@ function generateCSVExport(
       invoice.dueDate?.toISOString().split('T')[0] || '',
       invoice.customer?.name || '',
       invoice.customerId || '',
-      invoice.totalAmount?.toFixed(2) || '0.00',
+      (invoice.totalAmount || invoice.total || 0).toFixed(2),
       invoice.notes || '',
       invoice.load?.loadNumber || '',
-      invoice.rateConfirmation?.rateConfirmationNumber || '',
+      invoice.rateConfirmation?.rateConfNumber || '',
     ]);
 
     // Combine header and rows
@@ -181,7 +187,7 @@ function generateCSVExport(
  * Generate Excel export (placeholder - requires xlsx library)
  */
 function generateExcelExport(
-  invoices: Invoice[],
+  invoices: InvoiceWithRelations[],
   factoringCompany: FactoringCompany
 ): { success: boolean; filePath?: string; content?: string; error?: string } {
   // TODO: Implement Excel generation using xlsx library
@@ -194,7 +200,7 @@ function generateExcelExport(
  * Generate EDI export (placeholder - requires EDI library)
  */
 function generateEDIExport(
-  invoices: Invoice[],
+  invoices: InvoiceWithRelations[],
   factoringCompany: FactoringCompany
 ): { success: boolean; filePath?: string; content?: string; error?: string } {
   // TODO: Implement EDI generation
@@ -210,7 +216,7 @@ function generateEDIExport(
  * Generate JSON export
  */
 function generateJSONExport(
-  invoices: Invoice[],
+  invoices: InvoiceWithRelations[],
   factoringCompany: FactoringCompany
 ): { success: boolean; filePath?: string; content?: string; error?: string } {
   try {
@@ -222,10 +228,9 @@ function generateJSONExport(
         invoiceNumber: invoice.invoiceNumber,
         invoiceDate: invoice.invoiceDate,
         dueDate: invoice.dueDate,
-        totalAmount: invoice.totalAmount,
+        totalAmount: invoice.totalAmount || invoice.total,
         customerId: invoice.customerId,
         loadId: invoice.loadId,
-        rateConfirmationId: invoice.rateConfirmationId,
         notes: invoice.notes,
       })),
     };

@@ -125,6 +125,12 @@ async function fetchDeductions(settlementId: string) {
   return response.json();
 }
 
+async function fetchAdditions(settlementId: string) {
+  const response = await fetch(apiUrl(`/api/settlements/${settlementId}/additions`));
+  if (!response.ok) throw new Error('Failed to fetch additions');
+  return response.json();
+}
+
 async function createDeduction(settlementId: string, data: any) {
   const response = await fetch(apiUrl(`/api/settlements/${settlementId}/deductions`), {
     method: 'POST',
@@ -134,6 +140,19 @@ async function createDeduction(settlementId: string, data: any) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error?.message || 'Failed to create deduction');
+  }
+  return response.json();
+}
+
+async function createAddition(settlementId: string, data: any) {
+  const response = await fetch(apiUrl(`/api/settlements/${settlementId}/additions`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Failed to create addition');
   }
   return response.json();
 }
@@ -149,6 +168,17 @@ async function deleteDeduction(settlementId: string, deductionId: string) {
   return response.json();
 }
 
+async function deleteAddition(settlementId: string, additionId: string) {
+  const response = await fetch(apiUrl(`/api/settlements/${settlementId}/additions?additionId=${additionId}`), {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Failed to delete addition');
+  }
+  return response.json();
+}
+
 export default function SettlementDetail({ settlementId }: SettlementDetailProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SettlementStatus | ''>('');
@@ -157,27 +187,40 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isDeductionDialogOpen, setIsDeductionDialogOpen] = useState(false);
+  const [isAdditionDialogOpen, setIsAdditionDialogOpen] = useState(false);
   const [newDeduction, setNewDeduction] = useState({
     deductionType: 'OTHER',
     description: '',
     amount: '',
   });
+  const [newAddition, setNewAddition] = useState({
+    deductionType: 'BONUS',
+    description: '',
+    amount: '',
+  });
+  const [editedGrossPay, setEditedGrossPay] = useState('');
+  const [editedPeriodStart, setEditedPeriodStart] = useState('');
+  const [editedPeriodEnd, setEditedPeriodEnd] = useState('');
 
   const { data, isLoading, error: settlementError } = useQuery({
     queryKey: ['settlement', settlementId],
     queryFn: () => fetchSettlement(settlementId),
     retry: 1,
-    onError: (error) => {
-      console.error('[SettlementDetail] Error fetching settlement:', error);
-    },
-    onSuccess: (data) => {
-      console.log('[SettlementDetail] Settlement data loaded:', data);
-    },
   });
+
+  // Log settlement data when loaded (React Query v5 pattern)
+  useEffect(() => {
+    if (data) {
+      console.log('[SettlementDetail] Settlement data loaded:', data);
+    }
+    if (settlementError) {
+      console.error('[SettlementDetail] Error fetching settlement:', settlementError);
+    }
+  }, [data, settlementError]);
   
   // Initialize state from settlement data when it loads
   useEffect(() => {
-    if (data?.data && !isEditing) {
+    if (data?.data) {
       const settlement = data.data;
       if (settlement.status && !status) {
         setStatus(settlement.status as SettlementStatus);
@@ -185,12 +228,27 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
       if (settlement.notes && !notes) {
         setNotes(settlement.notes);
       }
+      if (isEditing && settlement.grossPay && !editedGrossPay) {
+        setEditedGrossPay(settlement.grossPay.toString());
+      }
+      if (isEditing && settlement.periodStart && !editedPeriodStart) {
+        setEditedPeriodStart(new Date(settlement.periodStart).toISOString().split('T')[0]);
+      }
+      if (isEditing && settlement.periodEnd && !editedPeriodEnd) {
+        setEditedPeriodEnd(new Date(settlement.periodEnd).toISOString().split('T')[0]);
+      }
     }
-  }, [data, isEditing, status, notes]);
+  }, [data, isEditing, status, notes, editedGrossPay, editedPeriodStart, editedPeriodEnd]);
 
   const { data: deductionsData, refetch: refetchDeductions } = useQuery({
     queryKey: ['settlement-deductions', settlementId],
     queryFn: () => fetchDeductions(settlementId),
+    enabled: !!settlementId,
+  });
+
+  const { data: additionsData, refetch: refetchAdditions } = useQuery({
+    queryKey: ['settlement-additions', settlementId],
+    queryFn: () => fetchAdditions(settlementId),
     enabled: !!settlementId,
   });
 
@@ -209,6 +267,21 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
     },
   });
 
+  const createAdditionMutation = useMutation({
+    mutationFn: (data: any) => createAddition(settlementId, data),
+    onSuccess: () => {
+      toast.success('Addition added successfully');
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+      queryClient.invalidateQueries({ queryKey: ['settlement-additions', settlementId] });
+      setIsAdditionDialogOpen(false);
+      setNewAddition({ deductionType: 'BONUS', description: '', amount: '' });
+      refetchAdditions();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to add addition');
+    },
+  });
+
   const deleteDeductionMutation = useMutation({
     mutationFn: (deductionId: string) => deleteDeduction(settlementId, deductionId),
     onSuccess: () => {
@@ -222,6 +295,19 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
     },
   });
 
+  const deleteAdditionMutation = useMutation({
+    mutationFn: (additionId: string) => deleteAddition(settlementId, additionId),
+    onSuccess: () => {
+      toast.success('Addition deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+      queryClient.invalidateQueries({ queryKey: ['settlement-additions', settlementId] });
+      refetchAdditions();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete addition');
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (data: any) => updateSettlement(settlementId, data),
     onSuccess: () => {
@@ -230,6 +316,9 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
       setIsEditing(false);
       setStatus('');
       setNotes('');
+      setEditedGrossPay('');
+      setEditedPeriodStart('');
+      setEditedPeriodEnd('');
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update settlement');
@@ -304,8 +393,19 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
 
   const handleSave = () => {
     const updateData: any = {};
+    
     if (status) updateData.status = status;
-    if (notes) updateData.notes = notes;
+    if (notes !== settlement.notes) updateData.notes = notes;
+    if (editedGrossPay && parseFloat(editedGrossPay) !== settlement.grossPay) {
+      updateData.grossPay = parseFloat(editedGrossPay);
+    }
+    if (editedPeriodStart && editedPeriodStart !== new Date(settlement.periodStart).toISOString().split('T')[0]) {
+      updateData.periodStart = new Date(editedPeriodStart);
+    }
+    if (editedPeriodEnd && editedPeriodEnd !== new Date(settlement.periodEnd).toISOString().split('T')[0]) {
+      updateData.periodEnd = new Date(editedPeriodEnd);
+    }
+    
     updateMutation.mutate(updateData);
   };
 
@@ -487,11 +587,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                 }
               })()}
             </div>
-            {settlement.driver?.perDiem && settlement.driver.perDiem > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                + {settlement.driver.perDiem} cents/mile per diem (tax-free)
-              </p>
-            )}
+            {/* Note: perDiem field removed - use recurring transactions instead */}
           </CardContent>
         </Card>
 
@@ -609,11 +705,27 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           <CardContent className="space-y-2">
             <div>
               <p className="text-sm text-muted-foreground">Start Date</p>
-              <p className="font-medium">{formatDate(settlement.periodStart)}</p>
+              {isEditing ? (
+                <Input
+                  type="date"
+                  value={editedPeriodStart}
+                  onChange={(e) => setEditedPeriodStart(e.target.value)}
+                />
+              ) : (
+                <p className="font-medium">{formatDate(settlement.periodStart)}</p>
+              )}
             </div>
             <div>
               <p className="text-sm text-muted-foreground">End Date</p>
-              <p className="font-medium">{formatDate(settlement.periodEnd)}</p>
+              {isEditing ? (
+                <Input
+                  type="date"
+                  value={editedPeriodEnd}
+                  onChange={(e) => setEditedPeriodEnd(e.target.value)}
+                />
+              ) : (
+                <p className="font-medium">{formatDate(settlement.periodEnd)}</p>
+              )}
             </div>
             {settlement.paidDate && (
               <div>
@@ -633,28 +745,28 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Gross Pay</span>
-              <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
+              {isEditing ? (
+                <Input
+                  type="number"
+                  step="0.01"
+                  className="w-32 text-right"
+                  value={editedGrossPay}
+                  onChange={(e) => setEditedGrossPay(e.target.value)}
+                />
+              ) : (
+                <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
+              )}
             </div>
-            {(() => {
-              // Calculate total miles from loads
-              const totalMiles = settlement.loads?.reduce((sum: number, load: any) => 
-                sum + (load.totalMiles || load.route?.totalDistance || 0), 0) || 0;
-              // Calculate per diem if configured
-              const perDiemAmount = settlement.driver?.perDiem && settlement.driver.perDiem > 0
-                ? (totalMiles * settlement.driver.perDiem) / 100 // Convert cents to dollars
-                : 0;
-              
-              return perDiemAmount > 0 ? (
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Per Diem (Tax-Free)</span>
-                  <span className="font-medium text-green-600">
-                    +{formatCurrency(perDiemAmount)}
-                  </span>
-                </div>
-              ) : null;
-            })()}
+            {additionsData?.data && additionsData.data.length > 0 && (
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">Additions</span>
+                <span className="font-medium text-green-600">
+                  +{formatCurrency(additionsData.data.reduce((sum: number, a: any) => sum + a.amount, 0))}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">Deductions</span>
               <span className="font-medium text-red-600">
@@ -676,11 +788,143 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           </CardContent>
         </Card>
 
+        {/* Additions Section */}
+        {additionsData?.data && additionsData.data.length > 0 && (
+          <Card className="md:col-span-2 lg:col-span-3">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-green-600" />
+                  Additions
+                </CardTitle>
+                <Dialog open={isAdditionDialogOpen} onOpenChange={setIsAdditionDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Addition
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Addition</DialogTitle>
+                      <DialogDescription>
+                        Add a bonus, overtime, incentive, or reimbursement to this settlement
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="additionType">Type *</Label>
+                        <Select
+                          value={newAddition.deductionType}
+                          onValueChange={(value) =>
+                            setNewAddition({ ...newAddition, deductionType: value })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="BONUS">Bonus</SelectItem>
+                            <SelectItem value="OVERTIME">Overtime</SelectItem>
+                            <SelectItem value="INCENTIVE">Incentive</SelectItem>
+                            <SelectItem value="REIMBURSEMENT">Reimbursement</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="addDescription">Description *</Label>
+                        <Input
+                          id="addDescription"
+                          placeholder="e.g., Safety Bonus, Extra Hours"
+                          value={newAddition.description}
+                          onChange={(e) =>
+                            setNewAddition({ ...newAddition, description: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="addAmount">Amount *</Label>
+                        <Input
+                          id="addAmount"
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={newAddition.amount}
+                          onChange={(e) =>
+                            setNewAddition({ ...newAddition, amount: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsAdditionDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (newAddition.description && newAddition.amount) {
+                            createAdditionMutation.mutate({
+                              deductionType: newAddition.deductionType,
+                              description: newAddition.description,
+                              amount: parseFloat(newAddition.amount),
+                            });
+                          }
+                        }}
+                        disabled={createAdditionMutation.isPending}
+                      >
+                        {createAdditionMutation.isPending ? 'Adding...' : 'Add Addition'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {additionsData.data.map((addition: any) => (
+                    <TableRow key={addition.id}>
+                      <TableCell>
+                        {addition.deductionType === 'BONUS' ? 'Bonus' :
+                         addition.deductionType === 'OVERTIME' ? 'Overtime' :
+                         addition.deductionType === 'INCENTIVE' ? 'Incentive' :
+                         addition.deductionType === 'REIMBURSEMENT' ? 'Reimbursement' :
+                         addition.deductionType}
+                      </TableCell>
+                      <TableCell>{addition.description}</TableCell>
+                      <TableCell className="text-right font-medium text-green-600">
+                        +{formatCurrency(addition.amount)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteAdditionMutation.mutate(addition.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Status Update */}
         {isEditing && (
           <Card className="md:col-span-2 lg:col-span-3">
             <CardHeader>
-              <CardTitle>Update Status</CardTitle>
+              <CardTitle>Update Settlement</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">

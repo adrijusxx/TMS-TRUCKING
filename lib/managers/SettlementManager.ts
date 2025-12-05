@@ -110,8 +110,8 @@ export class SettlementManager {
     // 3. Calculate gross pay (STRICT: CPM or Percentage with FSC exclusion)
     const grossPay = await this.calculateGrossPay(driver, loads);
 
-    // 4. Calculate additions (StopPay, DetentionPay, Reimbursements)
-    const additions = await this.calculateAdditions(loads);
+    // 4. Calculate additions (StopPay, DetentionPay, Reimbursements, and Recurring Additions)
+    const additions = await this.calculateAdditions(driverId, loads, grossPay, periodStart, periodEnd);
     const totalAdditions = additions.reduce((sum, a) => sum + a.amount, 0);
 
     // 5. Calculate advances FIRST (Priority 1: Advances)
@@ -206,8 +206,15 @@ export class SettlementManager {
       });
     }
 
-    // 12. Create deduction items
+    // 12. Create deduction items (CRITICAL: Only save actual deductions, never additions)
+    const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
     for (const deduction of deductions) {
+      // Safety check: Never save addition types as deductions
+      if (additionTypes.includes(deduction.type)) {
+        console.warn(`[SettlementManager] Skipping addition type "${deduction.type}" from deductions - this should not happen!`);
+        continue;
+      }
+      
       await prisma.settlementDeduction.create({
         data: {
           settlementId: settlement.id,
@@ -368,17 +375,34 @@ export class SettlementManager {
             grossPay += estimatedHours * driver.payRate;
             break;
           }
+          
+          case 'WEEKLY': {
+            // WEEKLY: Flat weekly rate - pay once regardless of loads
+            // This is handled outside the loop, so we'll just track it
+            break;
+          }
         }
       }
+    }
+
+    // For WEEKLY pay type, add the weekly rate once (not per load)
+    if (driver.payType === 'WEEKLY' && loads.length > 0) {
+      grossPay = driver.payRate;
     }
 
     return grossPay;
   }
 
   /**
-   * Calculate additions: StopPay, DetentionPay, Reimbursements
+   * Calculate additions: StopPay, DetentionPay, Reimbursements, and Recurring Additions (Bonus, Overtime, Incentive)
    */
-  private async calculateAdditions(loads: any[]): Promise<AdditionItem[]> {
+  private async calculateAdditions(
+    driverId: string,
+    loads: any[],
+    grossPay: number,
+    periodStart: Date,
+    periodEnd: Date
+  ): Promise<AdditionItem[]> {
     const additions: AdditionItem[] = [];
 
     for (const load of loads) {
@@ -425,6 +449,77 @@ export class SettlementManager {
       }
     }
 
+    // Recurring additions from DeductionRule (Bonus, Overtime, Incentive)
+    const driver = await prisma.driver.findUnique({
+      where: { id: driverId },
+      select: {
+        companyId: true,
+        driverType: true,
+        driverNumber: true,
+      },
+    });
+
+    if (driver) {
+      // Query for addition rules - include both company-wide and driver-specific rules
+      const additionRules = await prisma.deductionRule.findMany({
+        where: {
+          companyId: driver.companyId,
+          isActive: true,
+          isAddition: true, // CRITICAL: Only get additions, not deductions
+          deductionType: {
+            in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          },
+          OR: [
+            // Company-wide rules (driverType is null)
+            { driverType: null },
+            // Driver type-specific rules
+            { driverType: driver.driverType },
+            // Driver-specific rules created with name pattern "Driver {identifier} - {type}"
+            { name: { startsWith: `Driver ${driver.driverNumber} - ` } },
+            // Also check by first 8 chars of driver ID as fallback
+            { name: { startsWith: `Driver ${driverId.slice(0, 8)} - ` } },
+          ],
+        },
+      });
+
+      for (const rule of additionRules) {
+        if (rule.minGrossPay && grossPay < rule.minGrossPay) {
+          continue;
+        }
+
+        let additionAmount = 0;
+
+        switch (rule.calculationType) {
+          case 'FIXED':
+            additionAmount = rule.amount || 0;
+            break;
+          case 'PERCENTAGE':
+            additionAmount = grossPay * ((rule.percentage || 0) / 100);
+            break;
+          case 'PER_MILE':
+            const totalMiles = loads.reduce(
+              (sum, load) => sum + ((load.loadedMiles || 0) + (load.emptyMiles || 0) || load.totalMiles || 0),
+              0
+            );
+            additionAmount = totalMiles * (rule.perMileRate || 0);
+            break;
+        }
+
+        if (rule.maxAmount && additionAmount > rule.maxAmount) {
+          additionAmount = rule.maxAmount;
+        }
+
+        if (additionAmount > 0) {
+          additions.push({
+            type: rule.deductionType,
+            description: rule.name,
+            amount: additionAmount,
+            reference: `deduction_rule_${rule.id}`,
+          });
+        }
+      }
+    }
+
     return additions;
   }
 
@@ -462,8 +557,15 @@ export class SettlementManager {
       where: {
         companyId: driver.companyId,
         isActive: true,
+        isAddition: false, // Filter for deductions only
         deductionType: {
           in: ['INSURANCE', 'OCCUPATIONAL_ACCIDENT', 'FUEL_CARD_FEE'], // Recurring types
+        },
+        // Explicitly exclude addition types (double-check)
+        NOT: {
+          deductionType: {
+            in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          },
         },
         OR: [
           { driverType: null },
@@ -513,8 +615,15 @@ export class SettlementManager {
       where: {
         companyId: driver.companyId,
         isActive: true,
+        isAddition: false, // Filter for deductions only
         deductionType: {
           in: ['ESCROW', 'OTHER'], // Garnishments typically use OTHER with notes
+        },
+        // Explicitly exclude addition types (double-check)
+        NOT: {
+          deductionType: {
+            in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          },
         },
         OR: [
           { driverType: null },

@@ -478,14 +478,17 @@ export async function GET(
 
       // Convert buffer to proper format for NextResponse
       // renderToBuffer returns a Buffer or Uint8Array
-      const pdfArray = pdfBuffer instanceof Buffer 
-        ? new Uint8Array(pdfBuffer)
-        : pdfBuffer instanceof Uint8Array
-        ? pdfBuffer
-        : new Uint8Array(await pdfBuffer);
+      let pdfArray: Uint8Array;
+      if (pdfBuffer instanceof Buffer) {
+        pdfArray = new Uint8Array(pdfBuffer.buffer.slice(pdfBuffer.byteOffset, pdfBuffer.byteOffset + pdfBuffer.byteLength));
+      } else if (pdfBuffer instanceof Uint8Array) {
+        pdfArray = pdfBuffer;
+      } else {
+        pdfArray = new Uint8Array(await pdfBuffer);
+      }
 
-      // Return PDF as response
-      return new NextResponse(pdfArray, {
+      // Return PDF as response - use slice to get plain ArrayBuffer
+      return new NextResponse(pdfArray.buffer.slice(0) as ArrayBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="settlement-${settlement.settlementNumber}.pdf"`,

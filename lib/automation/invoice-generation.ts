@@ -63,6 +63,7 @@ export async function autoGenerateInvoices(companyId: string) {
         // Create invoice
         const invoice = await prisma.invoice.create({
           data: {
+            companyId,
             customerId,
             invoiceNumber,
             invoiceDate: new Date(),

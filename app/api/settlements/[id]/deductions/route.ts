@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const createDeductionSchema = z.object({
-  deductionType: z.enum(['FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'ESCROW', 'FINE', 'REPAIR', 'OTHER']),
+  deductionType: z.enum(['FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'ESCROW', 'MAINTENANCE', 'PERMITS', 'OTHER']),
   description: z.string().min(1, 'Description is required'),
   amount: z.number().positive('Amount must be positive'),
   fuelEntryId: z.string().optional(),
@@ -54,9 +54,13 @@ export async function GET(
       );
     }
 
+    // Get only actual deductions (exclude addition types)
     const deductions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
+        deductionType: {
+          notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -134,10 +138,27 @@ export async function POST(
     });
 
     // Recalculate settlement totals
+    // Get only actual deductions (exclude addition types)
     const allDeductions = await prisma.settlementDeduction.findMany({
-      where: { settlementId },
+      where: {
+        settlementId,
+        deductionType: {
+          notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+        },
+      },
     });
     const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
+
+    // Get all additions
+    const allAdditions = await prisma.settlementDeduction.findMany({
+      where: {
+        settlementId,
+        deductionType: {
+          in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+        },
+      },
+    });
+    const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
     
     // Also get advances total
     const advances = await prisma.driverAdvance.findMany({
@@ -145,7 +166,8 @@ export async function POST(
     });
     const totalAdvances = advances.reduce((sum, a) => sum + a.amount, 0);
 
-    const netPay = settlement.grossPay - totalDeductions - totalAdvances;
+    // CRITICAL FIX: netPay = grossPay + additions - deductions - advances
+    const netPay = settlement.grossPay + totalAdditions - totalDeductions - totalAdvances;
 
     // Update settlement
     await prisma.settlement.update({
@@ -249,23 +271,41 @@ export async function PATCH(
     });
 
     if (settlement) {
+      // Get only actual deductions (exclude addition types)
       const allDeductions = await prisma.settlementDeduction.findMany({
-        where: { settlementId },
+        where: {
+          settlementId,
+          deductionType: {
+            notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          },
+        },
       });
       const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
+
+      // Get all additions
+      const allAdditions = await prisma.settlementDeduction.findMany({
+        where: {
+          settlementId,
+          deductionType: {
+            in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          },
+        },
+      });
+      const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
       
       const advances = await prisma.driverAdvance.findMany({
         where: { settlementId },
       });
       const totalAdvances = advances.reduce((sum, a) => sum + a.amount, 0);
 
-      const netPay = settlement.grossPay - totalDeductions - totalAdvances;
+      // CRITICAL FIX: netPay = grossPay + additions - deductions - advances
+      const netPay = settlement.grossPay + totalAdditions - totalDeductions - totalAdvances;
 
       await prisma.settlement.update({
         where: { id: settlementId },
         data: {
           deductions: totalDeductions,
-          netPay,
+          netPay: netPay < 0 ? 0 : netPay,
         },
       });
     }
@@ -364,23 +404,41 @@ export async function DELETE(
     });
 
     if (settlement) {
+      // Get only actual deductions (exclude addition types)
       const allDeductions = await prisma.settlementDeduction.findMany({
-        where: { settlementId },
+        where: {
+          settlementId,
+          deductionType: {
+            notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          },
+        },
       });
       const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
+
+      // Get all additions
+      const allAdditions = await prisma.settlementDeduction.findMany({
+        where: {
+          settlementId,
+          deductionType: {
+            in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
+          },
+        },
+      });
+      const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
       
       const advances = await prisma.driverAdvance.findMany({
         where: { settlementId },
       });
       const totalAdvances = advances.reduce((sum, a) => sum + a.amount, 0);
 
-      const netPay = settlement.grossPay - totalDeductions - totalAdvances;
+      // CRITICAL FIX: netPay = grossPay + additions - deductions - advances
+      const netPay = settlement.grossPay + totalAdditions - totalDeductions - totalAdvances;
 
       await prisma.settlement.update({
         where: { id: settlementId },
         data: {
           deductions: totalDeductions,
-          netPay,
+          netPay: netPay < 0 ? 0 : netPay,
         },
       });
     }

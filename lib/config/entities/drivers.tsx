@@ -172,7 +172,7 @@ const columns: ExtendedColumnDef<DriverData>[] = [
           size="sm"
         />
       ) : (
-        'N/A'
+        '—'
       ),
     defaultVisible: false,
     permission: 'mc_numbers.view',

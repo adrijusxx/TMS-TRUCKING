@@ -1,18 +1,9 @@
 'use client';
 
-import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import {
-  Package,
-  TrendingUp,
-  Search,
-  Calendar,
-  Navigation,
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Menu, ChevronDown } from 'lucide-react';
+import { Package, LayoutGrid, Navigation, Menu, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,67 +16,44 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
-  query?: string;
 }
 
 const navItems: NavItem[] = [
   { name: 'All Loads', href: '/dashboard/loads', icon: Package },
-  { name: 'Live Loads', href: '/dashboard/loads', icon: TrendingUp, query: 'view=live' },
-  { name: 'Loadboard', href: '/dashboard/loadboard', icon: Search, badge: 'NEW' },
-  { name: 'Dispatch', href: '/dashboard/dispatch', icon: Calendar },
-  { name: 'Live Map', href: '/dashboard/map', icon: Navigation },
+  { name: 'Driver Week Board', href: '/dashboard/loads/board', icon: LayoutGrid },
+  { name: 'Operations Center', href: '/dashboard/operations', icon: Navigation },
 ];
 
 export default function LoadHeaderNav() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const currentView = searchParams.get('view') || 'all';
 
   const isActive = (item: NavItem) => {
-    if (item.href !== '/dashboard/loads') {
-      // For non-loads pages, check if pathname matches
-      return pathname === item.href || pathname?.startsWith(item.href + '/');
+    if (item.href === '/dashboard/loads') {
+      // Exact match for All Loads (not board)
+      return pathname === '/dashboard/loads';
     }
-    
-    // For loads page, check view parameter
-    if (item.query) {
-      const viewParam = item.query.split('=')[1];
-      return pathname === '/dashboard/loads' && currentView === viewParam;
-    }
-    
-    // Default "All Loads" is active when view is 'all' or no view param
-    return pathname === '/dashboard/loads' && (currentView === 'all' || !searchParams.has('view'));
+    return pathname === item.href || pathname?.startsWith(item.href + '/');
   };
 
   const handleNavigation = (item: NavItem) => {
-    if (item.href === '/dashboard/loads' && item.query) {
-      // Navigate to loads page with view query parameter
-      router.push(`${item.href}?${item.query}`);
-    } else {
-      router.push(item.href);
-    }
+    router.push(item.href);
   };
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-      {/* Mobile: Single dropdown menu */}
+    <div className="flex items-center gap-1">
+      {/* Mobile: Dropdown */}
       <div className="lg:hidden">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-1 text-sm"
-            >
-              <Menu className="h-4 w-4" />
-              <span>Loads Menu</span>
-              <ChevronDown className="h-4 w-4" />
+            <Button variant="ghost" size="sm" className="h-6 text-xs px-2">
+              <Menu className="h-3 w-3 mr-1" />
+              <span>Loads</span>
+              <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Load Management</DropdownMenuLabel>
+          <DropdownMenuContent align="start" className="w-48">
+            <DropdownMenuLabel className="text-xs">Load Management</DropdownMenuLabel>
             {navItems.map((item) => {
               const ItemIcon = item.icon;
               const active = isActive(item);
@@ -94,17 +62,12 @@ export default function LoadHeaderNav() {
                   key={item.name}
                   onClick={() => handleNavigation(item)}
                   className={cn(
-                    'flex items-center gap-2 cursor-pointer',
+                    'flex items-center gap-2 cursor-pointer text-xs',
                     active && 'bg-accent'
                   )}
                 >
-                  <ItemIcon className="h-4 w-4" />
+                  <ItemIcon className="h-3 w-3" />
                   <span>{item.name}</span>
-                  {item.badge && (
-                    <Badge variant="default" className="text-xs h-4 px-1 ml-auto">
-                      {item.badge}
-                    </Badge>
-                  )}
                 </DropdownMenuItem>
               );
             })}
@@ -112,7 +75,7 @@ export default function LoadHeaderNav() {
         </DropdownMenu>
       </div>
 
-      {/* Desktop: Horizontal tabs */}
+      {/* Desktop: Horizontal buttons */}
       <div className="hidden lg:flex items-center gap-1">
         {navItems.map((item) => {
           const ItemIcon = item.icon;
@@ -124,17 +87,12 @@ export default function LoadHeaderNav() {
               size="sm"
               onClick={() => handleNavigation(item)}
               className={cn(
-                'flex items-center gap-2 text-sm whitespace-nowrap',
+                'h-6 text-xs px-2 gap-1',
                 active && 'bg-accent'
               )}
             >
-              <ItemIcon className="h-4 w-4" />
+              <ItemIcon className="h-3 w-3" />
               <span>{item.name}</span>
-              {item.badge && (
-                <Badge variant="default" className="text-xs h-4 px-1">
-                  {item.badge}
-                </Badge>
-              )}
             </Button>
           );
         })}
@@ -142,4 +100,3 @@ export default function LoadHeaderNav() {
     </div>
   );
 }
-

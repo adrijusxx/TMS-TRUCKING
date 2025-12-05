@@ -1,189 +1,78 @@
+/**
+ * IFTA Report API
+ * 
+ * Generates quarterly IFTA reports with state-by-state breakdown.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { IFTAManager } from '@/lib/managers/IFTAManager';
+import { iftaCalculatorService } from '@/lib/services/IFTACalculatorService';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { z } from 'zod';
+
+const reportSchema = z.object({
+  quarter: z.coerce.number().min(1).max(4),
+  year: z.coerce.number().min(2020).max(2100),
+});
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.companyId) {
+    if (!session?.user) {
       return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
+        { success: false, error: { code: 'UNAUTHORIZED' } },
         { status: 401 }
       );
     }
 
-    // Build MC filter for loads
-    const mcWhere = await buildMcNumberWhereClause(session, request);
-    // Extract MC number ID(s) - can be string or array
-    let mcNumberId: string | string[] | undefined;
-    if (mcWhere.mcNumberId) {
-      if (typeof mcWhere.mcNumberId === 'string') {
-        mcNumberId = mcWhere.mcNumberId;
-      } else if (Array.isArray(mcWhere.mcNumberId)) {
-        mcNumberId = mcWhere.mcNumberId;
-      } else if (mcWhere.mcNumberId.in && Array.isArray(mcWhere.mcNumberId.in)) {
-        mcNumberId = mcWhere.mcNumberId.in;
-      }
-    }
-
     const { searchParams } = new URL(request.url);
-    const periodType = searchParams.get('periodType') as 'QUARTER' | 'MONTH' | null;
-    const periodYear = searchParams.get('periodYear');
-    const periodQuarter = searchParams.get('periodQuarter');
-    const periodMonth = searchParams.get('periodMonth');
-    const driverId = searchParams.get('driverId');
+    const quarter = searchParams.get('quarter');
+    const year = searchParams.get('year');
 
-    if (!periodType || !periodYear) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'periodType and periodYear are required' },
-        },
-        { status: 400 }
-      );
-    }
+    // Default to current quarter if not provided
+    const now = new Date();
+    const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+    const currentYear = now.getFullYear();
 
-    const year = parseInt(periodYear, 10);
-    const quarter = periodQuarter ? parseInt(periodQuarter, 10) : undefined;
-    const month = periodMonth ? parseInt(periodMonth, 10) : undefined;
+    const params = reportSchema.parse({
+      quarter: quarter || currentQuarter,
+      year: year || currentYear,
+    });
 
-    if (isNaN(year)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'Invalid periodYear' },
-        },
-        { status: 400 }
-      );
-    }
+    // Get MC filter
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+    const mcNumberId = mcWhere?.mcNumberId;
 
-    if (periodType === 'QUARTER' && (!quarter || quarter < 1 || quarter > 4)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'Invalid periodQuarter (must be 1-4)' },
-        },
-        { status: 400 }
-      );
-    }
-
-    if (periodType === 'MONTH' && (!month || month < 1 || month > 12)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'Invalid periodMonth (must be 1-12)' },
-        },
-        { status: 400 }
-      );
-    }
-
-    const entries = await IFTAManager.getIFTAReport(
+    // Generate report
+    const report = await iftaCalculatorService.generateQuarterlyReport(
       session.user.companyId,
-      periodType,
-      year,
-      quarter,
-      month,
-      driverId || undefined,
-      true, // autoCalculate
-      mcNumberId // MC filter
+      params.quarter,
+      params.year,
+      mcNumberId as string | string[] | undefined
     );
-
-    // Aggregate data by driver/truck
-    const aggregated: Record<
-      string,
-      {
-        driverId: string;
-        driverName: string;
-        truckId: string | null;
-        truckNumber: string | null;
-        stateMileages: Record<string, { miles: number; tax: number; deduction: number }>;
-        totalMiles: number;
-        totalTax: number;
-        totalDeduction: number;
-        loads: Array<{ loadId: string; loadNumber: string }>;
-      }
-    > = {};
-
-    for (const entry of entries) {
-      const key = entry.driverId;
-      if (!aggregated[key]) {
-        aggregated[key] = {
-          driverId: entry.driverId,
-          driverName: `${entry.driver.user.firstName} ${entry.driver.user.lastName}`,
-          truckId: entry.truckId,
-          truckNumber: entry.truck?.truckNumber || null,
-          stateMileages: {},
-          totalMiles: 0,
-          totalTax: 0,
-          totalDeduction: 0,
-          loads: [],
-        };
-      }
-
-      aggregated[key].totalMiles += entry.totalMiles;
-      aggregated[key].totalTax += entry.totalTax;
-      aggregated[key].totalDeduction += entry.totalDeduction;
-      aggregated[key].loads.push({
-        loadId: entry.loadId,
-        loadNumber: entry.load.loadNumber,
-      });
-
-      // Aggregate state mileages
-      for (const sm of entry.stateMileages) {
-        if (!aggregated[key].stateMileages[sm.state]) {
-          aggregated[key].stateMileages[sm.state] = {
-            miles: 0,
-            tax: 0,
-            deduction: 0,
-          };
-        }
-        aggregated[key].stateMileages[sm.state].miles += sm.miles;
-        aggregated[key].stateMileages[sm.state].tax += sm.tax;
-        aggregated[key].stateMileages[sm.state].deduction += sm.deduction;
-      }
-    }
-
-    // Convert to array and format
-    const reportData = Object.values(aggregated).map((item) => ({
-      ...item,
-      stateMileages: Object.entries(item.stateMileages).map(([state, data]) => ({
-        state,
-        ...data,
-      })),
-    }));
 
     return NextResponse.json({
       success: true,
-      data: {
-        entries: reportData,
-        period: {
-          type: periodType,
-          year,
-          quarter,
-          month,
-        },
-      },
+      data: report,
     });
-  } catch (error) {
-    console.error('IFTA report error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to generate IFTA report',
+  } catch (error: unknown) {
+    console.error('Error generating IFTA report:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'VALIDATION_ERROR', details: error.issues },
         },
-      },
+        { status: 400 }
+      );
+    }
+
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { success: false, error: { code: 'INTERNAL_ERROR', message } },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
-

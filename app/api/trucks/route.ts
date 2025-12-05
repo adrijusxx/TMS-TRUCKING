@@ -59,9 +59,13 @@ export async function GET(request: NextRequest) {
     // Build deleted records filter (admins can include deleted records if requested)
     const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
     
+    // Extract OR clause from mcWhere if present (for MC filtering with null fallback)
+    const mcOrClause = (mcWhere as any).OR;
+    const { OR: _mcOr, ...mcWhereWithoutOr } = mcWhere as any;
+
     // Merge MC filter with role filter and deleted filter
     const where: any = {
-      ...mcWhere,
+      ...mcWhereWithoutOr,
       ...roleFilter,
       isActive: true,
       ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
@@ -74,6 +78,9 @@ export async function GET(request: NextRequest) {
       } else {
         where.mcNumberId = mcNumberIdFilter;
       }
+    } else if (mcOrClause) {
+      // Apply MC OR clause only if no explicit filter is set
+      where.OR = mcOrClause;
     }
 
     if (status) {
@@ -96,14 +103,26 @@ export async function GET(request: NextRequest) {
       where.state = { contains: licenseState, mode: 'insensitive' };
     }
 
+    // Build search conditions
     if (search) {
-      where.OR = [
+      const searchConditions = [
         { truckNumber: { contains: search, mode: 'insensitive' } },
         { vin: { contains: search, mode: 'insensitive' } },
         { licensePlate: { contains: search, mode: 'insensitive' } },
         { make: { contains: search, mode: 'insensitive' } },
         { model: { contains: search, mode: 'insensitive' } },
       ];
+      
+      // If there's already an OR clause (from MC filter), use AND to combine
+      if (where.OR) {
+        where.AND = [
+          { OR: where.OR },
+          { OR: searchConditions },
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
 
     const [trucks, total] = await Promise.all([

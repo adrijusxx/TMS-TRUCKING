@@ -105,19 +105,6 @@ export async function POST(
       }
     );
 
-    console.log('[Recalculate Driver Pay]', {
-      loadId,
-      driverId: driver.id,
-      payType: driver.payType,
-      payRate: driver.payRate,
-      revenue: load.revenue,
-      totalMiles: load.totalMiles,
-      loadedMiles: load.loadedMiles,
-      emptyMiles: load.emptyMiles,
-      previousDriverPay: load.driverPay,
-      calculatedPay,
-    });
-
     // Update load with calculated driver pay
     const updatedLoad = await prisma.load.update({
       where: { id: loadId },

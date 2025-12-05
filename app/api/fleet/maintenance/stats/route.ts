@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
           companyId: session.user.companyId,
           deletedAt: null,
         },
-        date: { not: null }, // Only records with a service date (completed)
+        date: { not: null as any }, // Only records with a service date (completed)
         truckId: { in: trucks.map((t) => t.id) },
       },
       select: {

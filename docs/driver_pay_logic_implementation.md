@@ -1,7 +1,7 @@
 # Driver Pay Logic Implementation Summary
 
-**Date:** 2025-01-27  
-**Status:** ✅ **IMPLEMENTED** - Strict Driver Pay Hierarchy
+**Date:** 2025-12-04  
+**Status:** ✅ **IMPLEMENTED** - Strict Driver Pay Hierarchy with Unified Transactions
 
 ---
 
@@ -44,6 +44,19 @@ grossPay += baseAmount * (driver.payRate / 100);
 - ✅ Calculates percentage on base amount (invoice - FSC)
 - ✅ Falls back to load.revenue if no invoice exists
 
+### Weekly Flat Rate Method (WEEKLY) ✅ NEW
+```typescript
+// WEEKLY: Flat weekly rate - pay once regardless of loads
+if (driver.payType === 'WEEKLY' && loads.length > 0) {
+  grossPay = driver.payRate;
+}
+```
+
+**Key Points:**
+- ✅ Fixed weekly amount paid regardless of load count
+- ✅ Calculated once per settlement period, not per load
+- ✅ Ideal for salaried drivers or guaranteed weekly pay
+
 ---
 
 ## 2. Additions ✅
@@ -64,6 +77,13 @@ grossPay += baseAmount * (driver.payRate / 100);
 - Status: Must be `APPROVED`
 - Added to `totalAdditions`
 
+### Recurring Additions ✅ NEW (Unified System)
+- Source: `DeductionRule` with `isAddition = true`
+- Types: `BONUS`, `OVERTIME`, `INCENTIVE`, `REIMBURSEMENT`
+- Calculation: FIXED, PERCENTAGE, or PER_MILE
+- Frequency: WEEKLY or MONTHLY
+- Added to `totalAdditions`
+
 **Calculation:**
 ```typescript
 const netPay = grossPay + totalAdditions - totalDeductions - totalAdvances - negativeBalanceDeduction;
@@ -79,11 +99,12 @@ const netPay = grossPay + totalAdditions - totalDeductions - totalAdvances - neg
 - Applied FIRST before any other deductions
 - Stored in `totalAdvances` (separate from deductions array)
 
-### Priority 2: Recurring Deductions
-- **Types**: `INSURANCE`, `OCCUPATIONAL_ACCIDENT`, `FUEL_CARD_FEE`
-- **Source**: `DeductionRule` table
+### Priority 2: Recurring Deductions ✅ UPDATED (Unified System)
+- **Types**: `INSURANCE`, `OCCUPATIONAL_ACCIDENT`, `FUEL_CARD_FEE`, `LEASE`, `ELD`, etc.
+- **Source**: `DeductionRule` table with `isAddition = false`
 - **Calculation Types**: FIXED, PERCENTAGE, PER_MILE
 - Applied AFTER advances
+- **Note**: System now unified - same table handles both additions and deductions
 
 ### Priority 3: Garnishments/Escrow
 - **Types**: `ESCROW`, `OTHER` (with notes indicating garnishment)

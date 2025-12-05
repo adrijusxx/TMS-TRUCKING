@@ -173,9 +173,6 @@ export default function DataManagementCategory() {
     },
     enabled: !!selectedEntity && !!entityOption,
     retry: 1,
-    onError: (error) => {
-      console.error('Error fetching records:', error);
-    },
   });
 
   const deleteMutation = useMutation({

@@ -83,14 +83,14 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     cell: ({ row }) =>
       row.original.licensePlate
         ? `${row.original.licensePlate}${row.original.state ? ` (${row.original.state})` : ''}`
-        : 'N/A',
+        : '—',
     defaultVisible: true,
   },
   {
     id: 'type',
     accessorKey: 'type',
     header: 'Type',
-    cell: ({ row }) => row.original.type || 'N/A',
+    cell: ({ row }) => row.original.type || '—',
     defaultVisible: true,
   },
   {
@@ -133,14 +133,14 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     id: 'status',
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }) => row.original.status || 'N/A',
+    cell: ({ row }) => row.original.status || '—',
     defaultVisible: false,
   },
   {
     id: 'fleetStatus',
     accessorKey: 'fleetStatus',
     header: 'Fleet Status',
-    cell: ({ row }) => row.original.fleetStatus || 'N/A',
+    cell: ({ row }) => row.original.fleetStatus || '—',
     defaultVisible: false,
   },
   {
@@ -149,7 +149,7 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     cell: ({ row }) => {
       const mcNumber = row.original.mcNumber;
       if (!mcNumber) {
-        return 'N/A';
+        return '—';
       }
       return (
         <McBadge
@@ -167,7 +167,7 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     id: 'ownership',
     accessorKey: 'ownership',
     header: 'Ownership',
-    cell: ({ row }) => row.original.ownership || 'N/A',
+    cell: ({ row }) => row.original.ownership || '—',
     defaultVisible: false,
   },
   {
@@ -182,7 +182,7 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     accessorKey: 'registrationExpiry',
     header: 'Registration Expiry',
     cell: ({ row }) =>
-      row.original.registrationExpiry ? formatDate(row.original.registrationExpiry) : 'N/A',
+      row.original.registrationExpiry ? formatDate(row.original.registrationExpiry) : '—',
     defaultVisible: false,
   },
   {
@@ -190,7 +190,7 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     accessorKey: 'insuranceExpiry',
     header: 'Insurance Expiry',
     cell: ({ row }) =>
-      row.original.insuranceExpiry ? formatDate(row.original.insuranceExpiry) : 'N/A',
+      row.original.insuranceExpiry ? formatDate(row.original.insuranceExpiry) : '—',
     defaultVisible: false,
   },
   {
@@ -198,7 +198,7 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     accessorKey: 'inspectionExpiry',
     header: 'Inspection Expiry',
     cell: ({ row }) =>
-      row.original.inspectionExpiry ? formatDate(row.original.inspectionExpiry) : 'N/A',
+      row.original.inspectionExpiry ? formatDate(row.original.inspectionExpiry) : '—',
     defaultVisible: false,
   },
 ];

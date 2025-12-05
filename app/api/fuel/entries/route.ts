@@ -173,8 +173,18 @@ export async function POST(request: NextRequest) {
         : new Date(validated.date)
       : new Date();
 
+    // Generate unique fuel entry number
+    const year = new Date().getFullYear();
+    const count = await prisma.fuelEntry.count({
+      where: {
+        truck: { companyId: session.user.companyId },
+      },
+    });
+    const fuelEntryNumber = `FUEL-${year}-${String(count + 1).padStart(3, '0')}`;
+
     const entry = await prisma.fuelEntry.create({
       data: {
+        fuelEntryNumber,
         truckId: validated.truckId,
         driverId: validated.driverId,
         mcNumberId: validated.mcNumberId,

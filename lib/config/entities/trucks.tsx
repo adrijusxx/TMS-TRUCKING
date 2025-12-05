@@ -135,7 +135,7 @@ const columns: ExtendedColumnDef<TruckData>[] = [
     header: 'Odometer',
     cell: ({ row }) => {
       const reading = row.original.odometerReading;
-      return reading != null ? reading.toLocaleString() : 'N/A';
+      return reading != null ? reading.toLocaleString() : '—';
     },
     defaultVisible: true,
   },
@@ -172,7 +172,7 @@ const columns: ExtendedColumnDef<TruckData>[] = [
   {
     id: 'mcNumber',
     header: 'MC Number',
-    cell: ({ row }) => row.original.mcNumber?.number || 'N/A',
+    cell: ({ row }) => row.original.mcNumber?.number || '—',
     defaultVisible: false,
     permission: 'mc_numbers.view',
   },

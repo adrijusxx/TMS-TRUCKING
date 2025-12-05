@@ -43,9 +43,10 @@ describe('SettlementManager', () => {
         },
       ]);
 
-      const result = await manager.calculateSettlement('driver-1', {
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-01-31'),
+      const result = await manager.generateSettlement({
+        driverId: 'driver-1',
+        periodStart: new Date('2024-01-01'),
+        periodEnd: new Date('2024-01-31'),
       });
 
       expect(result).toBeDefined();
@@ -58,9 +59,10 @@ describe('SettlementManager', () => {
       (prisma.driver.findUnique as any).mockResolvedValue(null);
 
       await expect(
-        manager.calculateSettlement('invalid-driver', {
-          startDate: new Date('2024-01-01'),
-          endDate: new Date('2024-01-31'),
+        manager.generateSettlement({
+          driverId: 'invalid-driver',
+          periodStart: new Date('2024-01-01'),
+          periodEnd: new Date('2024-01-31'),
         })
       ).rejects.toThrow();
     });

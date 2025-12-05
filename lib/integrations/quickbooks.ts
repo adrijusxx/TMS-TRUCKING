@@ -243,3 +243,37 @@ async function getQuickBooksCustomer(
   }
 }
 
+/**
+ * Sync invoice to QuickBooks (high-level function)
+ * TODO: Implement full invoice sync logic with company credentials
+ */
+export async function syncInvoiceToQuickBooks(
+  companyId: string,
+  invoiceId: string
+): Promise<string | null> {
+  // TODO: Implement
+  // 1. Get company's QuickBooks credentials from DB
+  // 2. Fetch invoice with all details
+  // 3. Transform to QuickBooks format
+  // 4. Call createQuickBooksInvoice
+  console.warn('syncInvoiceToQuickBooks not fully implemented');
+  return null;
+}
+
+/**
+ * Sync customer to QuickBooks (high-level function)
+ * TODO: Implement full customer sync logic with company credentials
+ */
+export async function syncCustomerToQuickBooks(
+  companyId: string,
+  customerId: string
+): Promise<string | null> {
+  // TODO: Implement
+  // 1. Get company's QuickBooks credentials from DB
+  // 2. Fetch customer details
+  // 3. Transform to QuickBooks format
+  // 4. Create customer in QuickBooks
+  console.warn('syncCustomerToQuickBooks not fully implemented');
+  return null;
+}
+

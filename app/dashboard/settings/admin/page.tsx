@@ -14,6 +14,8 @@ import NotificationsCategory from '@/components/settings/categories/Notification
 import SecurityPrivacyCategory from '@/components/settings/categories/SecurityPrivacyCategory';
 import BillingSubscriptionCategory from '@/components/settings/categories/BillingSubscriptionCategory';
 import DataManagementCategory from '@/components/settings/categories/DataManagementCategory';
+import DeletedItemsCategory from '@/components/settings/categories/DeletedItemsCategory';
+import AuditHistoryCategory from '@/components/settings/categories/AuditHistoryCategory';
 
 // Map old tab names to new category names for backward compatibility
 const tabMapping: Record<string, string> = {
@@ -30,6 +32,8 @@ const tabMapping: Record<string, string> = {
   'appearance': 'system',
   'branding': 'company',
   'data-management': 'data-management',
+  'deleted-items': 'deleted-items',
+  'audit-history': 'audit-history',
 };
 
 export default function AdminSettingsPage() {
@@ -96,6 +100,10 @@ export default function AdminSettingsPage() {
         return <BillingSubscriptionCategory />;
       case 'data-management':
         return <DataManagementCategory />;
+      case 'deleted-items':
+        return <DeletedItemsCategory />;
+      case 'audit-history':
+        return <AuditHistoryCategory />;
       default:
         return <CompanyOrganizationCategory />;
     }
