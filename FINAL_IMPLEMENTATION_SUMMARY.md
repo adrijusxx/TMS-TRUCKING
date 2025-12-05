@@ -168,3 +168,4 @@ Run migration: `npx prisma migrate dev --name add_composite_indexes`
 - Better documentation
 
 
+

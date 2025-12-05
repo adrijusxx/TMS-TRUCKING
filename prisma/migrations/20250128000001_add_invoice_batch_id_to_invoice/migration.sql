@@ -11,3 +11,4 @@ CREATE INDEX "Invoice_invoiceBatchId_idx" ON "Invoice"("invoiceBatchId");
 ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_invoiceBatchId_fkey" FOREIGN KEY ("invoiceBatchId") REFERENCES "InvoiceBatch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 
+

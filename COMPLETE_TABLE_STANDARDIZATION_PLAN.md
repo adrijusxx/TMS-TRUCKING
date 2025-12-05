@@ -319,3 +319,4 @@ export const [entity]TableConfig = createEntityTableConfig<[Entity]Data>({
 
 
 
+
