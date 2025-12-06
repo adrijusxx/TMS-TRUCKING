@@ -753,7 +753,7 @@ function Section({
 interface DeviceCardProps {
   device: DeviceQueueItem;
   actioningId: string | null;
-  onAction: (action: string, id: string, data?: any) => void;
+  onAction: (action: 'approve' | 'reject' | 'link', id: string, data?: any) => Promise<void>;
   confidence: 'high' | 'medium' | 'low' | 'unknown' | 'gateway';
   selected: boolean;
   onSelect: (checked: boolean) => void;

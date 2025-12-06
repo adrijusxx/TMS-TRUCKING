@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check admin role
-    const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPER_ADMIN';
+    const isAdmin = session.user.role === 'ADMIN';
     if (!isAdmin) {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
