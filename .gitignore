@@ -38,3 +38,6 @@ next-env.d.ts
 
 # prisma
 /generated/prisma
+
+# test files with secrets
+test.txt
