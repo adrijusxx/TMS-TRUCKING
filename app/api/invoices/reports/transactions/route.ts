@@ -40,7 +40,14 @@ export async function GET(request: NextRequest) {
           },
           ...(Object.keys(dateFilter).length > 0 && { invoiceDate: dateFilter }),
         },
-        include: {
+        select: {
+          id: true,
+          invoiceNumber: true,
+          invoiceDate: true,
+          total: true,
+          amountPaid: true,
+          balance: true,
+          status: true,
           customer: {
             select: {
               id: true,
@@ -60,9 +67,19 @@ export async function GET(request: NextRequest) {
           },
           ...(Object.keys(dateFilter).length > 0 && { paymentDate: dateFilter }),
         },
-        include: {
+        select: {
+          id: true,
+          paymentNumber: true,
+          amount: true,
+          paymentDate: true,
+          paymentMethod: true,
+          referenceNumber: true,
+          notes: true,
           invoice: {
-            include: {
+            select: {
+              id: true,
+              invoiceNumber: true,
+              total: true,
               customer: {
                 select: {
                   id: true,
@@ -83,7 +100,7 @@ export async function GET(request: NextRequest) {
         type: 'INVOICE' as const,
         id: inv.id,
         number: inv.invoiceNumber,
-        customerId: inv.customerId,
+        customerId: inv.customer.id,
         customerName: inv.customer.name,
         customerNumber: inv.customer.customerNumber || '',
         date: inv.invoiceDate,
@@ -94,7 +111,7 @@ export async function GET(request: NextRequest) {
         type: 'PAYMENT' as const,
         id: pay.id,
         number: pay.paymentNumber,
-        customerId: pay.invoice!.customerId,
+        customerId: pay.invoice!.customer.id,
         customerName: pay.invoice!.customer.name,
         customerNumber: pay.invoice!.customer.customerNumber || '',
         date: pay.paymentDate,

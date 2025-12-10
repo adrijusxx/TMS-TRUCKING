@@ -207,6 +207,14 @@ export function BulkEditDialog({
       }
 
       const result = await response.json();
+      
+      // Show errors if any
+      if (result.data?.errors && result.data.errors.length > 0) {
+        result.data.errors.forEach((error: string) => {
+          toast.error(error);
+        });
+      }
+      
       toast.success(
         `Successfully updated ${result.data?.updatedCount || selectedIds.length} record(s)`
       );

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
-import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, convertMcNumberIdToMcNumberString, buildMultiMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { getInvoiceFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
-    // Note: Invoices use mcNumberId relation, not mcNumber string
-    const mcWhere = await buildMcNumberWhereClause(session, request);
+    // 3. Build MC Filter (CRITICAL: Invoice uses mcNumber string, not mcNumberId)
+    const mcWhereWithId = await buildMcNumberWhereClause(session, request);
+    const mcWhere = await convertMcNumberIdToMcNumberString(mcWhereWithId);
 
     // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
@@ -53,12 +53,19 @@ export async function GET(request: NextRequest) {
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
     const viewingAll = isAdmin;
     
+    // Extract mcNumber value for role filter (may be string or {in: string[]})
+    const mcNumberValue = mcWhere.mcNumber 
+      ? (typeof mcWhere.mcNumber === 'string' 
+          ? mcWhere.mcNumber 
+          : (mcWhere.mcNumber as any).in?.[0])
+      : undefined;
+    
     const roleFilter = await getInvoiceFilter(
       createFilterContext(
         session.user.id,
         session.user.role as any,
         viewingAll ? 'ADMIN_ALL_COMPANIES' : session.user.companyId,
-        mcWhere.mcNumberId
+        mcNumberValue
       )
     );
 
@@ -139,7 +146,63 @@ export async function GET(request: NextRequest) {
     const [invoices, total, allInvoicesForTotals] = await Promise.all([
       prisma.invoice.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          companyId: true,
+          customerId: true,
+          invoiceNumber: true,
+          loadIds: true,
+          subtotal: true,
+          tax: true,
+          total: true,
+          amountPaid: true,
+          balance: true,
+          status: true,
+          invoiceDate: true,
+          dueDate: true,
+          paidDate: true,
+          qbSynced: true,
+          qbInvoiceId: true,
+          qbSyncedAt: true,
+          qbSyncStatus: true,
+          qbSyncError: true,
+          qbCustomerId: true,
+          mcNumber: true,
+          subStatus: true,
+          reconciliationStatus: true,
+          invoiceNote: true,
+          paymentNote: true,
+          loadId: true,
+          totalAmount: true,
+          paymentMethod: true,
+          expectedPaymentDate: true,
+          factoringStatus: true,
+          factoringCompanyId: true,
+          submittedToFactorAt: true,
+          factoringSubmittedAt: true,
+          fundedAt: true,
+          reserveReleaseDate: true,
+          factoringReserveReleasedAt: true,
+          factoringFee: true,
+          reserveAmount: true,
+          advanceAmount: true,
+          shortPayAmount: true,
+          shortPayReasonCode: true,
+          shortPayReason: true,
+          shortPayApproved: true,
+          shortPayApprovedById: true,
+          shortPayApprovedAt: true,
+          disputedAt: true,
+          disputedReason: true,
+          writtenOffAt: true,
+          writtenOffReason: true,
+          writtenOffById: true,
+          notes: true,
+          factoringBatchId: true,
+          invoiceBatchId: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
           customer: {
             select: {
               id: true,

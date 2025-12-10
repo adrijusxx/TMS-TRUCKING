@@ -262,7 +262,20 @@ export async function GET(
         break;
 
       case 'customers':
-        data = await prisma.customer.findMany({ where });
+        data = await prisma.customer.findMany({ 
+          where,
+          select: {
+            customerNumber: true,
+            name: true,
+            type: true,
+            address: true,
+            city: true,
+            state: true,
+            zip: true,
+            phone: true,
+            email: true,
+          },
+        });
         headers = [
           'Customer Number',
           'Name',
@@ -1016,6 +1029,21 @@ export async function POST(
             where: {
               companyId: session.user.companyId,
               customerNumber: { in: batch.map(c => c.customerNumber) },
+            },
+            select: {
+              id: true,
+              customerNumber: true,
+              name: true,
+              type: true,
+              address: true,
+              city: true,
+              state: true,
+              zip: true,
+              phone: true,
+              email: true,
+              mcNumber: true,
+              isActive: true,
+              createdAt: true,
             },
           });
           created.push(...createdBatch);

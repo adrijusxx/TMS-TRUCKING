@@ -123,12 +123,6 @@ const navigationSections = [
     colorScheme: 'orange' as const,
     items: [
       {
-        name: 'Bills',
-        href: '/dashboard/bills',
-        icon: DollarSign,
-        description: 'Manage accounts payable including vendor bills, invoices, and expenses. Track bill due dates, payment status, and payment history. Record bill payments, manage payment schedules, and monitor accounts payable aging. Generate bill reports and ensure timely payment of all vendor invoices.',
-      },
-      {
         name: 'Expenses',
         href: '/dashboard/accounting/expenses',
         icon: Tag,

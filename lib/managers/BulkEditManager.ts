@@ -146,6 +146,65 @@ export class BulkEditManager {
             errors.push(`Failed to update batch: ${error.message}`);
           }
         }
+      } else if (entityType === 'batches') {
+        // Special handling for batches: convert mcNumberId to mcNumber string
+        const processedUpdates = { ...updates };
+        
+        // If mcNumberId is provided, convert it to mcNumber string
+        if (processedUpdates.mcNumberId !== undefined) {
+          if (processedUpdates.mcNumberId === null || processedUpdates.mcNumberId === '') {
+            // Clear MC number
+            processedUpdates.mcNumber = null;
+            console.log('[BulkEdit] Clearing MC number for batches');
+          } else {
+            // Fetch MC number string from ID
+            const mcNumber = await prisma.mcNumber.findUnique({
+              where: { id: processedUpdates.mcNumberId },
+              select: { number: true },
+            });
+            
+            if (mcNumber) {
+              processedUpdates.mcNumber = mcNumber.number;
+              console.log(`[BulkEdit] Converting mcNumberId ${processedUpdates.mcNumberId} to mcNumber ${mcNumber.number}`);
+            } else {
+              const errorMsg = `MC number with ID ${processedUpdates.mcNumberId} not found`;
+              errors.push(errorMsg);
+              console.error(`[BulkEdit] ${errorMsg}`);
+              delete processedUpdates.mcNumberId;
+            }
+          }
+          // Remove mcNumberId from updates (not a valid field for InvoiceBatch)
+          delete processedUpdates.mcNumberId;
+        }
+
+        // Standard update for batches with direct companyId
+        // Note: InvoiceBatch doesn't have deletedAt field
+        const batchSize = 100;
+        for (let i = 0; i < ids.length; i += batchSize) {
+          const batch = ids.slice(i, i + batchSize);
+
+          try {
+            console.log(`[BulkEdit] Updating batches:`, { batch, processedUpdates });
+            const result = await model.updateMany({
+              where: {
+                id: { in: batch },
+                companyId,
+                // InvoiceBatch doesn't have deletedAt field
+              },
+              data: {
+                ...processedUpdates,
+                updatedAt: new Date(),
+              },
+            });
+
+            console.log(`[BulkEdit] Updated ${result.count} batch(es)`);
+            updatedCount += result.count;
+          } catch (error: any) {
+            const errorMsg = `Failed to update batch: ${error.message}`;
+            errors.push(errorMsg);
+            console.error('[BulkEdit] Batch update error:', error);
+          }
+        }
       } else {
         // Standard update for entities with direct companyId
         const batchSize = 100;

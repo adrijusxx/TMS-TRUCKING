@@ -69,12 +69,6 @@ export const accountingNavigationSections = [
         description: 'Process driver settlements and calculate driver pay based on loads, miles, and deductions. Create settlement statements, track settlement history, and manage driver payments.',
       },
       {
-        name: 'Bills',
-        href: '/dashboard/bills',
-        icon: DollarSign,
-        description: 'Manage accounts payable including vendor bills, invoices, and expenses. Track bill due dates, payment status, and payment history.',
-      },
-      {
         name: 'Expenses',
         href: '/dashboard/accounting/expenses',
         icon: Tag,

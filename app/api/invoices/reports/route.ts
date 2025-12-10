@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permissions';
+import { buildMcNumberWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authentication Check
     const session = await auth();
 
     if (!session?.user?.companyId) {
@@ -12,6 +15,18 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // 2. Permission Check
+    if (!hasPermission(session.user.role as any, 'invoices.view')) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
+        { status: 403 }
+      );
+    }
+
+    // 3. Build MC Filter (CRITICAL: Invoice uses mcNumber string, not mcNumberId)
+    const mcWhereWithId = await buildMcNumberWhereClause(session, request);
+    const mcWhere = await convertMcNumberIdToMcNumberString(mcWhereWithId);
 
     const { searchParams } = new URL(request.url);
     const fromDate = searchParams.get('fromDate');
@@ -28,14 +43,18 @@ export async function GET(request: NextRequest) {
       dateFilter.lte = to;
     }
 
+    // 4. Query with Company + MC filtering
+    const where: any = {
+      customer: {
+        companyId: session.user.companyId,
+      },
+      ...mcWhere, // Apply MC filtering
+      ...(Object.keys(dateFilter).length > 0 && { invoiceDate: dateFilter }),
+    };
+
     // Get all invoices for the company within date range
     const invoices = await prisma.invoice.findMany({
-      where: {
-        customer: {
-          companyId: session.user.companyId,
-        },
-        ...(Object.keys(dateFilter).length > 0 && { invoiceDate: dateFilter }),
-      },
+      where,
       include: {
         customer: {
           select: {
@@ -47,9 +66,7 @@ export async function GET(request: NextRequest) {
         payments: true,
       },
       orderBy: {
-        customer: {
-          name: 'asc',
-        },
+        invoiceDate: 'desc', // Fixed: Sort by invoiceDate instead of relation field
       },
     });
 

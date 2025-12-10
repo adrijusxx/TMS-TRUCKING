@@ -428,7 +428,7 @@ export class SamsaraDeviceSyncService {
       mcNumberId?: string;
       equipmentType?: string;
     }
-  ): Promise<{ success: boolean; recordId?: string; error?: string; action?: 'created' | 'linked' }> {
+  ): Promise<{ success: boolean; recordId?: string; error?: string; action?: 'created' | 'linked' | 'rejected' }> {
     const queueItem = await prisma.samsaraDeviceQueue.findUnique({
       where: { id: queueId },
     });
@@ -540,7 +540,7 @@ export class SamsaraDeviceSyncService {
         }
 
         let truckId: string | undefined;
-        let action: 'created' | 'linked';
+        let action: 'created' | 'linked' | 'rejected' | undefined;
 
         if (existingTruck) {
           // Case 1: Truck already linked to THIS SAME samsaraId → already done, just update queue status
@@ -621,7 +621,6 @@ export class SamsaraDeviceSyncService {
           let finalTruckNumber = truckNumber;
           let attempt = 0;
           let created = false;
-          let truckId: string | undefined;
           
           // Generate a truly unique VIN if none provided
           const uniqueVin = queueItem.vin || `PENDING-${queueItem.samsaraId}-${Date.now()}`;
@@ -823,7 +822,7 @@ export class SamsaraDeviceSyncService {
         });
 
         let trailerId: string | undefined;
-        let action: 'created' | 'linked';
+        let action: 'created' | 'linked' | 'rejected' | undefined;
 
         if (existingTrailer) {
           // Case 1: Trailer already linked to THIS SAME samsaraId
@@ -903,7 +902,6 @@ export class SamsaraDeviceSyncService {
           let finalTrailerNumber = trailerNumber;
           let attempt = 0;
           let created = false;
-          let trailerId: string | undefined;
           
           while (!created && attempt < 5) {
             try {

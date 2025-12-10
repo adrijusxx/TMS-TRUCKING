@@ -311,7 +311,8 @@ export function BulkActionBar({
           entityType={entityType}
           fields={bulkEditFields}
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: [entityType] });
+            // Invalidate all queries that start with the entityType
+            queryClient.invalidateQueries({ queryKey: [entityType], exact: false });
             onClearSelection();
             onActionComplete?.();
           }}

@@ -270,7 +270,6 @@ export default function DashboardLayout({
   const isAccountingSection = pathname?.startsWith('/dashboard/invoices') ||
     pathname?.startsWith('/dashboard/settlements') ||
     pathname?.startsWith('/dashboard/salary') ||
-    pathname?.startsWith('/dashboard/bills') ||
     pathname?.startsWith('/dashboard/customers') ||
     pathname?.startsWith('/dashboard/vendors') ||
     pathname?.startsWith('/dashboard/locations') ||

@@ -1,33 +1,14 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import CreateBatchForm from '@/components/batches/CreateBatchForm';
+import CreateBatchFormPage from '@/components/batches/CreateBatchFormPage';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function NewBatchPage() {
-  const router = useRouter();
-
   return (
     <>
       <Breadcrumb items={[
         { label: 'Batches', href: '/dashboard/batches' },
         { label: 'New Batch' }
       ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Create New Batch</h1>
-        </div>
-        <CreateBatchForm
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              // Navigate back to batches list when dialog closes
-              router.push('/dashboard/batches');
-            }
-          }}
-        />
-      </div>
+      <CreateBatchFormPage />
     </>
   );
 }

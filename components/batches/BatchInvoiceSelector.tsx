@@ -24,7 +24,10 @@ interface Invoice {
     customerNumber: string;
   };
   invoiceDate: string;
+  dueDate: string;
   total: number;
+  balance: number;
+  amountPaid: number;
   status: string;
   mcNumber: string | null;
 }
@@ -100,7 +103,9 @@ export default function BatchInvoiceSelector({
     return (
       invoice.invoiceNumber.toLowerCase().includes(query) ||
       invoice.customer.name.toLowerCase().includes(query) ||
-      (invoice.mcNumber && invoice.mcNumber.toLowerCase().includes(query))
+      invoice.customer.customerNumber.toLowerCase().includes(query) ||
+      (invoice.mcNumber && invoice.mcNumber.toLowerCase().includes(query)) ||
+      invoice.status.toLowerCase().includes(query)
     );
   });
 
@@ -155,43 +160,70 @@ export default function BatchInvoiceSelector({
               </TableHead>
               <TableHead>Invoice #</TableHead>
               <TableHead>Customer</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>Invoice Date</TableHead>
+              <TableHead>Due Date</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>MC Number</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead className="text-right">Balance</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredInvoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No invoices available
                 </TableCell>
               </TableRow>
             ) : (
-              filteredInvoices.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedInvoiceIds.includes(invoice.id)}
-                      onCheckedChange={() => handleToggleInvoice(invoice.id)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{invoice.customer.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {invoice.customer.customerNumber}
+              filteredInvoices.map((invoice) => {
+                const isSelected = selectedInvoiceIds.includes(invoice.id);
+                const isOverdue = invoice.dueDate && new Date(invoice.dueDate) < new Date();
+                return (
+                  <TableRow 
+                    key={invoice.id}
+                    className={isSelected ? 'bg-muted/50' : ''}
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => handleToggleInvoice(invoice.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{invoice.customer.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {invoice.customer.customerNumber}
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
-                  <TableCell>{invoice.mcNumber || '-'}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(invoice.total)}
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell>{formatDate(invoice.invoiceDate)}</TableCell>
+                    <TableCell>
+                      <div className={isOverdue ? 'text-red-600 font-medium' : ''}>
+                        {formatDate(invoice.dueDate)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        invoice.status === 'SENT' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                        invoice.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                      }`}>
+                        {invoice.status}
+                      </span>
+                    </TableCell>
+                    <TableCell>{invoice.mcNumber || '-'}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(invoice.total)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(invoice.balance || invoice.total)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

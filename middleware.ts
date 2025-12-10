@@ -5,12 +5,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/register', '/tracking'];
+  const publicRoutes = ['/login', '/register', '/tracking', '/showcase'];
   const isPublicRoute = publicRoutes.some((route) => {
     return pathname === route || pathname.startsWith(route + '/');
   });
 
-  if (isPublicRoute) {
+  // Root path (landing page) is public
+  if (pathname === '/' || isPublicRoute) {
     return NextResponse.next();
   }
 
@@ -29,21 +30,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(redirectPath, request.url));
   }
 
-  // Protect root path (dashboard) - redirect to login if not authenticated
-  if (pathname === '/') {
-    const sessionToken = request.cookies.get('authjs.session-token') || 
-                        request.cookies.get('__Secure-authjs.session-token') ||
-                        request.cookies.get('next-auth.session-token') ||
-                        request.cookies.get('__Secure-next-auth.session-token');
-    
-    if (!sessionToken) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('callbackUrl', '/');
-      return NextResponse.redirect(loginUrl);
-    }
-    
-    return NextResponse.next();
-  }
 
   // Protect /dashboard/* routes - let the layout handle auth check
   // The layout will redirect to /login if not authenticated

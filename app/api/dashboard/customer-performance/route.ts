@@ -62,7 +62,9 @@ export async function GET(request: NextRequest) {
     // Get all customers
     const customers = await prisma.customer.findMany({
       where: customerWhere,
-      include: {
+      select: {
+        id: true,
+        name: true,
         loads: {
           where: loadWhere,
           select: {

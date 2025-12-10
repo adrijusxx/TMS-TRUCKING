@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,15 +15,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all unpaid invoices
+    // Build MC filter for invoices (Invoice uses mcNumber string)
+    const mcWhereWithId = await buildMcNumberWhereClause(session, request);
+    const mcWhere = await convertMcNumberIdToMcNumberString(mcWhereWithId);
+
+    // Get all unpaid invoices with proper filtering
     const invoices = await prisma.invoice.findMany({
       where: {
-        customer: {
-          companyId: session.user.companyId,
-        },
+        companyId: session.user.companyId,
+        deletedAt: null,
         status: { in: ['SENT', 'PARTIAL'] },
+        ...(mcWhere.mcNumber && { mcNumber: mcWhere.mcNumber }),
       },
-      include: {
+      select: {
+        id: true,
+        invoiceNumber: true,
+        customerId: true,
+        invoiceDate: true,
+        dueDate: true,
+        total: true,
+        amountPaid: true,
+        balance: true,
+        status: true,
         customer: {
           select: {
             id: true,

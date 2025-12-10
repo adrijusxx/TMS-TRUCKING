@@ -26,7 +26,6 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
     if (pathname.startsWith('/dashboard/invoices') ||
         pathname.startsWith('/dashboard/settlements') ||
         pathname.startsWith('/dashboard/salary') ||
-        pathname.startsWith('/dashboard/bills') ||
         pathname.startsWith('/dashboard/customers') ||
         pathname.startsWith('/dashboard/vendors') ||
         pathname.startsWith('/dashboard/locations') ||

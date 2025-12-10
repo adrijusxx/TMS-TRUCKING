@@ -18,8 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check admin role
-    const isAdmin = session.user.role === 'ADMIN' || session.user.role === 'SUPER_ADMIN';
-    if (!isAdmin) {
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json(
         { success: false, error: 'Admin access required' },
         { status: 403 }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, AlertCircle, Truck, Wrench } from 'lucide-react';
-import { DeviceQueueFiltersComponent } from './DeviceQueueFilters';
+import { DeviceQueueFiltersComponent, DeviceQueueFilters } from './DeviceQueueFilters';
 import { DeviceQueueSections } from './DeviceQueueSections';
 import FleetFaultSummary from './FleetFaultSummary';
 import { Card } from '@/components/ui/card';
@@ -24,7 +24,7 @@ function getCookie(name: string): string | null {
 
 export function UnifiedDeviceQueue() {
   const [activeStatus, setActiveStatus] = useState('PENDING');
-  const [filters, setFilters] = useState({ status: 'PENDING' });
+  const [filters, setFilters] = useState<DeviceQueueFilters>({ status: 'PENDING' });
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);

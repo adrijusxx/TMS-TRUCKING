@@ -23,8 +23,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { batchesTableConfig } from '@/lib/config/entities/batches';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
-import CreateBatchForm from './CreateBatchForm';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
+import { useRouter } from 'next/navigation';
 
 interface BatchData {
   id: string;
@@ -43,10 +43,10 @@ interface BatchData {
 }
 
 export default function BatchListNew() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
-  const [createBatchDialogOpen, setCreateBatchDialogOpen] = React.useState(false);
   const [deleteBatchId, setDeleteBatchId] = React.useState<string | null>(null);
 
   const fetchBatches = async (params: {
@@ -185,7 +185,7 @@ export default function BatchListNew() {
             </ExportDialog>
           )}
           {can('batches.create') && (
-            <Button size="sm" onClick={() => setCreateBatchDialogOpen(true)}>
+            <Button size="sm" onClick={() => router.push('/dashboard/accounting/batches/new')}>
               <Plus className="h-4 w-4 mr-2" />
               New Batch
             </Button>
@@ -221,11 +221,6 @@ export default function BatchListNew() {
           onActionComplete={() => {}}
         />
       )}
-
-      <CreateBatchForm
-        open={createBatchDialogOpen}
-        onOpenChange={setCreateBatchDialogOpen}
-      />
 
       <AlertDialog open={!!deleteBatchId} onOpenChange={(open) => !open && setDeleteBatchId(null)}>
         <AlertDialogContent>

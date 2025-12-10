@@ -81,7 +81,8 @@ export async function GET(request: NextRequest) {
       prisma.customer.count({ where }),
       prisma.customer.findMany({
         where,
-        include: {
+        select: {
+          id: true,
           loads: {
             where: loadWhere,
             select: {
