@@ -28,3 +28,5 @@ CREATE INDEX IF NOT EXISTS "TruckFaultHistory_category_idx" ON "TruckFaultHistor
 
 
 
+
+

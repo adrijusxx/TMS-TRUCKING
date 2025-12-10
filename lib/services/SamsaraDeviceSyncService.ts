@@ -540,7 +540,11 @@ export class SamsaraDeviceSyncService {
         }
 
         let truckId: string | undefined;
+<<<<<<< HEAD
         let action: 'created' | 'linked' | 'rejected' | undefined;
+=======
+        let action: 'created' | 'linked' | undefined;
+>>>>>>> f4088637bce02058b914cda945699127e935aa0f
 
         if (existingTruck) {
           // Case 1: Truck already linked to THIS SAME samsaraId → already done, just update queue status
@@ -729,17 +733,18 @@ export class SamsaraDeviceSyncService {
             return { success: false, error: `Failed to create truck "${truckNumber}" - already exists in TMS. Use "Link" action to connect to existing truck.` };
           }
           
-          if (!action) action = 'created';
+          action = action || 'created';
         }
 
         if (!truckId) {
           return { success: false, error: 'Failed to create or link truck' };
         }
 
+        const finalAction = action || 'created';
         await prisma.samsaraDeviceQueue.update({
           where: { id: queueId },
           data: {
-            status: action === 'created' ? 'APPROVED' : 'LINKED',
+            status: finalAction === 'created' ? 'APPROVED' : 'LINKED',
             matchedRecordId: truckId,
             matchedType: 'TRUCK',
             reviewedAt: now,
@@ -747,7 +752,7 @@ export class SamsaraDeviceSyncService {
           },
         });
 
-        return { success: true, recordId: truckId, action };
+        return { success: true, recordId: truckId, action: finalAction };
       } else {
         // First check if this Samsara device is already linked
         const alreadyLinked = await prisma.trailer.findFirst({
@@ -822,7 +827,11 @@ export class SamsaraDeviceSyncService {
         });
 
         let trailerId: string | undefined;
+<<<<<<< HEAD
         let action: 'created' | 'linked' | 'rejected' | undefined;
+=======
+        let action: 'created' | 'linked' | undefined;
+>>>>>>> f4088637bce02058b914cda945699127e935aa0f
 
         if (existingTrailer) {
           // Case 1: Trailer already linked to THIS SAME samsaraId
@@ -998,17 +1007,18 @@ export class SamsaraDeviceSyncService {
             return { success: false, error: `Failed to create trailer "${trailerNumber}" - already exists in TMS. Use "Link" action to connect to existing trailer.` };
           }
           
-          if (!action) action = 'created';
+          action = action || 'created';
         }
 
         if (!trailerId) {
           return { success: false, error: 'Failed to create or link trailer' };
         }
 
+        const finalAction = action || 'created';
         await prisma.samsaraDeviceQueue.update({
           where: { id: queueId },
           data: {
-            status: action === 'created' ? 'APPROVED' : 'LINKED',
+            status: finalAction === 'created' ? 'APPROVED' : 'LINKED',
             matchedRecordId: trailerId,
             matchedType: 'TRAILER',
             reviewedAt: now,
@@ -1016,7 +1026,7 @@ export class SamsaraDeviceSyncService {
           },
         });
 
-        return { success: true, recordId: trailerId, action };
+        return { success: true, recordId: trailerId, action: finalAction };
       }
     } catch (error: any) {
       // Better error message for duplicate keys
