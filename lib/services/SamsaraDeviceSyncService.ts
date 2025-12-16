@@ -540,11 +540,7 @@ export class SamsaraDeviceSyncService {
         }
 
         let truckId: string | undefined;
-<<<<<<< HEAD
         let action: 'created' | 'linked' | 'rejected' | undefined;
-=======
-        let action: 'created' | 'linked' | undefined;
->>>>>>> f4088637bce02058b914cda945699127e935aa0f
 
         if (existingTruck) {
           // Case 1: Truck already linked to THIS SAME samsaraId → already done, just update queue status
@@ -827,11 +823,7 @@ export class SamsaraDeviceSyncService {
         });
 
         let trailerId: string | undefined;
-<<<<<<< HEAD
         let action: 'created' | 'linked' | 'rejected' | undefined;
-=======
-        let action: 'created' | 'linked' | undefined;
->>>>>>> f4088637bce02058b914cda945699127e935aa0f
 
         if (existingTrailer) {
           // Case 1: Trailer already linked to THIS SAME samsaraId
