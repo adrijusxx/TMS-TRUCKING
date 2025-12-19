@@ -72,8 +72,11 @@ jobs:
             echo "Installing production dependencies..."
             npm ci --production --ignore-scripts --legacy-peer-deps
             
+            echo "Installing Prisma CLI for client generation..."
+            npm install prisma --legacy-peer-deps --no-save
+            
             echo "Generating Prisma Client..."
-            npm run db:generate
+            npx prisma generate
             
             echo "Restarting application..."
             pm2 restart tms || pm2 start ecosystem.config.js
