@@ -383,9 +383,10 @@ export default function CommunicationHub() {
                 Loading conversations...
               </div>
             ) : filteredConversations.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No conversations found</p>
+              <div className="p-6 text-center text-muted-foreground">
+                <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p className="font-medium">No conversations yet</p>
+                <p className="text-xs mt-1">Communications will appear here when breakdown cases are created and drivers send updates.</p>
               </div>
             ) : (
               <div className="divide-y max-h-[calc(100vh-300px)] overflow-y-auto">

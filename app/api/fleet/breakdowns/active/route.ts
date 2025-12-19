@@ -93,6 +93,31 @@ export async function GET(request: NextRequest) {
           },
           take: 5, // Limit to recent documents
         },
+        assignments: {
+          where: { isActive: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+              },
+            },
+          },
+          orderBy: { assignedAt: 'asc' },
+        },
+        payments: {
+          select: {
+            id: true,
+            paymentNumber: true,
+            amount: true,
+            paymentMethod: true,
+            paymentDate: true,
+          },
+        },
       },
       orderBy: [
         { priority: 'desc' }, // Critical first
@@ -118,10 +143,12 @@ export async function GET(request: NextRequest) {
         timeElapsed = `${elapsedMinutes}m`;
       }
 
+      const totalPaid = breakdown.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0;
       return {
         ...breakdown,
         timeElapsed,
         elapsedMinutes,
+        totalPaid,
       };
     });
 

@@ -54,6 +54,9 @@ const updateBreakdownSchema = z.object({
   technicianNotes: z.string().optional().nullable(),
   followUpRequired: z.boolean().optional(),
   followUpNotes: z.string().optional().nullable(),
+  // Driver chargeability
+  isDriverChargeable: z.boolean().optional(),
+  driverChargeNotes: z.string().optional().nullable(),
 });
 
 /**
@@ -158,6 +161,22 @@ export async function GET(
             id: true,
             number: true,
           },
+        },
+        assignments: {
+          where: { isActive: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+              },
+            },
+          },
+          orderBy: { assignedAt: 'asc' },
         },
       },
     });

@@ -53,6 +53,7 @@ model User {
   assignedProjects           Project[]                @relation("ProjectAssignee")
   createdTasks               Task[]                   @relation("TaskCreator")
   assignedTasks              Task[]                   @relation("TaskAssignee")
+  breakdownAssignments       BreakdownAssignment[] // Breakdown case assignments
   // Accounting Relations
   shortPayApprovedInvoices   Invoice[]                @relation("ShortPayApprover")
   writeOffInvoices           Invoice[]                @relation("WriteOffBy")
@@ -73,6 +74,8 @@ model User {
   // Samsara Integration
   reviewedSamsaraDevices     SamsaraDeviceQueue[]
   resolvedFaults             TruckFaultHistory[]
+  // Fleet Vendors
+  createdVendors             Vendor[]              @relation("VendorCreatedBy")
 
   @@index([companyId])
   @@index([email])
@@ -1112,11 +1115,11 @@ model Truck {
 
   // Samsara Integration
   samsaraId           String?   @unique // Samsara vehicle ID
-  samsaraSyncedAt     DateTime?          // Last sync timestamp
-  samsaraSyncStatus   String?            // SYNCED | PENDING | ERROR
-  lastOdometerReading Float?             // Latest odometer from Samsara
-  lastOdometerUpdate  DateTime?          // When odometer was updated
-  lastEngineHours     Float?             // Latest engine hours from Samsara
+  samsaraSyncedAt     DateTime? // Last sync timestamp
+  samsaraSyncStatus   String? // SYNCED | PENDING | ERROR
+  lastOdometerReading Float? // Latest odometer from Samsara
+  lastOdometerUpdate  DateTime? // When odometer was updated
+  lastEngineHours     Float? // Latest engine hours from Samsara
 
   // Additional Fields from Excel
   legacyTags Json? // Tags as JSON array (legacy, use tags relation instead)
@@ -1200,8 +1203,8 @@ model Trailer {
 
   // Samsara Integration
   samsaraId         String?   @unique // Samsara asset ID
-  samsaraSyncedAt   DateTime?          // Last sync timestamp
-  samsaraSyncStatus String?            // SYNCED | PENDING | ERROR
+  samsaraSyncedAt   DateTime? // Last sync timestamp
+  samsaraSyncStatus String? // SYNCED | PENDING | ERROR
 
   // Additional Fields from Excel
   legacyTags Json? // Tags as JSON array (legacy)
@@ -1437,6 +1440,13 @@ model Breakdown {
   followUpRequired Boolean @default(false)
   followUpNotes    String?
 
+  // Driver chargeability
+  isDriverChargeable Boolean @default(false)
+  driverChargeNotes  String? // Notes explaining why driver is charged
+
+  // Staff assignments
+  assignments BreakdownAssignment[]
+
   // Documents/Photos
   documents Document[]
 
@@ -1491,6 +1501,26 @@ enum BreakdownStatus {
   COMPLETED // Repair completed, truck ready
   RESOLVED // Fully resolved, all documentation complete
   CANCELLED // False alarm or cancelled
+}
+
+// Breakdown staff assignments (many-to-many with users)
+model BreakdownAssignment {
+  id          String    @id @default(cuid())
+  breakdownId String
+  breakdown   Breakdown @relation(fields: [breakdownId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  role        String? // Role in this breakdown (e.g., "Lead", "Support", "On-Call")
+  assignedAt  DateTime  @default(now())
+  assignedBy  String? // User ID who made the assignment
+  notes       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([breakdownId, userId])
+  @@index([breakdownId])
+  @@index([userId])
 }
 
 // ============================================
@@ -1889,27 +1919,27 @@ model Invoice {
   invoiceNote          String?
   paymentNote          String?
   loadId               String? // Single load reference for display
-  load                 Load?    @relation("InvoiceLoad", fields: [loadId], references: [id])
+  load                 Load?                @relation("InvoiceLoad", fields: [loadId], references: [id])
 
   // Total amount alias (for compatibility)
-  totalAmount          Float? // Alias for total (computed or synchronized)
+  totalAmount Float? // Alias for total (computed or synchronized)
 
   // Payment Information
   paymentMethod       PaymentMethod?
   expectedPaymentDate DateTime? // Calculated from invoiceDate + paymentTerms
 
   // Factoring Fields
-  factoringStatus        FactoringStatus   @default(NOT_FACTORED)
-  factoringCompanyId     String?
-  factoringCompany       FactoringCompany? @relation(fields: [factoringCompanyId], references: [id])
-  submittedToFactorAt    DateTime?
-  factoringSubmittedAt   DateTime? // Alias for submittedToFactorAt
-  fundedAt               DateTime?
-  reserveReleaseDate     DateTime?
+  factoringStatus            FactoringStatus   @default(NOT_FACTORED)
+  factoringCompanyId         String?
+  factoringCompany           FactoringCompany? @relation(fields: [factoringCompanyId], references: [id])
+  submittedToFactorAt        DateTime?
+  factoringSubmittedAt       DateTime? // Alias for submittedToFactorAt
+  fundedAt                   DateTime?
+  reserveReleaseDate         DateTime?
   factoringReserveReleasedAt DateTime? // For reserve release tracking
-  factoringFee           Float?
-  reserveAmount          Float?
-  advanceAmount          Float?
+  factoringFee               Float?
+  reserveAmount              Float?
+  advanceAmount              Float?
 
   // Short Pay Tracking
   shortPayAmount       Float     @default(0)
@@ -2252,9 +2282,9 @@ model DeductionRule {
   name          String
   deductionType DeductionType
   driverType    DriverType? // Apply to specific driver type (COMPANY, OWNER_OPERATOR, LEASE)
-  
+
   // Unified addition/deduction flag
-  isAddition    Boolean @default(false) // true = addition (bonus, overtime), false = deduction
+  isAddition Boolean @default(false) // true = addition (bonus, overtime), false = deduction
 
   // Per-driver rule (simplified model for automated deductions)
   driverId  String? // Specific driver for this rule (if null, applies to driverType)
@@ -2573,6 +2603,11 @@ enum PaymentMethod {
   OTHER
   FACTOR
   QUICK_PAY
+  EFS
+  COMDATA
+  CASHAPP
+  ZELLE
+  VENMO
 }
 
 enum FactoringStatus {
@@ -3204,6 +3239,10 @@ model Vendor {
   // Additional Fields from Excel
   tag String? // Tag field from Excel
 
+  // Fleet Repair Shop Specific
+  hourlyRate  Float? // Approximate hourly rate for repair shops
+  specialties String? // Specialties (e.g., "Engine, Transmission, Brakes")
+
   // Relations
   contacts           VendorContact[]
   inventoryItems     InventoryItem[]
@@ -3211,6 +3250,8 @@ model Vendor {
   expenses           LoadExpense[]
   factoringBatches   FactoringBatch[]
   maintenanceRecords MaintenanceRecord[]
+  createdBy          User?    @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  createdById        String?
 
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
@@ -3219,6 +3260,7 @@ model Vendor {
 
   @@index([companyId])
   @@index([vendorNumber])
+  @@index([createdById])
 }
 
 enum VendorType {
@@ -6132,16 +6174,16 @@ model SamsaraDeviceQueue {
   companyId       String
   company         Company   @relation(fields: [companyId], references: [id])
   samsaraId       String    @unique // Samsara vehicle/asset ID
-  deviceType      String    // TRUCK | TRAILER
-  name            String    // Samsara device name
+  deviceType      String // TRUCK | TRAILER
+  name            String // Samsara device name
   vin             String?
   licensePlate    String?
   make            String?
   model           String?
   year            Int?
   status          String    @default("PENDING") // PENDING | APPROVED | REJECTED | LINKED
-  matchedRecordId String?   // If matched to existing TMS record (Truck.id or Trailer.id)
-  matchedType     String?   // TRUCK | TRAILER - type of matched record
+  matchedRecordId String? // If matched to existing TMS record (Truck.id or Trailer.id)
+  matchedType     String? // TRUCK | TRAILER - type of matched record
   reviewedAt      DateTime?
   reviewedById    String?
   reviewedBy      User?     @relation(fields: [reviewedById], references: [id])
@@ -6158,34 +6200,34 @@ model SamsaraDeviceQueue {
 
 // Fault code history for trucks (from Samsara diagnostics)
 model TruckFaultHistory {
-  id             String    @id @default(cuid())
-  truckId        String
-  truck          Truck     @relation(fields: [truckId], references: [id], onDelete: Cascade)
-  companyId      String
-  company        Company   @relation(fields: [companyId], references: [id])
-  faultCode      String    // DTC code (e.g., P0128, U0100, SPN123)
-  description    String?   // Fault description
-  severity       String?   // CRITICAL | WARNING | INFO
-  category       String?   // engine, transmission, brake, exhaust, electrical, emissions
-  source         String    @default("SAMSARA") // SAMSARA | MANUAL | ELD
-  samsaraFaultId String?   // Original Samsara fault ID for deduplication
+  id               String    @id @default(cuid())
+  truckId          String
+  truck            Truck     @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id])
+  faultCode        String // DTC code (e.g., P0128, U0100, SPN123)
+  description      String? // Fault description
+  severity         String? // CRITICAL | WARNING | INFO
+  category         String? // engine, transmission, brake, exhaust, electrical, emissions
+  source           String    @default("SAMSARA") // SAMSARA | MANUAL | ELD
+  samsaraFaultId   String? // Original Samsara fault ID for deduplication
   samsaraVehicleId String? // Samsara vehicle ID
-  spnId          Int?      // SPN number for J1939 codes
-  fmiId          Int?      // FMI number for J1939 codes
-  checkEngineLight Boolean @default(false)
-  mileageAtOccur Float?    // Odometer reading when fault occurred
-  occurredAt     DateTime  // When fault occurred
-  detectedAt     DateTime  @default(now()) // When TMS detected it
-  resolvedAt     DateTime? // When fault was resolved
-  isActive       Boolean   @default(true)
-  notifiedFleet  Boolean   @default(false) // Whether fleet dept was notified
-  notifiedAt     DateTime?
-  resolvedById   String?   // User who marked it resolved
-  resolvedBy     User?     @relation(fields: [resolvedById], references: [id])
-  resolutionNotes String?  // Notes about how fault was resolved
-  notes          String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  spnId            Int? // SPN number for J1939 codes
+  fmiId            Int? // FMI number for J1939 codes
+  checkEngineLight Boolean   @default(false)
+  mileageAtOccur   Float? // Odometer reading when fault occurred
+  occurredAt       DateTime // When fault occurred
+  detectedAt       DateTime  @default(now()) // When TMS detected it
+  resolvedAt       DateTime? // When fault was resolved
+  isActive         Boolean   @default(true)
+  notifiedFleet    Boolean   @default(false) // Whether fleet dept was notified
+  notifiedAt       DateTime?
+  resolvedById     String? // User who marked it resolved
+  resolvedBy       User?     @relation(fields: [resolvedById], references: [id])
+  resolutionNotes  String? // Notes about how fault was resolved
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([truckId, faultCode, occurredAt]) // Prevent duplicate entries
   @@index([truckId])
@@ -6203,17 +6245,17 @@ model TruckFaultHistory {
 // Static reference data for diagnostic trouble codes with troubleshooting info
 model DiagnosticCodeReference {
   id              String   @id @default(cuid())
-  code            String   @unique  // e.g., "SPN123", "P0420"
-  spnId           Int?     // SPN number for J1939 codes
-  fmiId           Int?     // FMI number for J1939 codes
-  name            String   // Short name
-  description     String   // Full description
-  category        String   // engine, transmission, brake, exhaust, electrical, emissions, aftertreatment
-  severity        String   // critical, warning, info
+  code            String   @unique // e.g., "SPN123", "P0420"
+  spnId           Int? // SPN number for J1939 codes
+  fmiId           Int? // FMI number for J1939 codes
+  name            String // Short name
+  description     String // Full description
+  category        String // engine, transmission, brake, exhaust, electrical, emissions, aftertreatment
+  severity        String // critical, warning, info
   commonCauses    String[] // Array of common causes
   troubleshooting String[] // Array of troubleshooting steps
-  estimatedCost   String?  // e.g., "$100-$500"
-  urgency         String   // immediate, soon, monitor
+  estimatedCost   String? // e.g., "$100-$500"
+  urgency         String // immediate, soon, monitor
   vehicleTypes    String[] @default([]) // Empty = all, or ["diesel", "gas", "electric"]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

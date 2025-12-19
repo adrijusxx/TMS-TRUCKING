@@ -10,7 +10,16 @@ import {
   Calendar,
   Wifi,
   Gauge,
+  LayoutDashboard,
 } from 'lucide-react';
+
+// Quick access link to main dashboard
+export const fleetDashboardLink = {
+  name: 'Fleet Dashboard',
+  href: '/dashboard/fleet',
+  icon: LayoutDashboard,
+  description: 'Main Fleet Department dashboard with active cases, communications, team assignments, and analytics overview.',
+};
 
 // Navigation sections configuration
 export const fleetNavigationSections = [
@@ -45,10 +54,10 @@ export const fleetNavigationSections = [
     colorScheme: 'red' as const,
     items: [
       {
-        name: 'Active Breakdowns',
+        name: 'All Breakdowns',
         href: '/dashboard/fleet/breakdowns',
         icon: AlertTriangle,
-        description: 'Real-time dashboard showing all active vehicle breakdowns requiring immediate attention. Includes Quick Entry button and tabs for History, Hotspots, and Cost Tracking.',
+        description: 'View and manage all breakdown cases - active and historical. Filter, search, and analyze breakdown patterns to identify recurring issues and track breakdown frequency.',
       },
       {
         name: 'Diagnostics',
@@ -75,18 +84,6 @@ export const fleetNavigationSections = [
     icon: MessageCircle,
     colorScheme: 'purple' as const,
     items: [
-      {
-        name: 'Fleet Board',
-        href: '/dashboard/fleet-board',
-        icon: BarChart3,
-        description: 'Comprehensive fleet overview dashboard showing real-time status of all vehicles and drivers. View vehicle locations, status, assignments, and key metrics.',
-      },
-      {
-        name: 'Communication Hub',
-        href: '/dashboard/fleet/communications',
-        icon: MessageCircle,
-        description: 'Centralized communication hub for all driver communications including messages, alerts, and notifications. Send messages to drivers, receive driver updates, and track communication history.',
-      },
       {
         name: 'On-Call Schedule',
         href: '/dashboard/fleet/on-call',
