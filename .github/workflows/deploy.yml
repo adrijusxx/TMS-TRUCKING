@@ -76,7 +76,7 @@ jobs:
             npm install prisma --legacy-peer-deps --no-save
             
             echo "Generating Prisma Client..."
-            npx prisma generate
+            DATABASE_URL="${{ secrets.DATABASE_URL }}" npx prisma generate
             
             echo "Restarting application..."
             pm2 restart tms || pm2 start ecosystem.config.js
