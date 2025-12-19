@@ -70,7 +70,7 @@ jobs:
             tar -xzf deploy.tar.gz
             
             echo "Installing production dependencies..."
-            npm ci --production --ignore-scripts
+            npm ci --production --ignore-scripts --legacy-peer-deps
             
             echo "Generating Prisma Client..."
             npm run db:generate
