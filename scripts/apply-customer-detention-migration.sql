@@ -25,3 +25,4 @@ ADD COLUMN IF NOT EXISTS "detentionRate" DOUBLE PRECISION;
 
 
 
+
