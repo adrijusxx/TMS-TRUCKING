@@ -48,14 +48,14 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Get current MC number
-    const { mcNumber: currentMcNumber } = await getCurrentMcNumber(session, request);
+    const { mcNumberId } = await getCurrentMcNumber(session, request);
 
     // Bulk import accounting entities
     const result = await AccountingMigrationService.bulkImportAccounting(
       data,
       mappingConfigs || {},
       session.user.companyId,
-      currentMcNumber?.id || null,
+      mcNumberId || null,
       sourceSystem || 'ThirdPartyTMS'
     );
 

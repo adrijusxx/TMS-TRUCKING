@@ -236,8 +236,8 @@ export class MigrationAnalysisService {
     const values = records.map(
       (r: any) => r.metadata?.unmappedFields?.[fieldName]
     );
-    const nonNullValues = values.filter((v) => v !== null && v !== undefined);
-    const uniqueValues = new Set(nonNullValues.map((v) => String(v)));
+    const nonNullValues = values.filter((v: any) => v !== null && v !== undefined);
+    const uniqueValues = new Set(nonNullValues.map((v: any) => String(v)));
 
     return {
       totalRecords: records.length,
@@ -274,23 +274,30 @@ export class MigrationAnalysisService {
     // Calculate financial totals from metadata
     const invoiceRecords = await prisma.invoice.findMany({
       where: { companyId, deletedAt: null },
-      select: { total: true, metadata: true },
+      select: { total: true, metadata: true } as any,
     });
 
+    // Payment doesn't have companyId directly - filter via invoice or mcNumber relation
     const paymentRecords = await prisma.payment.findMany({
-      where: { companyId },
-      select: { amount: true, metadata: true },
+      where: {
+        OR: [
+          { invoice: { companyId } },
+          { mcNumber: { companyId } },
+        ],
+      },
+      select: { amount: true, metadata: true } as any,
     });
 
+    // Settlement doesn't have companyId directly - filter via driver relation
     const settlementRecords = await prisma.settlement.findMany({
-      where: { companyId },
-      select: { grossPay: true, metadata: true },
+      where: { driver: { companyId } },
+      select: { grossPay: true, metadata: true } as any,
     });
 
-    const invoiceTotal = invoiceRecords.reduce((sum, r) => sum + (r.total || 0), 0);
-    const paymentTotal = paymentRecords.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const invoiceTotal = invoiceRecords.reduce((sum, r: any) => sum + (r.total || 0), 0);
+    const paymentTotal = paymentRecords.reduce((sum, r: any) => sum + (r.amount || 0), 0);
     const settlementTotal = settlementRecords.reduce(
-      (sum, r) => sum + (r.grossPay || 0),
+      (sum, r: any) => sum + (r.grossPay || 0),
       0
     );
 

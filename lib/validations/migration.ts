@@ -51,7 +51,7 @@ export const fieldMappingSchema = z.object({
   sourceField: z.string().min(1),
   targetField: z.string().nullable(),
   dataType: dataTypeSchema,
-  transform: z.function().optional(),
+  transform: z.custom<((value: any) => any) | undefined>().optional(),
   required: z.boolean().optional(),
   entityType: entityTypeSchema,
   description: z.string().optional(),
@@ -62,8 +62,8 @@ export const migrationMetadataSchema = z.object({
   sourceId: z.string().optional(),
   migratedAt: z.string().datetime(),
   migrationVersion: z.string(),
-  unmappedFields: z.record(z.any()).optional(),
-  financialFields: z.record(z.any()).optional(),
+  unmappedFields: z.record(z.string(), z.any()).optional(),
+  financialFields: z.record(z.string(), z.any()).optional(),
 });
 
 export const fieldMappingConfigSchema = z.object({
@@ -88,7 +88,7 @@ export const promotionRequestSchema = z.object({
 
 export const importRequestSchema = z.object({
   entityType: entityTypeSchema,
-  data: z.array(z.record(z.any())),
+  data: z.array(z.record(z.string(), z.any())),
   mappingConfig: fieldMappingConfigSchema.nullable().optional(),
   sourceSystem: z.string().optional(),
 });

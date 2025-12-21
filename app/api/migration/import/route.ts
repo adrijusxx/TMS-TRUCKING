@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const { entityType, data, mappingConfig, sourceSystem } = validated;
 
     // Get current MC number
-    const { mcNumber: currentMcNumber } = await getCurrentMcNumber(session, request);
+    const { mcNumberId } = await getCurrentMcNumber(session, request);
 
     // Import with mapping
     const result = await MigrationImportService.importWithMapping(
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       data,
       mappingConfig as FieldMappingConfig | null,
       session.user.companyId,
-      currentMcNumber?.id || null,
+      mcNumberId || null,
       sourceSystem || 'ThirdPartyTMS'
     );
 

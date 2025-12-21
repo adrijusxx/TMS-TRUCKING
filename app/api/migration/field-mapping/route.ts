@@ -81,8 +81,17 @@ export async function POST(request: NextRequest) {
 
     // In a real implementation, this would save to a FieldMappingConfig table
     // For now, just return success
+    // Transform functions can't be serialized, so we omit them when creating the saved config
+    const { mappings, ...rest } = validated;
     const savedConfig: FieldMappingConfig = {
-      ...validated,
+      ...rest,
+      mappings: mappings.map((m: any) => {
+        const { transform, ...mappingRest } = m;
+        return {
+          ...mappingRest,
+          transform: transform as ((value: any) => any) | undefined,
+        };
+      }),
       id: `mapping-${Date.now()}`,
       createdAt: new Date(),
       updatedAt: new Date(),
