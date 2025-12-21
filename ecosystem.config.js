@@ -44,7 +44,8 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3001,
         // Load from .env file
-        NEXT_PUBLIC_BASE_PATH: envVars.NEXT_PUBLIC_BASE_PATH || '/tms',
+        // For subdomain deployment, basePath should be empty (not '/tms')
+        NEXT_PUBLIC_BASE_PATH: envVars.NEXT_PUBLIC_BASE_PATH || '',
         NEXTAUTH_URL: envVars.NEXTAUTH_URL || 'https://tms.vaidera.eu',
         // Spread all other env vars from .env
         ...envVars,
