@@ -6,7 +6,7 @@ param(
 )
 
 $VM_USER = "telegram-userbot-vm"
-$VM_IP = "34.121.40.233"
+$VM_IP = "130.211.211.214"
 $VM_PATH = "/home/telegram-userbot-vm/TMS-TRUCKING"
 
 Write-Host "Building locally..." -ForegroundColor Yellow

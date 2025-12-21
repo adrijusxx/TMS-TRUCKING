@@ -45,7 +45,7 @@ module.exports = {
         PORT: 3001,
         // Load from .env file
         NEXT_PUBLIC_BASE_PATH: envVars.NEXT_PUBLIC_BASE_PATH || '/tms',
-        NEXTAUTH_URL: envVars.NEXTAUTH_URL || 'http://34.121.40.233/tms',
+        NEXTAUTH_URL: envVars.NEXTAUTH_URL || 'https://tms.vaidera.eu',
         // Spread all other env vars from .env
         ...envVars,
         // Also include process.env for any system variables

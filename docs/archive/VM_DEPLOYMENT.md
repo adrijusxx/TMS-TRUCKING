@@ -3,10 +3,10 @@
 ## Overview
 This guide will help you deploy the TMS (Trucking Management System) to your VM alongside your existing CRM application.
 
-**VM IP:** `34.121.40.233`  
+**VM IP:** `130.211.211.214`  
 **CRM Port:** `3000` (already running)  
 **TMS Port:** `3001` (new)  
-**Access URL:** `http://34.121.40.233/tms` (via Nginx reverse proxy)
+**Access URL:** `http://130.211.211.214/tms` (via Nginx reverse proxy)
 
 ---
 

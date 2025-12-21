@@ -31,7 +31,7 @@ if [ ! -f ".env" ]; then
 DATABASE_URL="postgresql://username:password@localhost:5432/tms_db?schema=public"
 
 # NextAuth (REQUIRED)
-NEXTAUTH_URL="http://34.121.40.233/tms"
+NEXTAUTH_URL="http://130.211.211.214/tms"
 NEXTAUTH_SECRET="$(openssl rand -base64 32)"
 
 # Optional API Keys
@@ -91,7 +91,7 @@ echo -e "${GREEN}📊 PM2 Status:${NC}"
 pm2 list
 
 echo ""
-echo -e "${GREEN}🌐 Access TMS at: http://34.121.40.233/tms${NC}"
+echo -e "${GREEN}🌐 Access TMS at: http://130.211.211.214/tms${NC}"
 echo -e "${GREEN}📝 View logs: pm2 logs tms${NC}"
 echo -e "${GREEN}🔄 Restart: pm2 restart tms${NC}"
 
