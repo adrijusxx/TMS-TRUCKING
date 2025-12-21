@@ -354,6 +354,9 @@ model Load {
   ediReceived      Boolean @default(false)
   ediTransactionId String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -446,6 +449,9 @@ model LoadStop {
   signatureDate   DateTime?
   proofOfDelivery String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -526,6 +532,9 @@ model LoadTemplate {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   // Relations
   stops LoadTemplateStop[]
@@ -849,6 +858,10 @@ model Driver {
   warnings String?
 
   isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1127,6 +1140,10 @@ model Truck {
   warnings   String? // Warnings field
 
   isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1222,6 +1239,9 @@ model Trailer {
 
   @@index([companyId])
   @@index([trailerNumber])
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   @@index([assignedTruckId])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
@@ -1251,6 +1271,9 @@ model FuelEntry {
   fuelType      FuelType @default(DIESEL)
   receiptNumber String? // Vendor receipt number (external)
   notes         String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1305,6 +1328,9 @@ model MaintenanceRecord {
   status MaintenanceRecordStatus @default(OPEN)
 
   notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1456,6 +1482,9 @@ model Breakdown {
   // Payments
   payments Payment[]
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1578,6 +1607,9 @@ model Communication {
   // External IDs (for tracking with providers)
   externalId       String? // ID from SIP provider, Telegram, etc.
   providerMetadata Json? // Additional provider-specific data
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1707,6 +1739,10 @@ model Customer {
   detentionRate          Float? // Customer-specific detention rate ($/hour)
 
   isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1849,6 +1885,9 @@ model Document {
   expiryDate DateTime?
   uploadedBy String
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -1962,6 +2001,9 @@ model Invoice {
 
   notes String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -2053,6 +2095,9 @@ model Settlement {
 
   notes String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2101,6 +2146,9 @@ model SettlementDeduction {
   // For load expenses
   loadExpenseId String?
   loadExpense   LoadExpense? @relation(fields: [loadExpenseId], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
 
@@ -2152,6 +2200,9 @@ model DriverAdvance {
 
   notes String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2188,6 +2239,9 @@ model DriverNegativeBalance {
 
   // Notes
   notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2233,6 +2287,9 @@ model LoadExpense {
   // Settlement tracking
   settlementId String?
   settlement   Settlement? @relation(fields: [settlementId], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2496,6 +2553,9 @@ model InvoiceBatch {
 
   notes String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2570,6 +2630,9 @@ model Payment {
 
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2697,6 +2760,9 @@ model Reconciliation {
 
   notes String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime @default(now())
 
   @@index([invoiceId])
@@ -2748,6 +2814,10 @@ model FactoringCompany {
   contactPhone String?
 
   isActive  Boolean  @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2774,6 +2844,9 @@ model FactoringBatch {
 
   status      FactoringBatchStatus @default(PENDING)
   totalAmount Float                @default(0)
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2835,6 +2908,9 @@ model AccessorialCharge {
   // Notes
   notes String?
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2883,6 +2959,9 @@ model RateConfirmation {
   matchedBy   User?     @relation(fields: [matchedById], references: [id])
 
   notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3033,6 +3112,9 @@ model Inspection {
   status        InspectionStatus @default(PASSED)
   defects       Int              @default(0)
   defectDetails String? // Description of any defects found
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   // DVIR Fields (Daily Vehicle Inspection Report)
   defectsFound    Boolean  @default(false) // Whether defects were found
@@ -3254,6 +3336,10 @@ model Vendor {
   createdById        String?
 
   isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -3333,6 +3419,10 @@ model Location {
 
   // Status
   isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -3425,6 +3515,9 @@ model SafetyIncident {
   witnessStatements        WitnessStatement[]
   insuranceClaims          InsuranceClaim[]
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -3499,6 +3592,9 @@ model SafetyTraining {
 
   // Documents
   certificate Document? @relation("TrainingCertificate")
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -3694,6 +3790,9 @@ model MVRRecord {
   // Violations
   violations MVRViolation[]
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -3761,6 +3860,9 @@ model DrugAlcoholTest {
   // Documents
   documentId String?   @unique
   document   Document? @relation("DrugTestDocument", fields: [documentId], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -4105,6 +4207,9 @@ model DVIR {
   // Documents
   documents Document[]
 
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -4195,6 +4300,9 @@ model RoadsideInspection {
   // Documents
   documents  Document[]
   violations RoadsideViolation[]
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -5828,6 +5936,10 @@ model Project {
   createdBy    User            @relation("ProjectCreator", fields: [createdById], references: [id])
   priority     ProjectPriority @default(MEDIUM)
   isActive     Boolean         @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   deletedAt    DateTime?
@@ -5872,6 +5984,10 @@ model Task {
   estimatedHours Float?
   actualHours    Float?
   isActive       Boolean      @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?

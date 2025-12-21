@@ -5,8 +5,11 @@ import { hasPermission } from '@/lib/permissions';
 import { exportToCSV } from '@/lib/export';
 import { csvFileToJSON, parseCSV } from '@/lib/import-export/csv-import';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { MigrationImportService } from '@/lib/services/MigrationImportService';
+import { getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 import { TruckStatus, LoadStatus } from '@prisma/client';
+import type { EntityType, FieldMappingConfig } from '@/lib/types/migration';
 
 /**
  * GET /api/import-export/[entity]
@@ -967,6 +970,53 @@ export async function POST(
           const rawType = getValue(row, ['Customer type', 'Customer Type', 'type']);
           const customerType = mapCustomerType(rawType);
 
+          // Collect all unmapped fields for metadata
+          const allFields = Object.keys(row);
+          const mappedFieldNames = [
+            'Company name', 'Company Name', 'name', 'customer_name',
+            'Customer Number', 'Customer Number', 'customer_number',
+            'Customer type', 'Customer Type', 'type',
+            'MC Number', 'MC Number', 'mc_number',
+            'Location', 'location',
+            'Website', 'website',
+            'Reference number', 'Reference Number', 'reference_number',
+            'Address', 'address',
+            'City', 'city',
+            'State', 'state',
+            'ZIP', 'Zip', 'zip',
+            'Contact number', 'Contact Number', 'Phone', 'phone', 'contact_number',
+            'Email', 'email',
+            'Billing Address', 'Billing Address', 'billing_address',
+            'Billing emails', 'Billing Emails', 'billing_emails',
+            'Billing type', 'Billing Type', 'billing_type',
+            'Rate confirmation required', 'Rate Confirmation Required',
+            'Status', 'status',
+            'Tags', 'tags',
+            'Warning', 'warning',
+            'Credit rate', 'Credit Rate', 'credit_rate',
+            'Risk level', 'Risk Level', 'risk_level',
+            'Commnets', 'Comments', 'comments',
+          ];
+          const unmappedFields: Record<string, any> = {};
+          for (const field of allFields) {
+            const normalizedField = normalizeKey(field);
+            const isMapped = mappedFieldNames.some(mf => normalizeKey(mf) === normalizedField);
+            if (!isMapped) {
+              const value = row[field];
+              if (value !== null && value !== undefined && value !== '') {
+                unmappedFields[field] = value;
+              }
+            }
+          }
+
+          // Build metadata if there are unmapped fields
+          const metadata = Object.keys(unmappedFields).length > 0 ? {
+            sourceSystem: 'ThirdPartyTMS',
+            migratedAt: new Date().toISOString(),
+            migrationVersion: '1.0',
+            unmappedFields,
+          } : undefined;
+
           customersToCreate.push({
             companyId: session.user.companyId,
             customerNumber,
@@ -1007,6 +1057,7 @@ export async function POST(
             creditRate: parseFloat(String(getValue(row, ['Credit rate', 'Credit Rate', 'credit_rate']) || '0')) || null,
             riskLevel: getValue(row, ['Risk level', 'Risk Level', 'risk_level']),
             comments: getValue(row, ['Commnets', 'Comments', 'comments']),
+            metadata,
           });
           
           existingCustomers.add(customerNumber);

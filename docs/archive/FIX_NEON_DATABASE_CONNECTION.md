@@ -24,10 +24,10 @@ Update your `DATABASE_URL` to use Neon's connection pooler with better settings:
 
 ```bash
 # Current (direct connection):
-DATABASE_URL="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
+DATABASE_URL="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
 
 # Better (with connection pool settings):
-DATABASE_URL="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require&connect_timeout=10&pool_timeout=20"
+DATABASE_URL="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require&connect_timeout=10&pool_timeout=20"
 ```
 
 ### Solution 2: Use Direct Connection (Not Pooler)
@@ -37,7 +37,7 @@ If pooler is causing issues, try direct connection:
 ```bash
 # Get direct connection string from Neon dashboard
 # It will look like:
-DATABASE_URL="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
 # (Note: no "-pooler" in hostname)
 ```
 

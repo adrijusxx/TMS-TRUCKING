@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ import ValueResolutionDialog from './ValueResolutionDialog';
 import { validateImportData, getModelNameFromEntityType } from '@/lib/validations/import-field-validator';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 import { useSession } from 'next-auth/react';
+import { deduplicateSystemFields } from '@/lib/import-export/field-utils';
 
 interface ImportDialogProps {
   entityType: string;
@@ -64,6 +65,12 @@ export default function ImportDialog({
   const [updateExisting, setUpdateExisting] = useState<boolean>(false);
   const { data: session } = useSession();
 
+  // Memoize system fields to avoid recalculating on every render (especially important for drivers with 110+ fields)
+  const systemFields = useMemo(() => {
+    const rawFields = getSystemFieldsForEntity(entityType);
+    return deduplicateSystemFields(rawFields);
+  }, [entityType]);
+
   // Re-validate when column mapping changes
   useEffect(() => {
     if (importResult && importResult.success && importResult.data && importResult.data.length > 0) {
@@ -107,8 +114,7 @@ export default function ImportDialog({
       if (result.success && result.data && result.data.length > 0) {
         const csvHeaders = Object.keys(result.data[0] || {});
         
-        // Auto-map columns when file is parsed
-        const systemFields = getSystemFieldsForEntity(entityType);
+        // Auto-map columns when file is parsed (use memoized systemFields)
         const autoMapping: Record<string, string> = {};
         
         csvHeaders.forEach((excelCol) => {
@@ -980,7 +986,7 @@ export default function ImportDialog({
             open={showColumnMapping}
             onOpenChange={setShowColumnMapping}
             excelColumns={Object.keys(importResult.data[0] || {})}
-            systemFields={getSystemFieldsForEntity(entityType)}
+            systemFields={systemFields}
             initialMapping={columnMapping}
             onMappingComplete={(mapping) => {
               setColumnMapping(mapping);

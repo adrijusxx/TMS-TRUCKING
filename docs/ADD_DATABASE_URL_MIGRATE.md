@@ -29,10 +29,10 @@ Edit your `.env` file and add:
 
 ```bash
 # Application connection (with pooler - better for app performance)
-DATABASE_URL="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # Migration connection (direct - required for migrations)
-DATABASE_URL_MIGRATE="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL_MIGRATE="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
 ```
 
 **Important:** 
@@ -62,7 +62,7 @@ On your VM, run:
 nano .env
 
 # Add this line (replace with your direct connection string):
-DATABASE_URL_MIGRATE="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL_MIGRATE="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # Save and exit (Ctrl+X, Y, Enter)
 

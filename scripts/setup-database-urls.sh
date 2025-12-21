@@ -7,11 +7,13 @@ echo "🔧 Setting up database connection strings..."
 echo ""
 
 # Your working pooler connection
-POOLER_URL="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
+# ⚠️ SECURITY: Replace [YOUR_DATABASE_PASSWORD] with actual password from Neon console
+POOLER_URL="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
 
 # Direct connection options (for migrations)
-DIRECT_URL1="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
-DIRECT_URL2="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
+# ⚠️ SECURITY: Replace [YOUR_DATABASE_PASSWORD] with actual password from Neon console
+DIRECT_URL1="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DIRECT_URL2="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 echo "📝 Current .env setup:"
 echo "===================="

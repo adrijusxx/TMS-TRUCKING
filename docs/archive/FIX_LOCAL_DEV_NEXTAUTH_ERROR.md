@@ -19,7 +19,7 @@ Create `.env.local` in the project root:
 
 ```env
 # Database
-DATABASE_URL="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
+DATABASE_URL="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
 
 # NextAuth - CRITICAL: Must include /tms basePath
 NEXTAUTH_URL="http://localhost:3000/tms"

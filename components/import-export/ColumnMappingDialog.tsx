@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { deduplicateSystemFields, type SystemField } from '@/lib/import-export/field-utils';
 
 interface ColumnMappingDialogProps {
   open: boolean;
@@ -39,6 +40,11 @@ export default function ColumnMappingDialog({
 }: ColumnMappingDialogProps) {
   const [mapping, setMapping] = useState<Record<string, string>>(initialMapping);
   const [autoMapped, setAutoMapped] = useState<Set<string>>(new Set());
+  
+  // Deduplicate system fields to prevent duplicate options in dropdowns
+  const deduplicatedFields = useMemo(() => {
+    return deduplicateSystemFields(systemFields);
+  }, [systemFields]);
 
   // Auto-map columns on open
   useEffect(() => {
@@ -51,8 +57,8 @@ export default function ColumnMappingDialog({
 
         const normalizedExcel = excelCol.toLowerCase().trim().replace(/[_\s-]/g, '');
         
-        // Try to find matching system field
-        for (const field of systemFields) {
+        // Try to find matching system field (using deduplicated fields)
+        for (const field of deduplicatedFields) {
           const normalizedField = field.key.toLowerCase().replace(/[_\s-]/g, '');
           
           // Exact match or contains
@@ -71,7 +77,7 @@ export default function ColumnMappingDialog({
       setMapping(newMapping);
       setAutoMapped(newAutoMapped);
     }
-  }, [open, excelColumns, systemFields, initialMapping]);
+  }, [open, excelColumns, deduplicatedFields, initialMapping]);
 
   const handleMappingChange = (excelColumn: string, systemField: string) => {
     setMapping((prev) => ({
@@ -86,7 +92,7 @@ export default function ColumnMappingDialog({
   };
 
   const mappedFields = new Set(Object.values(mapping));
-  const requiredFields = systemFields.filter((f) => f.required);
+  const requiredFields = deduplicatedFields.filter((f) => f.required);
   const unmappedRequired = requiredFields.filter((f) => !mappedFields.has(f.key));
 
   return (
@@ -135,10 +141,20 @@ export default function ColumnMappingDialog({
             {excelColumns.map((excelCol) => {
               const systemField = mapping[excelCol];
               const fieldInfo = systemField
-                ? systemFields.find((f) => f.key === systemField)
+                ? deduplicatedFields.find((f) => f.key === systemField)
                 : null;
               const isRequired = fieldInfo?.required;
               const isAutoMapped = autoMapped.has(excelCol);
+              
+              // Get available fields for this dropdown (exclude already mapped fields from other columns)
+              const otherMappedFields = new Set(
+                Object.entries(mapping)
+                  .filter(([col]) => col !== excelCol)
+                  .map(([, fieldKey]) => fieldKey)
+              );
+              const availableFields = deduplicatedFields.filter(
+                (f) => !otherMappedFields.has(f.key) || f.key === systemField
+              );
 
               return (
                 <div key={excelCol} className="grid grid-cols-3 gap-4 items-center">
@@ -152,7 +168,7 @@ export default function ColumnMappingDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">-- None --</SelectItem>
-                      {systemFields.map((field) => (
+                      {availableFields.map((field) => (
                         <SelectItem key={field.key} value={field.key}>
                           {field.label}
                           {field.required && ' *'}

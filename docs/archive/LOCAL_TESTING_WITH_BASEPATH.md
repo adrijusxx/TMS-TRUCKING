@@ -10,7 +10,7 @@ You can test all the basePath and API call fixes locally before deploying to you
 
 ```env
 # Database (use your Neon connection string)
-DATABASE_URL="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
+DATABASE_URL="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud-pooler.c-3.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require"
 
 # NextAuth - Use localhost with /tms basePath
 NEXTAUTH_URL="http://localhost:3000/tms"

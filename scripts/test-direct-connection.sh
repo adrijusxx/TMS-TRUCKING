@@ -14,7 +14,7 @@ if [ -f .env ]; then
 fi
 
 # Test connection string 1 (without .c-3)
-CONN1="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
+CONN1="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 echo "📡 Testing: ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech (no .c-3)"
 if npx prisma db execute --url "$CONN1" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then
@@ -30,7 +30,7 @@ fi
 echo ""
 
 # Test connection string 2 (with .c-3)
-CONN2="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
+CONN2="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 echo "📡 Testing: ep-gentle-waterfall-ah0lalud.c-3.us-east-1.aws.neon.tech (with .c-3)"
 if npx prisma db execute --url "$CONN2" --stdin <<< "SELECT 1;" > /dev/null 2>&1; then

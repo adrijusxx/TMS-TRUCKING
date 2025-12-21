@@ -28,6 +28,8 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.*
+!.env.example
 
 # vercel
 .vercel
@@ -39,5 +41,23 @@ next-env.d.ts
 # prisma
 /generated/prisma
 
-# test files with secrets
+# secrets and credentials
 test.txt
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*password*
+*credential*
+*.private
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.env.local
+*.env.production
+
+# database connection strings (if accidentally committed)
+*connection*.txt
+*credentials*.txt

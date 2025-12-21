@@ -58,10 +58,10 @@ Your `DATABASE_URL_MIGRATE` should:
 Example:
 ```bash
 # ✅ CORRECT - Direct connection (for migrations)
-DATABASE_URL_MIGRATE="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech:5432/neondb?sslmode=require"
+DATABASE_URL_MIGRATE="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech:5432/neondb?sslmode=require"
 
 # ✅ CORRECT - Direct connection without explicit port (Neon handles it)
-DATABASE_URL_MIGRATE="postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL_MIGRATE="postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # ❌ WRONG - Has pooler (will timeout)
 DATABASE_URL_MIGRATE="postgresql://...@ep-xxx-pooler.xxx.neon.tech/..."
@@ -88,7 +88,7 @@ The easiest way is to copy the **exact** connection string from Neon Dashboard:
 
 Example from Neon Dashboard:
 ```
-postgresql://neondb_owner:npg_b4YTB8ruqRif@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require
+postgresql://neondb_owner:[YOUR_DATABASE_PASSWORD]@ep-gentle-waterfall-ah0lalud.us-east-1.aws.neon.tech/neondb?sslmode=require
 ```
 
 ## Troubleshooting

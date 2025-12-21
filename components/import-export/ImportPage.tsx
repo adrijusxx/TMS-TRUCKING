@@ -20,6 +20,7 @@ import { csvFileToJSON, CSVImportResult } from '@/lib/import-export/csv-import';
 import { apiUrl } from '@/lib/utils';
 import ColumnMappingDialog from './ColumnMappingDialog';
 import { useSession } from 'next-auth/react';
+import { deduplicateSystemFields } from '@/lib/import-export/field-utils';
 
 interface ImportPageProps {
   entityType: string;
@@ -41,6 +42,9 @@ export default function ImportPage({
   const router = useRouter();
   const { data: session } = useSession();
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
+  
+  // Deduplicate system fields to prevent duplicate options
+  const deduplicatedFields = deduplicateSystemFields(systemFields);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<CSVImportResult | ExcelImportResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -95,7 +99,7 @@ export default function ImportPage({
 
         excelColumns.forEach((excelCol) => {
           const normalizedExcel = excelCol.toLowerCase().trim().replace(/[_\s-]/g, '');
-          for (const field of systemFields) {
+          for (const field of deduplicatedFields) {
             const normalizedField = field.key.toLowerCase().replace(/[_\s-]/g, '');
             if (
               normalizedExcel === normalizedField ||
@@ -119,7 +123,7 @@ export default function ImportPage({
     } finally {
       setIsProcessing(false);
     }
-  }, [systemFields]);
+  }, [deduplicatedFields]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -311,7 +315,7 @@ export default function ImportPage({
     : [];
 
   const mappedFields = new Set(Object.values(columnMapping));
-  const requiredFields = systemFields.filter((f) => f.required);
+  const requiredFields = deduplicatedFields.filter((f) => f.required);
   const unmappedRequired = requiredFields.filter((f) => !mappedFields.has(f.key));
 
   return (
@@ -521,7 +525,7 @@ export default function ImportPage({
                   <p className="text-sm text-muted-foreground mb-2">Mapped columns:</p>
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(columnMapping).slice(0, 10).map(([excelCol, systemField]) => {
-                      const field = systemFields.find(f => f.key === systemField);
+                      const field = deduplicatedFields.find(f => f.key === systemField);
                       return (
                         <div
                           key={excelCol}
@@ -559,7 +563,7 @@ export default function ImportPage({
               open={showColumnMapping}
               onOpenChange={setShowColumnMapping}
               excelColumns={excelColumns}
-              systemFields={systemFields}
+              systemFields={deduplicatedFields}
               initialMapping={columnMapping}
               onMappingComplete={handleColumnMappingComplete}
             />
@@ -570,27 +574,64 @@ export default function ImportPage({
         {currentStep === 'preview' && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold mb-4">Preview Data</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Showing first 10 rows of {importResult?.data?.length || 0} total rows
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Preview Data</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Showing first 10 rows of {importResult?.data?.length || 0} total rows
+                  </p>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {Object.keys(columnMapping).length} mapped column(s)
+                </div>
+              </div>
+              
+              {/* Mapped Columns Summary */}
+              {Object.keys(columnMapping).length > 0 && (
+                <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+                  <div className="text-xs font-medium mb-2 text-muted-foreground">Mapped Columns:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(columnMapping).map(([excelCol, systemField]) => {
+                      const field = deduplicatedFields.find(f => f.key === systemField);
+                      return (
+                        <div
+                          key={excelCol}
+                          className="text-xs bg-background border px-2 py-1 rounded flex items-center gap-1"
+                        >
+                          <span className="font-medium text-muted-foreground">{excelCol}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="font-medium">{field?.label || systemField}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
               <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
-                      {systemFields.map((field) => (
-                        <th key={field.key} className="px-4 py-2 text-left font-medium">
-                          {field.label}
-                        </th>
-                      ))}
+                      {/* Only show mapped columns in preview */}
+                      {Object.entries(columnMapping).map(([excelCol, systemField]) => {
+                        const field = deduplicatedFields.find(f => f.key === systemField);
+                        return (
+                          <th key={systemField} className="px-4 py-2 text-left font-medium">
+                            <div className="flex flex-col">
+                              <span>{field?.label || systemField}</span>
+                              <span className="text-xs font-normal text-muted-foreground">{excelCol}</span>
+                            </div>
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
                     {previewData.map((row, idx) => (
                       <tr key={idx} className="border-t">
-                        {systemFields.map((field) => (
-                          <td key={field.key} className="px-4 py-2">
-                            {row[field.key]?.toString() || '-'}
+                        {Object.values(columnMapping).map((systemField) => (
+                          <td key={systemField} className="px-4 py-2">
+                            {row[systemField]?.toString() || '-'}
                           </td>
                         ))}
                       </tr>
