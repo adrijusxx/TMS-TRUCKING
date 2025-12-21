@@ -1,4 +1,4 @@
-# deploy-to-vm.ps1
+# deploy-to-vm.ps1$123
 # Usage: .\deploy-to-vm.ps1 "Your commit message"
 
 param(
