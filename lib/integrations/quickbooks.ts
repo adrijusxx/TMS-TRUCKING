@@ -45,6 +45,10 @@ interface QuickBooksInvoice {
 
 /**
  * Get QuickBooks configuration from environment variables
+ * 
+ * In production on AWS, these values are loaded from AWS Secrets Manager
+ * via initialization at application startup.
+ * @see lib/secrets/initialize.ts
  */
 export function getQuickBooksConfig(): QuickBooksConfig | null {
   const clientId = process.env.QUICKBOOKS_CLIENT_ID;

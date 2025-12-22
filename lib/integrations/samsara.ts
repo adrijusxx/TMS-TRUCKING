@@ -187,6 +187,8 @@ export async function getSamsaraConfig(companyId?: string): Promise<SamsaraConfi
   }
 
   // Fall back to environment variable
+  // In production on AWS, this is loaded from AWS Secrets Manager via initialization
+  // @see lib/secrets/initialize.ts
   const apiKey = process.env.SAMSARA_API_KEY;
 
   if (!apiKey) {

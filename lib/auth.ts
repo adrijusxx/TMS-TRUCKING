@@ -5,6 +5,8 @@ import { UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 // Validate and set NEXTAUTH_SECRET
+// In production on AWS, this is loaded from AWS Secrets Manager via initialization
+// @see lib/secrets/initialize.ts
 // If not set, generate a default one (for development only - NOT recommended for production)
 let nextAuthSecret = process.env.NEXTAUTH_SECRET;
 

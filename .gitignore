@@ -61,3 +61,50 @@ id_ed25519.pub
 # database connection strings (if accidentally committed)
 *connection*.txt
 *credentials*.txt
+
+# documentation (generated or internal docs)
+/docs/
+
+# pitch materials and screenshots (if not needed in repo)
+/pitch-materials/
+
+# generated files
+typescript-errors.txt
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS files (additional)
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.cache
+
+# PM2
+.pm2/
+*.pid
+
+# deployment artifacts
+*.zip
+*.tar.gz
+deploy.sh.bak
+deploy-to-vm.ps1.bak

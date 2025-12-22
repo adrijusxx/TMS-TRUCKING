@@ -4,6 +4,13 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+/**
+ * Prisma Client
+ * 
+ * Note: DATABASE_URL should be initialized from AWS Secrets Manager
+ * via the initialization function before this module is imported.
+ * @see lib/secrets/initialize.ts
+ */
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({

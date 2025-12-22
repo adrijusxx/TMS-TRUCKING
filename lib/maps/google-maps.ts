@@ -44,6 +44,13 @@ type RouteWaypoint =
 /**
  * Calculate distance and travel time between multiple origins and destinations
  */
+/**
+ * Calculate distance and travel time between multiple origins and destinations
+ * 
+ * In production on AWS, GOOGLE_MAPS_API_KEY is loaded from AWS Secrets Manager
+ * via initialization at application startup.
+ * @see lib/secrets/initialize.ts
+ */
 export async function calculateDistanceMatrix(
   request: DistanceMatrixRequest
 ): Promise<DistanceMatrixResponse[][]> {
