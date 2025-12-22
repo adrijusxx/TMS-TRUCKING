@@ -8,7 +8,7 @@
  */
 
 import { getSecret } from '@/lib/secrets/aws-secrets-manager';
-import { experimental_taintObjectReference as taintObject } from 'react';
+import { experimental_taintUniqueValue as taintUniqueValue } from 'react';
 
 // Cache for environment variables
 let envCache: Record<string, string> | null = null;
@@ -34,7 +34,10 @@ async function initializeEnvInternal(): Promise<Record<string, string>> {
   
   // In development or if AWS is not configured, use process.env
   if (!shouldUseSecretsManager()) {
-    envCache = process.env as Record<string, string>;
+    // Filter out undefined values and convert to Record<string, string>
+    envCache = Object.fromEntries(
+      Object.entries(process.env).filter(([_, value]) => value !== undefined)
+    ) as Record<string, string>;
     return envCache;
   }
   
@@ -55,24 +58,30 @@ async function initializeEnvInternal(): Promise<Record<string, string>> {
       
       // Fetch secrets in parallel (but we'll handle this differently)
       // For now, use individual secret fetching pattern
-      envCache = {
-        ...process.env,
-        // Individual secrets should be fetched via server-only.ts
-      };
+      // Filter out undefined values and convert to Record<string, string>
+      envCache = Object.fromEntries(
+        Object.entries(process.env).filter(([_, value]) => value !== undefined)
+      ) as Record<string, string>;
       
       return envCache;
     }
     
+    // Filter out undefined values from process.env and merge with parsed secrets
+    const filteredEnv = Object.fromEntries(
+      Object.entries(process.env).filter(([_, value]) => value !== undefined)
+    ) as Record<string, string>;
+    
     envCache = {
-      ...process.env, // Keep non-secret env vars
+      ...filteredEnv, // Keep non-secret env vars
       ...parsedSecrets,
     };
     
     // Mark secrets as tainted to prevent client-side exposure
     if (typeof window === 'undefined') {
+      const lifetime = {}; // Lifetime object for taint tracking
       Object.entries(envCache).forEach(([key, value]) => {
         if (key.includes('SECRET') || key.includes('PASSWORD') || key.includes('KEY')) {
-          taintObject(`Secret ${key}`, value);
+          taintUniqueValue(`Secret ${key}`, lifetime, value);
         }
       });
     }
@@ -80,7 +89,10 @@ async function initializeEnvInternal(): Promise<Record<string, string>> {
     return envCache;
   } catch (error) {
     console.warn('[Env] Failed to initialize from AWS Secrets Manager, falling back to process.env:', error);
-    envCache = process.env as Record<string, string>;
+    // Filter out undefined values and convert to Record<string, string>
+    envCache = Object.fromEntries(
+      Object.entries(process.env).filter(([_, value]) => value !== undefined)
+    ) as Record<string, string>;
     return envCache;
   }
 }
@@ -116,7 +128,10 @@ export function getEnv(key: string): string {
  */
 export function getAllEnv(): Record<string, string> {
   if (!shouldUseSecretsManager() || !envCache) {
-    return process.env as Record<string, string>;
+    // Filter out undefined values and convert to Record<string, string>
+    return Object.fromEntries(
+      Object.entries(process.env).filter(([_, value]) => value !== undefined)
+    ) as Record<string, string>;
   }
   return envCache;
 }
