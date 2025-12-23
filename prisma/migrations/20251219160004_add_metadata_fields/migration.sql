@@ -56,3 +56,7 @@ CREATE INDEX "Payment_metadata_idx" ON "Payment" USING GIN ("metadata");
 CREATE INDEX "Customer_metadata_idx" ON "Customer" USING GIN ("metadata");
 CREATE INDEX "Truck_metadata_idx" ON "Truck" USING GIN ("metadata");
 
+
+
+
+

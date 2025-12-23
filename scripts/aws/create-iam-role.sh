@@ -128,3 +128,7 @@ echo "   - Via CLI: aws ec2 associate-iam-instance-profile --instance-id <instan
 echo "2. Set AWS_REGION=$REGION on EC2 instance"
 echo "3. Deploy application"
 
+
+
+
+

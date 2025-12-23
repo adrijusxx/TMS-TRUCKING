@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:quiet": "node scripts/filter-dev-logs.js",
+    "prebuild": "prisma generate",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
