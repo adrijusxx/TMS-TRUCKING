@@ -74,6 +74,10 @@ jobs:
             echo "Extracting deployment archive..."
             tar -xzf deploy.tar.gz
             
+            echo "Cleaning up old Prisma config file (if exists)..."
+            # Remove prisma.config.ts if it exists (incompatible with Prisma 6)
+            rm -f prisma.config.ts || true
+            
             echo "Installing production dependencies..."
             npm ci --production --ignore-scripts --legacy-peer-deps
             
