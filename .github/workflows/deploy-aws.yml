@@ -46,7 +46,8 @@ jobs:
             prisma/schema.prisma \
             ecosystem.config.js \
             next.config.js \
-            public
+            public \
+            scripts/start-app-with-secrets.sh
       
       - name: Deploy to AWS EC2 via SCP
         uses: appleboy/scp-action@v0.1.7
