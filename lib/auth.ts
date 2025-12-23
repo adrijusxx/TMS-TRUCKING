@@ -22,36 +22,9 @@ export const authOptions: NextAuthConfig = {
   secret: nextAuthSecret,
   trustHost: true, // Required for proxy/ALB deployments
   basePath: '/api/auth',
-  // Cookie configuration for ALB/proxy environments
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === 'production' ? '__Secure-authjs.session-token' : 'authjs.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
-    callbackUrl: {
-      name: process.env.NODE_ENV === 'production' ? '__Secure-authjs.callback-url' : 'authjs.callback-url',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
-    csrfToken: {
-      name: process.env.NODE_ENV === 'production' ? '__Host-authjs.csrf-token' : 'authjs.csrf-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
-  },
+  // Use non-secure cookies when behind ALB proxy (ALB terminates SSL)
+  // The __Secure- and __Host- prefixes don't work when app receives HTTP from ALB
+  useSecureCookies: false,
   providers: [
     CredentialsProvider({
       name: 'Credentials',
