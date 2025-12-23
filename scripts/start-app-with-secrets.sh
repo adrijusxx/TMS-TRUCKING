@@ -7,9 +7,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 # Force us-east-1 since that's where the RDS secret is located
-REGION=${AWS_REGION:-us-east-1}
-export AWS_REGION=us-east-1
 REGION=us-east-1
+export AWS_REGION=us-east-1
 
 echo "[Startup] Loading secrets from AWS Secrets Manager (region: $REGION)..."
 
@@ -28,30 +27,30 @@ echo "[Startup] Loading RDS secret: $RDS_SECRET_NAME"
 
 if RDS_SECRET_JSON=$(get_secret "$RDS_SECRET_NAME"); then
     if [ -n "$RDS_SECRET_JSON" ]; then
-        # RDS endpoint (not sensitive, but can be moved to Secrets Manager if needed)
+        # RDS endpoint configuration
         RDS_ENDPOINT="tms-database.c6pekwuuuh43.us-east-1.rds.amazonaws.com"
         RDS_PORT="5432"
-        RDS_DBNAME="tms"
+        RDS_DBNAME="tms_database"
         
         # Use Node.js to parse JSON and build connection string
         DATABASE_URL=$(node -e "
             const secret = JSON.parse(process.argv[1]);
             const endpoint = process.argv[2];
             const port = process.argv[3] || '5432';
-            const dbname = process.argv[4] || 'tms';
+            const dbname = process.argv[4] || 'tms_database';
             const encoded = encodeURIComponent(secret.password);
             console.log('postgresql://' + secret.username + ':' + encoded + '@' + endpoint + ':' + port + '/' + dbname + '?sslmode=require');
         " "$RDS_SECRET_JSON" "$RDS_ENDPOINT" "$RDS_PORT" "$RDS_DBNAME")
         
         export DATABASE_URL
         export DATABASE_URL_MIGRATE="$DATABASE_URL"
-        echo "[Startup] ✅ DATABASE_URL loaded from RDS secret (endpoint: $RDS_ENDPOINT:$RDS_PORT/$RDS_DBNAME)"
+        echo "[Startup] DATABASE_URL loaded (endpoint: $RDS_ENDPOINT:$RDS_PORT/$RDS_DBNAME)"
     else
-        echo "[Startup] ❌ RDS secret is empty"
+        echo "[Startup] ERROR: RDS secret is empty"
         exit 1
     fi
 else
-    echo "[Startup] ❌ Failed to load RDS secret"
+    echo "[Startup] ERROR: Failed to load RDS secret"
     exit 1
 fi
 
@@ -62,9 +61,9 @@ load_secret() {
     local value=$(get_secret "$secret_name")
     if [ -n "$value" ]; then
         export "$env_var=$value"
-        echo "[Startup] ✅ $env_var loaded"
+        echo "[Startup] $env_var loaded"
     else
-        echo "[Startup] ⚠️  Failed to load $secret_name, $env_var will use existing value"
+        echo "[Startup] WARNING: Failed to load $secret_name"
     fi
 }
 
@@ -74,8 +73,13 @@ load_secret "tms/integrations/google/maps-api-key" "GOOGLE_MAPS_API_KEY"
 load_secret "tms/integrations/samsara/api-key" "SAMSARA_API_KEY"
 load_secret "tms/integrations/samsara/webhook-secret" "SAMSARA_WEBHOOK_SECRET"
 
-echo "[Startup] ✅ All secrets loaded successfully"
-echo "[Startup] Starting Next.js application..."
+# CRITICAL: Trust host header from ALB proxy - fixes CSRF errors with NextAuth v5
+export AUTH_TRUST_HOST=true
+
+echo "[Startup] All secrets loaded"
+echo "[Startup] NEXTAUTH_URL=$NEXTAUTH_URL"
+echo "[Startup] AUTH_TRUST_HOST=true"
+echo "[Startup] Starting Next.js on port 3001..."
 
 # Start Next.js with all environment variables
 exec npm start -- -p 3001
