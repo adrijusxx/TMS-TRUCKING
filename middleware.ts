@@ -1,27 +1,22 @@
 /**
  * Next.js Middleware
  * 
- * Ensures AWS Secrets Manager secrets are initialized before handling requests.
- * This runs early in the request lifecycle, before any route handlers.
+ * Middleware runs early in the request lifecycle.
+ * 
+ * Note: Secrets initialization should happen at application startup (e.g., in an API route
+ * or startup script) rather than in middleware, as middleware runs in a constrained context.
+ * 
+ * This middleware currently just passes through requests.
+ * Secrets are initialized via lib/secrets/initialize.ts when the application starts.
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { initializeSecrets, isInitialized } from '@/lib/secrets/initialize';
 
 export async function middleware(request: NextRequest) {
-  // Initialize secrets if not already initialized
-  // This only runs once per application instance
-  if (!isInitialized()) {
-    try {
-      await initializeSecrets();
-    } catch (error) {
-      console.error('[Middleware] Failed to initialize secrets:', error);
-      // In production, you might want to return an error response
-      // For now, we'll continue and let individual routes handle missing secrets
-    }
-  }
-
+  // Secrets initialization is handled at application startup, not in middleware
+  // This avoids issues with AWS SDK in middleware context and build-time resolution
+  
   return NextResponse.next();
 }
 

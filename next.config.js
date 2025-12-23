@@ -16,6 +16,8 @@ const nextConfig = {
   // Note: Turbopack is faster, so enabling Developer Mode is recommended
   experimental: {
     turbo: process.env.DISABLE_TURBOPACK !== 'true' ? undefined : false,
+    // Enable instrumentation hook for secrets initialization at startup
+    instrumentationHook: true,
   },
   
   // Production optimizations
