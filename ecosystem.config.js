@@ -35,8 +35,8 @@ module.exports = {
   apps: [
     {
       name: 'tms',
-      script: 'node',
-      args: 'scripts/start-with-secrets.mjs',
+      script: 'bash',
+      args: 'scripts/start-app-with-secrets.sh',
       cwd: process.cwd(), // Use current directory
       instances: 1,
       exec_mode: 'fork',
@@ -44,8 +44,8 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3001,
         // AWS Region - required for Secrets Manager
-        // Note: Your RDS is in us-east-1, so use that region
-        AWS_REGION: envVars.AWS_REGION || process.env.AWS_REGION || 'us-east-1',
+        // Note: Your RDS is in us-east-1, so use that region (force us-east-1)
+        AWS_REGION: 'us-east-1',
         // Load from .env file
         // For subdomain deployment, basePath should be empty (not '/tms')
         NEXT_PUBLIC_BASE_PATH: envVars.NEXT_PUBLIC_BASE_PATH || '',
