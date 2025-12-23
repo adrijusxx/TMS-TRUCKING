@@ -9,7 +9,12 @@ const globalForPrisma = globalThis as unknown as {
  * 
  * Note: DATABASE_URL should be initialized from AWS Secrets Manager
  * via the initialization function before this module is imported.
+ * 
+ * In production on AWS, secrets are initialized via the /api/init-secrets
+ * endpoint (called on first request or by a startup script).
+ * 
  * @see lib/secrets/initialize.ts
+ * @see app/api/init-secrets/route.ts
  */
 export const prisma =
   globalForPrisma.prisma ??

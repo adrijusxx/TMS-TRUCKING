@@ -11,13 +11,8 @@ const nextConfig = {
   // For Turbopack (Next.js 16), source map warnings are common in dev mode
   // These are warnings and don't affect functionality
   
-  // Windows symlink workaround: Disable Turbopack if Developer Mode is not enabled
-  // Set DISABLE_TURBOPACK=true in .env.local to use webpack instead
-  // Note: Turbopack is faster, so enabling Developer Mode is recommended
-  experimental: {
-    turbo: process.env.DISABLE_TURBOPACK !== 'true' ? undefined : false,
-    // instrumentationHook is available by default in Next.js 16, no need to enable
-  },
+  // Note: Turbopack is enabled by default in Next.js 16
+  // The experimental.turbo option is no longer valid
   
   // Production optimizations
   compress: true,
