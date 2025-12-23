@@ -20,11 +20,38 @@ if (!nextAuthSecret) {
 
 export const authOptions: NextAuthConfig = {
   secret: nextAuthSecret,
-  trustHost: true, // Required for basePath/subdirectory deployments
-  // CRITICAL: NextAuth v5 beta needs basePath set to the path it RECEIVES (after Next.js strips basePath)
-  // Next.js strips /tms before passing to route handlers, so NextAuth receives /api/auth/session
-  // Therefore basePath must be /api/auth (not /tms/api/auth)
+  trustHost: true, // Required for proxy/ALB deployments
   basePath: '/api/auth',
+  // Cookie configuration for ALB/proxy environments
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' ? '__Secure-authjs.session-token' : 'authjs.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    callbackUrl: {
+      name: process.env.NODE_ENV === 'production' ? '__Secure-authjs.callback-url' : 'authjs.callback-url',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+    csrfToken: {
+      name: process.env.NODE_ENV === 'production' ? '__Host-authjs.csrf-token' : 'authjs.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
   providers: [
     CredentialsProvider({
       name: 'Credentials',
