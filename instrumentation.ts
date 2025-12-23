@@ -11,7 +11,7 @@ export async function register() {
   // Only run in Node.js runtime (server-side)
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     try {
-      // Dynamically import to avoid issues during build
+      // Use relative path for better TypeScript resolution in dynamic imports
       const { initializeSecrets } = await import('./lib/secrets/initialize');
       await initializeSecrets();
       console.log('[Instrumentation] Secrets initialization completed');
