@@ -75,6 +75,9 @@ jobs:
             echo "Extracting deployment archive..."
             tar -xzf deploy.tar.gz
             
+            echo "Making startup script executable..."
+            chmod +x scripts/start-app-with-secrets.sh || true
+            
             echo "Cleaning up old Prisma config file (if exists)..."
             # Remove prisma.config.ts if it exists (incompatible with Prisma 6)
             rm -f prisma.config.ts || true
