@@ -15,8 +15,9 @@
  * OpenAI Configuration
  * GPT-4o-mini is optimized for fast responses (~1-2s)
  * 
- * In production on AWS, this is loaded from AWS Secrets Manager via initialization
- * @see lib/secrets/initialize.ts
+ * In production on AWS, OPENAI_API_KEY is loaded from AWS Secrets Manager
+ * via the startup script: scripts/start-app-with-secrets.sh
+ * Secret name: tms/integrations/openai/api-key
  */
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';

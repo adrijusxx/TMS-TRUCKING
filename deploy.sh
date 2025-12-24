@@ -34,9 +34,12 @@ DATABASE_URL="postgresql://username:password@localhost:5432/tms_db?schema=public
 NEXTAUTH_URL="http://130.211.211.214/tms"
 NEXTAUTH_SECRET="$(openssl rand -base64 32)"
 
-# Optional API Keys
+# Optional API Keys (loaded from AWS Secrets Manager in production)
+# For local development, set these manually or use AWS CLI to fetch:
+# aws secretsmanager get-secret-value --secret-id "tms/integrations/google/maps-api-key"
 GOOGLE_MAPS_API_KEY=""
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=""
+OPENAI_API_KEY=""
 SAMSARA_API_KEY=""
 SAMSARA_WEBHOOK_SECRET=""
 CRON_SECRET=""

@@ -70,6 +70,8 @@ load_secret() {
 load_secret "tms/nextauth/secret" "NEXTAUTH_SECRET"
 load_secret "tms/nextauth/url" "NEXTAUTH_URL"
 load_secret "tms/integrations/google/maps-api-key" "GOOGLE_MAPS_API_KEY"
+load_secret "tms/integrations/google/maps-public-api-key" "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"
+load_secret "tms/integrations/openai/api-key" "OPENAI_API_KEY"
 load_secret "tms/integrations/samsara/api-key" "SAMSARA_API_KEY"
 load_secret "tms/integrations/samsara/webhook-secret" "SAMSARA_WEBHOOK_SECRET"
 
