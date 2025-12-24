@@ -73,9 +73,13 @@ export async function GET(request: NextRequest) {
 
     // When showing drivers, exclude users whose associated Driver record is soft-deleted
     // This ensures that when a driver is deleted from HR management, they don't appear in Team & Users
+    // Also apply the same filtering as HR Management for consistency
     if (roleFilter === 'DRIVER') {
       baseConditions.driver = {
         deletedAt: null, // Only show users whose driver record is not soft-deleted
+        // Apply same filtering as HR Management - only show active drivers by default
+        employeeStatus: 'ACTIVE',
+        isActive: true,
       };
     }
 
