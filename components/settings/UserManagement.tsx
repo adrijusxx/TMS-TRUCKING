@@ -241,7 +241,7 @@ export default function UserManagement({
     queryFn: () => fetchUsers({
       search: searchQuery || undefined,
       page,
-      limit: 100, // Show more rows for Excel-like experience
+      limit: 1000, // Show all users for Excel-like experience
       ...advancedFilters,
       sortBy: sortField || undefined,
       sortOrder: sortDirection || undefined,

@@ -449,13 +449,22 @@ export async function POST(request: NextRequest) {
         // Build where clause - include soft-deleted records too
         const whereClause: any = {
           id: { in: validated.ids },
-          companyId: session.user.companyId,
           // Don't filter by deletedAt - we want to delete even soft-deleted records
         };
         
-        // For users, also check isActive
+        // For users, use MC-based filtering instead of companyId
         if (model === 'user') {
-          // Still filter by companyId for security
+          const mcAccess = (session.user as any)?.mcAccess || [];
+          const isAdmin = (session.user as any)?.role === 'ADMIN';
+          
+          if (!isAdmin && mcAccess.length > 0) {
+            whereClause.mcNumberId = { in: mcAccess };
+          } else if (!isAdmin) {
+            whereClause.id = { in: [] }; // No access
+          }
+        } else {
+          // For other models, use companyId filtering
+          whereClause.companyId = session.user.companyId;
         }
         
         // Hard delete - permanently remove
@@ -484,9 +493,27 @@ export async function POST(request: NextRequest) {
       // Build where clause for models with deletedAt (soft delete)
       const whereClause: any = {
         id: { in: validated.ids },
-        companyId: session.user.companyId,
         deletedAt: null, // Only soft-delete records that aren't already deleted
       };
+      
+      // For users, use MC-based filtering instead of companyId
+      if (model === 'user') {
+        // Get MC access for filtering
+        const mcAccess = (session.user as any)?.mcAccess || [];
+        const isAdmin = (session.user as any)?.role === 'ADMIN';
+        
+        if (!isAdmin && mcAccess.length > 0) {
+          // Non-admin users can only delete users in their MC access
+          whereClause.mcNumberId = { in: mcAccess };
+        } else if (!isAdmin) {
+          // No MC access, can't delete anyone
+          whereClause.id = { in: [] }; // This will match no records
+        }
+        // Admin users can delete any user (no additional filtering)
+      } else {
+        // For other models, use companyId filtering
+        whereClause.companyId = session.user.companyId;
+      }
       
       // Use companyId filtering for security (soft delete)
       result = await (prisma[model as keyof typeof prisma] as any).updateMany({
