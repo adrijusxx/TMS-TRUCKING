@@ -19,21 +19,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
       
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      
-      - name: Fetch secrets from AWS Secrets Manager
-        id: fetch-secrets
-        run: |
-          echo "Fetching Google Maps API key from AWS Secrets Manager..."
-          GOOGLE_MAPS_KEY=$(aws secretsmanager get-secret-value --secret-id "tms/integrations/google/maps-public-api-key" --query SecretString --output text --region us-east-1)
-          echo "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_KEY" >> $GITHUB_ENV
-          echo "✅ Google Maps API key loaded from AWS Secrets Manager"
-      
       - name: Install dependencies
         run: npm install --legacy-peer-deps
         env:
@@ -49,7 +34,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEXT_PUBLIC_BASE_PATH: ${{ secrets.NEXT_PUBLIC_BASE_PATH || '' }}
-          # NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is now loaded from AWS Secrets Manager in previous step
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
           NODE_OPTIONS: '--max-old-space-size=6144'
       
       - name: Create deployment archive
