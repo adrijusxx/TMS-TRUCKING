@@ -393,3 +393,5 @@ CREATE INDEX IF NOT EXISTS "${modelName}_${fieldName}_idx" ON "${this.capitalize
 
 
 
+
+

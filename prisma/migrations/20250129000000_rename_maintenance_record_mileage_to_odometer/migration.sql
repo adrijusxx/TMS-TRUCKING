@@ -20,3 +20,5 @@ ALTER TABLE "MaintenanceRecord" RENAME COLUMN "mileage" TO "odometer";
 
 
 
+
+
