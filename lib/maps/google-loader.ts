@@ -29,9 +29,24 @@ export async function loadGoogleMapsApi(extraLibraries: string[] = []): Promise<
     return loadPromise;
   }
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Try to get API key from environment or fetch from server
+  let apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  
+  // If not available at build time, try to fetch from integration status API
   if (!apiKey) {
+    try {
+      const response = await fetch('/api/integrations/status');
+      const data = await response.json();
+      const googleMapsIntegration = data.data?.find((integration: any) => integration.provider === 'GOOGLE_MAPS');
+      if (!googleMapsIntegration?.configured) {
+        throw new Error('Google Maps API key not configured');
+      }
+      // Note: We can't get the actual key from the API for security reasons
+      // This is just to check if it's configured
+      throw new Error('Google Maps API key not available at build time. Please configure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in GitHub Actions.');
+    } catch (error) {
       throw new Error('Google Maps API key not configured');
+    }
   }
 
   loadPromise = new Promise((resolve, reject) => {

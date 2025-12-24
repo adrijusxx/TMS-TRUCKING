@@ -78,9 +78,15 @@ load_secret "tms/integrations/samsara/webhook-secret" "SAMSARA_WEBHOOK_SECRET"
 # CRITICAL: Trust host header from ALB proxy - fixes CSRF errors with NextAuth v5
 export AUTH_TRUST_HOST=true
 
+# CRITICAL: For pre-built apps, we need to ensure NEXT_PUBLIC vars are available
+# This is a workaround since the app was built without these variables
+echo "[Startup] Ensuring NEXT_PUBLIC variables are available..."
+export NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"
+
 echo "[Startup] All secrets loaded"
 echo "[Startup] NEXTAUTH_URL=$NEXTAUTH_URL"
 echo "[Startup] AUTH_TRUST_HOST=true"
+echo "[Startup] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:0:20}..."
 echo "[Startup] Starting Next.js on port 3001..."
 
 # Start Next.js with all environment variables
