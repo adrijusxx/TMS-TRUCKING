@@ -58,6 +58,10 @@ id_ed25519.pub
 *.env.local
 *.env.production
 
+# Allow specific scripts that are safe but match catch-all rules
+!scripts/run-migration-with-secrets.sh
+!scripts/start-app-with-secrets.sh
+
 # database connection strings (if accidentally committed)
 *connection*.txt
 *credentials*.txt

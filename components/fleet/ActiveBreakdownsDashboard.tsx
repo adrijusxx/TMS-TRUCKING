@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import BreakdownQuickEntryForm from './BreakdownQuickEntryForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,7 +35,10 @@ import {
   RefreshCw,
   Filter,
   Plus,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatDate, apiUrl } from '@/lib/utils';
 
 interface Breakdown {
@@ -109,6 +113,34 @@ export default function ActiveBreakdownsDashboard() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(apiUrl(`/api/fleet/breakdowns/${id}`), {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete breakdown');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Breakdown case deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['activeBreakdowns'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleDelete = (id: string, breakdownNumber: string) => {
+    if (window.confirm(`Are you sure you want to delete breakdown case #${breakdownNumber}? This action cannot be undone.`)) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   const { data, isLoading, error, refetch } = useQuery<{ success: boolean; data: ActiveBreakdownsData }>({
     queryKey: ['activeBreakdowns', priorityFilter],
@@ -385,6 +417,22 @@ export default function ActiveBreakdownsDashboard() {
                               View
                             </Button>
                           </Link>
+                          {session?.user?.role === 'ADMIN' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Delete Case"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDelete(breakdown.id, breakdown.breakdownNumber)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              {deleteMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

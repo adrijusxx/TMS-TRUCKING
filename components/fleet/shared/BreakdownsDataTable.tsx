@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,9 +15,10 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-    AlertTriangle, Clock, Truck, User, Phone,
-    RefreshCw, MoreHorizontal, Edit, MapPin,
+    RefreshCw, MoreHorizontal, Edit, MapPin, Trash2,
+    Truck, User, Phone, Clock, AlertTriangle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import { getPriorityBadge, getStatusBadge } from '@/components/ui/status-badge';
 import InlineCaseEditor from '../InlineCaseEditor';
@@ -96,11 +98,41 @@ export default function BreakdownsDataTable({
         type: 'ALL',
     });
 
+    const { data: session } = useSession();
+    const queryClient = useQueryClient();
+
     const { data, isLoading, error, refetch } = useQuery<{ success: boolean; data: ActiveBreakdownsData }>({
         queryKey: ['activeBreakdowns-table', mode],
         queryFn: fetchActiveBreakdowns,
         refetchInterval: 30000,
     });
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const response = await fetch(apiUrl(`/api/fleet/breakdowns/${id}`), {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to delete breakdown');
+            }
+            return response.json();
+        },
+        onSuccess: () => {
+            toast.success('Breakdown case deleted successfully');
+            queryClient.invalidateQueries({ queryKey: ['activeBreakdowns-table'] });
+            queryClient.invalidateQueries({ queryKey: ['activeBreakdowns'] }); // Also invalidate the other query key just in case
+        },
+        onError: (error: Error) => {
+            toast.error(error.message);
+        },
+    });
+
+    const handleDelete = (id: string, breakdownNumber: string) => {
+        if (window.confirm(`Are you sure you want to delete breakdown case #${breakdownNumber}? This action cannot be undone.`)) {
+            deleteMutation.mutate(id);
+        }
+    };
 
     const breakdowns = data?.data?.breakdowns || [];
 
@@ -325,6 +357,15 @@ export default function BreakdownsDataTable({
                                                         >
                                                             <Phone className="h-3.5 w-3.5 mr-2" />
                                                             Call Driver
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {session?.user?.role === 'ADMIN' && (
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleDelete(breakdown.id, breakdown.breakdownNumber)}
+                                                            className="text-destructive focus:text-destructive"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                                            Delete Case
                                                         </DropdownMenuItem>
                                                     )}
                                                 </DropdownMenuContent>

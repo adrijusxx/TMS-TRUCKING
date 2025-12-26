@@ -27,9 +27,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate file type
-        const allowedTypes = ['application/pdf', 'text/plain'];
-        if (!allowedTypes.includes(file.type)) {
-            return NextResponse.json({ error: 'Invalid file type. Only PDF and TXT are supported.' }, { status: 400 });
+        // Validate file type
+        const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown'];
+        const isMd = file.name.toLowerCase().endsWith('.md');
+
+        if (!allowedTypes.includes(file.type) && !isMd) {
+            return NextResponse.json({ error: 'Invalid file type. Only PDF, TXT, and Markdown files are supported.' }, { status: 400 });
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());

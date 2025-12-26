@@ -11,9 +11,12 @@ import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
 
+import { Progress } from '@/components/ui/progress';
+
 export default function KnowledgeBaseManager() {
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; filename: string; percent: number } | null>(null);
 
     const { data: documents, isLoading } = useQuery({
         queryKey: ['knowledge-base-docs'],
@@ -25,51 +28,107 @@ export default function KnowledgeBaseManager() {
         },
     });
 
-    const uploadMutation = useMutation({
-        mutationFn: async (file: File) => {
+    // Helper function to upload a single file with progress
+    const uploadFile = (file: File, onProgress: (percent: number) => void): Promise<any> => {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
             const formData = new FormData();
             formData.append('file', file);
 
-            const res = await fetch(apiUrl('/api/knowledge-base/upload'), {
-                method: 'POST',
-                body: formData,
-            });
+            xhr.open('POST', apiUrl('/api/knowledge-base/upload'));
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Upload failed');
-            }
-            return res.json();
-        },
-        onSuccess: () => {
-            toast.success('Document uploaded and processing started');
-            queryClient.invalidateQueries({ queryKey: ['knowledge-base-docs'] });
-            setIsUploading(false);
-        },
-        onError: (err: Error) => {
-            toast.error(err.message);
-            setIsUploading(false);
-        },
-    });
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = (event.loaded / event.total) * 100;
+                    onProgress(percentComplete);
+                }
+            };
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        resolve(response);
+                    } catch (e) {
+                        reject(new Error('Invalid JSON response'));
+                    }
+                } else {
+                    let errorMessage = `Failed to upload ${file.name}`;
+                    try {
+                        const err = JSON.parse(xhr.responseText);
+                        if (err.error) errorMessage = err.error;
+                    } catch (e) {
+                        // ignore
+                    }
+                    reject(new Error(errorMessage));
+                }
+            };
 
-        if (file.size > 10 * 1024 * 1024) {
-            toast.error('File size must be less than 10MB');
-            return;
-        }
+            xhr.onerror = () => reject(new Error('Network error during upload'));
 
-        if (!['application/pdf', 'text/plain'].includes(file.type)) {
-            toast.error('Only PDF and TXT files are supported');
-            return;
-        }
+            xhr.send(formData);
+        });
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        // Convert FileList to array for easier handling
+        const fileList = Array.from(files);
+
+        // Filter valid files
+        const validFiles = fileList.filter(file => {
+            const isValidType = ['application/pdf', 'text/plain', 'text/markdown'].includes(file.type) || file.name.endsWith('.md');
+            const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB
+
+            if (!isValidType) toast.error(`Skipped ${file.name}: Invalid file type`);
+            if (!isValidSize) toast.error(`Skipped ${file.name}: File too large (>10MB)`);
+
+            return isValidType && isValidSize;
+        });
+
+        if (validFiles.length === 0) return;
 
         setIsUploading(true);
-        uploadMutation.mutate(file);
-        // Reset input
-        e.target.value = '';
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < validFiles.length; i++) {
+            const file = validFiles[i];
+            setUploadProgress({
+                current: i + 1,
+                total: validFiles.length,
+                filename: file.name,
+                percent: 0
+            });
+
+            try {
+                await uploadFile(file, (percent) => {
+                    setUploadProgress(prev => prev ? { ...prev, percent } : null);
+                });
+                successCount++;
+            } catch (err: any) {
+                console.error(`Error uploading ${file.name}:`, err);
+                failCount++;
+                toast.error(`Failed to upload ${file.name}: ${err.message}`);
+            }
+        }
+
+        // Cleanup
+        setIsUploading(false);
+        setUploadProgress(null);
+        e.target.value = ''; // Reset input
+
+        // Refresh and notify
+        queryClient.invalidateQueries({ queryKey: ['knowledge-base-docs'] });
+
+        if (successCount > 0) {
+            toast.success(`Successfully uploaded ${successCount} documents`);
+        }
+        if (failCount > 0) {
+            toast.warning(`Failed to upload ${failCount} documents`);
+        }
     };
 
     const statusColor = (status: string) => {
@@ -80,6 +139,23 @@ export default function KnowledgeBaseManager() {
             default: return 'bg-gray-500';
         }
     };
+
+    const deleteMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await fetch(apiUrl(`/api/knowledge-base?id=${id}`), {
+                method: 'DELETE',
+            });
+            if (!res.ok) throw new Error('Failed to delete document');
+            return res.json();
+        },
+        onSuccess: () => {
+            toast.success('Document deleted');
+            queryClient.invalidateQueries({ queryKey: ['knowledge-base-docs'] });
+        },
+        onError: (err: Error) => {
+            toast.error(err.message);
+        },
+    });
 
     return (
         <div className="space-y-6">
@@ -100,7 +176,8 @@ export default function KnowledgeBaseManager() {
                             type="file"
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             onChange={handleFileUpload}
-                            accept=".pdf,.txt"
+                            accept=".pdf,.txt,.md"
+                            multiple
                             disabled={isUploading}
                         />
                         <Button disabled={isUploading}>
@@ -109,7 +186,9 @@ export default function KnowledgeBaseManager() {
                             ) : (
                                 <Upload className="h-4 w-4 mr-2" />
                             )}
-                            Upload Document
+                            {isUploading && uploadProgress
+                                ? `Importing...`
+                                : 'Upload Documents'}
                         </Button>
                     </div>
                 </div>
@@ -150,7 +229,7 @@ export default function KnowledgeBaseManager() {
                 <CardHeader>
                     <CardTitle>Documents</CardTitle>
                     <CardDescription>
-                        PDF manuals, policies, and repair guides uploaded for AI reference.
+                        PDF, Text, and Markdown files uploaded for AI reference.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -162,16 +241,36 @@ export default function KnowledgeBaseManager() {
                         <div className="text-center py-12 text-muted-foreground border-dashed border-2 rounded-lg">
                             <Database className="h-12 w-12 mx-auto mb-3 opacity-20" />
                             <p>No documents found.</p>
-                            <p className="text-sm">Upload a PDF or Text file to get started.</p>
+                            <p className="text-sm">Upload PDF, TXT, or MD files to get started.</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
+                            {/* Upload Progress Indicator in List */}
+                            {isUploading && uploadProgress && (
+                                <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/50 border-primary/20">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                            <div>
+                                                <h4 className="font-semibold text-sm">Importing {uploadProgress.filename}</h4>
+                                                <p className="text-xs text-muted-foreground">
+                                                    File {uploadProgress.current} of {uploadProgress.total} ({Math.round(uploadProgress.percent)}%)
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <Progress value={uploadProgress.percent} className="h-2" />
+                                </div>
+                            )}
+
                             {documents?.map((doc: any) => (
                                 <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/30 transition-colors">
                                     <div className="flex items-center gap-4">
                                         <div className="p-2 bg-muted rounded">
                                             {doc.fileType?.includes('pdf') ? (
                                                 <FileText className="h-6 w-6 text-red-500" />
+                                            ) : doc.title.endsWith('.md') || doc.fileType?.includes('markdown') ? (
+                                                <FileText className="h-6 w-6 text-purple-500" />
                                             ) : (
                                                 <File className="h-6 w-6 text-blue-500" />
                                             )}
@@ -192,7 +291,16 @@ export default function KnowledgeBaseManager() {
                                             </div>
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-muted-foreground hover:text-destructive"
+                                        onClick={() => {
+                                            if (confirm('Are you sure you want to delete this document?')) {
+                                                deleteMutation.mutate(doc.id);
+                                            }
+                                        }}
+                                    >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
