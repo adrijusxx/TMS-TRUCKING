@@ -401,42 +401,63 @@ export class LiveMapService {
   }
 
   private async getTruckEntries(): Promise<TruckMapEntry[]> {
-    const trucksRaw: any[] = await prisma.truck.findMany({
-      where: {
-        companyId: this.companyId,
-        deletedAt: null,
-        status: { in: ACTIVE_TRUCK_STATUSES as any },
-      },
-      select: {
-        id: true,
-        truckNumber: true,
-        status: true,
-        licensePlate: true,
-        vin: true,
-        activeLoad: {
-          where: { deletedAt: null },
-          select: {
-            id: true,
-            loadNumber: true,
-            status: true,
-            stops: {
-              orderBy: { sequence: 'asc' },
-              select: {
-                id: true,
-                city: true,
-                state: true,
-                formattedAddress: true,
-                scheduledTime: true,
-              }
+    // Fetch trucks and their active loads separately
+    const [trucksRaw, activeLoads] = await Promise.all([
+      prisma.truck.findMany({
+        where: {
+          companyId: this.companyId,
+          deletedAt: null,
+          status: { in: ACTIVE_TRUCK_STATUSES as any },
+        },
+        select: {
+          id: true,
+          truckNumber: true,
+          status: true,
+          licensePlate: true,
+          vin: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      // Fetch active loads for all trucks
+      prisma.load.findMany({
+        where: {
+          companyId: this.companyId,
+          deletedAt: null,
+          status: { in: ACTIVE_LOAD_STATUSES as any },
+          truckId: { not: null },
+        },
+        select: {
+          id: true,
+          loadNumber: true,
+          status: true,
+          truckId: true,
+          stops: {
+            orderBy: { sequence: 'asc' },
+            select: {
+              id: true,
+              city: true,
+              state: true,
+              address: true,
+              earliestArrival: true,
             }
           }
         }
-      } as any,
-      orderBy: { updatedAt: 'desc' },
-      // Removed limit to show all trucks (you have 133 total)
-    }) as any;
+      })
+    ]);
 
-    const trucks = trucksRaw;
+    // Create a map of truckId -> activeLoad
+    const activeLoadByTruckId = new Map<string, any>();
+    activeLoads.forEach(load => {
+      if (load.truckId) {
+        activeLoadByTruckId.set(load.truckId, load);
+      }
+    });
+
+    // Attach active loads to trucks
+    const trucks = trucksRaw.map(truck => ({
+      ...truck,
+      activeLoad: activeLoadByTruckId.get(truck.id) || null,
+    }));
 
     console.log('[LiveMapService] Found', trucks.length, 'trucks in database');
 
@@ -478,8 +499,8 @@ export class LiveMapService {
             id: stop.id,
             city: stop.city,
             state: stop.state,
-            formattedAddress: stop.formattedAddress,
-            scheduledTime: stop.scheduledTime,
+            formattedAddress: stop.address, // Map address to formattedAddress for UI compatibility
+            scheduledTime: stop.earliestArrival, // Map earliestArrival to scheduledTime
           })),
         } : null,
       };

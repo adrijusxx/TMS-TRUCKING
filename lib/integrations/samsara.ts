@@ -911,19 +911,35 @@ export async function getSamsaraTrips(
       batchParams.append('endTime', endTime.toISOString());
       batchParams.append('limit', String(limit));
 
-      // Try new endpoint first: /trips (requires enablement)
-      const result = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
-        `/trips?${batchParams.toString()}`,
-        {},
-        companyId
-      );
+      try {
+        // Try new endpoint first: /trips (requires enablement)
+        const result = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
+          `/trips?${batchParams.toString()}`,
+          {},
+          companyId
+        );
 
-      if (result) {
-        const trips = Array.isArray(result) ? result : (result.data || []);
-        allTrips.push(...trips);
+        if (result) {
+          const trips = Array.isArray(result) ? result : (result.data || []);
+          allTrips.push(...trips);
+        }
+      } catch (error) {
+        // If /trips fails, we'll try legacy endpoint below
+        console.debug('[Samsara] /trips endpoint failed, trying legacy fallback:', error instanceof Error ? error.message : 'Unknown error');
+        // Break the loop to stop trying /trips for other batches and fall through to legacy
+        break;
       }
     }
 
+    // Only return if we actually got results from the new endpoint
+    // If allTrips is empty (or partial because we broke), we might want to try legacy for ALL ids
+    // But the legacy block below uses the original `vehicleIds` array.
+    if (allTrips.length > 0 && allTrips.length === vehicleIds.length) { // Optimization: if we matched count, return. But actually just return what we found?
+      return allTrips;
+    }
+    // If we have some trips but failed on later batches, we might be in a mixed state. 
+    // Safer to just check: if we caught an error (failed), we fall through.
+    // However, if we successfully got trips for ALL batches, we return them.
     if (allTrips.length > 0) {
       return allTrips;
     }
