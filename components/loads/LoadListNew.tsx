@@ -8,9 +8,8 @@ import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
-import LoadDetailDialog from '@/components/loads/LoadDetailDialog';
+import LoadSheet from '@/components/loads/LoadSheet';
 import LoadStatisticsCard from '@/components/loads/LoadStatisticsCard';
-import LoadInlineEdit from '@/components/loads/LoadInlineEdit';
 import { usePermissions } from '@/hooks/usePermissions';
 import { loadsTableConfig, getLoadRowClassName } from '@/lib/config/entities/loads';
 import { apiUrl } from '@/lib/utils';
@@ -73,6 +72,15 @@ export default function LoadListNew() {
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [selectedLoadId, setSelectedLoadId] = React.useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+
+  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
+    setSheetMode(mode);
+    if (id) setSelectedLoadId(id);
+    setSheetOpen(true);
+  };
+
   const [createdToday, setCreatedToday] = React.useState(false);
   const [pickupToday, setPickupToday] = React.useState(false);
   const [createdLast24h, setCreatedLast24h] = React.useState(false);
@@ -114,12 +122,12 @@ export default function LoadListNew() {
 
     if (params.sorting && params.sorting.length > 0) {
       const sort = params.sorting[0];
-      const sortField = sort.id === 'createdAt' ? 'createdAt' : 
-                       sort.id === 'loadNumber' ? 'loadNumber' :
-                       sort.id === 'pickupDate' ? 'pickupDate' :
-                       sort.id === 'deliveryDate' ? 'deliveryDate' :
-                       sort.id === 'revenue' ? 'revenue' :
-                       'createdAt';
+      const sortField = sort.id === 'createdAt' ? 'createdAt' :
+        sort.id === 'loadNumber' ? 'loadNumber' :
+          sort.id === 'pickupDate' ? 'pickupDate' :
+            sort.id === 'deliveryDate' ? 'deliveryDate' :
+              sort.id === 'revenue' ? 'revenue' :
+                'createdAt';
       queryParams.set('sortBy', sortField);
       queryParams.set('sortOrder', sort.desc ? 'desc' : 'asc');
     } else {
@@ -148,36 +156,40 @@ export default function LoadListNew() {
       data: result.data || [],
       meta: result.meta
         ? {
-            totalCount: result.meta.total,
-            totalPages: result.meta.totalPages,
-            page: result.meta.page,
-            pageSize: result.meta.limit,
-          }
+          totalCount: result.meta.total,
+          totalPages: result.meta.totalPages,
+          page: result.meta.page,
+          pageSize: result.meta.limit,
+        }
         : {
-            totalCount: result.data?.length || 0,
-            totalPages: 1,
-            page: params.page || 1,
-            pageSize: params.pageSize || 20,
-          },
+          totalCount: result.data?.length || 0,
+          totalPages: 1,
+          page: params.page || 1,
+          pageSize: params.pageSize || 20,
+        },
     };
   };
 
   const rowActions = (row: LoadData) => (
     <div className="flex items-center gap-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setSelectedLoadId(row.id)}
-        className="h-6 text-xs px-2"
-      >
-        View
-      </Button>
-      {can('loads.edit') && (
-        <Link href={`/dashboard/loads/${row.id}`}>
-          <Button variant="ghost" size="sm" className="h-6 text-xs px-2">
-            <Edit className="h-3 w-3" />
-          </Button>
-        </Link>
+      {can('loads.edit') ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs px-2"
+          onClick={() => openSheet('edit', row.id)}
+        >
+          Edit
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => openSheet('view', row.id)}
+          className="h-7 text-xs px-2"
+        >
+          View
+        </Button>
       )}
     </div>
   );
@@ -246,12 +258,14 @@ export default function LoadListNew() {
             </ExportDialog>
           )}
           {can('loads.create') && (
-            <Link href="/dashboard/loads/new">
-              <Button size="sm" className="h-6 text-xs px-2">
-                <Plus className="h-3 w-3 mr-1" />
-                New Load
-              </Button>
-            </Link>
+            <Button
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => openSheet('create')}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              New Load
+            </Button>
           )}
         </div>
       </div>
@@ -269,8 +283,7 @@ export default function LoadListNew() {
           createdLast24h,
         }}
         rowActions={rowActions}
-        onRowClick={(row) => setSelectedLoadId(row.id)}
-        inlineEditComponent={can('loads.edit') ? LoadInlineEdit : undefined}
+        onRowClick={(row) => openSheet(can('loads.edit') ? 'edit' : 'view', row.id)}
         emptyMessage="No loads found. Create your first load."
         enableColumnVisibility={can('data.column_visibility')}
         enableRowSelection={true}
@@ -294,17 +307,16 @@ export default function LoadListNew() {
           enableBulkEdit={can('loads.bulk_edit') || can('data.bulk_edit')}
           enableBulkDelete={can('loads.bulk_delete') || can('data.bulk_delete')}
           enableBulkExport={can('data.export') || can('export.execute')}
-          onActionComplete={() => {}}
+          onActionComplete={() => { }}
         />
       )}
 
-      {/* Load Detail Dialog */}
-      <LoadDetailDialog
+      {/* Load Sheet (Unified View/Edit/Create) */}
+      <LoadSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        mode={sheetMode}
         loadId={selectedLoadId}
-        open={!!selectedLoadId}
-        onOpenChange={(open) => {
-          if (!open) setSelectedLoadId(null);
-        }}
       />
     </div>
   );

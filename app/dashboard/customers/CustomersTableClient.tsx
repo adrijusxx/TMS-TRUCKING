@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { DataTable } from '@/components/data-table/DataTable';
 import { createCustomerColumns } from './columns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,13 +31,34 @@ interface CustomersTableClientProps {
   data: CustomerData[];
 }
 
+import { Plus } from 'lucide-react';
+import CustomerSheet from '@/components/customers/CustomerSheet';
+import { usePermissions } from '@/hooks/usePermissions';
+
+// ... (existing imports, keep them)
+
 export function CustomersTableClient({ data }: CustomersTableClientProps) {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+
+  // Sheet State
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+  const [selectedCustomerId, setSelectedCustomerId] = React.useState<string | null>(null);
+
+  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
+    setSheetMode(mode);
+    if (id) setSelectedCustomerId(id);
+    setSheetOpen(true);
+  };
+
+  const router = useRouter();
 
   const handleUpdate = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['customers'] });
-  }, [queryClient]);
+    router.refresh();
+  }, [queryClient, router]);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -63,23 +85,6 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
     toast.success(`Exported ${data.length} customer(s)`);
   }, [data]);
 
-  const columns = React.useMemo(
-    () => createCustomerColumns(handleUpdate),
-    [handleUpdate]
-  );
-
-  const rowActions = React.useCallback((row: CustomerData) => {
-    return (
-      <div className="flex items-center gap-2">
-        <Link href={`/dashboard/customers/${row.id}`}>
-          <Button variant="ghost" size="sm">
-            View
-          </Button>
-        </Link>
-      </div>
-    );
-  }, []);
-
   // Get selected row IDs for bulk actions
   const selectedRowIds = React.useMemo(() => {
     return Object.keys(rowSelection).filter((key) => rowSelection[key]);
@@ -105,8 +110,46 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
     if (trigger) trigger.click();
   }, []);
 
+  const columns = React.useMemo(
+    () => createCustomerColumns(handleUpdate),
+    [handleUpdate]
+  );
+
+  const rowActions = React.useCallback((row: CustomerData) => {
+    return (
+      <div className="flex items-center gap-2">
+        {can('customers.edit') ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('edit', row.id)}
+          >
+            Edit
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('view', row.id)}
+          >
+            View
+          </Button>
+        )}
+      </div>
+    );
+  }, [can]);
+
   return (
-    <>
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        {can('customers.create') && (
+          <Button onClick={() => openSheet('create')}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Customer
+          </Button>
+        )}
+      </div>
+
       <DataTable
         columns={columns}
         data={data}
@@ -121,6 +164,15 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
         onImport={handleImport}
         onExport={handleExport}
       />
+
+      <CustomerSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        mode={sheetMode}
+        customerId={selectedCustomerId}
+        onSuccess={handleUpdate}
+      />
+
       <div className="hidden">
         <ImportDialog
           entityType="customers"
@@ -131,7 +183,7 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
           <button data-import-trigger="customers" type="button" />
         </ImportDialog>
       </div>
-    </>
+    </div>
   );
 }
 

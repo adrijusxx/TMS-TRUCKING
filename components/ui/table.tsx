@@ -9,7 +9,7 @@ const Table = React.forwardRef<
   <div className="relative w-full overflow-auto">
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-[11px]", className)}
+      className={cn("w-full caption-bottom text-caption", className)}
       {...props}
     />
   </div>
@@ -20,7 +20,14 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  <thead
+    ref={ref}
+    className={cn(
+      "[&_tr]:border-b bg-muted/50",
+      className
+    )}
+    {...props}
+  />
 ))
 TableHeader.displayName = "TableHeader"
 
@@ -58,7 +65,9 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b transition-colors hover:bg-muted/30 data-[state=selected]:bg-muted/50",
+      "border-b transition-colors",
+      "hover:bg-accent/50",
+      "data-[state=selected]:bg-status-info-muted data-[state=selected]:border-l-2 data-[state=selected]:border-l-status-info",
       className
     )}
     {...props}
@@ -73,7 +82,9 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-7 px-1.5 py-1 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "h-8 px-2 py-1.5 text-left align-middle",
+      "text-micro font-semibold text-muted-foreground uppercase tracking-wide",
+      "[&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
@@ -87,11 +98,31 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("px-1.5 py-0.5 align-middle [&:has([role=checkbox])]:pr-0", className)}
+    className={cn(
+      "px-2 py-1 align-middle text-caption",
+      "[&:has([role=checkbox])]:pr-0",
+      className
+    )}
     {...props}
   />
 ))
 TableCell.displayName = "TableCell"
+
+/** Numeric cell - right-aligned with tabular nums for financial/stat data */
+const TableCellNumeric = React.forwardRef<
+  HTMLTableCellElement,
+  React.TdHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <td
+    ref={ref}
+    className={cn(
+      "px-2 py-1 align-middle text-caption text-right tabular-nums font-medium",
+      className
+    )}
+    {...props}
+  />
+))
+TableCellNumeric.displayName = "TableCellNumeric"
 
 const TableCaption = React.forwardRef<
   HTMLTableCaptionElement,
@@ -99,7 +130,7 @@ const TableCaption = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <caption
     ref={ref}
-    className={cn("mt-4 text-sm text-muted-foreground", className)}
+    className={cn("mt-4 text-caption text-muted-foreground", className)}
     {...props}
   />
 ))
@@ -113,5 +144,6 @@ export {
   TableHead,
   TableRow,
   TableCell,
+  TableCellNumeric,
   TableCaption,
 }

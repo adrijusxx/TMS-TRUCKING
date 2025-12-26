@@ -154,7 +154,7 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
 
   return (
     <div className="bg-background border-t border-l-4 border-l-primary">
-      <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+      <div className="p-4 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b sticky top-0 bg-background z-10">
           <div>

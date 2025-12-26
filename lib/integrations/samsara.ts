@@ -238,7 +238,7 @@ async function samsaraRequest<T>(
         console.error('[Samsara] Verify token in Settings → API Tokens in Samsara dashboard');
         return null;
       }
-      
+
       // Handle 403 (Forbidden) - API key might not have required permissions/scopes
       if (response.status === 403) {
         console.error(`[Samsara] Access forbidden for endpoint: ${endpoint}`);
@@ -247,7 +247,7 @@ async function samsaraRequest<T>(
         console.error('[Samsara] For Live Map, ensure "Vehicles - Read" scope is enabled');
         return null;
       }
-      
+
       // Handle 404 (Not Found) gracefully - endpoint may not be available for this account
       if (response.status === 404) {
         // Only log once per endpoint to reduce noise
@@ -257,10 +257,10 @@ async function samsaraRequest<T>(
         }
         return null;
       }
-      
+
       const error = await response.json().catch(() => ({ message: response.statusText }));
       const errorMessage = error.message || response.statusText;
-      
+
       // Handle "invalid id" errors gracefully - these are common when vehicle IDs don't match
       // Only log once per endpoint to reduce noise
       if (errorMessage.includes('invalid id') || errorMessage.includes('invalid')) {
@@ -271,7 +271,7 @@ async function samsaraRequest<T>(
         }
         return null;
       }
-      
+
       throw new Error(`Samsara API error: ${JSON.stringify(error)}`);
     }
 
@@ -279,12 +279,12 @@ async function samsaraRequest<T>(
   } catch (error) {
     // Only log as error if it's not a handled case (404, invalid id, etc.)
     if (error instanceof Error) {
-      const isHandledError = 
+      const isHandledError =
         error.message.includes('404') ||
         error.message.includes('invalid id') ||
         error.message.includes('Invalid stat type') ||
         error.message.includes('Not Found');
-      
+
       if (!isHandledError) {
         console.error('Samsara API request error:', error);
       } else {
@@ -391,9 +391,9 @@ export async function getSamsaraHOSStatuses(
 
   const endpoint = `/fleet/hos_authentication_logs${params.toString() ? `?${params.toString()}` : ''}`;
   const result = await samsaraRequest<{ data: SamsaraDriver[] }>(endpoint);
-  
+
   if (!result || !result.data) return null;
-  
+
   // Extract HOS statuses from driver data
   return result.data.flatMap((driver) => driver.hosStatuses || []);
 }
@@ -415,7 +415,7 @@ async function getSamsaraHOSLogs(
   const result = await samsaraRequest<{ data: SamsaraHOSLog[] }>(
     `/fleet/hos_logs?${params.toString()}`
   );
-  
+
   return result?.data || null;
 }
 
@@ -434,14 +434,14 @@ async function getSamsaraAssetLocationAndSpeed(
   if (!vehicleIds || vehicleIds.length === 0) {
     return null;
   }
-  
+
   // API limit: maximum 50 asset IDs per request
   const MAX_IDS_PER_REQUEST = 50;
-  
+
   // If we have more than 50 IDs, we need to batch the requests
   if (vehicleIds.length > MAX_IDS_PER_REQUEST) {
     const allResults: Array<{ vehicleId: string; location: SamsaraVehicle['location'] }> = [];
-    
+
     // Process in batches of 50
     for (let i = 0; i < vehicleIds.length; i += MAX_IDS_PER_REQUEST) {
       const batch = vehicleIds.slice(i, i + MAX_IDS_PER_REQUEST);
@@ -450,29 +450,29 @@ async function getSamsaraAssetLocationAndSpeed(
         allResults.push(...batchResult);
       }
     }
-    
+
     return allResults.length > 0 ? allResults : null;
   }
-  
+
   try {
     const params = new URLSearchParams();
-    
+
     // Set time range (last 5 minutes for real-time data)
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - 5 * 60 * 1000); // 5 minutes ago
     params.append('startTime', startTime.toISOString());
     params.append('endTime', endTime.toISOString());
-    
+
     // Include speed and reverse geocoding
     params.append('includeSpeed', 'true');
     params.append('includeReverseGeo', 'true');
-    
+
     // REQUIRED: Filter by vehicle IDs (endpoint requires this, max 50)
     params.append('ids', vehicleIds.join(','));
-    
+
     // Set limit (max 512)
     params.append('limit', '512');
-    
+
     const result = await samsaraRequest<{
       data?: Array<{
         id: string;
@@ -491,23 +491,23 @@ async function getSamsaraAssetLocationAndSpeed(
       {},
       companyId
     );
-    
+
     if (!result || !result.data || result.data.length === 0) {
       return null;
     }
-    
+
     // Convert to our format, taking the most recent location for each vehicle
     const locationMap = new Map<string, { vehicleId: string; location: SamsaraVehicle['location'] }>();
-    
+
     result.data.forEach((entry) => {
       if (!entry.id || !entry.location) return;
-      
-      const speedMph = entry.location.speed?.value 
-        ? (entry.location.speed.unit === 'mph' 
-            ? entry.location.speed.value 
-            : entry.location.speed.value * 0.621371) // Convert km/h to mph
+
+      const speedMph = entry.location.speed?.value
+        ? (entry.location.speed.unit === 'mph'
+          ? entry.location.speed.value
+          : entry.location.speed.value * 0.621371) // Convert km/h to mph
         : undefined;
-      
+
       locationMap.set(entry.id, {
         vehicleId: entry.id,
         location: {
@@ -519,7 +519,7 @@ async function getSamsaraAssetLocationAndSpeed(
         },
       });
     });
-    
+
     return Array.from(locationMap.values());
   } catch (error) {
     console.debug('[Samsara] Asset location-and-speed stream endpoint not available, falling back to legacy endpoint');
@@ -546,15 +546,15 @@ export async function getSamsaraVehicleLocations(
       return streamResult;
     }
   }
-  
+
   // Fallback to correct endpoints (these work without IDs or with batched IDs)
   // Use the correct endpoint: /fleet/vehicles/locations (per Samsara API docs)
   // Note: /fleet/locations doesn't exist - use /fleet/vehicles/locations instead
-  
+
   // Batch vehicle IDs if we have more than 50
   const MAX_IDS_PER_REQUEST = 50;
   let allResults: Array<{ vehicleId: string; location: SamsaraVehicle['location'] }> = [];
-  
+
   if (vehicleIds && vehicleIds.length > MAX_IDS_PER_REQUEST) {
     // Process in batches of 50
     for (let i = 0; i < vehicleIds.length; i += MAX_IDS_PER_REQUEST) {
@@ -566,7 +566,7 @@ export async function getSamsaraVehicleLocations(
     }
     return allResults.length > 0 ? allResults : null;
   }
-  
+
   // Use correct endpoint: /fleet/vehicles/locations
   const params = new URLSearchParams();
   if (vehicleIds && vehicleIds.length > 0) {
@@ -574,14 +574,14 @@ export async function getSamsaraVehicleLocations(
   }
   // Add types parameter for current location
   params.append('types', 'currentLocation');
-  
+
   // Try the correct endpoint: /fleet/vehicles/locations
   let result = await samsaraRequest<{ data: SamsaraVehicle[] }>(
     `/fleet/vehicles/locations?${params.toString()}`,
     {},
     companyId
   );
-  
+
   // If that fails, try without types parameter
   if (!result || !result.data) {
     const simpleParams = new URLSearchParams();
@@ -594,9 +594,9 @@ export async function getSamsaraVehicleLocations(
       companyId
     );
   }
-  
+
   if (!result || !result.data) return null;
-  
+
   // Handle different response formats
   if (Array.isArray(result.data)) {
     // Check if it's the new format (array of location objects with vehicleId)
@@ -612,7 +612,7 @@ export async function getSamsaraVehicleLocations(
       location: vehicle.location || vehicle.gps,
     }));
   }
-  
+
   return [];
 }
 
@@ -627,10 +627,10 @@ export async function getSamsaraVehicleDiagnostics(
   try {
     // Batch vehicle IDs if we have more than 50 (API limit)
     const MAX_IDS_PER_REQUEST = 50;
-    
+
     if (vehicleIds && vehicleIds.length > MAX_IDS_PER_REQUEST) {
       const allResults: SamsaraVehicleDiagnostic[] = [];
-      
+
       // Process in batches of 50
       for (let i = 0; i < vehicleIds.length; i += MAX_IDS_PER_REQUEST) {
         const batch = vehicleIds.slice(i, i + MAX_IDS_PER_REQUEST);
@@ -639,10 +639,10 @@ export async function getSamsaraVehicleDiagnostics(
           allResults.push(...batchResult);
         }
       }
-      
+
       return allResults.length > 0 ? allResults : null;
     }
-    
+
     // Try /fleet/vehicles/stats first (more reliable than diagnostics)
     // Use faultCodes stat type (checkEngineLightOn doesn't exist)
     // faultCodes includes milStatus field which indicates check engine light
@@ -655,17 +655,17 @@ export async function getSamsaraVehicleDiagnostics(
       params.append('vehicleIds', vehicleIds.join(','));
     }
     endpoint = `${endpoint}?${params.toString()}`;
-    
+
     console.log('[Samsara] Fetching diagnostics from:', endpoint);
     const statsResult = await samsaraRequest<any>(endpoint, {}, companyId);
-    
+
     // Samsara API returns { data: [...] } wrapper, not direct array
-    const dataArray = Array.isArray(statsResult) 
-      ? statsResult 
-      : (statsResult?.data && Array.isArray(statsResult.data) 
-          ? statsResult.data 
-          : (statsResult?.data ? [statsResult.data] : []));
-    
+    const dataArray = Array.isArray(statsResult)
+      ? statsResult
+      : (statsResult?.data && Array.isArray(statsResult.data)
+        ? statsResult.data
+        : (statsResult?.data ? [statsResult.data] : []));
+
     // If stats endpoint works, convert to diagnostics format
     if (dataArray && dataArray.length > 0) {
       console.log('[Samsara] Diagnostics: Got', dataArray.length, 'entries from', endpoint);
@@ -675,65 +675,65 @@ export async function getSamsaraVehicleDiagnostics(
       }
       return dataArray
         .map((entry: any) => {
-        // Extract vehicleId FIRST - Samsara stats API returns 'id' at top level
-        // Check multiple possible fields
-        const vehicleId = entry.id || entry.vehicleId || entry.vehicle?.id;
-        
-        if (!vehicleId) {
-          // Only log occasionally to reduce spam
-          if (Math.random() < 0.01) {
-            console.warn('[Samsara] Diagnostics entry missing vehicleId. Entry structure:', {
-              keys: Object.keys(entry).slice(0, 10),
-              hasFaultCodes: !!entry.faultCodes,
-            });
-          }
-          return null;
-        }
-        
-        // faultCodes can be an object with nested structure: {j1939: {diagnosticTroubleCodes: [...]}}
-        // OR it can be a direct array
-        let faultCodesArray: any[] = [];
-        let milStatus: any = null;
-        let checkEngineLights: any = null;
-        
-        if (entry.faultCodes) {
-          // Check if it's the nested structure (j1939 format)
-          if (entry.faultCodes.j1939) {
-            const j1939 = entry.faultCodes.j1939;
-            // Extract diagnostic trouble codes
-            if (Array.isArray(j1939.diagnosticTroubleCodes)) {
-              faultCodesArray = j1939.diagnosticTroubleCodes.map((dtc: any) => ({
-                code: dtc.spnId ? `SPN${dtc.spnId}` : dtc.code,
-                description: dtc.spnDescription || dtc.fmiDescription || dtc.description,
-                severity: dtc.milStatus === 1 ? 'high' : 'medium',
-                active: dtc.occurrenceCount > 0,
-                occurredAt: entry.time || dtc.time,
-              }));
+          // Extract vehicleId FIRST - Samsara stats API returns 'id' at top level
+          // Check multiple possible fields
+          const vehicleId = entry.id || entry.vehicleId || entry.vehicle?.id;
+
+          if (!vehicleId) {
+            // Only log occasionally to reduce spam
+            if (Math.random() < 0.01) {
+              console.warn('[Samsara] Diagnostics entry missing vehicleId. Entry structure:', {
+                keys: Object.keys(entry).slice(0, 10),
+                hasFaultCodes: !!entry.faultCodes,
+              });
             }
-            // Extract check engine lights
-            checkEngineLights = j1939.checkEngineLights;
-            milStatus = checkEngineLights?.warningIsOn || checkEngineLights?.emissionsIsOn || 
-                       checkEngineLights?.protectIsOn || checkEngineLights?.stopIsOn;
-          } else if (Array.isArray(entry.faultCodes)) {
-            // Direct array format
-            faultCodesArray = entry.faultCodes;
+            return null;
           }
-        }
-        
-        // Determine check engine light status
-        const checkEngineLightOn = milStatus === true || milStatus === 'On' || 
-          (checkEngineLights && (checkEngineLights.warningIsOn || checkEngineLights.emissionsIsOn));
-        
-        return {
-          vehicleId, // Already extracted at the top of the function
-          checkEngineLightOn: checkEngineLightOn || false,
-          faults: faultCodesArray,
-          lastUpdatedTime: entry.time || new Date().toISOString(),
-        };
+
+          // faultCodes can be an object with nested structure: {j1939: {diagnosticTroubleCodes: [...]}}
+          // OR it can be a direct array
+          let faultCodesArray: any[] = [];
+          let milStatus: any = null;
+          let checkEngineLights: any = null;
+
+          if (entry.faultCodes) {
+            // Check if it's the nested structure (j1939 format)
+            if (entry.faultCodes.j1939) {
+              const j1939 = entry.faultCodes.j1939;
+              // Extract diagnostic trouble codes
+              if (Array.isArray(j1939.diagnosticTroubleCodes)) {
+                faultCodesArray = j1939.diagnosticTroubleCodes.map((dtc: any) => ({
+                  code: dtc.spnId ? `SPN${dtc.spnId}` : dtc.code,
+                  description: dtc.spnDescription || dtc.fmiDescription || dtc.description,
+                  severity: dtc.milStatus === 1 ? 'high' : 'medium',
+                  active: dtc.occurrenceCount > 0,
+                  occurredAt: entry.time || dtc.time,
+                }));
+              }
+              // Extract check engine lights
+              checkEngineLights = j1939.checkEngineLights;
+              milStatus = checkEngineLights?.warningIsOn || checkEngineLights?.emissionsIsOn ||
+                checkEngineLights?.protectIsOn || checkEngineLights?.stopIsOn;
+            } else if (Array.isArray(entry.faultCodes)) {
+              // Direct array format
+              faultCodesArray = entry.faultCodes;
+            }
+          }
+
+          // Determine check engine light status
+          const checkEngineLightOn = milStatus === true || milStatus === 'On' ||
+            (checkEngineLights && (checkEngineLights.warningIsOn || checkEngineLights.emissionsIsOn));
+
+          return {
+            vehicleId, // Already extracted at the top of the function
+            checkEngineLightOn: checkEngineLightOn || false,
+            faults: faultCodesArray,
+            lastUpdatedTime: entry.time || new Date().toISOString(),
+          };
         })
         .filter((entry: { vehicleId: string; checkEngineLightOn: boolean; faults: any[]; lastUpdatedTime: string } | null): entry is { vehicleId: string; checkEngineLightOn: boolean; faults: any[]; lastUpdatedTime: string } => entry !== null);
     }
-    
+
     // No data returned
     console.warn('[Samsara] Diagnostics: No data from endpoint', endpoint, '- response type:', typeof statsResult, 'keys:', statsResult ? Object.keys(statsResult) : 'null');
     return null;
@@ -755,7 +755,10 @@ export async function getSamsaraVehicleDiagnostics(
  * Note: The stats endpoint may not be available for all Samsara accounts/plans.
  * If unavailable, speed data can still be obtained from vehicle locations.
  */
-export async function getSamsaraVehicleStats(companyId?: string): Promise<SamsaraVehicleStats[] | null> {
+export async function getSamsaraVehicleStats(
+  vehicleIds?: string[],
+  companyId?: string
+): Promise<SamsaraVehicleStats[] | null> {
   // Only skip if explicitly disabled (not just missing)
   // This allows the feature to work by default
   if (process.env.SAMSARA_STATS_ENABLED === 'false') {
@@ -765,13 +768,16 @@ export async function getSamsaraVehicleStats(companyId?: string): Promise<Samsar
 
   // Samsara API limit: Maximum 3 stat types per request (or 1 type + 2 decorations = 4 total)
   // We need to make multiple requests to get all the data we need
-  
+
   try {
     // Request 1: Speed and engine data (most critical)
     const request1Types = ['ecuSpeedMph', 'engineStates', 'engineRpm'];
     const params1 = new URLSearchParams();
     params1.append('types', request1Types.join(','));
-    
+    if (vehicleIds && vehicleIds.length > 0) {
+      params1.append('vehicleIds', vehicleIds.join(','));
+    }
+
     const result1 = await samsaraRequest<SamsaraVehicleStats[] | { data?: SamsaraVehicleStats[] }>(
       `/fleet/vehicles/stats?${params1.toString()}`,
       {},
@@ -782,20 +788,27 @@ export async function getSamsaraVehicleStats(companyId?: string): Promise<Samsar
     const request2Types = ['fuelPercents', 'obdOdometerMeters'];
     const params2 = new URLSearchParams();
     params2.append('types', request2Types.join(','));
-    
+    if (vehicleIds && vehicleIds.length > 0) {
+      params2.append('vehicleIds', vehicleIds.join(','));
+    }
+
     const result2 = await samsaraRequest<SamsaraVehicleStats[] | { data?: SamsaraVehicleStats[] }>(
       `/fleet/vehicles/stats?${params2.toString()}`,
       {},
       companyId
     );
 
+
+
     // Combine results from both requests
     const stats1 = Array.isArray(result1) ? result1 : (result1?.data || []);
     const stats2 = Array.isArray(result2) ? result2 : (result2?.data || []);
-    
+
+
+
     // Merge stats by vehicleId (Samsara API returns 'id' at top level, not 'vehicleId')
     const statsMap = new Map<string, any>();
-    
+
     // Add stats from first request
     stats1.forEach((entry: any) => {
       // Samsara API returns 'id' at top level, not 'vehicleId'
@@ -804,7 +817,7 @@ export async function getSamsaraVehicleStats(companyId?: string): Promise<Samsar
         statsMap.set(vehicleId, { ...entry, vehicleId: vehicleId });
       }
     });
-    
+
     // Merge stats from second request
     stats2.forEach((entry: any) => {
       // Samsara API returns 'id' at top level, not 'vehicleId'
@@ -821,9 +834,9 @@ export async function getSamsaraVehicleStats(companyId?: string): Promise<Samsar
         });
       }
     });
-    
+
     const combinedStats = Array.from(statsMap.values());
-    
+
     if (combinedStats.length > 0) {
       console.log('[Samsara] Stats API returned', combinedStats.length, 'vehicles with telemetry');
       return combinedStats;
@@ -831,17 +844,17 @@ export async function getSamsaraVehicleStats(companyId?: string): Promise<Samsar
       console.log('[Samsara] Stats API returned no data - stats1:', stats1.length, 'stats2:', stats2.length);
     }
   } catch (error: any) {
-    if (error?.message?.includes('Invalid stat type') || 
-        error?.message?.includes('invalid') ||
-        error?.message?.includes('Must provide') ||
-        error?.message?.includes('restricted to 4 types')) {
+    if (error?.message?.includes('Invalid stat type') ||
+      error?.message?.includes('invalid') ||
+      error?.message?.includes('Must provide') ||
+      error?.message?.includes('restricted to 4 types')) {
       console.debug('[Samsara] Stats endpoint not available or stat types not supported');
       console.debug('[Samsara] Speed data will be obtained from vehicle locations instead');
       return null;
     }
     console.debug('[Samsara] Stats endpoint error:', error instanceof Error ? error.message : error);
   }
-  
+
   // Return null gracefully - speed can come from location data
   return null;
 }
@@ -875,7 +888,7 @@ export async function getSamsaraTrips(
   // Note: /fleet/trips doesn't exist in current API
   const limit = parseInt(process.env.SAMSARA_TRIPS_LIMIT || '3', 10);
   const params = new URLSearchParams();
-  
+
   // Add required filter: vehicleIds or driverIds
   if (vehicleIds && vehicleIds.length > 0) {
     // Batch vehicle IDs if more than 50 (API limit)
@@ -883,68 +896,68 @@ export async function getSamsaraTrips(
     for (let i = 0; i < vehicleIds.length; i += 50) {
       batches.push(vehicleIds.slice(i, i + 50));
     }
-    
+
     // Make requests for each batch and combine results
     const allTrips: SamsaraTrip[] = [];
-    
+
     for (const batch of batches) {
       const batchParams = new URLSearchParams();
       batchParams.append('vehicleIds', batch.join(','));
-      
+
       // Set time range (last 24 hours)
       const endTime = new Date();
       const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
       batchParams.append('startTime', startTime.toISOString());
       batchParams.append('endTime', endTime.toISOString());
       batchParams.append('limit', String(limit));
-      
+
       // Try new endpoint first: /trips (requires enablement)
       const result = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
         `/trips?${batchParams.toString()}`,
         {},
         companyId
       );
-      
+
       if (result) {
         const trips = Array.isArray(result) ? result : (result.data || []);
         allTrips.push(...trips);
       }
     }
-    
+
     if (allTrips.length > 0) {
       return allTrips;
     }
   } else if (driverIds && driverIds.length > 0) {
     // Filter by driver IDs
     params.append('driverIds', driverIds.join(','));
-    
+
     // Set time range (last 24 hours)
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
     params.append('startTime', startTime.toISOString());
     params.append('endTime', endTime.toISOString());
     params.append('limit', String(limit));
-    
+
     // Try new endpoint first: /trips (requires enablement)
     const result = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
       `/trips?${params.toString()}`,
       {},
       companyId
     );
-    
+
     if (result) {
       if (Array.isArray(result)) return result;
       if (Array.isArray(result.data)) return result.data;
     }
   }
-  
+
   // Fallback to legacy endpoint if new one doesn't work
   // Legacy endpoint also requires vehicleIds or driverIds
   if (vehicleIds && vehicleIds.length > 0) {
     try {
       const endTime = new Date();
       const startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
-      
+
       const legacyResult = await samsaraRequest<SamsaraTrip[] | { data?: SamsaraTrip[] }>(
         '/v1/fleet/trips',
         {
@@ -1008,7 +1021,7 @@ export async function getSamsaraCameraMedia(companyId?: string): Promise<Samsara
       {},
       companyId
     );
-    
+
     if (mediaResult) {
       // Normalize the response to always have data property
       let result: { data?: SamsaraCameraMedia[] } | null = null;
@@ -1017,7 +1030,7 @@ export async function getSamsaraCameraMedia(companyId?: string): Promise<Samsara
       } else if (mediaResult && typeof mediaResult === 'object' && 'data' in mediaResult) {
         result = mediaResult;
       }
-      
+
       if (result?.data) {
         return result.data;
       }
@@ -1039,7 +1052,7 @@ export async function getSamsaraCameraMedia(companyId?: string): Promise<Samsara
   try {
     const endTime = new Date().toISOString();
     const startTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    
+
     const result = await samsaraRequest<{ data?: SamsaraCameraMedia[] }>(
       `/safety/media?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
       {},
@@ -1076,7 +1089,7 @@ export async function syncSamsaraHOSToDriver(
     if (!hosStatuses || hosStatuses.length === 0) return false;
 
     const currentStatus = hosStatuses[0];
-    
+
     // Map Samsara HOS status to our driver status
     const statusMap: Record<string, string> = {
       'offDuty': 'OFF_DUTY',

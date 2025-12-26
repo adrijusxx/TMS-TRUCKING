@@ -38,22 +38,24 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Get maintenance records to calculate schedules
-    // Build where clause - only filter by status if column exists
-    const maintenanceWhere: any = {
-      truck: {
+    // Get custom/override schedules from DB
+    const dbSchedules = await prisma.maintenanceSchedule.findMany({
+      where: {
         companyId: session.user.companyId,
+        // We fetch ALL (active and inactive) to know which defaults to hide
+        isActive: true,
         deletedAt: null,
+        ...(truckId ? { truckId } : {}),
       },
-      truckId: { in: trucks.map((t) => t.id) },
-    };
-    
-    // Only filter by status if the column exists (will be added by migration)
-    // For now, filter by date being not null (completed records have dates)
-    maintenanceWhere.date = { not: null };
-    
+    });
+
+    // Get maintenance records to calculate due dates
     const maintenanceRecords = await prisma.maintenanceRecord.findMany({
-      where: maintenanceWhere,
+      where: {
+        companyId: session.user.companyId,
+        truckId: { in: trucks.map((t) => t.id) },
+        status: 'COMPLETED',
+      },
       select: {
         id: true,
         truckId: true,
@@ -66,30 +68,42 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Define standard maintenance intervals (in miles and months)
-    const maintenanceIntervals: Record<string, { miles: number; months: number }> = {
-      OIL_CHANGE: { miles: 15000, months: 6 },
-      TIRE_ROTATION: { miles: 10000, months: 6 },
-      BRAKE_SERVICE: { miles: 50000, months: 12 },
-      INSPECTION: { miles: 25000, months: 12 },
-      PMI: { miles: 30000, months: 6 },
-      ENGINE: { miles: 100000, months: 24 },
-      TRANSMISSION: { miles: 60000, months: 18 },
-      REPAIR: { miles: 0, months: 0 }, // No schedule for repairs
-      OTHER: { miles: 0, months: 0 },
+    // Default intervals
+    const defaultIntervals: Record<string, { miles: number; months: number }> = {
+      PM_A: { miles: 15000, months: 6 },
+      PM_B: { miles: 30000, months: 12 },
+      TIRES: { miles: 50000, months: 24 },
+      REPAIR: { miles: 0, months: 0 },
     };
 
     const now = new Date();
     const schedules: any[] = [];
 
-    // Create schedules for each truck and maintenance type
     trucks.forEach((truck) => {
-      Object.entries(maintenanceIntervals).forEach(([type, interval]) => {
-        if (interval.miles === 0 && interval.months === 0) return; // Skip types without intervals
+      // Get all unique types (defaults + custom DB types)
+      const types = Array.from(new Set([
+        ...Object.keys(defaultIntervals),
+        ...dbSchedules.filter((s: any) => s.truckId === truck.id).map((s: any) => s.maintenanceType)
+      ]));
 
-        // Find last service of this type for this truck
+      types.forEach((type: any) => {
+        // Find if there's a custom schedule for this truck and type
+        const customSchedule = dbSchedules.find(
+          (s: any) => s.truckId === truck.id && s.maintenanceType === type
+        );
+
+        // If an override exists and it's marked as inactive, hide this schedule entirely
+        if (customSchedule && customSchedule.active === false) return;
+
+        const interval = customSchedule
+          ? { miles: customSchedule.intervalMiles, months: customSchedule.intervalMonths }
+          : defaultIntervals[type as string];
+
+        if (!interval || (interval.miles === 0 && interval.months === 0)) return;
+
+        // Find last service
         const lastService = maintenanceRecords.find(
-          (r) => r.truckId === truck.id && r.type === type
+          (r: any) => r.truckId === truck.id && r.type === type
         );
 
         const lastServiceDate = lastService?.date
@@ -97,24 +111,19 @@ export async function GET(request: NextRequest) {
           : truck.lastMaintenance || null;
         const lastServiceMiles = lastService?.odometer || truck.odometerReading || 0;
 
-        // Calculate next service date and mileage
         let nextServiceDate: Date | null = null;
         let nextServiceMiles: number | null = null;
 
         if (lastServiceDate) {
-          // Calculate next service date (months)
           if (interval.months > 0) {
             nextServiceDate = new Date(lastServiceDate);
             nextServiceDate.setMonth(nextServiceDate.getMonth() + interval.months);
           }
-
-          // Calculate next service mileage
           if (interval.miles > 0) {
             nextServiceMiles = lastServiceMiles + interval.miles;
           }
         }
 
-        // Determine if overdue
         let isOverdue = false;
         let daysUntilDue: number | null = null;
 
@@ -124,17 +133,16 @@ export async function GET(request: NextRequest) {
           isOverdue = daysDiff > 0;
         } else if (nextServiceMiles) {
           const milesRemaining = nextServiceMiles - truck.odometerReading;
-          daysUntilDue = null; // Can't calculate days from miles alone
           isOverdue = milesRemaining < 0;
         }
 
-        // Filter by status
         if (status === 'overdue' && !isOverdue) return;
         if (status === 'due_soon' && (daysUntilDue === null || daysUntilDue > 7 || isOverdue)) return;
         if (status === 'upcoming' && (isOverdue || (daysUntilDue !== null && daysUntilDue <= 7))) return;
 
         schedules.push({
-          id: `${truck.id}-${type}`,
+          id: customSchedule?.id || `default-${truck.id}-${type}`,
+          isCustom: !!customSchedule,
           truckId: truck.id,
           truck: {
             id: truck.id,
@@ -157,34 +165,68 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Sort by overdue first, then by due date
     schedules.sort((a, b) => {
       if (a.isOverdue && !b.isOverdue) return -1;
       if (!a.isOverdue && b.isOverdue) return 1;
-      if (a.daysUntilDue !== null && b.daysUntilDue !== null) {
-        return a.daysUntilDue - b.daysUntilDue;
-      }
+      if (a.daysUntilDue !== null && b.daysUntilDue !== null) return a.daysUntilDue - b.daysUntilDue;
       return 0;
     });
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        schedules,
-      },
-    });
+    return NextResponse.json({ success: true, data: { schedules } });
   } catch (error: any) {
     console.error('Error fetching maintenance schedules:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to fetch maintenance schedules',
-        },
-      },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message } },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * POST /api/fleet/maintenance/schedules
+ * Create or update a maintenance schedule
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user?.companyId) {
+      return NextResponse.json({ success: false, error: { code: 'UNAUTHORIZED' } }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { truckId, maintenanceType, intervalMiles, intervalMonths } = body;
+
+    if (!truckId || !maintenanceType) {
+      return NextResponse.json({ success: false, error: { message: 'Missing truckId or maintenanceType' } }, { status: 400 });
+    }
+
+    // Upsert custom schedule
+    const schedule = await prisma.maintenanceSchedule.upsert({
+      where: {
+        // Note: In a real scenario, we might want a compound unique index on truckId + maintenanceType
+        // For now, we'll find existing first or create
+        id: body.id || 'new-id',
+      },
+      update: {
+        intervalMiles: parseInt(intervalMiles) || 0,
+        intervalMonths: parseInt(intervalMonths) || 0,
+        active: body.active !== undefined ? body.active : true,
+        isActive: true,
+      },
+      create: {
+        truckId,
+        companyId: session.user.companyId,
+        maintenanceType,
+        intervalMiles: parseInt(intervalMiles) || 0,
+        intervalMonths: parseInt(intervalMonths) || 0,
+        active: body.active !== undefined ? body.active : true,
+      },
+    });
+
+    return NextResponse.json({ success: true, data: schedule });
+  } catch (error: any) {
+    console.error('Error saving schedule:', error);
+    return NextResponse.json({ success: false, error: { message: error.message } }, { status: 500 });
   }
 }
 

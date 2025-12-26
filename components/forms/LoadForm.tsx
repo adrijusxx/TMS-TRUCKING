@@ -32,7 +32,7 @@ import AILoadImporter from '@/components/loads/AILoadImporter';
 import LoadStopsDisplay from '@/components/loads/LoadStopsDisplay';
 import EditableLoadStops from '@/components/loads/EditableLoadStops';
 import AddStopDialog from '@/components/loads/AddStopDialog';
-import CreateCustomerDialog from '@/components/customers/CreateCustomerDialog';
+import CustomerSheet from '@/components/customers/CustomerSheet';
 import CustomerCombobox from '@/components/customers/CustomerCombobox';
 import DriverCombobox from '@/components/drivers/DriverCombobox';
 import TruckCombobox from '@/components/trucks/TruckCombobox';
@@ -99,19 +99,23 @@ interface LoadFormProps {
   initialData?: any;
   loadId?: string;
   onSuccess?: () => void;
+  onCancel?: () => void;
+  isSheet?: boolean;
 }
 
-export default function LoadForm({ 
+export default function LoadForm({
   initialData,
   loadId,
-  onSuccess 
+  onSuccess,
+  onCancel,
+  isSheet = false
 }: LoadFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [isAIDialogOpen, setIsAIDialogOpen] = useState(false);
-  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [isCustomerSheetOpen, setIsCustomerSheetOpen] = useState(false);
   const [isAddStopDialogOpen, setIsAddStopDialogOpen] = useState(false);
   const [createdLoadId, setCreatedLoadId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -262,7 +266,7 @@ export default function LoadForm({
   const stops = watch('stops');
   const isMultiStop = stops && Array.isArray(stops) && stops.length > 0;
   const selectedDriverId = watch('driverId');
-  
+
   // Watch form values for mileage calculation
   const pickupCity = watch('pickupCity');
   const pickupState = watch('pickupState');
@@ -312,18 +316,18 @@ export default function LoadForm({
 
   const calculateMileage = async () => {
     if (!isCreateMode) return;
-    
+
     try {
       setIsCalculatingMiles(true);
       setError(null);
 
       if (isMultiStop && stops && stops.length > 0) {
         const sortedStops = [...stops].sort((a: any, b: any) => a.sequence - b.sequence);
-        
+
         const invalidStops = sortedStops.filter(
           (stop: any) => !stop.city || !stop.state
         );
-        
+
         if (invalidStops.length > 0) {
           throw new Error('All stops must have city and state for mileage calculation');
         }
@@ -334,7 +338,7 @@ export default function LoadForm({
         for (let i = 0; i < sortedStops.length - 1; i++) {
           const currentStop = sortedStops[i];
           const nextStop = sortedStops[i + 1];
-          
+
           const distance = await calculateDistance(
             { city: currentStop.city, state: currentStop.state },
             { city: nextStop.city, state: nextStop.state }
@@ -386,11 +390,11 @@ export default function LoadForm({
   useEffect(() => {
     if (!isCreateMode) return;
     if (isCalculatingMiles) return;
-    
+
     const hasMiles = (loadedMiles !== undefined && loadedMiles !== null && !isNaN(loadedMiles)) ||
-                     (emptyMiles !== undefined && emptyMiles !== null && !isNaN(emptyMiles)) ||
-                     (totalMiles !== undefined && totalMiles !== null && !isNaN(totalMiles));
-    
+      (emptyMiles !== undefined && emptyMiles !== null && !isNaN(emptyMiles)) ||
+      (totalMiles !== undefined && totalMiles !== null && !isNaN(totalMiles));
+
     if (hasMiles) return;
 
     if (stops && stops.length > 1) {
@@ -403,7 +407,7 @@ export default function LoadForm({
         }, 1500);
         return () => clearTimeout(timer);
       }
-    } 
+    }
     else if (pickupCity && pickupState && deliveryCity && deliveryState && (!stops || stops.length === 0)) {
       const timer = setTimeout(() => {
         calculateMileage().catch((err) => {
@@ -419,7 +423,7 @@ export default function LoadForm({
     mutationFn: createLoad,
     onSuccess: async (data) => {
       const newLoadId = data.data.id;
-      
+
       if (pendingFiles.length > 0) {
         try {
           await Promise.all(
@@ -433,12 +437,12 @@ export default function LoadForm({
               formData.append('fileUrl', `/uploads/${Date.now()}-${file.name}`);
               formData.append('fileSize', file.size.toString());
               formData.append('mimeType', file.type);
-              
+
               const response = await fetch(apiUrl('/api/documents/upload'), {
                 method: 'POST',
                 body: formData,
               });
-              
+
               if (!response.ok) {
                 throw new Error(`Failed to upload ${file.name}`);
               }
@@ -450,7 +454,7 @@ export default function LoadForm({
           toast.error('Load created but some files failed to upload');
         }
       }
-      
+
       queryClient.invalidateQueries({ queryKey: ['loads'] });
       if (onSuccess) {
         onSuccess();
@@ -481,16 +485,16 @@ export default function LoadForm({
 
   const onSubmit = async (data: CreateLoadInput | UpdateLoadInput) => {
     setError(null);
-    
+
     if (isCreateMode) {
       const createData = data as CreateLoadInput;
-      
+
       if (!createData.customerId || createData.customerId.trim() === '') {
         setError('Please select a customer before submitting');
         toast.error('Customer is required');
         return;
       }
-      
+
       if (createData.stops && Array.isArray(createData.stops) && createData.stops.length > 0) {
         const normalizedStops = createData.stops.map((stop: any) => {
           const normalized: any = {
@@ -501,7 +505,7 @@ export default function LoadForm({
             state: stop.state?.trim().toUpperCase().slice(0, 2) || '',
             zip: stop.zip?.trim() || '',
           };
-          
+
           if (stop.company) normalized.company = stop.company.trim();
           if (stop.phone) normalized.phone = stop.phone.trim();
           if (stop.contactName) normalized.contactName = stop.contactName.trim();
@@ -511,44 +515,44 @@ export default function LoadForm({
           if (stop.items) normalized.items = stop.items;
           if (stop.totalPieces) normalized.totalPieces = stop.totalPieces;
           if (stop.totalWeight) normalized.totalWeight = stop.totalWeight;
-          
+
           if (stop.earliestArrival) {
             normalized.earliestArrival = stop.earliestArrival instanceof Date
               ? stop.earliestArrival.toISOString()
               : typeof stop.earliestArrival === 'string'
-              ? stop.earliestArrival
-              : undefined;
+                ? stop.earliestArrival
+                : undefined;
           }
           if (stop.latestArrival) {
             normalized.latestArrival = stop.latestArrival instanceof Date
               ? stop.latestArrival.toISOString()
               : typeof stop.latestArrival === 'string'
-              ? stop.latestArrival
-              : undefined;
+                ? stop.latestArrival
+                : undefined;
           }
-          
+
           return normalized;
         });
-        
+
         const invalidStops = normalizedStops.filter(
           (stop: any) => !stop.address || !stop.city || !stop.state || stop.state.length !== 2 || !stop.zip || stop.zip.length < 5
         );
-        
+
         if (invalidStops.length > 0) {
           const invalidSequences = invalidStops.map((s: any) => s.sequence).join(', ');
           setError(`Stops ${invalidSequences} are missing required fields (address, city, state, zip)`);
           toast.error(`Please complete all required fields for stops: ${invalidSequences}`);
           return;
         }
-        
+
         createData.stops = normalizedStops;
       }
-      
+
       const submissionData = {
         ...createData,
         ...(hasMultipleMcAccess && selectedMcNumberId && { mcNumberId: selectedMcNumberId }),
       };
-      
+
       createMutation.mutate(submissionData as CreateLoadInput);
     } else {
       updateMutation.mutate(data as UpdateLoadInput);
@@ -558,18 +562,18 @@ export default function LoadForm({
   // Handle AI data extraction (create mode only)
   const handleDataExtracted = async (data: Partial<CreateLoadInput>, pdfFile?: File) => {
     if (!isCreateMode) return;
-    
+
     if (pdfFile) {
       setPendingFiles((prev) => [...prev, pdfFile]);
       toast.info(`PDF file "${pdfFile.name}" will be attached after load creation`);
     }
-    
+
     if (data.customerId) {
       await refetchCustomers();
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       await new Promise(resolve => setTimeout(resolve, 500));
     }
-    
+
     if (data.loadedMiles !== undefined || data.emptyMiles !== undefined || data.totalMiles !== undefined) {
       if (data.loadedMiles !== undefined && typeof data.loadedMiles === 'number' && !isNaN(data.loadedMiles)) {
         setValue('loadedMiles', data.loadedMiles, { shouldValidate: false });
@@ -606,17 +610,17 @@ export default function LoadForm({
       const updatedCustomers = queryClient.getQueryData(['customers']) as any;
       const allCustomers = updatedCustomers?.data || customersData?.data || customers;
       const customerExists = allCustomers.some((c: any) => c.id === data.customerId);
-      
+
       if (customerExists) {
         setValue('customerId', data.customerId, { shouldValidate: false });
       } else {
         await refetchCustomers();
         await new Promise(resolve => setTimeout(resolve, 300));
-        
+
         const retryCustomers = queryClient.getQueryData(['customers']) as any;
         const retryAllCustomers = retryCustomers?.data || [];
         const retryExists = retryAllCustomers.some((c: any) => c.id === data.customerId);
-        
+
         if (retryExists) {
           setValue('customerId', data.customerId, { shouldValidate: false });
         } else {
@@ -625,39 +629,39 @@ export default function LoadForm({
         }
       }
     }
-    
+
     if (data.loadNumber) setValue('loadNumber', data.loadNumber, { shouldValidate: false });
     if (data.loadType) setValue('loadType', data.loadType as LoadType, { shouldValidate: false });
     if (data.equipmentType) setValue('equipmentType', data.equipmentType as EquipmentType, { shouldValidate: false });
-    
+
     if (data.weight !== undefined && data.weight !== null) {
       const weight = typeof data.weight === 'string' ? parseFloat(data.weight) : data.weight;
       if (!isNaN(weight) && weight > 0) {
         setValue('weight', weight, { shouldValidate: false });
       }
     }
-    
+
     if (data.revenue !== undefined && data.revenue !== null) {
       const revenue = typeof data.revenue === 'string' ? parseFloat(data.revenue) : data.revenue;
       if (!isNaN(revenue) && revenue >= 0) {
         setValue('revenue', revenue, { shouldValidate: false });
       }
     }
-    
+
     if (data.pieces !== undefined && data.pieces !== null) {
       const pieces = typeof data.pieces === 'string' ? parseInt(data.pieces) : data.pieces;
       if (!isNaN(pieces) && pieces > 0) {
         setValue('pieces', pieces, { shouldValidate: false });
       }
     }
-    
+
     if (data.commodity) setValue('commodity', data.commodity, { shouldValidate: false });
     if (data.dispatchNotes) setValue('dispatchNotes', data.dispatchNotes, { shouldValidate: false });
     if (data.hazmat !== undefined) {
       const hazmatValue = typeof data.hazmat === 'boolean' ? data.hazmat : data.hazmat === 'true' || data.hazmat === true;
       setValue('hazmat', hazmatValue, { shouldValidate: false });
     }
-    
+
     if (data.stops && Array.isArray(data.stops) && data.stops.length > 0) {
       setValue('stops', data.stops, { shouldValidate: false });
     } else {
@@ -672,7 +676,7 @@ export default function LoadForm({
       if (data.deliveryState) setValue('deliveryState', data.deliveryState, { shouldValidate: false });
       if (data.deliveryZip) setValue('deliveryZip', data.deliveryZip, { shouldValidate: false });
     }
-    
+
     setIsAIDialogOpen(false);
   };
 
@@ -689,14 +693,15 @@ export default function LoadForm({
     }
   };
 
-  const handleCustomerCreated = async (customerId: string) => {
+  const handleCustomerCreated = async (customerId?: string) => {
+    if (!customerId) return;
     await queryClient.invalidateQueries({ queryKey: ['customers'] });
     const result = await refetchCustomers();
     await new Promise(resolve => setTimeout(resolve, 300));
-    
+
     const latestCustomers = result.data?.data || customersData?.data || [];
     const customerExists = latestCustomers.some((c: any) => c.id === customerId);
-    
+
     if (customerExists) {
       setValue('customerId', customerId, { shouldValidate: true });
       toast.success('Customer created and selected');
@@ -719,10 +724,10 @@ export default function LoadForm({
 
   const handleAddStop = (stop: Omit<any, 'sequence'>) => {
     const currentStops = watch('stops') || [];
-    const nextSequence = currentStops.length > 0 
-      ? Math.max(...currentStops.map((s: any) => s.sequence)) + 1 
+    const nextSequence = currentStops.length > 0
+      ? Math.max(...currentStops.map((s: any) => s.sequence)) + 1
       : 1;
-    
+
     const newStop: any = {
       stopType: stop.stopType,
       sequence: nextSequence,
@@ -732,22 +737,22 @@ export default function LoadForm({
       zip: stop.zip || '',
       company: stop.company,
       phone: stop.phone,
-      earliestArrival: stop.earliestArrival instanceof Date 
-        ? stop.earliestArrival.toISOString() 
-        : typeof stop.earliestArrival === 'string' 
-          ? stop.earliestArrival 
+      earliestArrival: stop.earliestArrival instanceof Date
+        ? stop.earliestArrival.toISOString()
+        : typeof stop.earliestArrival === 'string'
+          ? stop.earliestArrival
           : undefined,
-      latestArrival: stop.latestArrival instanceof Date 
-        ? stop.latestArrival.toISOString() 
-        : typeof stop.latestArrival === 'string' 
-          ? stop.latestArrival 
+      latestArrival: stop.latestArrival instanceof Date
+        ? stop.latestArrival.toISOString()
+        : typeof stop.latestArrival === 'string'
+          ? stop.latestArrival
           : undefined,
       contactName: stop.contactName,
       contactPhone: stop.contactPhone,
       notes: stop.notes,
       specialInstructions: stop.specialInstructions,
     };
-    
+
     setValue('stops', [...currentStops, newStop], { shouldValidate: false });
     toast.success('Stop added successfully');
   };
@@ -765,8 +770,8 @@ export default function LoadForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMcNumber, isCreateMode]);
 
-  const cancelUrl = isEditMode && editLoadId 
-    ? `/dashboard/loads/${editLoadId}` 
+  const cancelUrl = isEditMode && editLoadId
+    ? `/dashboard/loads/${editLoadId}`
     : '/dashboard/loads';
 
   return (
@@ -792,26 +797,38 @@ export default function LoadForm({
       {/* Header Section */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link href={cancelUrl}>
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+          {onCancel ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onCancel}
+            >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-          </Link>
+          ) : (
+            <Link href={cancelUrl}>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+          )}
           <div>
             <p className="text-sm text-muted-foreground">
-              {isCreateMode 
+              {isCreateMode
                 ? 'Enter load details to create a new shipment'
                 : 'Update load details'}
             </p>
           </div>
         </div>
-        
+
         {/* Quick Actions (create mode only) */}
         {isCreateMode && (
           <div className="flex items-center gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               size="sm"
               onClick={() => setIsAIDialogOpen(true)}
               className="h-8 text-xs"
@@ -832,9 +849,9 @@ export default function LoadForm({
                 }}
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
               />
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 size="sm"
                 className="h-8 text-xs relative"
               >
@@ -974,12 +991,12 @@ export default function LoadForm({
           </Card>
         )}
 
-        {/* Customer Creation Dialog */}
-        <CreateCustomerDialog
-          open={isCustomerDialogOpen}
-          onOpenChange={setIsCustomerDialogOpen}
-          onCustomerCreated={handleCustomerCreated}
-          quickCreate={true}
+        {/* Customer Creation Sheet */}
+        <CustomerSheet
+          open={isCustomerSheetOpen}
+          onOpenChange={setIsCustomerSheetOpen}
+          onSuccess={handleCustomerCreated}
+          mode="create"
         />
 
         {/* Add Stop Dialog (create mode only) */}
@@ -991,11 +1008,11 @@ export default function LoadForm({
             nextSequence={(stops?.length || 0) + 1}
             existingStops={(stops || []).map((stop: any) => ({
               ...stop,
-              earliestArrival: stop.earliestArrival instanceof Date 
-                ? stop.earliestArrival.toISOString() 
+              earliestArrival: stop.earliestArrival instanceof Date
+                ? stop.earliestArrival.toISOString()
                 : stop.earliestArrival,
-              latestArrival: stop.latestArrival instanceof Date 
-                ? stop.latestArrival.toISOString() 
+              latestArrival: stop.latestArrival instanceof Date
+                ? stop.latestArrival.toISOString()
                 : stop.latestArrival,
             }))}
           />
@@ -1189,8 +1206,8 @@ export default function LoadForm({
               Cancel
             </Button>
           </Link>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             size="sm"
             disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}
           >
@@ -1234,7 +1251,7 @@ export default function LoadForm({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setIsCustomerDialogOpen(true)}
+                  onClick={() => setIsCustomerSheetOpen(true)}
                   className="h-6 text-xs px-2"
                 >
                   <Plus className="h-3 w-3 mr-1" />
@@ -1254,7 +1271,7 @@ export default function LoadForm({
                   setValue('customerId', '', { shouldValidate: true });
                 }
               }}
-              onNewCustomer={() => setIsCustomerDialogOpen(true)}
+              onNewCustomer={() => setIsCustomerSheetOpen(true)}
               placeholder="Search customer by name, number, or email..."
               className="h-8 text-sm"
               customers={customers}
@@ -1708,7 +1725,7 @@ export default function LoadForm({
                 value={loadedMiles !== undefined && loadedMiles !== null && !isNaN(loadedMiles) ? loadedMiles : ''}
                 placeholder="Auto-calculated"
                 className="h-8 text-sm"
-                {...register('loadedMiles', { 
+                {...register('loadedMiles', {
                   valueAsNumber: true,
                   setValueAs: (v) => {
                     if (v === '' || v === null || v === undefined) return undefined;
@@ -1732,7 +1749,7 @@ export default function LoadForm({
                 value={emptyMiles !== undefined && emptyMiles !== null && !isNaN(emptyMiles) ? emptyMiles : ''}
                 placeholder="Auto-calculated"
                 className="h-8 text-sm"
-                {...register('emptyMiles', { 
+                {...register('emptyMiles', {
                   valueAsNumber: true,
                   setValueAs: (v) => {
                     if (v === '' || v === null || v === undefined) return undefined;
@@ -1757,7 +1774,7 @@ export default function LoadForm({
                   value={totalMiles !== undefined && totalMiles !== null && !isNaN(totalMiles) ? totalMiles : ''}
                   placeholder="Auto-calculated"
                   className="h-8 text-sm"
-                  {...register('totalMiles', { 
+                  {...register('totalMiles', {
                     valueAsNumber: true,
                     setValueAs: (v) => {
                       if (v === '' || v === null || v === undefined) return undefined;

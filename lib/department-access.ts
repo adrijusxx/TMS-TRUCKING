@@ -1,5 +1,5 @@
 import type { Permission, UserRole } from './permissions';
-import { hasPermission, hasPermissionAsync } from './permissions';
+import { hasPermission } from './permissions';
 
 /**
  * Department definitions mapping route prefixes to department permissions
@@ -13,7 +13,6 @@ const departmentRoutes: Record<string, Permission> = {
   '/dashboard/trucks': 'departments.fleet.view',
   '/dashboard/trailers': 'departments.fleet.view',
   '/dashboard/maintenance': 'departments.fleet.view',
-  '/dashboard/breakdowns': 'departments.fleet.view',
   '/dashboard/inspections': 'departments.fleet.view',
   '/dashboard/fuel': 'departments.fleet.view',
   '/dashboard/vendors': 'departments.fleet.view',
@@ -50,12 +49,12 @@ function hasDepartmentAccess(role: UserRole, department: Permission): boolean {
  */
 export function hasRouteAccess(role: UserRole, pathname: string): boolean {
   const departmentPermission = getDepartmentForRoute(pathname);
-  
+
   // If no department permission is required, allow access
   if (!departmentPermission) {
     return true;
   }
-  
+
   // Check if role has the department permission
   return hasDepartmentAccess(role, departmentPermission);
 }
@@ -63,23 +62,7 @@ export function hasRouteAccess(role: UserRole, pathname: string): boolean {
 /**
  * Check if a role has access to a route based on its pathname (async - checks database)
  */
-async function hasRouteAccessAsync(role: UserRole, pathname: string): Promise<boolean> {
-  const departmentPermission = getDepartmentForRoute(pathname);
-  
-  // If no department permission is required, allow access
-  if (!departmentPermission) {
-    return true;
-  }
-  
-  // Check if role has the department permission (async - checks database)
-  try {
-    return await hasPermissionAsync(role, departmentPermission);
-  } catch (error) {
-    console.error('Error checking department access:', error);
-    // Fallback to sync version
-    return hasDepartmentAccess(role, departmentPermission);
-  }
-}
+
 
 /**
  * Get all department permissions

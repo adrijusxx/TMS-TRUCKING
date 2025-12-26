@@ -33,13 +33,29 @@ import {
   Plus,
   TrendingUp,
   AlertCircle,
+  History,
+  MoreVertical,
+  Edit,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import MaintenanceHistorySheet from '@/components/maintenance/MaintenanceHistorySheet';
+import MaintenanceScheduleSheet from '@/components/maintenance/MaintenanceScheduleSheet';
 
 interface MaintenanceSchedule {
   id: string;
+  isCustom: boolean;
   truckId: string;
   truck: {
     id: string;
@@ -97,6 +113,9 @@ function getMaintenanceTypeColor(type: string): string {
     TRANSMISSION: 'bg-indigo-500 text-white',
     REPAIR: 'bg-gray-500 text-white',
     OTHER: 'bg-slate-500 text-white',
+    PM_A: 'bg-blue-600 text-white',
+    PM_B: 'bg-purple-600 text-white',
+    TIRES: 'bg-green-600 text-white',
   };
   return colors[type] || 'bg-gray-500 text-white';
 }
@@ -109,6 +128,11 @@ export default function PreventiveMaintenance() {
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<'all' | 'overdue' | 'due_soon' | 'upcoming'>('all');
+  const [historyTruck, setHistoryTruck] = useState<{ id: string, number: string } | null>(null);
+  const [scheduleModal, setScheduleModal] = useState<{ open: boolean, truckId: string, initialData?: any }>({
+    open: false,
+    truckId: '',
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['maintenanceSchedules', statusFilter],
@@ -121,6 +145,38 @@ export default function PreventiveMaintenance() {
   const { data: statsData } = useQuery({
     queryKey: ['maintenanceStats'],
     queryFn: fetchMaintenanceStats,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(apiUrl(`/api/fleet/maintenance/schedules/${id}`), {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete schedule');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenanceSchedules'] });
+      toast.success('Schedule removed');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const hideMutation = useMutation({
+    mutationFn: async (data: { id?: string, truckId: string, maintenanceType: string, active: boolean }) => {
+      const response = await fetch(apiUrl('/api/fleet/maintenance/schedules'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to update schedule status');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenanceSchedules'] });
+      toast.success('Schedule status updated');
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const schedules: MaintenanceSchedule[] = data?.data?.schedules || [];
@@ -259,7 +315,7 @@ export default function PreventiveMaintenance() {
                     <TableHead>Last Service</TableHead>
                     <TableHead>Next Service</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -326,19 +382,18 @@ export default function PreventiveMaintenance() {
                             )}
                             {schedule.daysUntilDue !== null && (
                               <div
-                                className={`text-xs mt-1 ${
-                                  schedule.isOverdue
-                                    ? 'text-red-600 font-semibold'
-                                    : schedule.daysUntilDue <= 7
+                                className={`text-xs mt-1 ${schedule.isOverdue
+                                  ? 'text-red-600 font-semibold'
+                                  : schedule.daysUntilDue <= 7
                                     ? 'text-yellow-600'
                                     : 'text-muted-foreground'
-                                }`}
+                                  }`}
                               >
                                 {schedule.isOverdue
                                   ? 'OVERDUE'
                                   : schedule.daysUntilDue === 0
-                                  ? 'Due today'
-                                  : `${schedule.daysUntilDue} days`}
+                                    ? 'Due today'
+                                    : `${schedule.daysUntilDue} days`}
                               </div>
                             )}
                           </div>
@@ -361,12 +416,64 @@ export default function PreventiveMaintenance() {
                           <Badge variant="outline">Upcoming</Badge>
                         )}
                       </TableCell>
-                      <TableCell>
-                        <Link href={`/dashboard/maintenance?truckId=${schedule.truck.id}`}>
-                          <Button variant="ghost" size="sm">
-                            View History
-                          </Button>
-                        </Link>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuLabel>Schedule Actions</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => setHistoryTruck({ id: schedule.truckId, number: schedule.truck.truckNumber })}
+                            >
+                              <History className="h-4 w-4 mr-2" />
+                              View History
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => setScheduleModal({ open: true, truckId: schedule.truckId, initialData: schedule })}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              {schedule.isCustom ? 'Edit Custom' : 'Customize'}
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuItem
+                              className="text-destructive cursor-pointer"
+                              onClick={() => {
+                                if (confirm('Hide this schedule? You can re-enable it by customizing intervals.')) {
+                                  hideMutation.mutate({
+                                    id: schedule.isCustom ? schedule.id : undefined,
+                                    truckId: schedule.truckId,
+                                    maintenanceType: schedule.maintenanceType,
+                                    active: false
+                                  });
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete/Hide Schedule
+                            </DropdownMenuItem>
+
+                            {schedule.isCustom && (
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  if (confirm('Revert to company default schedule for this service?')) {
+                                    deleteMutation.mutate(schedule.id);
+                                  }
+                                }}
+                              >
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Revert to Default
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -376,7 +483,22 @@ export default function PreventiveMaintenance() {
           )}
         </CardContent>
       </Card>
-    </div>
+
+      {/* History Sidebar */}
+      <MaintenanceHistorySheet
+        open={!!historyTruck}
+        onOpenChange={(open) => !open && setHistoryTruck(null)}
+        truckId={historyTruck?.id || ''}
+        truckNumber={historyTruck?.number || ''}
+      />
+
+      {/* Schedule Customization Sheet */}
+      <MaintenanceScheduleSheet
+        open={scheduleModal.open}
+        onOpenChange={(open) => setScheduleModal(prev => ({ ...prev, open }))}
+        truckId={scheduleModal.truckId}
+        initialData={scheduleModal.initialData}
+      />
+    </div >
   );
 }
-

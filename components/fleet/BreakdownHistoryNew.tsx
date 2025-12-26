@@ -83,19 +83,19 @@ export default function BreakdownHistoryNew() {
       data: result.data?.breakdowns || result.data || [],
       meta: result.data?.pagination
         ? {
-            totalCount: result.data.pagination.total,
-            totalPages: result.data.pagination.totalPages,
-            page: result.data.pagination.page,
-            pageSize: result.data.pagination.limit,
-          }
+          totalCount: result.data.pagination.total,
+          totalPages: result.data.pagination.totalPages,
+          page: result.data.pagination.page,
+          pageSize: result.data.pagination.limit,
+        }
         : result.meta
-        ? {
+          ? {
             totalCount: result.meta.total,
             totalPages: result.meta.totalPages,
             page: result.meta.page,
             pageSize: result.meta.limit,
           }
-        : {
+          : {
             totalCount: result.data?.length || 0,
             totalPages: 1,
             page: params.page || 1,
@@ -106,7 +106,7 @@ export default function BreakdownHistoryNew() {
 
   const rowActions = (row: BreakdownData) => (
     <div className="flex items-center gap-2">
-      <Link href={`/dashboard/breakdowns/${row.id}`}>
+      <Link href={`/dashboard/fleet`}>
         <Button variant="ghost" size="sm">
           View
         </Button>

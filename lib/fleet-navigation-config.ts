@@ -11,6 +11,7 @@ import {
   Wifi,
   Gauge,
   LayoutDashboard,
+  BookOpen,
 } from 'lucide-react';
 
 // Quick access link to main dashboard
@@ -54,10 +55,10 @@ export const fleetNavigationSections = [
     colorScheme: 'red' as const,
     items: [
       {
-        name: 'All Breakdowns',
-        href: '/dashboard/fleet/breakdowns',
-        icon: AlertTriangle,
-        description: 'View and manage all breakdown cases - active and historical. Filter, search, and analyze breakdown patterns to identify recurring issues and track breakdown frequency.',
+        name: 'Active Dashboard',
+        href: '/dashboard/fleet',
+        icon: LayoutDashboard,
+        description: 'Main Fleet Department dashboard with active cases, communications, team assignments, and analytics overview.',
       },
       {
         name: 'Diagnostics',
@@ -76,6 +77,12 @@ export const fleetNavigationSections = [
         href: '/dashboard/fleet/inspections',
         icon: ClipboardCheck,
         description: 'Manage vehicle inspections including pre-trip inspections, post-trip inspections, and periodic safety inspections. Record inspection results, identify defects, and track inspection completion.',
+      },
+      {
+        name: 'Knowledge Base',
+        href: '/dashboard/fleet/knowledge-base',
+        icon: BookOpen,
+        description: 'Manage manuals, policies, and documents for AI Assistant contextual help.',
       },
     ],
   },

@@ -11,12 +11,13 @@ import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/export';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
-import TruckInlineEdit from '@/components/trucks/TruckInlineEdit';
+import TruckSheet from '@/components/trucks/TruckSheet';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import type { BulkEditField } from '@/components/data-table/types';
 import { TruckStatus } from '@prisma/client';
 import { Plus, Upload, Download } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useRouter } from 'next/navigation';
 
 interface TruckData {
   id: string;
@@ -42,11 +43,24 @@ interface TrucksTableClientProps {
 export function TrucksTableClient({ data }: TrucksTableClientProps) {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const router = useRouter();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+
+  // Sheet State
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+  const [selectedTruckId, setSelectedTruckId] = React.useState<string | null>(null);
+
+  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
+    setSheetMode(mode);
+    if (id) setSelectedTruckId(id);
+    setSheetOpen(true);
+  };
 
   const handleUpdate = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['trucks'] });
-  }, [queryClient]);
+    router.refresh();
+  }, [queryClient, router]);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -81,14 +95,26 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
   const rowActions = React.useCallback((row: TruckData) => {
     return (
       <div className="flex items-center gap-2">
-        <Link href={`/dashboard/trucks/${row.id}`}>
-          <Button variant="ghost" size="sm">
+        {can('trucks.edit') ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('edit', row.id)}
+          >
+            Edit
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('view', row.id)}
+          >
             View
           </Button>
-        </Link>
+        )}
       </div>
     );
-  }, []);
+  }, [can]);
 
   // Get selected row IDs for bulk actions
   const selectedRowIds = React.useMemo(() => {
@@ -162,12 +188,10 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
             </ExportDialog>
           )}
           {can('trucks.create') && (
-            <Link href="/dashboard/trucks/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Truck
-              </Button>
-            </Link>
+            <Button size="sm" onClick={() => openSheet('create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Truck
+            </Button>
           )}
         </div>
       </div>
@@ -183,8 +207,13 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
         onDeleteSelected={handleDeleteSelected}
         onExportSelected={handleExportSelected}
         onExport={handleExport}
-        inlineEditComponent={TruckInlineEdit}
-        onInlineEditSave={handleUpdate}
+      />
+      <TruckSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        mode={sheetMode}
+        truckId={selectedTruckId}
+        onSuccess={handleUpdate}
       />
     </>
   );

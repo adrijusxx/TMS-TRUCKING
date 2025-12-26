@@ -11,11 +11,12 @@ import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/export';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
-import TrailerInlineEdit from '@/components/trailers/TrailerInlineEdit';
+import TrailerSheet from '@/components/trailers/TrailerSheet';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import type { BulkEditField } from '@/components/data-table/types';
 import { Plus, Upload, Download } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useRouter } from 'next/navigation';
 
 interface TrailerData {
   id: string;
@@ -44,11 +45,24 @@ interface TrailersTableClientProps {
 export function TrailersTableClient({ data }: TrailersTableClientProps) {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const router = useRouter();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+
+  // Sheet State
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+  const [selectedTrailerId, setSelectedTrailerId] = React.useState<string | null>(null);
+
+  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
+    setSheetMode(mode);
+    if (id) setSelectedTrailerId(id);
+    setSheetOpen(true);
+  };
 
   const handleUpdate = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['trailers'] });
-  }, [queryClient]);
+    router.refresh();
+  }, [queryClient, router]);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -83,14 +97,26 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
   const rowActions = React.useCallback((row: TrailerData) => {
     return (
       <div className="flex items-center gap-2">
-        <Link href={`/dashboard/trailers/${row.id}`}>
-          <Button variant="ghost" size="sm">
+        {can('trailers.edit') ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('edit', row.id)}
+          >
+            Edit
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('view', row.id)}
+          >
             View
           </Button>
-        </Link>
+        )}
       </div>
     );
-  }, []);
+  }, [can]);
 
   // Get selected row IDs for bulk actions
   const selectedRowIds = React.useMemo(() => {
@@ -177,12 +203,10 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
             </ExportDialog>
           )}
           {can('trailers.create') && (
-            <Link href="/dashboard/trailers/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Trailer
-              </Button>
-            </Link>
+            <Button size="sm" onClick={() => openSheet('create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Trailer
+            </Button>
           )}
         </div>
       </div>
@@ -198,8 +222,13 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
         onDeleteSelected={handleDeleteSelected}
         onExportSelected={handleExportSelected}
         onExport={handleExport}
-        inlineEditComponent={TrailerInlineEdit}
-        onInlineEditSave={handleUpdate}
+      />
+      <TrailerSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        mode={sheetMode}
+        trailerId={selectedTrailerId}
+        onSuccess={handleUpdate}
       />
     </>
   );

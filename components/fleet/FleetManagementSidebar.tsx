@@ -90,7 +90,7 @@ const navigationSections = [
     items: [
       {
         name: 'Preventive Maintenance',
-        href: '/dashboard/fleet/maintenance',
+        href: '/dashboard/fleet?tab=maintenance',
         icon: Wrench,
         description: 'Schedule and track preventive maintenance (PM) for all vehicles.',
       },
@@ -107,6 +107,12 @@ const navigationSections = [
     icon: MessageCircle,
     colorScheme: 'purple' as const,
     items: [
+      {
+        name: 'Telegram Messages',
+        href: '/dashboard/telegram',
+        icon: MessageCircle,
+        description: 'View and send Telegram messages to drivers with AI-powered responses.',
+      },
       {
         name: 'On-Call Schedule',
         href: '/dashboard/fleet/on-call',

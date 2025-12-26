@@ -68,6 +68,18 @@ export interface TruckMapEntry {
   latestMedia?: TruckMedia;
   recentTrips?: TruckTrip[];
   isSamsaraOnly?: boolean; // True if this vehicle exists in Samsara but not in database
+  activeLoad?: {
+    id: string;
+    loadNumber: string;
+    status: string;
+    stops: Array<{
+      id: string;
+      city: string | null;
+      state: string | null;
+      formattedAddress: string | null;
+      scheduledTime: Date | null;
+    }>;
+  } | null;
 }
 
 export interface TrailerMapEntry {
@@ -140,6 +152,7 @@ export interface TruckMedia {
 }
 
 const ACTIVE_LOAD_STATUSES = [
+  'PENDING',
   'ASSIGNED',
   'EN_ROUTE_PICKUP',
   'AT_PICKUP',
@@ -164,7 +177,7 @@ export class LiveMapService {
   async getSnapshot(): Promise<{ loads: LoadMapEntry[]; trucks: TruckMapEntry[]; trailers: TrailerMapEntry[] }> {
     // Get loads first (fast, no external API calls)
     const loads = await this.getLoadEntries();
-    
+
     // Get trucks and trailers in parallel (these call Samsara but we'll make them faster)
     const [trucks, trailers] = await Promise.all([
       this.getTruckEntries(),
@@ -256,7 +269,7 @@ export class LiveMapService {
         const pickup = await this.resolveLoadPoint(load, 'pickup');
         const delivery = await this.resolveLoadPoint(load, 'delivery');
         const routeWaypoints = this.getRouteWaypoints(load.route?.waypoints);
-        
+
         // Generate route description
         const routeDescription = this.generateRouteDescription(load);
 
@@ -270,31 +283,31 @@ export class LiveMapService {
           routeDescription,
           driver: load.driver
             ? {
-                id: load.driver.id,
-                driverNumber: load.driver.driverNumber,
-                name: `${load.driver.user.firstName} ${load.driver.user.lastName}`,
-              }
+              id: load.driver.id,
+              driverNumber: load.driver.driverNumber,
+              name: `${load.driver.user.firstName} ${load.driver.user.lastName}`,
+            }
             : undefined,
           dispatcher: load.dispatcher
             ? {
-                id: load.dispatcher.id,
-                firstName: load.dispatcher.firstName,
-                lastName: load.dispatcher.lastName,
-              }
+              id: load.dispatcher.id,
+              firstName: load.dispatcher.firstName,
+              lastName: load.dispatcher.lastName,
+            }
             : undefined,
           truck: load.truck
             ? {
-                id: load.truck.id,
-                truckNumber: load.truck.truckNumber,
-                licensePlate: load.truck.licensePlate,
-                vin: load.truck.vin,
-              }
+              id: load.truck.id,
+              truckNumber: load.truck.truckNumber,
+              licensePlate: load.truck.licensePlate,
+              vin: load.truck.vin,
+            }
             : undefined,
           trailer: load.trailer
             ? {
-                id: load.trailer.id,
-                trailerNumber: load.trailer.trailerNumber,
-              }
+              id: load.trailer.id,
+              trailerNumber: load.trailer.trailerNumber,
+            }
             : undefined,
         };
       })
@@ -312,9 +325,9 @@ export class LiveMapService {
         lng: typeof point.lng === 'number' ? point.lng : undefined,
       }))
       .filter((point) => typeof point.lat === 'number' && typeof point.lng === 'number') as Array<{
-      lat: number;
-      lng: number;
-    }>;
+        lat: number;
+        lng: number;
+      }>;
 
     return validWaypoints.length > 0 ? validWaypoints : undefined;
   }
@@ -388,7 +401,7 @@ export class LiveMapService {
   }
 
   private async getTruckEntries(): Promise<TruckMapEntry[]> {
-    const trucks = await prisma.truck.findMany({
+    const trucksRaw: any[] = await prisma.truck.findMany({
       where: {
         companyId: this.companyId,
         deletedAt: null,
@@ -400,10 +413,30 @@ export class LiveMapService {
         status: true,
         licensePlate: true,
         vin: true,
-      },
+        activeLoad: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            loadNumber: true,
+            status: true,
+            stops: {
+              orderBy: { sequence: 'asc' },
+              select: {
+                id: true,
+                city: true,
+                state: true,
+                formattedAddress: true,
+                scheduledTime: true,
+              }
+            }
+          }
+        }
+      } as any,
       orderBy: { updatedAt: 'desc' },
       // Removed limit to show all trucks (you have 133 total)
-    });
+    }) as any;
+
+    const trucks = trucksRaw;
 
     console.log('[LiveMapService] Found', trucks.length, 'trucks in database');
 
@@ -423,6 +456,10 @@ export class LiveMapService {
       if (!match?.location) {
         console.debug('[LiveMapService] Truck', truck.truckNumber, 'has no location match');
       }
+
+      // DEBUG: Log if sensors are being attached (remove after fix)
+      // Removed debug log
+
       const result = {
         id: truck.id,
         truckNumber: truck.truckNumber,
@@ -433,20 +470,26 @@ export class LiveMapService {
         sensors: match?.sensors,
         latestMedia: match?.latestMedia,
         recentTrips: match?.recentTrips,
+        activeLoad: truck.activeLoad ? {
+          id: truck.activeLoad.id,
+          loadNumber: truck.activeLoad.loadNumber,
+          status: truck.activeLoad.status,
+          stops: truck.activeLoad.stops.map((stop: any) => ({
+            id: stop.id,
+            city: stop.city,
+            state: stop.state,
+            formattedAddress: stop.formattedAddress,
+            scheduledTime: stop.scheduledTime,
+          })),
+        } : null,
       };
-      
-      
+
+
       return result;
     });
 
-    const withLocation = matchedTrucks.filter(t => t.location).length;
-    const withoutLocation = matchedTrucks.filter(t => !t.location).length;
-    console.log('[LiveMapService] Truck matching results:', {
-      total: matchedTrucks.length,
-      withLocation,
-      withoutLocation,
-      withoutLocationNumbers: matchedTrucks.filter(t => !t.location).map(t => t.truckNumber),
-    });
+
+
 
     // Find Samsara vehicles that aren't matched to any database truck
     // Build a set of matched Samsara vehicle IDs by checking all trucks
@@ -471,14 +514,14 @@ export class LiveMapService {
           status: 'SAMSARA_ONLY' as string,
           location: sv.location
             ? {
-                lat: sv.location.latitude,
-                lng: sv.location.longitude,
-                address: sv.location.address,
-                heading: sv.location.heading,
-                speed: sv.location.speedMilesPerHour,
-                lastUpdated: sv.location.vehicleTime,
-                source: 'samsara',
-              }
+              lat: sv.location.latitude,
+              lng: sv.location.longitude,
+              address: sv.location.address,
+              heading: sv.location.heading,
+              speed: sv.location.speedMilesPerHour,
+              lastUpdated: sv.location.vehicleTime,
+              source: 'samsara',
+            }
             : undefined,
           matchSource: 'samsara-only',
           diagnostics: sv.diagnostics,
@@ -544,15 +587,15 @@ export class LiveMapService {
         vin?: string;
         location?: SamsaraVehicleWithLocation['location'];
       }> = [
-        ...samsaraAssets,
-        ...samsaraVehicles.map((v) => ({
-          id: v.id,
-          name: v.name,
-          licensePlate: v.licensePlate,
-          vin: v.vin,
-          location: v.location,
-        })),
-      ];
+          ...samsaraAssets,
+          ...samsaraVehicles.map((v) => ({
+            id: v.id,
+            name: v.name,
+            licensePlate: v.licensePlate,
+            vin: v.vin,
+            location: v.location,
+          })),
+        ];
 
       console.log('[LiveMap] Matching', trailers.length, 'trailers with', samsaraAssets.length, 'Samsara assets and', samsaraVehicles.length, 'Samsara vehicles (total devices:', allSamsaraDevices.length, ')');
 
@@ -583,7 +626,7 @@ export class LiveMapService {
     try {
       // Get assets (trailers) from Samsara
       const assets = await getSamsaraAssets(this.companyId);
-      
+
       if (!assets || assets.length === 0) {
         console.debug('[Samsara] No assets found - trailers may not be configured in Samsara');
         return [];
@@ -661,9 +704,9 @@ export class LiveMapService {
     }>
   ):
     | {
-        location: MapLocation;
-        matchSource: string;
-      }
+      location: MapLocation;
+      matchSource: string;
+    }
     | undefined {
     // Normalize identifiers - handle letters, numbers, and mixed formats
     const normalizedTrailerNumber = this.normalize(trailer.trailerNumber);
@@ -680,8 +723,8 @@ export class LiveMapService {
       // Try exact match first
       const nameMatches: boolean =
         !!(normalizedDeviceName &&
-        normalizedTrailerNumber &&
-        normalizedDeviceName === normalizedTrailerNumber);
+          normalizedTrailerNumber &&
+          normalizedDeviceName === normalizedTrailerNumber);
 
       const plateMatches: boolean =
         !!(normalizedDevicePlate && normalizedPlate && normalizedDevicePlate === normalizedPlate);
@@ -692,9 +735,9 @@ export class LiveMapService {
       // Also try partial matches for trailer numbers (handles cases like "TRL-123" vs "123")
       const namePartialMatch: boolean =
         !!(normalizedDeviceName &&
-        normalizedTrailerNumber &&
-        (normalizedDeviceName.includes(normalizedTrailerNumber) ||
-         normalizedTrailerNumber.includes(normalizedDeviceName)));
+          normalizedTrailerNumber &&
+          (normalizedDeviceName.includes(normalizedTrailerNumber) ||
+            normalizedTrailerNumber.includes(normalizedDeviceName)));
 
       if (nameMatches || plateMatches || vinMatches || namePartialMatch) {
         return {
@@ -726,7 +769,7 @@ export class LiveMapService {
       // Get locations without waiting for vehicle IDs (faster)
       getSamsaraVehicleLocations(undefined, this.companyId),
     ]);
-    
+
     const vehicleIds = vehicles?.map((v) => v.id).filter(Boolean) as string[] | undefined;
 
     // Check if API key is working
@@ -739,10 +782,17 @@ export class LiveMapService {
     const locationById = new Map<string, SamsaraVehicleWithLocation['location']>();
     locations?.forEach((entry: any) => {
       if (entry.vehicleId && entry.location && entry.location.latitude && entry.location.longitude) {
+        // Get address with reverseGeo fallback (matches case-context API)
+        const address = entry.location.address
+          || entry.location.reverseGeo?.formattedLocation
+          || (entry.location.latitude && entry.location.longitude
+            ? `${entry.location.latitude.toFixed(5)}, ${entry.location.longitude.toFixed(5)}`
+            : undefined);
+
         locationById.set(entry.vehicleId, {
           latitude: entry.location.latitude,
           longitude: entry.location.longitude,
-          address: entry.location.address,
+          address: address,
           heading: entry.location.heading,
           speedMilesPerHour: entry.location.speedMilesPerHour,
           vehicleTime: entry.location.vehicleTime,
@@ -763,14 +813,14 @@ export class LiveMapService {
 
     try {
       console.log('[Samsara] Fetching telemetry data for all vehicles (NOT filtering by vehicleIds - API works better without)');
-      
+
       // Fetch all telemetry in parallel - don't timeout, let them complete
       // DON'T pass vehicleIds to diagnostics/stats - API returns all data without filter
       // (The diagnostic test shows /fleet/vehicles/stats?types=faultCodes works and returns 248 items)
       const telemetryResults = await Promise.allSettled([
         // Diagnostics: DON'T pass vehicleIds - API works better without it
         getSamsaraVehicleDiagnostics(undefined, this.companyId),
-        getSamsaraVehicleStats(this.companyId),
+        getSamsaraVehicleStats(undefined, this.companyId),
         // Trips DOES require vehicleIds
         vehicleIds && vehicleIds.length > 0
           ? getSamsaraTrips(vehicleIds, undefined, this.companyId)
@@ -782,7 +832,7 @@ export class LiveMapService {
       statsResult = telemetryResults[1]?.status === 'fulfilled' ? telemetryResults[1].value : null;
       tripsResult = telemetryResults[2]?.status === 'fulfilled' ? telemetryResults[2].value : null;
       mediaResult = telemetryResults[3]?.status === 'fulfilled' ? telemetryResults[3].value : null;
-      
+
       if (diagnosticsResult?.length === 0 && statsResult?.length === 0) {
         console.warn('[Samsara] ⚠️ No telemetry data received - diagnostics:', diagnosticsResult?.length || 0, 'stats:', statsResult?.length || 0);
         if (telemetryResults[0]?.status === 'rejected') {
@@ -803,7 +853,7 @@ export class LiveMapService {
     if (diagnosticsResult && diagnosticsResult.length > 0) {
       let vehiclesWithFaults = 0;
       let totalActiveFaults = 0;
-      
+
       diagnosticsResult.forEach((entry: { vehicleId: string; faults?: Array<{ code?: string; description?: string; severity?: string; active?: boolean; occurredAt?: string }>; checkEngineLightOn?: boolean; lastUpdatedTime?: string }) => {
         if (!entry || !entry.vehicleId) {
           return;
@@ -824,13 +874,13 @@ export class LiveMapService {
           })),
         };
         diagnosticsById.set(entry.vehicleId, diagnostics);
-        
+
         if (activeFaults > 0) {
           vehiclesWithFaults++;
           totalActiveFaults += activeFaults;
         }
       });
-      
+
       console.log('[Samsara] Diagnostics:', {
         total: diagnosticsById.size,
         withFaults: vehiclesWithFaults,
@@ -841,19 +891,19 @@ export class LiveMapService {
     }
 
     const statsById = new Map<string, TruckSensors>();
-    
+
     // If stats endpoint provided data, use it
     if (statsResult && statsResult.length > 0) {
       let vehiclesWithFuel = 0;
       let vehiclesWithSpeed = 0;
-      
+
       statsResult.forEach((entry: any) => {
         // Samsara API returns 'id' at top level, not 'vehicleId'
         const vehicleId = entry.id || entry.vehicleId;
         if (!vehicleId) {
           return;
         }
-        
+
         // Handle valid Samsara stat types
         // Note: ecuSpeedMph can be an object with {time, value} or a direct number
         const speedObj = entry.ecuSpeedMph;
@@ -861,69 +911,68 @@ export class LiveMapService {
           ? speedObj.value
           : (typeof speedObj === 'number' ? speedObj : undefined);
         const speedLimit = entry.speedLimit;
-        
+
         // fuelPercents can be:
-        // 1. Object with {time, value} (like ecuSpeedMph)
-        // 2. Array of objects with {time, value}
+        // 1. Array of objects with {time, value} (most common)
+        // 2. Single object with {time, value}
         // 3. Array of numbers
         // 4. Direct number
         let fuelPercent: number | undefined = undefined;
-        const fuelData = entry.fuelPercents;
-        
+        // Check all possible field names for fuel data
+        const fuelData = entry.fuelPercents ?? entry.fuelPercent ?? entry.fuelLevel ?? entry.fuel;
+
         if (fuelData !== undefined && fuelData !== null) {
-          // Case 1: Single object with {time, value} - like ecuSpeedMph
-          if (typeof fuelData === 'object' && !Array.isArray(fuelData) && fuelData.value !== undefined) {
-            fuelPercent = fuelData.value;
-          }
-          // Case 2 & 3: Array
-          else if (Array.isArray(fuelData) && fuelData.length > 0) {
+          if (Array.isArray(fuelData) && fuelData.length > 0) {
             const firstItem = fuelData[0];
-            if (typeof firstItem === 'object' && firstItem?.value !== undefined) {
-              fuelPercent = firstItem.value;
-            } else if (typeof firstItem === 'number') {
-              fuelPercent = firstItem;
-            }
-          }
-          // Case 4: Direct number
-          else if (typeof fuelData === 'number') {
+            fuelPercent = (typeof firstItem === 'object' && firstItem !== null) ? firstItem.value : firstItem;
+          } else if (typeof fuelData === 'object' && fuelData !== null && fuelData.value !== undefined) {
+            fuelPercent = fuelData.value;
+          } else if (typeof fuelData === 'number') {
             fuelPercent = fuelData;
           }
         }
-        
-        // Fallback to other possible field names
-        if (fuelPercent === undefined) {
-          const fallbackFuel = entry.fuelLevel ?? entry.fuelPercent ?? entry.fuel;
-          if (typeof fallbackFuel === 'number' && isFinite(fallbackFuel)) {
-            fuelPercent = fallbackFuel;
-          }
-        }
-        
+
         // Ensure fuelPercent is a valid number, otherwise undefined
-        if (fuelPercent !== undefined && (typeof fuelPercent !== 'number' || !isFinite(fuelPercent))) {
+        if (fuelPercent !== undefined && fuelPercent !== null && (typeof fuelPercent !== 'number' || !isFinite(fuelPercent))) {
           fuelPercent = undefined;
         }
-        
-        // obdOdometerMeters can be an object with {time, value} or a direct number
+
+        // obdOdometerMeters can be:
+        // 1. Array of objects with {time, value}
+        // 2. Single object with {time, value}
+        // 3. Direct number
         const odometerObj = entry.obdOdometerMeters;
-        const odometerMeters = typeof odometerObj === 'object' && odometerObj?.value !== undefined
-          ? odometerObj.value
-          : (typeof odometerObj === 'number' ? odometerObj : undefined);
-        const odometerMiles = odometerMeters 
+        let odometerMeters: number | undefined;
+        if (Array.isArray(odometerObj) && odometerObj.length > 0) {
+          odometerMeters = (typeof odometerObj[0] === 'object' && odometerObj[0] !== null) ? odometerObj[0].value : odometerObj[0];
+        } else if (typeof odometerObj === 'object' && odometerObj !== null && odometerObj.value !== undefined) {
+          odometerMeters = odometerObj.value;
+        } else if (typeof odometerObj === 'number') {
+          odometerMeters = odometerObj;
+        }
+
+        const odometerMiles = odometerMeters
           ? odometerMeters * 0.000621371 // Convert meters to miles
           : (entry.obdOdometerMiles ?? entry.odometerMiles ?? entry.odometer);
-        
+
         // engineStates is an object with state property
         const engineState = entry.engineStates?.state ?? entry.engineState;
-        
-        // engineHours might be in obdEngineSeconds or syntheticEngineSeconds (convert to hours)
+
+        // engineHours might be in obdEngineSeconds or syntheticEngineSeconds
         const engineSecondsObj = entry.obdEngineSeconds ?? entry.syntheticEngineSeconds;
-        const engineSeconds = typeof engineSecondsObj === 'object' && engineSecondsObj?.value !== undefined
-          ? engineSecondsObj.value
-          : (typeof engineSecondsObj === 'number' ? engineSecondsObj : undefined);
-        const engineHours = engineSeconds 
-          ? engineSeconds / 3600 
+        let engineSeconds: number | undefined;
+        if (Array.isArray(engineSecondsObj) && engineSecondsObj.length > 0) {
+          engineSeconds = (typeof engineSecondsObj[0] === 'object' && engineSecondsObj[0] !== null) ? engineSecondsObj[0].value : engineSecondsObj[0];
+        } else if (typeof engineSecondsObj === 'object' && engineSecondsObj !== null && engineSecondsObj.value !== undefined) {
+          engineSeconds = engineSecondsObj.value;
+        } else if (typeof engineSecondsObj === 'number') {
+          engineSeconds = engineSecondsObj;
+        }
+
+        const engineHours = engineSeconds
+          ? engineSeconds / 3600
           : entry.engineHours;
-        
+
         const sensors: TruckSensors = {
           speed:
             speed !== undefined || speedLimit !== undefined
@@ -936,12 +985,12 @@ export class LiveMapService {
           seatbeltStatus: entry.seatbeltStatus,
         };
         statsById.set(vehicleId, sensors);
-        
+
         // Track statistics
         if (fuelPercent !== undefined) vehiclesWithFuel++;
         if (speed !== undefined) vehiclesWithSpeed++;
       });
-      
+
       console.log('[Samsara] Sensors:', {
         total: statsById.size,
         withFuel: vehiclesWithFuel,
@@ -950,15 +999,15 @@ export class LiveMapService {
     } else {
       console.warn('[Samsara] No stats data received');
     }
-    
+
     // Extract speed from location data if stats endpoint didn't provide it
     // Location data often includes speedMilesPerHour
     locations?.forEach((entry: any) => {
       if (!entry?.vehicleId || !entry?.location) return;
-      
+
       const vehicleId = entry.vehicleId;
       const location = entry.location;
-      
+
       // If we don't have stats for this vehicle, create sensors from location data
       if (!statsById.has(vehicleId) && location.speedMilesPerHour !== undefined) {
         statsById.set(vehicleId, {
@@ -1012,7 +1061,7 @@ export class LiveMapService {
     const result = vehicles.map((vehicle: any) => {
       const diagnostics = diagnosticsById.get(vehicle.id);
       const sensors = statsById.get(vehicle.id);
-      
+
       return {
         id: vehicle.id,
         name: vehicle.name,
@@ -1025,20 +1074,20 @@ export class LiveMapService {
         latestMedia: mediaByVehicle.get(vehicle.id),
       };
     });
-    
+
     const telemetrySummary = {
       withDiagnostics: result.filter(v => v.diagnostics).length,
       withSensors: result.filter(v => v.sensors).length,
       withLocation: result.filter(v => v.location).length,
     };
-    
+
     console.log('[Samsara] Returning', result.length, 'vehicles:', telemetrySummary);
-    
+
     // If no telemetry, log a warning
     if (telemetrySummary.withDiagnostics === 0 && telemetrySummary.withSensors === 0) {
       console.warn('[Samsara] ⚠️ NO TELEMETRY DATA - diagnostics/stats may have failed or vehicle IDs don\'t match');
     }
-    
+
     return result;
   }
 
@@ -1048,15 +1097,15 @@ export class LiveMapService {
       const sortedStops = [...load.stops].sort((a: any, b: any) => a.sequence - b.sequence);
       const pickupStop = sortedStops.find((s: any) => s.stopType === 'PICKUP') || sortedStops[0];
       const deliveryStop = sortedStops.find((s: any) => s.stopType === 'DELIVERY') || sortedStops[sortedStops.length - 1];
-      
+
       if (pickupStop && deliveryStop) {
-        const pickup = pickupStop.city && pickupStop.state 
-          ? `${pickupStop.city}, ${pickupStop.state}` 
+        const pickup = pickupStop.city && pickupStop.state
+          ? `${pickupStop.city}, ${pickupStop.state}`
           : pickupStop.address;
-        const delivery = deliveryStop.city && deliveryStop.state 
-          ? `${deliveryStop.city}, ${deliveryStop.state}` 
+        const delivery = deliveryStop.city && deliveryStop.state
+          ? `${deliveryStop.city}, ${deliveryStop.state}`
           : deliveryStop.address;
-        
+
         if (pickup && delivery) {
           return `${pickup} → ${delivery}`;
         }
@@ -1081,13 +1130,13 @@ export class LiveMapService {
     samsaraVehicles: SamsaraVehicleWithLocation[]
   ):
     | {
-        location: MapLocation;
-        matchSource: string;
-        diagnostics?: TruckDiagnostics;
-        sensors?: TruckSensors;
-        latestMedia?: TruckMedia;
-        recentTrips?: TruckTrip[];
-      }
+      location: MapLocation;
+      matchSource: string;
+      diagnostics?: TruckDiagnostics;
+      sensors?: TruckSensors;
+      latestMedia?: TruckMedia;
+      recentTrips?: TruckTrip[];
+    }
     | undefined {
     const normalizedTruckNumber = this.normalize(truck.truckNumber);
     const normalizedPlate = this.normalize(truck.licensePlate);
@@ -1102,8 +1151,8 @@ export class LiveMapService {
 
       const nameMatches: boolean =
         !!(normalizedVehicleName &&
-        normalizedTruckNumber &&
-        normalizedVehicleName === normalizedTruckNumber);
+          normalizedTruckNumber &&
+          normalizedVehicleName === normalizedTruckNumber);
 
       const plateMatches: boolean =
         !!(normalizedVehiclePlate && normalizedPlate && normalizedVehiclePlate === normalizedPlate);
@@ -1112,7 +1161,7 @@ export class LiveMapService {
         !!(normalizedVehicleVin && normalizedVin && normalizedVehicleVin === normalizedVin);
 
       if (nameMatches || plateMatches || vinMatches) {
-        
+
         return {
           location: {
             lat: vehicle.location.latitude,

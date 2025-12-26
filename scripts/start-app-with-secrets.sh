@@ -75,6 +75,15 @@ load_secret "tms/integrations/openai/api-key" "OPENAI_API_KEY"
 load_secret "tms/integrations/samsara/api-key" "SAMSARA_API_KEY"
 load_secret "tms/integrations/samsara/webhook-secret" "SAMSARA_WEBHOOK_SECRET"
 
+# New keys for Telegram, Google Places, and Samsara Stats
+load_secret "tms/integrations/telegram/api-id" "TELEGRAM_API_ID"
+load_secret "tms/integrations/telegram/api-hash" "TELEGRAM_API_HASH"
+load_secret "tms/integrations/telegram/encryption-key" "TELEGRAM_SESSION_ENCRYPTION_KEY"
+load_secret "tms/integrations/google/maps-places-api-key" "GOOGLE_PLACES_API_KEY"
+load_secret "tms/integrations/samsara/stats-enabled" "SAMSARA_STATS_ENABLED"
+load_secret "tms/integrations/samsara/camera-enabled" "SAMSARA_CAMERA_MEDIA_ENABLED"
+load_secret "tms/integrations/samsara/trips-enabled" "SAMSARA_TRIPS_ENABLED"
+
 # CRITICAL: Trust host header from ALB proxy - fixes CSRF errors with NextAuth v5
 export AUTH_TRUST_HOST=true
 

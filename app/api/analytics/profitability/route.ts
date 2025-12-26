@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { hasPermission } from '@/lib/permissions';
+import { hasPermissionAsync } from '@/lib/server-permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,6 @@ export async function GET(request: NextRequest) {
 
     // Check analytics permission (use database-backed check)
     const role = (session.user as any)?.role || 'CUSTOMER';
-    const { hasPermissionAsync } = await import('@/lib/permissions');
     if (!(await hasPermissionAsync(role, 'analytics.view'))) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       const customerProfitability = loads.reduce((acc, load) => {
         const customerId = load.customerId;
         const customerName = load.customer.name;
-        
+
         if (!acc[customerId]) {
           acc[customerId] = {
             customerId,
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         acc[customerId].totalExpenses += Number(load.expenses) || 0;
         acc[customerId].totalProfit +=
           (Number(load.revenue) || 0) - calculatedDriverPay - (Number(load.expenses) || 0);
-        
+
         return acc;
       }, {} as Record<string, any>);
 
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
       // Group by lane (origin-destination pair)
       const laneProfitability = loads.reduce((acc, load) => {
         const lane = `${load.pickupCity}, ${load.pickupState} → ${load.deliveryCity}, ${load.deliveryState}`;
-        
+
         if (!acc[lane]) {
           acc[lane] = {
             lane,
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
         acc[lane].totalExpenses += Number(load.expenses) || 0;
         acc[lane].totalProfit +=
           (Number(load.revenue) || 0) - calculatedDriverPay - (Number(load.expenses) || 0);
-        
+
         return acc;
       }, {} as Record<string, any>);
 

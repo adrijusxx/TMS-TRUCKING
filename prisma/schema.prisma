@@ -165,6 +165,7 @@ model Company {
   mcNumbers                 McNumber[]
   tags                      Tag[]
   maintenanceRecords        MaintenanceRecord[]
+  maintenanceSchedules      MaintenanceSchedule[]
   expenseCategories         ExpenseCategory[]
   expenseTypes              ExpenseType[]
   tariffs                   Tariff[]
@@ -232,6 +233,7 @@ model Company {
   // Samsara Integration
   samsaraDeviceQueue        SamsaraDeviceQueue[]
   truckFaultHistory         TruckFaultHistory[]
+  knowledgeBaseDocuments    KnowledgeBaseDocument[]
 }
 
 // ============================================
@@ -909,6 +911,7 @@ model Driver {
   campaignParticipants      CampaignParticipant[]
   safetyRecognitions        SafetyRecognition[]
   iftaEntries               IFTAEntry[]
+  telegramMapping           TelegramDriverMapping? // Telegram integration
 
   @@index([companyId])
   @@index([status])
@@ -1139,6 +1142,8 @@ model Truck {
   notes      String? // Notes field
   warnings   String? // Warnings field
 
+  maintenanceSchedules MaintenanceSchedule[]
+  
   isActive  Boolean   @default(true)
   
   // Migration metadata - stores unmapped fields from source TMS
@@ -1344,6 +1349,27 @@ model MaintenanceRecord {
   @@index([maintenanceNumber])
 }
 
+model MaintenanceSchedule {
+  id        String  @id @default(cuid())
+  truckId   String
+  truck     Truck   @relation(fields: [truckId], references: [id])
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  maintenanceType MaintenanceType
+  intervalMiles   Int             @default(0)
+  intervalMonths  Int             @default(0)
+  active          Boolean         @default(true)
+  
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([truckId])
+  @@index([companyId])
+}
+
 enum MaintenanceType {
   PM_A // Preventive Maintenance A
   PM_B // Preventive Maintenance B
@@ -1415,6 +1441,9 @@ model Breakdown {
   latitude        Float?
   longitude       Float?
   odometerReading Float
+  
+  // Telematics Payload (Phase 2 & 3 support)
+  telematicsSnapshot Json? // Stores full vehicle state (location, fuel, faults) at creation time
 
   // Breakdown Information
   breakdownType   BreakdownType
@@ -1613,6 +1642,10 @@ model Communication {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  aiResponseLogs AIResponseLog[] // AI analysis logs for this communication
+  telegramMessageId Int? // Telegram message ID for tracking
 
   @@index([companyId])
   @@index([breakdownId])
@@ -3297,6 +3330,11 @@ model Vendor {
   phone   String?
   email   String?
   website String?
+  
+  // Location Data (Phase 3)
+  latitude    Float?
+  longitude   Float?
+  services    String[] @default([]) // e.g. ["TIRE", "TOWING", "ENGINE"]
 
   // Billing
   billingAddress String?
@@ -6379,4 +6417,138 @@ model DiagnosticCodeReference {
   @@index([category])
   @@index([severity])
   @@index([spnId])
+}
+
+// ============================================
+// TELEGRAM INTEGRATION
+// ============================================
+
+// Telegram session storage (encrypted)
+model TelegramSession {
+  id             String    @id @default(cuid())
+  sessionData    String    @db.Text // Encrypted session string
+  phoneNumber    String?
+  isActive       Boolean   @default(true)
+  lastConnected  DateTime?
+  connectionError String?  @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+// Map drivers to Telegram IDs
+model TelegramDriverMapping {
+  id           String   @id @default(cuid())
+  driverId     String   @unique
+  driver       Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  telegramId   String   @unique // Telegram user ID (numeric)
+  username     String?  // Telegram username (optional)
+  phoneNumber  String?  // Phone number linked to Telegram
+  firstName    String?  // Telegram first name
+  lastName     String?  // Telegram last name
+  registeredAt DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  @@index([driverId])
+  @@index([telegramId])
+  @@index([phoneNumber])
+}
+
+// AI response logging and tracking
+model AIResponseLog {
+  id              String         @id @default(cuid())
+  communicationId String?
+  communication   Communication? @relation(fields: [communicationId], references: [id])
+
+  messageContent  String         @db.Text
+  aiAnalysis      Json // Store full AI analysis (breakdown detection, entities, urgency, etc.)
+  confidence      Float // 0-1 confidence score
+  wasAutoSent     Boolean        @default(false)
+  requiresReview  Boolean        @default(false)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  responseContent String?        @db.Text // AI-generated response
+  actualResponse  String?        @db.Text // Actual response sent (may be edited by staff)
+
+  createdAt DateTime @default(now())
+
+  @@index([communicationId])
+  @@index([wasAutoSent])
+  @@index([requiresReview])
+  @@index([createdAt])
+}
+
+// Telegram integration settings (per company)
+model TelegramSettings {
+  id        String @id @default(cuid())
+  companyId String @unique
+
+  // Feature toggles
+  autoCreateCases      Boolean @default(true)
+  aiAutoResponse       Boolean @default(false)
+  requireStaffApproval Boolean @default(true)
+
+  // AI configuration
+  confidenceThreshold Float @default(0.8) // 0-1, minimum confidence to auto-respond
+  aiProvider          String @default("OPENAI") // OPENAI | GEMINI
+
+  // Business hours
+  businessHoursOnly  Boolean @default(false)
+  businessHoursStart String? // "09:00"
+  businessHoursEnd   String? // "17:00"
+  timezone           String  @default("America/Chicago")
+
+  // Emergency keywords (trigger immediate escalation)
+  emergencyKeywords String[] @default(["accident", "injured", "fire", "police", "emergency", "crash", "hurt"])
+
+  // Auto-response templates
+  autoAckMessage         String? @default("We received your message. Our team will respond shortly.") // Auto-acknowledgment
+  caseCreatedMessage     String? @default("Case #{caseNumber} created. We'll contact you soon.") // Case creation confirmation
+  afterHoursMessage      String? @default("We received your message after hours. On-call staff will respond within 15 minutes.") // After hours auto-reply
+  emergencyContactNumber String? // Emergency contact number to include in messages
+
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+// ============================================
+// AI KNOWLEDGE BASE (RAG)
+// ============================================
+
+model KnowledgeBaseDocument {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  
+  title       String
+  filename    String
+  fileType    String   // 'PDF', 'TEXT', etc.
+  fileSize    Int
+  url         String   // Storage URL (local or blob)
+  
+  status      String   @default("PENDING") // PENDING, PROCESSING, READY, FAILED
+  errorMessage String?
+  
+  chunks      DocumentChunk[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([companyId])
+}
+
+model DocumentChunk {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    KnowledgeBaseDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  content     String   // The text content
+  chunkIndex  Int      // Order in document
+  embedding   Float[]  // Vector embedding (handled as float array in JS)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([documentId])
 }

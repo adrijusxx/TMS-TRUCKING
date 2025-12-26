@@ -38,6 +38,9 @@ interface LoadDetailProps {
   load: any;
   availableDrivers?: any[];
   availableTrucks?: any[];
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  isSheet?: boolean;
 }
 
 const statusColors: Record<LoadStatus, string> = {
@@ -90,7 +93,14 @@ async function fetchCustomers() {
   return response.json();
 }
 
-export default function LoadDetail({ load, availableDrivers = [], availableTrucks = [] }: LoadDetailProps) {
+export default function LoadDetail({
+  load,
+  availableDrivers = [],
+  availableTrucks = [],
+  onSuccess,
+  onCancel,
+  isSheet = false,
+}: LoadDetailProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -107,9 +117,9 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
   const customers = React.useMemo(() => {
     const fetchedCustomers = customersData?.data || [];
     const currentCustomer = load.customer;
-    
+
     const hasCurrentCustomer = fetchedCustomers.some((c: any) => c.id === currentCustomer?.id);
-    
+
     if (currentCustomer && !hasCurrentCustomer) {
       return [
         {
@@ -121,10 +131,10 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
         ...fetchedCustomers,
       ];
     }
-    
+
     return fetchedCustomers;
   }, [customersData, load.customer]);
-  
+
   const [formData, setFormData] = useState({
     truckId: load.truckId || '',
     trailerId: load.trailerId || '',
@@ -187,7 +197,11 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
       queryClient.invalidateQueries({ queryKey: ['load', load.id] });
       queryClient.invalidateQueries({ queryKey: ['loads'] });
       toast.success('Load updated successfully');
-      router.refresh();
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.refresh();
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to update load');
@@ -196,7 +210,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
 
   const handleSave = () => {
     const updatePayload: any = {};
-    
+
     const hasChanged = (field: string, oldValue: any, newValue: any) => {
       if (oldValue === newValue) return false;
       if (oldValue === null && !newValue) return false;
@@ -210,7 +224,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
       'truckId', 'trailerId', 'trailerNumber', 'driverId', 'coDriverId', 'customerId',
       'status', 'dispatchStatus', 'loadType', 'equipmentType',
       'pickupLocation', 'pickupAddress', 'pickupCity', 'pickupState', 'pickupZip',
-      'pickupCompany', 'pickupDate', 'pickupTimeStart', 'pickupTimeEnd', 
+      'pickupCompany', 'pickupDate', 'pickupTimeStart', 'pickupTimeEnd',
       'pickupContact', 'pickupPhone', 'pickupNotes',
       'deliveryLocation', 'deliveryAddress', 'deliveryCity', 'deliveryState', 'deliveryZip',
       'deliveryCompany', 'deliveryDate', 'deliveryTimeStart', 'deliveryTimeEnd',
@@ -219,7 +233,7 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
       'tripId', 'shipmentId', 'dispatcherId'
     ];
 
-    const numericFields = ['weight', 'pieces', 'pallets', 'revenue', 'driverPay', 
+    const numericFields = ['weight', 'pieces', 'pallets', 'revenue', 'driverPay',
       'fuelAdvance', 'serviceFee', 'loadedMiles', 'emptyMiles', 'totalMiles', 'revenuePerMile'];
 
     fields.forEach(field => {
@@ -259,11 +273,17 @@ export default function LoadDetail({ load, availableDrivers = [], availableTruck
       {/* Header - Compact */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <Link href="/dashboard/loads">
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+          {onCancel ? (
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onCancel}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-          </Link>
+          ) : (
+            <Link href="/dashboard/loads">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+          )}
           <h1 className="text-lg font-bold">{load.loadNumber}</h1>
           <Badge variant="outline" className={`text-xs ${statusColors[load.status as LoadStatus]}`}>
             {formatStatus(load.status)}

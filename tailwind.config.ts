@@ -52,6 +52,55 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Status semantic colors
+        status: {
+          success: {
+            DEFAULT: "hsl(var(--status-success))",
+            foreground: "hsl(var(--status-success-foreground))",
+            muted: "hsl(var(--status-success-muted))",
+          },
+          warning: {
+            DEFAULT: "hsl(var(--status-warning))",
+            foreground: "hsl(var(--status-warning-foreground))",
+            muted: "hsl(var(--status-warning-muted))",
+          },
+          error: {
+            DEFAULT: "hsl(var(--status-error))",
+            foreground: "hsl(var(--status-error-foreground))",
+            muted: "hsl(var(--status-error-muted))",
+          },
+          info: {
+            DEFAULT: "hsl(var(--status-info))",
+            foreground: "hsl(var(--status-info-foreground))",
+            muted: "hsl(var(--status-info-muted))",
+          },
+          neutral: {
+            DEFAULT: "hsl(var(--status-neutral))",
+            foreground: "hsl(var(--status-neutral-foreground))",
+            muted: "hsl(var(--status-neutral-muted))",
+          },
+        },
+      },
+      // Spacing scale using CSS custom properties
+      spacing: {
+        'space-0': 'var(--space-0)',
+        'space-1': 'var(--space-1)',
+        'space-2': 'var(--space-2)',
+        'space-3': 'var(--space-3)',
+        'space-4': 'var(--space-4)',
+        'space-5': 'var(--space-5)',
+        'space-6': 'var(--space-6)',
+        'space-8': 'var(--space-8)',
+      },
+      // Typography scale
+      fontSize: {
+        'display': ['var(--text-display)', { lineHeight: '1.2', fontWeight: '700' }],
+        'heading': ['var(--text-heading)', { lineHeight: '1.3', fontWeight: '600' }],
+        'subheading': ['var(--text-subheading)', { lineHeight: '1.4', fontWeight: '600' }],
+        'body': ['var(--text-body)', { lineHeight: '1.5', fontWeight: '400' }],
+        'data': ['var(--text-data)', { lineHeight: '1.4', fontWeight: '500' }],
+        'caption': ['var(--text-caption)', { lineHeight: '1.4', fontWeight: '400' }],
+        'micro': ['var(--text-micro)', { lineHeight: '1.3', fontWeight: '500' }],
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -78,4 +127,3 @@ const config = {
 } satisfies Config
 
 export default config
-

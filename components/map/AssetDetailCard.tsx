@@ -10,8 +10,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { 
-  X, Truck, Package, User, Phone, Navigation, Gauge, 
+import {
+  X, Truck, Package, User, Phone, Navigation, Gauge,
   AlertTriangle, Clock, MapPin, Activity, Thermometer, Fuel
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -32,19 +32,19 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
   // Adjust position to keep card in viewport
   useEffect(() => {
     if (!cardRef.current) return;
-    
+
     const card = cardRef.current;
     const rect = card.getBoundingClientRect();
     const padding = 16;
-    
+
     let x = position.x + 10;
     let y = position.y - 10;
-    
+
     // Adjust horizontal position
     if (x + rect.width > window.innerWidth - padding) {
       x = position.x - rect.width - 10;
     }
-    
+
     // Adjust vertical position
     if (y + rect.height > window.innerHeight - padding) {
       y = window.innerHeight - rect.height - padding;
@@ -52,27 +52,80 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
     if (y < padding) {
       y = padding;
     }
-    
+
     setAdjustedPosition({ x, y });
   }, [position]);
 
   const isTruck = asset.type === 'TRUCK';
   const truckData = asset.truckData;
-  const loadData = asset.loadData;
-  
+  // Use loadData from asset, or fallback to truck activeLoad
+  const loadData = asset.loadData || (truckData?.activeLoad ? {
+    id: truckData.activeLoad.id,
+    loadNumber: truckData.activeLoad.loadNumber,
+    status: truckData.activeLoad.status,
+    // Generate simple route description from stops
+    routeDescription: truckData.activeLoad.stops.length > 0
+      ? `${truckData.activeLoad.stops[0].city || ''}, ${truckData.activeLoad.stops[0].state || ''} → ${truckData.activeLoad.stops[truckData.activeLoad.stops.length - 1].city || ''}, ${truckData.activeLoad.stops[truckData.activeLoad.stops.length - 1].state || ''}`
+      : 'Active Load',
+    // Construct delivery object for ETA tab compatibility
+    delivery: truckData.activeLoad.stops.length > 0 ? {
+      address: truckData.activeLoad.stops[truckData.activeLoad.stops.length - 1].formattedAddress,
+      // We don't have lat/lng here but ETA doesn't use it for display
+    } : undefined,
+    // Construct pickup object
+    pickup: truckData.activeLoad.stops.length > 0 ? {
+      address: truckData.activeLoad.stops[0].formattedAddress,
+    } : undefined,
+  } : undefined);
+
   // Get sensors from truck data OR load's truck sensors
-  const sensors = truckData?.sensors || loadData?.truckSensors;
-  const diagnostics = truckData?.diagnostics || loadData?.truckDiagnostics;
-  
-  // Get fuel percent with proper extraction (handles {time, value} format)
+  const sensors = truckData?.sensors || (loadData as any)?.truckSensors;
+  const diagnostics = truckData?.diagnostics || (loadData as any)?.truckDiagnostics;
+
+  // Helper to extract value from Samsara objects (can be {time, value} or direct value)
+  const extractValue = (data: any): any => {
+    if (data === null || data === undefined) return undefined;
+    if (typeof data === 'object' && 'value' in data) return data.value;
+    return data;
+  };
+
+  // DEBUG: Log truckData and sensors to trace data flow (remove after fix)
+  console.log('[AssetDetailCard] Debug:', {
+    truckNumber: truckData?.truckNumber || loadData?.loadNumber,
+    hasTruckData: !!truckData,
+    hasLoadData: !!loadData,
+    hasSensors: !!sensors,
+    rawFuelPercent: sensors?.fuelPercent,
+    rawFuelPercentType: typeof sensors?.fuelPercent,
+    rawEngineState: sensors?.engineState,
+    rawEngineStateType: typeof sensors?.engineState,
+    rawSpeed: sensors?.speed,
+    locationAddress: truckData?.location?.address,
+  });
+
+
+  // Get fuel percent with proper extraction (handles arrays, objects, and numbers)
   const fuelPercent = (() => {
     const fuel = sensors?.fuelPercent;
     if (fuel === undefined || fuel === null) return undefined;
+
+    // Handle array format (Samsara often returns arrays for stats)
+    if (Array.isArray(fuel) && fuel.length > 0) {
+      const first = fuel[0];
+      return typeof first === 'object' && first !== null ? first.value : first;
+    }
+
+    // Handle object format
+    if (typeof fuel === 'object' && fuel !== null && 'value' in fuel) {
+      return (fuel as { value: number }).value;
+    }
+
+    // Handle number format
     if (typeof fuel === 'number') return fuel;
-    if (typeof fuel === 'object' && 'value' in fuel) return (fuel as { value: number }).value;
+
     return undefined;
   })();
-  
+
   // Get speed from sensors or asset speed
   const speed = (() => {
     const sensorSpeed = sensors?.speed;
@@ -101,8 +154,8 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
               <Package className="h-4 w-4 text-purple-600" />
             )}
             <span className="font-semibold text-sm">{asset.label}</span>
-            <Badge 
-              variant="secondary" 
+            <Badge
+              variant="secondary"
               className={cn(
                 "text-[10px] h-4",
                 asset.status === 'MOVING' && 'bg-green-100 text-green-700',
@@ -155,16 +208,16 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
             {sensors?.engineState && (
               <div className="flex items-center justify-between py-1.5 px-2 bg-muted/30 rounded text-xs">
                 <span className="text-muted-foreground">Engine</span>
-                <Badge 
-                  variant="outline" 
+                <Badge
+                  variant="outline"
                   className={cn(
                     "text-[10px]",
-                    String(sensors.engineState) === 'On' && 'bg-green-50 text-green-700',
-                    String(sensors.engineState) === 'Off' && 'bg-gray-50 text-gray-700',
-                    String(sensors.engineState) === 'Idle' && 'bg-amber-50 text-amber-700',
+                    extractValue(sensors.engineState) === 'On' && 'bg-green-50 text-green-700',
+                    extractValue(sensors.engineState) === 'Off' && 'bg-gray-50 text-gray-700',
+                    extractValue(sensors.engineState) === 'Idle' && 'bg-amber-50 text-amber-700',
                   )}
                 >
-                  {String(sensors.engineState)}
+                  {extractValue(sensors.engineState)}
                 </Badge>
               </div>
             )}
@@ -178,13 +231,13 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
             )}
 
             {/* Driver Info */}
-            {loadData?.driver && (
+            {(loadData as any)?.driver && (
               <div className="flex items-center justify-between py-2 border-t">
                 <div className="flex items-center gap-2">
                   <User className="h-3 w-3 text-muted-foreground" />
                   <div className="text-xs">
-                    <p className="font-medium">{loadData.driver.name}</p>
-                    <p className="text-muted-foreground">#{loadData.driver.driverNumber}</p>
+                    <p className="font-medium">{(loadData as any).driver.name}</p>
+                    <p className="text-muted-foreground">#{(loadData as any).driver.driverNumber}</p>
                   </div>
                 </div>
                 <Button variant="outline" size="sm" className="h-6 w-6 p-0">
@@ -193,17 +246,29 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
               </div>
             )}
 
-            {/* Truck Info */}
-            {(truckData || loadData?.truck) && (
-              <div className="flex items-center gap-2 py-2 border-t text-xs">
-                <Truck className="h-3 w-3 text-muted-foreground" />
-                <span className="font-medium">
-                  {truckData?.truckNumber || loadData?.truck?.truckNumber}
-                </span>
-                {(truckData?.status || loadData?.truck) && (
-                  <Badge variant="outline" className="text-[9px] h-4">
-                    {truckData?.status || 'ASSIGNED'}
-                  </Badge>
+            {/* Truck Info & Location */}
+            {(truckData || (loadData as any)?.truck) && (
+              <div className="py-2 border-t space-y-2">
+                <div className="flex items-center gap-2 text-xs">
+                  <Truck className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-medium">
+                    {truckData?.truckNumber || (loadData as any)?.truck?.truckNumber}
+                  </span>
+                  {(truckData?.status || (loadData as any)?.truck) && (
+                    <Badge variant="outline" className="text-[9px] h-4">
+                      {truckData?.status || 'ASSIGNED'}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Location Address - ADDED per user request */}
+                {(asset.truckData?.location?.address || asset.loadData?.truckLocation?.address) && (
+                  <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground pl-4.5">
+                    <MapPin className="h-2.5 w-2.5 mt-0.5 shrink-0" />
+                    <span className="leading-tight">
+                      {asset.truckData?.location?.address || asset.loadData?.truckLocation?.address}
+                    </span>
+                  </div>
                 )}
               </div>
             )}
@@ -222,11 +287,14 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
             {/* Quick Actions */}
             <div className="flex gap-2 pt-2 border-t">
               {isTruck ? (
-                <Link href={`/dashboard/trucks/${asset.id}`} className="flex-1">
-                  <Button variant="outline" size="sm" className="h-7 text-xs w-full">
-                    View Truck
-                  </Button>
-                </Link>
+                // Only show View Truck if it's NOT a SAMSARA_ONLY vehicle
+                !asset.id.startsWith('samsara-') && (
+                  <Link href={`/dashboard/trucks/${asset.id}`} className="flex-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs w-full">
+                      View Truck record
+                    </Button>
+                  </Link>
+                )
               ) : (
                 <Link href={`/dashboard/loads/${asset.id}`} className="flex-1">
                   <Button variant="outline" size="sm" className="h-7 text-xs w-full">
@@ -247,7 +315,7 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                     {diagnostics.activeFaults}
                   </Badge>
                 </div>
-                
+
                 {diagnostics.checkEngineLightOn && (
                   <div className="flex items-center gap-2 p-2 bg-amber-50 rounded text-xs text-amber-800">
                     <AlertTriangle className="h-3 w-3" />
@@ -255,7 +323,7 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                   </div>
                 )}
 
-                {diagnostics.faults.slice(0, 3).map((fault, i) => (
+                {(diagnostics as any).faults.slice(0, 3).map((fault: any, i: number) => (
                   <div key={i} className="p-2 bg-muted/50 rounded text-xs">
                     <p className="font-medium">{fault.code || 'Unknown'}</p>
                     <p className="text-muted-foreground truncate">{fault.description || 'No description'}</p>
@@ -288,11 +356,11 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                       <p className="text-muted-foreground text-[10px]">Fuel Level</p>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={cn(
                               "h-full rounded-full",
                               fuelPercent > 50 ? 'bg-green-500' :
-                              fuelPercent > 25 ? 'bg-amber-500' : 'bg-red-500'
+                                fuelPercent > 25 ? 'bg-amber-500' : 'bg-red-500'
                             )}
                             style={{ width: `${fuelPercent}%` }}
                           />
@@ -319,8 +387,8 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                   {sensors.engineState && (
                     <div className="p-2 bg-muted/30 rounded">
                       <p className="text-muted-foreground text-[10px]">Engine State</p>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={cn(
                           "text-[10px] mt-1",
                           String(sensors.engineState) === 'On' && 'bg-green-50 text-green-700',
@@ -336,8 +404,8 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                   {sensors.seatbeltStatus && (
                     <div className="p-2 bg-muted/30 rounded">
                       <p className="text-muted-foreground text-[10px]">Seatbelt</p>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={cn(
                           "text-[10px] mt-1",
                           String(sensors.seatbeltStatus) === 'Buckled' && 'bg-green-50 text-green-700',
@@ -386,8 +454,8 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                     <>
                       <p className="text-2xl font-bold text-primary">{eta.time}</p>
                       <p className="text-xs text-muted-foreground">{eta.distance} mi remaining</p>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={cn(
                           "mt-2 text-[10px]",
                           eta.status === 'ON_TIME' && 'bg-green-50 text-green-700 border-green-200',
@@ -435,24 +503,24 @@ interface ETAResult {
 
 function calculateSimpleETA(currentSpeed: number, remainingMiles: number): ETAResult | null {
   if (remainingMiles <= 0) return null;
-  
+
   // Use average speed of 55 mph if currently stopped
   const avgSpeed = currentSpeed > 0 ? Math.min(currentSpeed, 65) : 55;
   const hoursRemaining = remainingMiles / avgSpeed;
   const arrivalTime = new Date(Date.now() + hoursRemaining * 3600000);
-  
+
   // Format time
-  const time = arrivalTime.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
+  const time = arrivalTime.toLocaleTimeString('en-US', {
+    hour: 'numeric',
     minute: '2-digit',
-    hour12: true 
+    hour12: true
   });
-  
+
   // Determine status (simplified)
   let status: ETAResult['status'] = 'ON_TIME';
   if (hoursRemaining > 8) status = 'AT_RISK';
   if (currentSpeed === 0 && remainingMiles > 50) status = 'LATE';
-  
+
   return {
     time,
     distance: Math.round(remainingMiles),

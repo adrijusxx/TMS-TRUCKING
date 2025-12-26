@@ -99,7 +99,7 @@ async function sendMessage(breakdownId: string, content?: string, mediaUrls?: st
   const response = await fetch(apiUrl(`/api/fleet/breakdowns/${breakdownId}/messages`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       content: content || undefined,
       mediaUrls: mediaUrls || undefined,
     }),
@@ -200,7 +200,7 @@ export default function CommunicationHub() {
 
     const newFiles = Array.from(files);
     const totalFiles = mediaFiles.length + newFiles.length;
-    
+
     if (totalFiles > 10) {
       toast.error('Maximum 10 photos/videos allowed');
       return;
@@ -394,9 +394,8 @@ export default function CommunicationHub() {
                   <button
                     key={conv.breakdownId || `driver-${conv.driver?.id}`}
                     onClick={() => setSelectedConversation(conv.breakdownId || null)}
-                    className={`w-full text-left p-4 hover:bg-muted transition-colors ${
-                      selectedConversation === conv.breakdownId ? 'bg-muted' : ''
-                    }`}
+                    className={`w-full text-left p-4 hover:bg-muted transition-colors ${selectedConversation === conv.breakdownId ? 'bg-muted' : ''
+                      }`}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
@@ -475,10 +474,10 @@ export default function CommunicationHub() {
                   {selectedConv.breakdown && (
                     <div className="flex items-center gap-2 mt-2">
                       <Link
-                        href={`/dashboard/breakdowns/${selectedConv.breakdown.id}`}
+                        href={`/dashboard/fleet`}
                         className="text-sm text-primary hover:underline"
                       >
-                        View Breakdown Case →
+                        View Breakdown Case in Dashboard →
                       </Link>
                     </div>
                   )}
@@ -502,11 +501,10 @@ export default function CommunicationHub() {
                       className={`flex ${comm.direction === 'INBOUND' ? 'justify-start' : 'justify-end'}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg p-3 ${
-                          comm.direction === 'INBOUND'
+                        className={`max-w-[80%] rounded-lg p-3 ${comm.direction === 'INBOUND'
                             ? 'bg-muted'
                             : 'bg-primary text-primary-foreground'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <div

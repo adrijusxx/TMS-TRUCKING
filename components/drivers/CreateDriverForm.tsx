@@ -36,7 +36,17 @@ async function createDriver(data: CreateDriverInput) {
   return response.json();
 }
 
-export default function CreateDriverForm() {
+interface CreateDriverFormProps {
+  onSuccess?: (driverId: string) => void;
+  onCancel?: () => void;
+  isSheet?: boolean;
+}
+
+export default function CreateDriverForm({
+  onSuccess,
+  onCancel,
+  isSheet = false,
+}: CreateDriverFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +70,11 @@ export default function CreateDriverForm() {
     mutationFn: createDriver,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
-      router.push(`/dashboard/drivers/${data.data.id}`);
+      if (onSuccess) {
+        onSuccess(data.data.id);
+      } else {
+        router.push(`/dashboard/drivers/${data.data.id}`);
+      }
     },
     onError: (err: Error) => {
       setError(err.message);
@@ -75,11 +89,17 @@ export default function CreateDriverForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/dashboard/drivers">
-          <Button type="button" variant="ghost" size="icon">
+        {onCancel ? (
+          <Button type="button" variant="ghost" size="icon" onClick={onCancel}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-        </Link>
+        ) : (
+          <Link href="/dashboard/drivers">
+            <Button type="button" variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
         <div>
           <h2 className="text-2xl font-semibold">Driver Information</h2>
           <p className="text-sm text-muted-foreground">
@@ -346,11 +366,17 @@ export default function CreateDriverForm() {
       </div>
 
       <div className="flex justify-end gap-4">
-        <Link href="/dashboard/drivers">
-          <Button type="button" variant="outline">
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-        </Link>
+        ) : (
+          <Link href="/dashboard/drivers">
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </Link>
+        )}
         <Button type="submit" disabled={isSubmitting || createMutation.isPending}>
           {isSubmitting || createMutation.isPending
             ? 'Creating...'

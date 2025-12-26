@@ -2,8 +2,14 @@
 
 import CreateLoadWizard from '@/components/loads/CreateLoadWizard/CreateLoadWizard';
 
-export default function CreateLoadForm() {
+interface CreateLoadFormProps {
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  isSheet?: boolean;
+}
+
+export default function CreateLoadForm({ onSuccess, onCancel, isSheet }: CreateLoadFormProps) {
   // Use the new wizard component for creating loads
-  return <CreateLoadWizard />;
+  return <CreateLoadWizard onSuccess={onSuccess} onCancel={onCancel} isSheet={isSheet} />;
 }
 

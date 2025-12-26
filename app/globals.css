@@ -27,6 +27,59 @@
     --input: 214.3 31.8% 85%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+
+    /* ===== DESIGN SYSTEM TOKENS ===== */
+
+    /* Status - Success (Green) */
+    --status-success: 142 76% 36%;
+    --status-success-foreground: 0 0% 100%;
+    --status-success-muted: 142 76% 94%;
+
+    /* Status - Warning (Amber) */
+    --status-warning: 38 92% 50%;
+    --status-warning-foreground: 0 0% 0%;
+    --status-warning-muted: 38 92% 94%;
+
+    /* Status - Error (Red) */
+    --status-error: 0 84% 60%;
+    --status-error-foreground: 0 0% 100%;
+    --status-error-muted: 0 84% 94%;
+
+    /* Status - Info (Blue) */
+    --status-info: 217 91% 60%;
+    --status-info-foreground: 0 0% 100%;
+    --status-info-muted: 217 91% 94%;
+
+    /* Status - Neutral (Gray) */
+    --status-neutral: 220 9% 46%;
+    --status-neutral-foreground: 0 0% 100%;
+    --status-neutral-muted: 220 9% 94%;
+
+    /* Spacing Scale (4px base) */
+    --space-0: 0px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-8: 48px;
+
+    /* Typography Scale */
+    --text-display: 1.5rem;
+    /* 24px */
+    --text-heading: 1rem;
+    /* 16px */
+    --text-subheading: 0.875rem;
+    /* 14px */
+    --text-body: 0.8125rem;
+    /* 13px */
+    --text-data: 0.75rem;
+    /* 12px */
+    --text-caption: 0.6875rem;
+    /* 11px */
+    --text-micro: 0.625rem;
+    /* 10px */
   }
 
   .dark {
@@ -58,6 +111,31 @@
     --border: 217 33% 20%;
     --input: 217 33% 20%;
     --ring: 217 33% 20%;
+
+    /* Status - Success (Green - lighter for dark bg) */
+    --status-success: 142 71% 45%;
+    --status-success-foreground: 0 0% 100%;
+    --status-success-muted: 142 40% 20%;
+
+    /* Status - Warning (Amber - brighter for dark bg) */
+    --status-warning: 38 92% 55%;
+    --status-warning-foreground: 0 0% 0%;
+    --status-warning-muted: 38 50% 20%;
+
+    /* Status - Error (Red - brighter for dark bg) */
+    --status-error: 0 72% 55%;
+    --status-error-foreground: 0 0% 100%;
+    --status-error-muted: 0 50% 20%;
+
+    /* Status - Info (Blue - brighter for dark bg) */
+    --status-info: 217 91% 65%;
+    --status-info-foreground: 0 0% 100%;
+    --status-info-muted: 217 50% 20%;
+
+    /* Status - Neutral (Gray - lighter for dark bg) */
+    --status-neutral: 220 9% 60%;
+    --status-neutral-foreground: 0 0% 0%;
+    --status-neutral-muted: 220 9% 20%;
   }
 
   .amber {
@@ -89,6 +167,31 @@
     --border: 20 15% 20%;
     --input: 20 15% 20%;
     --ring: 25 95% 55%;
+
+    /* Status - Success (Warm green for amber theme) */
+    --status-success: 150 65% 42%;
+    --status-success-foreground: 0 0% 100%;
+    --status-success-muted: 150 40% 18%;
+
+    /* Status - Warning (Matches amber primary) */
+    --status-warning: 30 90% 55%;
+    --status-warning-foreground: 0 0% 0%;
+    --status-warning-muted: 30 50% 18%;
+
+    /* Status - Error (Warm red) */
+    --status-error: 5 70% 55%;
+    --status-error-foreground: 0 0% 100%;
+    --status-error-muted: 5 50% 18%;
+
+    /* Status - Info (Warm blue) */
+    --status-info: 200 70% 55%;
+    --status-info-foreground: 0 0% 100%;
+    --status-info-muted: 200 40% 18%;
+
+    /* Status - Neutral (Warm gray) */
+    --status-neutral: 30 10% 55%;
+    --status-neutral-foreground: 0 0% 0%;
+    --status-neutral-muted: 30 10% 18%;
   }
 }
 
@@ -100,11 +203,11 @@
   * {
     @apply border-border;
   }
-  
+
   html {
     font-size: var(--base-font-size);
   }
-  
+
   body {
     @apply bg-background text-foreground;
   }
@@ -113,12 +216,15 @@
   .compact-mode {
     --spacing-unit: 0.5rem;
   }
-  .compact-mode .space-y-6 > * + * {
+
+  .compact-mode .space-y-6>*+* {
     margin-top: calc(var(--spacing-unit) * 3);
   }
+
   .compact-mode .p-4 {
     padding: calc(var(--spacing-unit) * 2);
   }
+
   .compact-mode .gap-4 {
     gap: calc(var(--spacing-unit) * 2);
   }
@@ -149,4 +255,3 @@ html.font-large {
   --base-font-size: 1.125rem;
   font-size: 1.125rem;
 }
-

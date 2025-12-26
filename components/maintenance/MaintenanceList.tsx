@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Table,
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Wrench, Plus, Search, Filter, Download, Upload } from 'lucide-react';
+import { Wrench, Plus, Search, Filter, Download, Upload, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import ImportDialog from '@/components/import-export/ImportDialog';
@@ -28,24 +29,45 @@ import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
+import MaintenanceSheet from './MaintenanceSheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface MaintenanceRecord {
   id: string;
   type: string;
   description: string;
   cost: number;
-  mileage: number;
-  date: Date;
-  nextServiceDate: Date | null;
+  odometer: number;
+  date: string;
+  nextServiceDate: string | null;
   vendor: string | null;
   invoiceNumber: string | null;
+  truckId: string;
   truck: {
     id: string;
     truckNumber: string;
     make: string;
     model: string;
   };
-  createdAt: Date;
+  createdAt: string;
 }
 
 async function fetchMaintenance(params: {
@@ -82,10 +104,15 @@ function getTypeColor(type: string): string {
 }
 
 export default function MaintenanceList() {
+  const searchParams = useSearchParams();
+  const initialTruckId = searchParams.get('truckId') || 'all';
+
   const [page, setPage] = useState(1);
-  const [truckFilter, setTruckFilter] = useState<string>('all');
+  const [truckFilter, setTruckFilter] = useState<string>(initialTruckId);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<any>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -118,6 +145,28 @@ export default function MaintenanceList() {
     }
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(apiUrl(`/api/maintenance/${id}`), {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete record');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Maintenance record deleted');
+      queryClient.invalidateQueries({ queryKey: ['maintenance'] });
+    },
+    onError: (error) => {
+      toast.error('Failed to delete maintenance record');
+      console.error(error);
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    deleteMutation.mutate(id);
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -139,12 +188,13 @@ export default function MaintenanceList() {
         <div className="flex items-center gap-2">
           <ImportDialog entityType="maintenance" onImportComplete={() => refetch()} />
           <ExportDialog entityType="maintenance" />
-          <Link href="/dashboard/maintenance/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Maintenance
-            </Button>
-          </Link>
+          <Button onClick={() => {
+            setEditingRecord(null);
+            setSheetOpen(true);
+          }}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Maintenance
+          </Button>
         </div>
       </div>
 
@@ -180,12 +230,13 @@ export default function MaintenanceList() {
           <div className="text-center">
             <Wrench className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground mb-4">No maintenance records found</p>
-            <Link href="/dashboard/maintenance/new">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Maintenance Record
-              </Button>
-            </Link>
+            <Button onClick={() => {
+              setEditingRecord(null);
+              setSheetOpen(true);
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Maintenance Record
+            </Button>
           </div>
         </div>
       ) : (
@@ -204,10 +255,11 @@ export default function MaintenanceList() {
                   <TableHead>Type</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Cost</TableHead>
-                  <TableHead>Mileage</TableHead>
+                  <TableHead>Odometer</TableHead>
                   <TableHead>Service Date</TableHead>
                   <TableHead>Next Service</TableHead>
                   <TableHead>Vendor</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -237,7 +289,7 @@ export default function MaintenanceList() {
                     </TableCell>
                     <TableCell>{record.description}</TableCell>
                     <TableCell className="font-medium">{formatCurrency(record.cost)}</TableCell>
-                    <TableCell>{record.mileage.toLocaleString()} mi</TableCell>
+                    <TableCell>{record.odometer.toLocaleString()} mi</TableCell>
                     <TableCell>
                       {formatDate(record.date)}
                     </TableCell>
@@ -245,6 +297,57 @@ export default function MaintenanceList() {
                       {record.nextServiceDate ? formatDate(record.nextServiceDate) : '-'}
                     </TableCell>
                     <TableCell>{record.vendor || '-'}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={() => {
+                              setEditingRecord(record);
+                              setSheetOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive cursor-pointer"
+                                onSelect={(e) => e.preventDefault()}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Maintenance Record</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this maintenance record? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => handleDelete(record.id)}
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -292,6 +395,17 @@ export default function MaintenanceList() {
           )}
         </>
       )}
+
+      {/* Maintenance Create/Edit Modal */}
+      <MaintenanceSheet
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setEditingRecord(null);
+        }}
+        id={editingRecord?.id}
+        initialData={editingRecord}
+      />
     </div>
   );
 }

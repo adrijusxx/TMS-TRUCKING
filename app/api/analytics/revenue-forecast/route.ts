@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { hasPermission } from '@/lib/permissions';
+import { hasPermissionAsync } from '@/lib/server-permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,6 @@ export async function GET(request: NextRequest) {
 
     // Check analytics permission (use database-backed check)
     const role = (session.user as any)?.role || 'CUSTOMER';
-    const { hasPermissionAsync } = await import('@/lib/permissions');
     if (!(await hasPermissionAsync(role, 'analytics.view'))) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       } else if (load.pickupDate) {
         date = new Date(load.pickupDate);
       }
-      
+
       if (date) {
         const month = date.toISOString().slice(0, 7); // YYYY-MM
         monthlyRevenue[month] = (monthlyRevenue[month] || 0) + (Number(load.revenue) || 0);
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 
       // Simple forecast: apply growth rate with some variance
       const projectedRevenue = baseRevenue * (1 + growthRate / 100) * Math.pow(1 + growthRate / 100, i - 1);
-      
+
       // Add some variance based on historical volatility
       const variance = historicalData.length > 1
         ? calculateVariance(historicalData.map((d) => d.revenue))
@@ -175,7 +175,7 @@ function calculateVariance(values: number[]): number {
 function calculateSeasonality(data: Array<{ month: string; revenue: number }>): Record<string, number> {
   // Simple seasonality: average revenue by month number (1-12)
   const monthlyAverages: Record<number, number[]> = {};
-  
+
   data.forEach((d) => {
     const monthNum = parseInt(d.month.split('-')[1]);
     if (!monthlyAverages[monthNum]) {

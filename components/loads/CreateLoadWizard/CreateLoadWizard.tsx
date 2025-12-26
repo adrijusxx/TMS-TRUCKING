@@ -50,7 +50,7 @@ async function createLoad(data: CreateLoadInput) {
     const error = await response.json();
     const errorMessage = error.error?.message || error.message || 'Failed to create load';
     const errorCode = error.error?.code;
-    
+
     let details = '';
     if (error.error?.details) {
       if (typeof error.error.details === 'string') {
@@ -61,12 +61,12 @@ async function createLoad(data: CreateLoadInput) {
           .join('\n');
       }
     }
-    
+
     showErrorFeedback('Load Creation Failed', errorMessage, {
       errorCode,
       details: details || `Load Number: ${data.loadNumber}\nCustomer ID: ${data.customerId}\nTimestamp: ${error.error?.timestamp || new Date().toISOString()}`,
     });
-    
+
     const err = new Error(errorMessage) as CreateLoadError;
     err.code = errorCode;
     err.details = details;
@@ -107,7 +107,13 @@ const STEPS = [
   { label: 'Review & Create', description: 'Assign & Submit' },
 ];
 
-export default function CreateLoadWizard() {
+interface CreateLoadWizardProps {
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  isSheet?: boolean;
+}
+
+export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false }: CreateLoadWizardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -181,7 +187,7 @@ export default function CreateLoadWizard() {
         );
         setCurrentDraftId(id);
         setSavedDrafts(getDraftsList());
-      } catch (error) {}
+      } catch (error) { }
     }, 30000);
     return () => clearInterval(autoSaveInterval);
   }, [loadData, currentStep, currentDraftId, pendingFiles]);
@@ -237,7 +243,7 @@ export default function CreateLoadWizard() {
     mutationFn: createLoad,
     onSuccess: async (data) => {
       const newLoadId = data.data.id;
-      
+
       if (pendingFiles.length > 0) {
         try {
           await Promise.all(
@@ -251,7 +257,7 @@ export default function CreateLoadWizard() {
               formData.append('fileUrl', `/uploads/${Date.now()}-${file.name}`);
               formData.append('fileSize', file.size.toString());
               formData.append('mimeType', file.type);
-              
+
               const response = await fetch(apiUrl('/api/documents/upload'), {
                 method: 'POST',
                 body: formData,
@@ -266,28 +272,32 @@ export default function CreateLoadWizard() {
       } else {
         toast.success('Load created successfully');
       }
-      
-      queryClient.removeQueries({ 
+
+      queryClient.removeQueries({
         predicate: (query) => {
           const firstKey = query.queryKey[0];
           return firstKey === 'loads' || (typeof firstKey === 'string' && firstKey.startsWith('load'));
         }
       });
-      
-      await queryClient.invalidateQueries({ 
+
+      await queryClient.invalidateQueries({
         predicate: (query) => {
           const firstKey = query.queryKey[0];
           return firstKey === 'loads' || (typeof firstKey === 'string' && firstKey.startsWith('load'));
         }
       });
-      
+
       if (currentDraftId) deleteDraft(currentDraftId);
-      
-      setTimeout(() => {
-        window.location.href = '/dashboard/loads';
-      }, 500);
+
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        setTimeout(() => {
+          window.location.href = '/dashboard/loads';
+        }, 500);
+      }
     },
-    onError: () => {},
+    onError: () => { },
   });
 
   const handleDataExtracted = useCallback((data: Partial<CreateLoadInput>, pdfFile?: File) => {
@@ -375,7 +385,12 @@ export default function CreateLoadWizard() {
             Import from Rate Con or enter manually
           </p>
         </div>
-        <Link href="/dashboard/loads">
+        <Link href={isSheet ? '#' : "/dashboard/loads"} onClick={(e) => {
+          if (isSheet && onCancel) {
+            e.preventDefault();
+            onCancel();
+          }
+        }}>
           <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -390,10 +405,9 @@ export default function CreateLoadWizard() {
           const isComplete = currentStep > stepNum;
           return (
             <div key={step.label} className="flex items-center gap-1">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium ${
-                isActive ? 'bg-primary text-primary-foreground' : 
+              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium ${isActive ? 'bg-primary text-primary-foreground' :
                 isComplete ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'
-              }`}>
+                }`}>
                 {isComplete ? '✓' : stepNum}
               </div>
               <span className={`${isActive ? 'font-medium' : 'text-muted-foreground'}`}>
@@ -414,8 +428,8 @@ export default function CreateLoadWizard() {
           />
         )}
         {currentStep === 2 && (
-          <form 
-            id="create-load-form" 
+          <form
+            id="create-load-form"
             onSubmit={(e) => {
               e.preventDefault();
               onSubmit(loadData as CreateLoadInput);

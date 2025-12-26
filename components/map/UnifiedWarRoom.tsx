@@ -12,14 +12,15 @@ import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  RefreshCw, Truck, Package, MapPin, Maximize2, AlertTriangle, 
-  Route, History, Shield, Cloud, Layers, Phone, Fuel
+import {
+  RefreshCw, Truck, Package, MapPin, Maximize2, AlertTriangle,
+  Route, History, Shield, Cloud, Layers, Phone, Fuel, Search
 } from 'lucide-react';
 import { loadGoogleMapsApi } from '@/lib/maps/google-loader';
 import { DEFAULT_MAP_CONFIG } from '@/lib/maps/map-config';
 import { useLiveMap } from '@/hooks/useLiveMap';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 import type { LoadMapEntry, TruckMapEntry } from '@/lib/maps/live-map-service';
 import AssetDetailCard from './AssetDetailCard';
 import LayerControls from './LayerControls';
@@ -98,6 +99,7 @@ export default function UnifiedWarRoom() {
     traffic: false,
     weather: false,
   });
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch data
   const { loads, trucks, isLoading, error, refetch } = useLiveMap();
@@ -115,10 +117,14 @@ export default function UnifiedWarRoom() {
     });
 
     // Add trucks with location
+    // Add trucks with location
     trucks.forEach(truck => {
       if (truck.location?.lat && truck.location?.lng) {
         const speed = truck.location.speed || 0;
         const status = speed > 5 ? 'MOVING' : speed > 0 ? 'STOPPED' : 'IDLE';
+        // Find active load for this truck, if any
+        const activeLoad = loads.find(load => load.truck?.id === truck.id);
+
         assets.push({
           id: truck.id,
           type: 'TRUCK',
@@ -129,6 +135,8 @@ export default function UnifiedWarRoom() {
           speed,
           heading: truck.location.heading,
           truckData: truck,
+          // Attach load data for ETA tab (may be undefined if no load assigned)
+          loadData: activeLoad,
         });
       }
     });
@@ -138,12 +146,12 @@ export default function UnifiedWarRoom() {
       if (load.truckLocation?.lat && load.truckLocation?.lng) {
         const speed = load.truckLocation.speed || 0;
         let status: MapAsset['status'] = speed > 5 ? 'MOVING' : speed > 0 ? 'STOPPED' : 'IDLE';
-        
+
         // Check if load is delayed (simplified logic)
         if (load.status === 'EN_ROUTE_DELIVERY' && speed === 0) {
           status = 'DELAYED';
         }
-        
+
         assets.push({
           id: load.id,
           type: 'LOAD',
@@ -160,6 +168,17 @@ export default function UnifiedWarRoom() {
 
     return assets;
   }, [loads, trucks]);
+
+  // Filter assets based on search query
+  const filteredMapAssets = useMemo(() => {
+    if (!searchQuery.trim()) return mapAssets;
+
+    const query = searchQuery.toLowerCase();
+    return mapAssets.filter(asset =>
+      asset.label.toLowerCase().includes(query) ||
+      asset.id.toLowerCase().includes(query)
+    );
+  }, [mapAssets, searchQuery]);
 
   // Initialize map
   useEffect(() => {
@@ -232,10 +251,10 @@ export default function UnifiedWarRoom() {
     markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
 
-    if (mapAssets.length === 0) return;
+    if (filteredMapAssets.length === 0) return;
 
     // Create new markers
-    const markers = mapAssets.map(asset => {
+    const markers = filteredMapAssets.map(asset => {
       const marker = new google.maps.Marker({
         position: { lat: asset.lat, lng: asset.lng },
         icon: createAssetMarkerIcon(asset),
@@ -267,7 +286,7 @@ export default function UnifiedWarRoom() {
       });
       map.fitBounds(bounds, 50);
     }
-  }, [map, clusterer, mapAssets, mapReady]);
+  }, [map, clusterer, filteredMapAssets, mapReady]);
 
   // Update route polylines when layer is toggled
   useEffect(() => {
@@ -283,7 +302,7 @@ export default function UnifiedWarRoom() {
     loads.forEach(load => {
       if (load.pickup && load.delivery && load.pickup.lat && load.delivery.lat) {
         const color = LOAD_ROUTE_COLORS[load.status] || '#6b7280';
-        
+
         const polyline = new google.maps.Polyline({
           path: [
             { lat: load.pickup.lat, lng: load.pickup.lng },
@@ -305,11 +324,11 @@ export default function UnifiedWarRoom() {
   // Toggle traffic layer
   useEffect(() => {
     if (!map) return;
-    
+
     if (!trafficLayerRef.current) {
       trafficLayerRef.current = new google.maps.TrafficLayer();
     }
-    
+
     if (layers.traffic) {
       trafficLayerRef.current.setMap(map);
     } else {
@@ -320,13 +339,13 @@ export default function UnifiedWarRoom() {
   // Initialize and manage path trails
   useEffect(() => {
     if (!map || !mapReady) return;
-    
+
     if (!trailManagerRef.current) {
       trailManagerRef.current = new PathTrailManager(map);
     }
-    
+
     trailManagerRef.current.setEnabled(layers.trails);
-    
+
     // Add current positions to trails when enabled
     if (layers.trails) {
       mapAssets.forEach(asset => {
@@ -375,10 +394,10 @@ export default function UnifiedWarRoom() {
   // Stats
   const stats = useMemo(() => {
     const trucksWithLocation = trucks.filter(t => t.location?.lat);
-    const lowFuelTrucks = trucksWithLocation.filter(t => 
+    const lowFuelTrucks = trucksWithLocation.filter(t =>
       t.sensors?.fuelPercent !== undefined && t.sensors.fuelPercent < 25
     );
-    
+
     return {
       trucks: trucksWithLocation.length,
       loads: loads.filter(l => l.truckLocation?.lat).length,
@@ -393,18 +412,25 @@ export default function UnifiedWarRoom() {
     <div className="h-full flex flex-col bg-background rounded border overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-        <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">Operations Center</span>
-          <Badge variant="secondary" className="text-[10px] h-5">
-            {mapAssets.length} assets
+        <div className="flex items-center gap-2 flex-1 max-w-sm">
+          <Badge variant="secondary" className="text-[10px] h-5 px-1.5 min-w-fit">
+            {filteredMapAssets.length} / {mapAssets.length}
           </Badge>
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+            <Input
+              placeholder="Search trucks, loads..."
+              className="h-7 text-xs pl-7 bg-background"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-6 text-xs px-2" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
             onClick={() => refetch()}
             disabled={isLoading}
           >
@@ -541,10 +567,10 @@ function createAssetMarkerIcon(asset: MapAsset): google.maps.Icon {
   const color = STATUS_COLORS[asset.status] || STATUS_COLORS.IDLE;
   const size = 30;
   const letter = asset.type === 'TRUCK' ? 'T' : 'L';
-  
+
   // Rotate icon based on heading
   const rotation = asset.heading || 0;
-  
+
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2"/>

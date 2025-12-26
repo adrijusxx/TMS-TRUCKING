@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { hasPermission } from '@/lib/permissions';
+import { hasPermissionAsync } from '@/lib/server-permissions';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,6 @@ export async function GET(request: NextRequest) {
 
     // Check analytics permission (use database-backed check)
     const role = (session.user as any)?.role || 'CUSTOMER';
-    const { hasPermissionAsync } = await import('@/lib/permissions');
     if (!(await hasPermissionAsync(role, 'analytics.view'))) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
@@ -31,11 +31,11 @@ export async function GET(request: NextRequest) {
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(now);
     todayEnd.setHours(23, 59, 59, 999);
-    
+
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - 7);
     weekStart.setHours(0, 0, 0, 0);
-    
+
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     monthStart.setHours(0, 0, 0, 0);
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Build MC filters
     const isAdmin = (session.user as any)?.role === 'ADMIN';
     const viewingAll = isAdmin;
-    
+
     const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const driverTruckFilter = await buildMcNumberIdWhereClause(session, request);
 
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
             { deliveryDate: { gte: todayStart, lte: todayEnd } },
             { deliveredAt: { gte: todayStart, lte: todayEnd } },
             // Include loads created today if no date is set
-            { 
+            {
               AND: [
                 { createdAt: { gte: todayStart, lte: todayEnd } },
                 { pickupDate: null },
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
             { deliveryDate: { gte: weekStart } },
             { deliveredAt: { gte: weekStart } },
             // Include loads created this week if no date is set
-            { 
+            {
               AND: [
                 { createdAt: { gte: weekStart } },
                 { pickupDate: null },
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
             { deliveryDate: { gte: monthStart } },
             { deliveredAt: { gte: monthStart } },
             // Include loads created this month if no date is set
-            { 
+            {
               AND: [
                 { createdAt: { gte: monthStart } },
                 { pickupDate: null },
@@ -140,23 +140,23 @@ export async function GET(request: NextRequest) {
           ...loadMcWhere,
           deletedAt: null,
           OR: [
-            { 
-              pickupDate: { 
+            {
+              pickupDate: {
                 gte: lastMonthStart,
                 lte: lastMonthEnd,
-              } 
+              }
             },
-            { 
-              deliveryDate: { 
+            {
+              deliveryDate: {
                 gte: lastMonthStart,
                 lte: lastMonthEnd,
-              } 
+              }
             },
-            { 
-              deliveredAt: { 
+            {
+              deliveredAt: {
                 gte: lastMonthStart,
                 lte: lastMonthEnd,
-              } 
+              }
             },
           ],
         },

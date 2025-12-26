@@ -35,7 +35,17 @@ async function createCustomer(data: CreateCustomerInput) {
   return response.json();
 }
 
-export default function CreateCustomerForm() {
+interface CreateCustomerFormProps {
+  onSuccess?: (customerId: string) => void;
+  onCancel?: () => void;
+  isSheet?: boolean;
+}
+
+export default function CreateCustomerForm({
+  onSuccess,
+  onCancel,
+  isSheet = false
+}: CreateCustomerFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +70,11 @@ export default function CreateCustomerForm() {
     mutationFn: createCustomer,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
-      router.push(`/dashboard/customers/${data.data.id}`);
+      if (onSuccess) {
+        onSuccess(data.data.id);
+      } else {
+        router.push(`/dashboard/customers/${data.data.id}`);
+      }
     },
     onError: (err: Error) => {
       setError(err.message);
@@ -85,11 +99,17 @@ export default function CreateCustomerForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/dashboard/customers">
-          <Button type="button" variant="ghost" size="icon">
+        {onCancel ? (
+          <Button type="button" variant="ghost" size="icon" onClick={onCancel}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-        </Link>
+        ) : (
+          <Link href="/dashboard/customers">
+            <Button type="button" variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
         <div>
           <h2 className="text-2xl font-semibold">Customer Information</h2>
           <p className="text-sm text-muted-foreground">
@@ -350,11 +370,17 @@ export default function CreateCustomerForm() {
       </div>
 
       <div className="flex justify-end gap-4">
-        <Link href="/dashboard/customers">
-          <Button type="button" variant="outline">
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-        </Link>
+        ) : (
+          <Link href="/dashboard/customers">
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </Link>
+        )}
         <Button type="submit" disabled={isSubmitting || createMutation.isPending}>
           {isSubmitting || createMutation.isPending
             ? 'Creating...'

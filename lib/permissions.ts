@@ -409,20 +409,7 @@ export function hasPermission(role: UserRole, permission: Permission): boolean {
   return permissions.includes(permission);
 }
 
-/**
- * Check if a role has a specific permission (async - checks database)
- * This is the preferred method for server-side code
- */
-export async function hasPermissionAsync(role: UserRole, permission: Permission): Promise<boolean> {
-  try {
-    const { PermissionService } = await import('@/lib/services/PermissionService');
-    return await PermissionService.hasPermission(role, permission);
-  } catch (error) {
-    console.error('Error checking permission:', error);
-    // Fallback to sync version
-    return hasPermission(role, permission);
-  }
-}
+
 
 /**
  * Check if a role has any of the specified permissions
@@ -446,20 +433,7 @@ export function getRolePermissions(role: UserRole): Permission[] {
   return rolePermissions[role] || [];
 }
 
-/**
- * Get all permissions for a role (async - checks database)
- * This is the preferred method for server-side code
- */
-async function getRolePermissionsAsync(role: UserRole): Promise<Permission[]> {
-  try {
-    const { PermissionService } = await import('@/lib/services/PermissionService');
-    return await PermissionService.getRolePermissions(role);
-  } catch (error) {
-    console.error('Error getting role permissions:', error);
-    // Fallback to sync version
-    return getRolePermissions(role);
-  }
-}
+
 
 /**
  * Get all available permissions (for permission management UI)

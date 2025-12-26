@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import CustomerCombobox from '@/components/customers/CustomerCombobox';
 import { useQuery } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
-import CreateCustomerDialog from '@/components/customers/CreateCustomerDialog';
+import CustomerSheet from '@/components/customers/CustomerSheet';
 import { useState } from 'react';
 import {
   PickupSection,
@@ -50,7 +50,7 @@ export default function Step3ReviewFinalization({
   onFieldChange,
   errors = {},
 }: Step3ReviewFinalizationProps) {
-  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [isCustomerSheetOpen, setIsCustomerSheetOpen] = useState(false);
   const hasMultipleStops = loadData.stops && Array.isArray(loadData.stops) && loadData.stops.length > 0;
 
   const { data: customersData, refetch: refetchCustomers } = useQuery({
@@ -74,10 +74,10 @@ export default function Step3ReviewFinalization({
   const driver = driverData?.data;
   const truck = truckData?.data;
 
-  const handleCustomerCreated = async (customerId: string) => {
+  const handleCustomerCreated = async (customerId?: string) => {
     await refetchCustomers();
-    onFieldChange('customerId', customerId);
-    setIsCustomerDialogOpen(false);
+    if (customerId) onFieldChange('customerId', customerId);
+    setIsCustomerSheetOpen(false);
   };
 
   const formatDate = (date: string | Date | undefined) => {
@@ -157,7 +157,7 @@ export default function Step3ReviewFinalization({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setIsCustomerDialogOpen(true)}
+                    onClick={() => setIsCustomerSheetOpen(true)}
                     className="h-7 text-xs"
                   >
                     <Plus className="h-3 w-3 mr-1" />
@@ -167,7 +167,7 @@ export default function Step3ReviewFinalization({
                 <CustomerCombobox
                   value={loadData.customerId || ''}
                   onValueChange={(value) => onFieldChange('customerId', value)}
-                  onNewCustomer={() => setIsCustomerDialogOpen(true)}
+                  onNewCustomer={() => setIsCustomerSheetOpen(true)}
                   placeholder="Search customer by name, number, or email..."
                   customers={customers}
                   className="flex-1"
@@ -274,11 +274,10 @@ export default function Step3ReviewFinalization({
               {loadData.stops!.map((stop: any, index: number) => (
                 <Card key={index} className="p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-xs font-medium px-2 py-1 rounded ${
-                      stop.stopType === 'PICKUP' 
-                        ? 'bg-green-100 text-green-700' 
+                    <span className={`text-xs font-medium px-2 py-1 rounded ${stop.stopType === 'PICKUP'
+                        ? 'bg-green-100 text-green-700'
                         : 'bg-red-100 text-red-700'
-                    }`}>
+                      }`}>
                       Stop {stop.sequence} - {stop.stopType}
                     </span>
                   </div>
@@ -345,12 +344,12 @@ export default function Step3ReviewFinalization({
         errors={errors}
       />
 
-      {/* Customer Creation Dialog */}
-      <CreateCustomerDialog
-        open={isCustomerDialogOpen}
-        onOpenChange={setIsCustomerDialogOpen}
-        onCustomerCreated={handleCustomerCreated}
-        quickCreate={true}
+      {/* Customer Creation Sheet */}
+      <CustomerSheet
+        open={isCustomerSheetOpen}
+        onOpenChange={setIsCustomerSheetOpen}
+        onSuccess={handleCustomerCreated}
+        mode="create"
       />
     </div>
   );

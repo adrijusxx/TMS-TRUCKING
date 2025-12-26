@@ -37,6 +37,7 @@ const createBreakdownSchema = z.object({
   serviceProvider: z.string().optional(),
   serviceContact: z.string().optional(),
   serviceAddress: z.string().optional(),
+  telematicsSnapshot: z.any().optional(),
 });
 
 /**
@@ -259,6 +260,7 @@ export async function POST(request: NextRequest) {
       companyId: session.user.companyId,
       reportedBy: session.user.id,
       status: 'REPORTED',
+      telematicsSnapshot: validatedData.telematicsSnapshot ?? undefined,
     };
 
     // Add optional fields if they exist in the validated data

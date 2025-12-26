@@ -11,12 +11,13 @@ import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/export';
 import ImportDialog from '@/components/import-export/ImportDialog';
 import ExportDialog from '@/components/import-export/ExportDialog';
-import DriverInlineEdit from '@/components/drivers/DriverInlineEdit';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import type { BulkEditField } from '@/components/data-table/types';
 import { DriverStatus, EmployeeStatus, AssignmentStatus } from '@prisma/client';
 import { Plus, Upload, Download } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useRouter } from 'next/navigation';
+import DriverSheet from '@/components/drivers/DriverSheet';
 
 interface DriverData {
   id: string;
@@ -53,11 +54,24 @@ interface DriversTableClientProps {
 export function DriversTableClient({ data }: DriversTableClientProps) {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const router = useRouter();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+
+  // Sheet State
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+  const [selectedDriverId, setSelectedDriverId] = React.useState<string | null>(null);
+
+  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
+    setSheetMode(mode);
+    if (id) setSelectedDriverId(id);
+    setSheetOpen(true);
+  };
 
   const handleUpdate = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['drivers'] });
-  }, [queryClient]);
+    router.refresh();
+  }, [queryClient, router]);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -100,14 +114,26 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
   const rowActions = React.useCallback((row: DriverData) => {
     return (
       <div className="flex items-center gap-2">
-        <Link href={`/dashboard/drivers/${row.id}`}>
-          <Button variant="ghost" size="sm">
+        {can('drivers.edit') ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('edit', row.id)}
+          >
+            Edit
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openSheet('view', row.id)}
+          >
             View
           </Button>
-        </Link>
+        )}
       </div>
     );
-  }, []);
+  }, [can]);
 
   const handleDeleteSelected = React.useCallback((ids: string[]) => {
     handleDelete(ids);
@@ -198,12 +224,10 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
             </ExportDialog>
           )}
           {can('drivers.create') && (
-            <Link href="/dashboard/drivers/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Driver
-              </Button>
-            </Link>
+            <Button size="sm" onClick={() => openSheet('create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Driver
+            </Button>
           )}
         </div>
       </div>
@@ -220,8 +244,13 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
         onExportSelected={handleExportSelected}
         onImport={handleImport}
         onExport={handleExport}
-        inlineEditComponent={DriverInlineEdit}
-        onInlineEditSave={handleUpdate}
+      />
+      <DriverSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        mode={sheetMode}
+        driverId={selectedDriverId}
+        onSuccess={handleUpdate}
       />
     </>
   );

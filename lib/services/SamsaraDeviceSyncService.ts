@@ -75,13 +75,33 @@ export class SamsaraDeviceSyncService {
       console.log(`[SamsaraSync] Fetched ${vehicles?.length || 0} vehicles and ${assets?.length || 0} assets`);
 
       // Get stats for odometer/engine hours
-      const stats = await getSamsaraVehicleStats(this.companyId).catch(() => []);
+      const stats = await getSamsaraVehicleStats(undefined, this.companyId).catch(() => []);
       const statsMap = new Map<string, { odometerMiles?: number; engineHours?: number }>();
       stats?.forEach((s: any) => {
         const vehicleId = s.id || s.vehicleId;
         if (vehicleId) {
-          const odometerMeters = s.obdOdometerMeters?.value ?? s.obdOdometerMeters;
-          const engineSeconds = s.obdEngineSeconds?.value ?? s.syntheticEngineSeconds?.value ?? s.obdEngineSeconds ?? s.syntheticEngineSeconds;
+          // Robust parsing for odometer (can be array, object or number)
+          let odometerMeters: number | undefined;
+          const odoRaw = s.obdOdometerMeters;
+          if (Array.isArray(odoRaw) && odoRaw.length > 0) {
+            odometerMeters = odoRaw[0].value ?? odoRaw[0];
+          } else if (typeof odoRaw === 'object' && odoRaw !== null) {
+            odometerMeters = odoRaw.value;
+          } else if (typeof odoRaw === 'number') {
+            odometerMeters = odoRaw;
+          }
+
+          // Robust parsing for engine seconds
+          let engineSeconds: number | undefined;
+          const engRaw = s.obdEngineSeconds ?? s.syntheticEngineSeconds;
+          if (Array.isArray(engRaw) && engRaw.length > 0) {
+            engineSeconds = engRaw[0].value ?? engRaw[0];
+          } else if (typeof engRaw === 'object' && engRaw !== null) {
+            engineSeconds = engRaw.value;
+          } else if (typeof engRaw === 'number') {
+            engineSeconds = engRaw;
+          }
+
           statsMap.set(vehicleId, {
             odometerMiles: odometerMeters ? Number(odometerMeters) * 0.000621371 : undefined,
             engineHours: engineSeconds ? Number(engineSeconds) / 3600 : undefined,
@@ -105,7 +125,7 @@ export class SamsaraDeviceSyncService {
               odometerMiles: vehicleStats?.odometerMiles,
               engineHours: vehicleStats?.engineHours,
             }, 'TRUCK');
-            
+
             if (deviceResult.action === 'matched') result.matched++;
             else if (deviceResult.action === 'updated') result.updated++;
             else if (deviceResult.action === 'queued') result.queued++;
@@ -125,7 +145,7 @@ export class SamsaraDeviceSyncService {
               vin: asset.vin,
               licensePlate: asset.licensePlate,
             }, 'TRAILER');
-            
+
             if (deviceResult.action === 'matched') result.matched++;
             else if (deviceResult.action === 'updated') result.updated++;
             else if (deviceResult.action === 'queued') result.queued++;
@@ -147,7 +167,7 @@ export class SamsaraDeviceSyncService {
    * Process a single device - match, update, or queue
    */
   private async processDevice(
-    device: SamsaraDevice, 
+    device: SamsaraDevice,
     deviceType: 'TRUCK' | 'TRAILER'
   ): Promise<{ action: 'matched' | 'updated' | 'queued' | 'skipped' }> {
     // Check if already linked via samsaraId
@@ -196,7 +216,7 @@ export class SamsaraDeviceSyncService {
    * Find existing record by samsaraId
    */
   private async findBySamsaraId(
-    samsaraId: string, 
+    samsaraId: string,
     deviceType: 'TRUCK' | 'TRAILER'
   ): Promise<{ id: string } | null> {
     if (deviceType === 'TRUCK') {
@@ -305,9 +325,9 @@ export class SamsaraDeviceSyncService {
    */
   private async linkAndUpdateRecord(device: SamsaraDevice, match: MatchResult) {
     const now = new Date();
-    
+
     // Convert year to number if it's a string
-    const yearValue = device.year 
+    const yearValue = device.year
       ? (typeof device.year === 'string' ? parseInt(device.year, 10) : device.year)
       : undefined;
     const validYear = yearValue && !isNaN(yearValue) ? yearValue : undefined;
@@ -394,10 +414,10 @@ export class SamsaraDeviceSyncService {
     }
 
     // Convert year to number if it's a string
-    const yearValue = device.year 
+    const yearValue = device.year
       ? (typeof device.year === 'string' ? parseInt(device.year, 10) : device.year)
       : null;
-    
+
     await prisma.samsaraDeviceQueue.create({
       data: {
         companyId: this.companyId,
@@ -480,12 +500,12 @@ export class SamsaraDeviceSyncService {
 
         // Check if truck with this VIN already exists (most reliable match)
         let existingTruck = null;
-        
+
         if (queueItem.vin) {
-          existingTruck = allCompanyTrucks.find(truck => 
+          existingTruck = allCompanyTrucks.find(truck =>
             truck.vin && truck.vin.toUpperCase() === queueItem.vin?.toUpperCase()
           ) || null;
-          
+
           if (existingTruck) {
             console.log(`[SamsaraSync] Found existing truck by VIN: ${existingTruck.truckNumber} (${existingTruck.vin})`);
           }
@@ -500,29 +520,29 @@ export class SamsaraDeviceSyncService {
           existingTruck = allCompanyTrucks.find(truck => {
             const normalizedTruckNumber = this.normalize(truck.truckNumber);
             const truckNumericPart = truck.truckNumber.replace(/\D/g, '');
-            
+
             // Strategy 1: Exact normalized match
             if (normalizedTarget && normalizedTruckNumber === normalizedTarget) {
               console.log(`[SamsaraSync] Found match by truck number: ${truck.truckNumber}`);
               return true;
             }
-            
+
             // Strategy 2: Numeric part match (e.g. "854" matches "T854", "854-A", "#854")
             if (numericPart && numericPart.length >= 2 && truckNumericPart === numericPart) {
               console.log(`[SamsaraSync] Found match by numeric part: ${truck.truckNumber} (${numericPart})`);
               return true;
             }
-            
+
             // Strategy 3: Contains match for short numbers (e.g. "854" in "854 JOHN")
             if (numericPart && numericPart.length >= 3 && truck.truckNumber.includes(numericPart)) {
               console.log(`[SamsaraSync] Found match by contains: ${truck.truckNumber} contains ${numericPart}`);
               return true;
             }
-            
+
             return false;
           }) || null;
         }
-        
+
         // Last resort: Check if ANY truck has this VIN (even with different company filter issues)
         if (!existingTruck && queueItem.vin) {
           const vinCheck = await prisma.truck.findFirst({
@@ -558,7 +578,7 @@ export class SamsaraDeviceSyncService {
             console.log(`[SamsaraSync] Truck ${existingTruck.truckNumber} already linked to this device, marking queue as LINKED`);
             return { success: true, recordId: existingTruck.id, action: 'linked' };
           }
-          
+
           // Case 2: Truck already linked to DIFFERENT samsaraId → conflict
           if (existingTruck.samsaraId && existingTruck.samsaraId !== queueItem.samsaraId) {
             // Auto-reject this queue item as it's a duplicate/conflict
@@ -574,7 +594,7 @@ export class SamsaraDeviceSyncService {
             console.log(`[SamsaraSync] REJECTED: Truck ${existingTruck.truckNumber} already linked to different Samsara device`);
             return { success: true, recordId: existingTruck.id, action: 'rejected' };
           }
-          
+
           // Case 3: Truck exists but not linked → link it
           await prisma.$transaction([
             prisma.truck.update({
@@ -607,12 +627,12 @@ export class SamsaraDeviceSyncService {
           console.log(`[SamsaraSync] AUTO-LINKED existing truck ${existingTruck.truckNumber} to Samsara device ${queueItem.name}`);
         } else {
           // Check if this looks like a gateway/deactivated device (not a real truck)
-          const isGatewayOrDeactivated = 
+          const isGatewayOrDeactivated =
             queueItem.name.toLowerCase().includes('deactivated') ||
             queueItem.name.toLowerCase().includes('gateway') ||
             /^[A-Z0-9]{4}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(queueItem.name) || // Gateway pattern like GHHA-BNJ-SYW
             queueItem.name.toLowerCase().includes('previously paired');
-            
+
           if (isGatewayOrDeactivated) {
             return { success: false, error: `"${queueItem.name}" appears to be a gateway or deactivated device, not a truck. Please reject this item.` };
           }
@@ -621,10 +641,10 @@ export class SamsaraDeviceSyncService {
           let finalTruckNumber = truckNumber;
           let attempt = 0;
           let created = false;
-          
+
           // Generate a truly unique VIN if none provided
           const uniqueVin = queueItem.vin || `PENDING-${queueItem.samsaraId}-${Date.now()}`;
-          
+
           while (!created && attempt < 5) {
             try {
               const truck = await prisma.truck.create({
@@ -686,14 +706,14 @@ export class SamsaraDeviceSyncService {
                 } else if (target?.includes('truckNumber')) {
                   // If truck number conflict, DIRECTLY query for that truck (don't rely on allCompanyTrucks)
                   const existingByNumber = await prisma.truck.findFirst({
-                    where: { 
+                    where: {
                       companyId: queueItem.companyId,
                       truckNumber: finalTruckNumber,
                       deletedAt: null,
                     },
                     select: { id: true, truckNumber: true, vin: true, samsaraId: true },
                   });
-                  
+
                   if (existingByNumber && !existingByNumber.samsaraId) {
                     // Link to existing truck
                     await prisma.truck.update({
@@ -724,11 +744,11 @@ export class SamsaraDeviceSyncService {
               }
             }
           }
-          
+
           if (!created) {
             return { success: false, error: `Failed to create truck "${truckNumber}" - already exists in TMS. Use "Link" action to connect to existing truck.` };
           }
-          
+
           action = action || 'created';
         }
 
@@ -794,31 +814,31 @@ export class SamsaraDeviceSyncService {
           const normalizedTrailerNumber = this.normalize(trailer.trailerNumber);
           const normalizedTrailerVin = this.normalize(trailer.vin);
           const trailerNumericPart = trailer.trailerNumber.replace(/\D/g, '');
-          
+
           // Strategy 1: Exact normalized match
           if (normalizedTarget && normalizedTrailerNumber === normalizedTarget) {
             console.log(`[SamsaraSync] Found match by trailer number: ${trailer.trailerNumber}`);
             return true;
           }
-          
+
           // Strategy 2: Match by VIN
           if (normalizedVin && normalizedTrailerVin === normalizedVin) {
             console.log(`[SamsaraSync] Found match by VIN: ${trailer.vin}`);
             return true;
           }
-          
+
           // Strategy 3: Numeric part match
           if (numericPart && numericPart.length >= 2 && trailerNumericPart === numericPart) {
             console.log(`[SamsaraSync] Found match by numeric part: ${trailer.trailerNumber} (${numericPart})`);
             return true;
           }
-          
+
           // Strategy 4: Contains match for longer numbers
           if (numericPart && numericPart.length >= 3 && trailer.trailerNumber.includes(numericPart)) {
             console.log(`[SamsaraSync] Found match by contains: ${trailer.trailerNumber} contains ${numericPart}`);
             return true;
           }
-          
+
           return false;
         });
 
@@ -841,7 +861,7 @@ export class SamsaraDeviceSyncService {
             console.log(`[SamsaraSync] Trailer ${existingTrailer.trailerNumber} already linked to this device, marking queue as LINKED`);
             return { success: true, recordId: existingTrailer.id, action: 'linked' };
           }
-          
+
           // Case 2: Trailer already linked to DIFFERENT samsaraId
           if (existingTrailer.samsaraId && existingTrailer.samsaraId !== queueItem.samsaraId) {
             await prisma.samsaraDeviceQueue.update({
@@ -856,7 +876,7 @@ export class SamsaraDeviceSyncService {
             console.log(`[SamsaraSync] REJECTED: Trailer ${existingTrailer.trailerNumber} already linked to different Samsara device`);
             return { success: true, recordId: existingTrailer.id, action: 'rejected' };
           }
-          
+
           // Case 3: Trailer exists but not linked → link it
           await prisma.$transaction([
             prisma.trailer.update({
@@ -889,12 +909,12 @@ export class SamsaraDeviceSyncService {
           console.log(`[SamsaraSync] AUTO-LINKED existing trailer ${existingTrailer.trailerNumber} to Samsara device ${queueItem.name}`);
         } else {
           // Check if this looks like a gateway/deactivated device
-          const isGatewayOrDeactivated = 
+          const isGatewayOrDeactivated =
             queueItem.name.toLowerCase().includes('deactivated') ||
             queueItem.name.toLowerCase().includes('gateway') ||
             /^[A-Z0-9]{4}-[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(queueItem.name) ||
             queueItem.name.toLowerCase().includes('previously paired');
-            
+
           if (isGatewayOrDeactivated) {
             return { success: false, error: `"${queueItem.name}" appears to be a gateway or deactivated device, not a trailer. Please reject this item.` };
           }
@@ -903,7 +923,7 @@ export class SamsaraDeviceSyncService {
           let finalTrailerNumber = trailerNumber;
           let attempt = 0;
           let created = false;
-          
+
           while (!created && attempt < 5) {
             try {
               const trailer = await prisma.trailer.create({
@@ -965,7 +985,7 @@ export class SamsaraDeviceSyncService {
                     },
                     select: { id: true, trailerNumber: true, vin: true, samsaraId: true },
                   });
-                  
+
                   if (existingByNumber && !existingByNumber.samsaraId) {
                     await prisma.trailer.update({
                       where: { id: existingByNumber.id },
@@ -994,11 +1014,11 @@ export class SamsaraDeviceSyncService {
               }
             }
           }
-          
+
           if (!created) {
             return { success: false, error: `Failed to create trailer "${trailerNumber}" - already exists in TMS. Use "Link" action to connect to existing trailer.` };
           }
-          
+
           action = action || 'created';
         }
 
@@ -1028,7 +1048,7 @@ export class SamsaraDeviceSyncService {
           // If it's a duplicate, try to find and link the existing record
           const deviceName = queueItem.deviceType === 'TRUCK' ? truckNumber : trailerNumber;
           console.warn(`[SamsaraSync] Duplicate ${queueItem.deviceType} ${deviceName} detected during create, attempting to link...`);
-          
+
           // Try one more time to find and link
           if (queueItem.deviceType === 'TRUCK') {
             const truck = await prisma.truck.findFirst({
@@ -1165,9 +1185,9 @@ export class SamsaraDeviceSyncService {
 
     if (trucks.length === 0) return 0;
 
-    const stats = await getSamsaraVehicleStats(this.companyId).catch(() => []);
+    const stats = await getSamsaraVehicleStats(undefined, this.companyId).catch(() => []);
     const statsMap = new Map<string, number>();
-    
+
     stats?.forEach((s: any) => {
       const vehicleId = s.id || s.vehicleId;
       const odometerMeters = s.obdOdometerMeters?.value ?? s.obdOdometerMeters;

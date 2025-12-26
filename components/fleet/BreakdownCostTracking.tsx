@@ -198,13 +198,12 @@ export default function BreakdownCostTracking() {
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${
-                summary.costTrend === 'up'
+              className={`text-2xl font-bold ${summary.costTrend === 'up'
                   ? 'text-red-600'
                   : summary.costTrend === 'down'
-                  ? 'text-green-600'
-                  : 'text-gray-600'
-              }`}
+                    ? 'text-green-600'
+                    : 'text-gray-600'
+                }`}
             >
               {summary.trendPercentage > 0 ? '+' : ''}
               {summary.trendPercentage.toFixed(1)}%
@@ -385,7 +384,7 @@ export default function BreakdownCostTracking() {
                       <TableRow key={breakdown.id}>
                         <TableCell>
                           <Link
-                            href={`/dashboard/breakdowns/${breakdown.id}`}
+                            href={`/dashboard/fleet`}
                             className="font-mono text-sm font-semibold hover:underline"
                           >
                             {breakdown.breakdownNumber}
@@ -455,7 +454,7 @@ export default function BreakdownCostTracking() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Link href={`/dashboard/breakdowns/${breakdown.id}`}>
+                          <Link href={`/dashboard/fleet`}>
                             <Button variant="ghost" size="sm">
                               View
                             </Button>

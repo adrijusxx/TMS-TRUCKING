@@ -191,7 +191,7 @@ export default function BreakdownQuickEntryForm({
       toast.success(`Breakdown ${data.data.breakdownNumber} created successfully`);
       reset();
       onOpenChange(false);
-      router.push(`/dashboard/breakdowns/${data.data.id}`);
+      router.push(`/dashboard/fleet`);
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -206,11 +206,11 @@ export default function BreakdownQuickEntryForm({
     setSelectedTemplate(template.value);
     setValue('breakdownType', template.value === 'WON\'T_START' ? 'ENGINE_FAILURE' :
       template.value === 'FLAT_TIRE' ? 'TIRE_FLAT' :
-      template.value === 'ENGINE_LIGHT' ? 'ENGINE_FAILURE' :
-      template.value === 'ACCIDENT' ? 'ACCIDENT_DAMAGE' :
-      template.value === 'OVERHEATING' ? 'COOLING_SYSTEM' :
-      template.value === 'ELECTRICAL' ? 'ELECTRICAL_ISSUE' :
-      template.value === 'BRAKE_PROBLEM' ? 'BRAKE_FAILURE' : 'OTHER');
+        template.value === 'ENGINE_LIGHT' ? 'ENGINE_FAILURE' :
+          template.value === 'ACCIDENT' ? 'ACCIDENT_DAMAGE' :
+            template.value === 'OVERHEATING' ? 'COOLING_SYSTEM' :
+              template.value === 'ELECTRICAL' ? 'ELECTRICAL_ISSUE' :
+                template.value === 'BRAKE_PROBLEM' ? 'BRAKE_FAILURE' : 'OTHER');
     setValue('description', template.description);
   };
 
