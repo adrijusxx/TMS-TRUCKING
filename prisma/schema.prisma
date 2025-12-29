@@ -1,0 +1,6725 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id             String    @id @default(cuid())
+  employeeNumber String?   @unique // User-facing employee identifier (e.g., EMP-001, EMP-102)
+  email          String    @unique
+  password       String
+  tempPassword   String? // Temporary plaintext password for admin viewing (cleared after first login)
+  firstName      String
+  lastName       String
+  phone          String?
+  role           UserRole
+  companyId      String // Primary/default company
+  company        Company   @relation(fields: [companyId], references: [id])
+  mcNumberId     String // MC Number assignment (required for all users; for DRIVER role, synced from Driver record)
+  mcNumber       McNumber  @relation(fields: [mcNumberId], references: [id])
+  mcAccess       String[]  @default([]) // Array of MC IDs user can access (empty for admins = access to all)
+  isActive       Boolean   @default(true)
+  lastLogin      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  // Relations for driver-specific data
+  driver                     Driver?
+  activityLogs               ActivityLog[]
+  notificationPreferences    NotificationPreferences?
+  inventoryTransactions      InventoryTransaction[]
+  createdBatches             InvoiceBatch[]
+  createdPayments            Payment[]
+  reconciliations            Reconciliation[]
+  dispatchedLoads            Load[]                   @relation("LoadDispatcher")
+  createdLoads               Load[]                   @relation("LoadCreatedBy")
+  createdLoadTemplates       LoadTemplate[]           @relation("LoadTemplateCreatedBy")
+  assignedDrivers            Driver[]                 @relation("DriverDispatcher")
+  hrManagedDrivers           Driver[]                 @relation("DriverHRManager")
+  safetyManagedDrivers       Driver[]                 @relation("DriverSafetyManager")
+  driverComments             DriverComment[]          @relation("DriverCommentCreator")
+  createdCommunications      Communication[]          @relation("CommunicationCreator")
+  userCompanies              UserCompany[] // Multi-company access
+  createdProjects            Project[]                @relation("ProjectCreator")
+  assignedProjects           Project[]                @relation("ProjectAssignee")
+  createdTasks               Task[]                   @relation("TaskCreator")
+  assignedTasks              Task[]                   @relation("TaskAssignee")
+  breakdownAssignments       BreakdownAssignment[] // Breakdown case assignments
+  // Accounting Relations
+  shortPayApprovedInvoices   Invoice[]                @relation("ShortPayApprover")
+  writeOffInvoices           Invoice[]                @relation("WriteOffBy")
+  approvedAccessorialCharges AccessorialCharge[]
+  matchedRateConfirmations   RateConfirmation[]
+  onCallShifts               OnCallShift[]            @relation("OnCallShifts")
+  createdOnCallShifts        OnCallShift[]            @relation("OnCallShiftCreator")
+  // New Accounting Relations
+  approvedSettlements        Settlement[]             @relation("SettlementApprover")
+  approvedAdvances           DriverAdvance[]          @relation("AdvanceApprover")
+  approvedExpenses           LoadExpense[]            @relation("ExpenseApprover")
+  settlementApprovals        SettlementApproval[]     @relation("SettlementApprovalHistory")
+  // AI Relations
+  reviewedAISuggestions      AISuggestion[]           @relation("AISuggestionReviewer")
+  appliedAISuggestions       AISuggestion[]           @relation("AISuggestionApplier")
+  // User Preferences
+  columnPreferences          UserColumnPreference[]
+  // Samsara Integration
+  reviewedSamsaraDevices     SamsaraDeviceQueue[]
+  resolvedFaults             TruckFaultHistory[]
+  // Fleet Vendors
+  createdVendors             Vendor[]              @relation("VendorCreatedBy")
+  auditLogs                  AuditLog[]
+
+  @@index([companyId])
+  @@index([email])
+  @@index([mcNumberId])
+  @@index([employeeNumber])
+}
+
+// Multi-company support - Users can access multiple companies
+model UserCompany {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role      UserRole // User's role in this specific company
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  DISPATCHER
+  DRIVER
+  CUSTOMER
+  ACCOUNTANT
+  HR
+  SAFETY
+  FLEET
+}
+
+model RolePermission {
+  id         String   @id @default(cuid())
+  role       UserRole
+  permission String
+  isEnabled  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+  @@index([permission])
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  dotNumber String   @unique
+  mcNumber  String?
+  address   String
+  city      String
+  state     String
+  zip       String
+  phone     String
+  email     String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // SaaS / Subscription
+  stripeCustomerId   String?
+  subscriptionStatus SubscriptionStatus @default(FREE)
+  subscription       Subscription?
+  quickBooksSettings QuickBooksSettings?
+  samsaraSettings    SamsaraSettings?
+
+  deletedAt DateTime?
+
+
+  // Relations
+  users                     User[]
+  userCompanies             UserCompany[]
+  loads                     Load[]
+  loadTemplates             LoadTemplate[]
+  drivers                   Driver[]
+  trucks                    Truck[]
+  trailers                  Trailer[]
+  customers                 Customer[]
+  documents                 Document[]
+  activityLogs              ActivityLog[]
+  integrations              Integration[]
+  breakdowns                Breakdown[]
+  communications            Communication[]
+  inspections               Inspection[]
+  inventoryItems            InventoryItem[]
+  inventoryTransactions     InventoryTransaction[]
+  vendors                   Vendor[]
+  locations                 Location[]
+  onCallShifts              OnCallShift[]
+  safetyIncidents           SafetyIncident[]
+  safetyTrainings           SafetyTraining[]
+  invoiceBatches            InvoiceBatch[]
+  mcNumbers                 McNumber[]
+  tags                      Tag[]
+  maintenanceRecords        MaintenanceRecord[]
+  maintenanceSchedules      MaintenanceSchedule[]
+  expenseCategories         ExpenseCategory[]
+  expenseTypes              ExpenseType[]
+  tariffs                   Tariff[]
+  // Accounting Relations
+  invoices                  Invoice[]
+  factoringCompanies        FactoringCompany[]
+  factoringBatches          FactoringBatch[]
+  accessorialCharges        AccessorialCharge[]
+  rateConfirmations         RateConfirmation[]
+  paymentConfigurations     PaymentConfiguration[]
+  orderPaymentTypes         OrderPaymentType[]
+  dynamicStatuses           DynamicStatus[]
+  documentTemplates         DocumentTemplate[]
+  defaultConfigurations     DefaultConfiguration[]
+  workOrderTypes            WorkOrderType[]
+  safetyConfigurations      SafetyConfiguration[]
+  reportTemplates           ReportTemplate[]
+  reportConstructors        ReportConstructor[]
+  projects                  Project[]
+  netProfitFormulas         NetProfitFormula[]
+  classifications           Classification[]
+  iftaConfigs               IFTAConfig[]
+  iftaEntries               IFTAEntry[]
+  deductionRules            DeductionRule[]
+  // Safety Relations
+  driverQualificationFiles  DriverQualificationFile[]
+  medicalCards              MedicalCard[]
+  cdlRecords                CDLRecord[]
+  mvrRecords                MVRRecord[]
+  drugAlcoholTests          DrugAlcoholTest[]
+  testingPools              TestingPool[]
+  randomSelections          RandomSelection[]
+  fmcsaclearinghouseQueries FMCSAClearinghouseQuery[]
+  hosViolations             HOSViolation[]
+  eldProviders              ELDProvider[]
+  annualReviews             AnnualReview[]
+  dvirs                     DVIR[]
+  roadsideInspections       RoadsideInspection[]
+  outOfServiceOrders        OutOfServiceOrder[]
+  defects                   Defect[]
+  investigations            Investigation[]
+  preventableDeterminations PreventableDetermination[]
+  nearMisses                NearMiss[]
+  policeReports             PoliceReport[]
+  witnessStatements         WitnessStatement[]
+  csascores                 CSAScore[]
+  fmcsacompliance           FMCSACompliance?
+  dataQSubmissions          DataQSubmission[]
+  insurancePolicies         InsurancePolicy[]
+  cargoClaims               CargoClaim[]
+  propertyDamages           PropertyDamage[]
+  lossRuns                  LossRun[]
+  safetyMeetings            SafetyMeeting[]
+  safetyPolicies            SafetyPolicy[]
+  safetyCampaigns           SafetyCampaign[]
+  safetyRecognitions        SafetyRecognition[]
+  // AI Relations
+  aiSuggestions             AISuggestion[]             @relation("AISuggestions")
+  trainingMaterials         TrainingMaterial[]
+  complianceAlerts          ComplianceAlert[]
+  insuranceClaims           InsuranceClaim[]
+  companySettings           CompanySettings?
+  customFields              CustomField[]
+  systemConfig              SystemConfig?
+  // Samsara Integration
+  samsaraDeviceQueue        SamsaraDeviceQueue[]
+  truckFaultHistory         TruckFaultHistory[]
+  knowledgeBaseDocuments    KnowledgeBaseDocument[]
+  apiKeys                   ApiKeyConfig[]
+}
+
+// ============================================
+// LOADS
+// ============================================
+
+model Load {
+  id            String    @id @default(cuid())
+  loadNumber    String    @unique
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  driverId      String?
+  driver        Driver?   @relation(fields: [driverId], references: [id])
+  coDriverId    String?
+  coDriver      Driver?   @relation("CoDriver", fields: [coDriverId], references: [id])
+  truckId       String?
+  truck         Truck?    @relation(fields: [truckId], references: [id])
+  trailerNumber String?
+  dispatcherId  String?
+  dispatcher    User?     @relation("LoadDispatcher", fields: [dispatcherId], references: [id])
+  createdById   String?
+  createdBy     User?     @relation("LoadCreatedBy", fields: [createdById], references: [id])
+  tripId        String? // Trip ID from Excel
+  mcNumberId    String? // MC Number assignment
+  mcNumber      McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  // Load Details
+  status         LoadStatus          @default(PENDING)
+  dispatchStatus LoadDispatchStatus? // Dispatcher-specific status tracking
+  loadType       LoadType            @default(FTL)
+  equipmentType  EquipmentType
+
+  // Pickup Information (optional for multi-stop loads)
+  pickupLocation  String?
+  pickupAddress   String?
+  pickupCity      String?
+  pickupState     String?
+  pickupZip       String?
+  pickupCompany   String? // Pickup company name
+  pickupDate      DateTime?
+  pickupTimeStart DateTime?
+  pickupTimeEnd   DateTime?
+  pickupContact   String?
+  pickupPhone     String?
+  pickupNotes     String?
+
+  // Delivery Information (optional for multi-stop loads)
+  deliveryLocation  String?
+  deliveryAddress   String?
+  deliveryCity      String?
+  deliveryState     String?
+  deliveryZip       String?
+  deliveryCompany   String? // Delivery company name
+  deliveryDate      DateTime?
+  deliveryTimeStart DateTime?
+  deliveryTimeEnd   DateTime?
+  deliveryContact   String?
+  deliveryPhone     String?
+  deliveryNotes     String?
+
+  // Load Specifications
+  weight      Float
+  pieces      Int?
+  commodity   String?
+  pallets     Int?
+  temperature String?
+  hazmat      Boolean @default(false)
+  hazmatClass String?
+
+  // Financial
+  revenue     Float
+  driverPay   Float?
+  fuelAdvance Float  @default(0)
+  expenses    Float  @default(0)
+  profit      Float?
+  serviceFee  Float? // Service fee from Excel
+
+  // Accounting Sync
+  accountingSyncedAt   DateTime?
+  accountingSyncStatus AccountingSyncStatus @default(NOT_SYNCED)
+  totalExpenses        Float                @default(0) // Calculated from LoadExpense
+  netProfit            Float? // Calculated: revenue - driverPay - totalExpenses
+  podUploadedAt        DateTime?
+  readyForSettlement   Boolean              @default(false)
+
+  // Billing Hold Fields (AR/AP Decoupling)
+  isBillingHold          Boolean                 @default(false) // Blocks invoicing (AR), allows settlement (AP)
+  billingHoldReason      String? // Reason for billing hold
+  detentionStartStrategy DetentionStartStrategy? // How detention clock starts
+
+  // Distances
+  loadedMiles    Float?
+  emptyMiles     Float?
+  totalMiles     Float?
+  revenuePerMile Float? // Calculated: revenue / totalMiles
+
+  // Status Tracking
+  assignedAt  DateTime?
+  pickedUpAt  DateTime?
+  deliveredAt DateTime?
+  invoicedAt  DateTime?
+  paidAt      DateTime?
+
+  // Notes
+  dispatchNotes  String?
+  driverNotes    String?
+  lastNote       String? // Last note from Excel
+  onTimeDelivery Boolean? // On Time Delivery flag from Excel
+
+  // Additional Fields from Excel
+  shipmentId String? // Shipment ID from Excel
+  stopsCount Int? // Stops count from Excel
+  totalPay   Float? // Total pay from Excel
+  lastUpdate DateTime? // Last update from Excel
+
+  // EDI Tracking
+  ediSent          Boolean @default(false)
+  ediReceived      Boolean @default(false)
+  ediTransactionId String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  documents          Document[]
+  statusHistory      LoadStatusHistory[]
+  route              Route?
+  stops              LoadStop[]
+  breakdowns         Breakdown[]
+  safetyIncidents    SafetyIncident[]
+  trailerId          String?
+  trailer            Trailer?            @relation(fields: [trailerId], references: [id])
+  tags               LoadTag[]
+  // Safety Relations
+  cargoClaims        CargoClaim[]
+  // Accounting Relations
+  accessorialCharges AccessorialCharge[]
+  rateConfirmation   RateConfirmation?
+  invoices           Invoice[]           @relation("InvoiceLoad")
+  iftaEntry          IFTAEntry?
+  segments           LoadSegment[]
+  driverAdvances     DriverAdvance[]
+  loadExpenses       LoadExpense[]
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([driverId])
+  @@index([coDriverId])
+  @@index([dispatcherId])
+  @@index([status])
+  @@index([dispatchStatus])
+  @@index([pickupDate])
+  @@index([deliveryDate])
+  @@index([loadNumber])
+  @@index([mcNumberId])
+  @@index([companyId, mcNumberId])
+  // Composite indexes for common query patterns
+  @@index([companyId, mcNumberId, status])
+  @@index([companyId, mcNumberId, createdAt])
+  @@index([companyId, driverId, status])
+  @@index([companyId, status, createdAt])
+}
+
+model LoadStop {
+  id     String @id @default(cuid())
+  loadId String
+  load   Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
+
+  // Stop Details
+  stopType StopType // PICKUP or DELIVERY
+  sequence Int // Order of stop (1, 2, 3, etc.)
+
+  // Location
+  company String? // Company/Location name
+  address String
+  city    String
+  state   String
+  zip     String
+  phone   String?
+
+  // Timing
+  earliestArrival DateTime?
+  latestArrival   DateTime?
+  actualArrival   DateTime?
+  actualDeparture DateTime?
+
+  // Detention Calculation Fields
+  billableDetentionMinutes Int?      @default(0) // Calculated billable detention time
+  detentionClockStart      DateTime? // When the billable clock actually started
+
+  // Contact
+  contactName  String?
+  contactPhone String?
+
+  // Items at this stop
+  items       Json? // Array of items: [{ orderId, item, product, pieces, weight, description }]
+  totalPieces Int?
+  totalWeight Float?
+
+  // Status
+  status StopStatus @default(PENDING)
+
+  // Notes
+  notes               String?
+  specialInstructions String?
+
+  // Signature/Proof
+  signature       String?
+  signatureDate   DateTime?
+  proofOfDelivery String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([loadId])
+  @@index([loadId, sequence])
+  @@index([status])
+}
+
+// ============================================
+// LOAD TEMPLATES
+// ============================================
+
+model LoadTemplate {
+  id          String   @id @default(cuid())
+  name        String // Template name (e.g., "Weekly Dallas-Houston")
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  createdById String?
+  createdBy   User?    @relation("LoadTemplateCreatedBy", fields: [createdById], references: [id])
+
+  // Load Details (no driver, no dates)
+  loadType      LoadType      @default(FTL)
+  equipmentType EquipmentType
+
+  // Pickup Information (no dates)
+  pickupLocation String?
+  pickupAddress  String?
+  pickupCity     String?
+  pickupState    String?
+  pickupZip      String?
+  pickupCompany  String?
+  pickupContact  String?
+  pickupPhone    String?
+  pickupNotes    String?
+
+  // Delivery Information (no dates)
+  deliveryLocation String?
+  deliveryAddress  String?
+  deliveryCity     String?
+  deliveryState    String?
+  deliveryZip      String?
+  deliveryCompany  String?
+  deliveryContact  String?
+  deliveryPhone    String?
+  deliveryNotes    String?
+
+  // Load Specifications
+  weight      Float
+  pieces      Int?
+  commodity   String?
+  pallets     Int?
+  temperature String?
+  hazmat      Boolean @default(false)
+  hazmatClass String?
+
+  // Financial
+  revenue     Float
+  driverPay   Float?
+  fuelAdvance Float  @default(0)
+  expenses    Float  @default(0)
+
+  // Distances
+  loadedMiles    Float?
+  emptyMiles     Float?
+  totalMiles     Float?
+  revenuePerMile Float?
+
+  // Notes
+  dispatchNotes String?
+  driverNotes   String?
+
+  // MC Number assignment
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  // Relations
+  stops LoadTemplateStop[]
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([mcNumberId])
+  @@index([companyId, mcNumberId])
+}
+
+model LoadTemplateStop {
+  id         String       @id @default(cuid())
+  templateId String
+  template   LoadTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  // Stop Details
+  stopType StopType
+  sequence Int
+
+  // Location
+  company String?
+  address String
+  city    String
+  state   String
+  zip     String
+  phone   String?
+
+  // Contact
+  contactName  String?
+  contactPhone String?
+
+  // Items at this stop
+  items       Json?
+  totalPieces Int?
+  totalWeight Float?
+
+  // Notes
+  notes               String?
+  specialInstructions String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templateId])
+  @@index([templateId, sequence])
+}
+
+enum StopType {
+  PICKUP
+  DELIVERY
+}
+
+enum StopStatus {
+  PENDING
+  EN_ROUTE
+  ARRIVED
+  LOADING
+  UNLOADING
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum LoadStatus {
+  PENDING
+  ASSIGNED
+  EN_ROUTE_PICKUP
+  AT_PICKUP
+  LOADED
+  EN_ROUTE_DELIVERY
+  AT_DELIVERY
+  DELIVERED
+  BILLING_HOLD // Blocks invoicing (AR), allows settlement (AP)
+  READY_TO_BILL // Passed audit gate, ready for invoice
+  INVOICED
+  PAID
+  CANCELLED
+}
+
+enum LoadDispatchStatus {
+  BOOKED
+  ON_ROUTE_TO_PICKUP
+  AT_PICKUP
+  LOADED
+  ON_ROUTE_TO_DELIVERY
+  AT_DELIVERY
+  DELIVERED
+  PENDING_DISPATCH
+  NEEDS_DISPATCH
+  DISPATCHED
+  CANCELLED
+}
+
+enum AccountingSyncStatus {
+  NOT_SYNCED
+  PENDING_SYNC
+  SYNCED
+  SYNC_FAILED
+  REQUIRES_REVIEW
+}
+
+enum LoadType {
+  FTL // Full Truckload
+  LTL // Less Than Truckload
+  PARTIAL
+  INTERMODAL
+}
+
+enum EquipmentType {
+  DRY_VAN
+  REEFER
+  FLATBED
+  STEP_DECK
+  LOWBOY
+  TANKER
+  CONESTOGA
+  POWER_ONLY
+  HOTSHOT
+}
+
+enum DetentionStartStrategy {
+  ARRIVAL // Clock starts when driver arrives (legacy behavior)
+  APPOINTMENT // Clock starts at scheduled appointment time (US Trucking standard)
+}
+
+model LoadStatusHistory {
+  id        String     @id @default(cuid())
+  loadId    String
+  load      Load       @relation(fields: [loadId], references: [id])
+  status    LoadStatus
+  notes     String?
+  location  String?
+  latitude  Float?
+  longitude Float?
+  createdBy String
+  createdAt DateTime   @default(now())
+
+  @@index([loadId])
+  @@index([createdAt])
+}
+
+model LoadSegment {
+  id       String  @id @default(cuid())
+  loadId   String
+  load     Load    @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id])
+  truckId  String?
+  truck    Truck?  @relation(fields: [truckId], references: [id])
+
+  // Segment sequence (1, 2, 3, etc. for multiple segments)
+  sequence Int @default(1)
+
+  // Location information
+  startLocation String? // Starting location of this segment
+  endLocation   String? // Ending location of this segment
+  startCity     String?
+  startState    String?
+  endCity       String?
+  endState      String?
+
+  // Mileage tracking
+  startMiles   Float? // Starting odometer/miles at segment start
+  endMiles     Float? // Ending odometer/miles at segment end
+  segmentMiles Float // Total miles for this segment
+  loadedMiles  Float? @default(0) // Loaded miles in this segment
+  emptyMiles   Float? @default(0) // Empty miles in this segment
+
+  // Timing
+  startDate DateTime
+  endDate   DateTime?
+
+  // Segment metadata
+  notes         String?
+  isAutoCreated Boolean @default(false) // True if created automatically on truck/driver change
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([loadId])
+  @@index([driverId])
+  @@index([truckId])
+  @@index([loadId, sequence])
+  @@index([startDate])
+}
+
+model Route {
+  id     String @id @default(cuid())
+  loadId String @unique
+  load   Load   @relation(fields: [loadId], references: [id])
+
+  // Route Details
+  totalDistance Float
+  estimatedTime Float // in minutes
+  fuelCost      Float?
+  tollCost      Float?
+
+  // Waypoints (JSON array of coordinates)
+  waypoints Json
+
+  // Optimization
+  optimized   Boolean   @default(false)
+  optimizedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// DRIVERS
+// ============================================
+
+model Driver {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id])
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Driver Details
+  driverNumber     String    @unique
+  licenseNumber    String
+  licenseState     String
+  licenseExpiry    DateTime
+  licenseIssueDate DateTime?
+
+  // Personal Information
+  socialSecurityNumber String?
+  birthDate            DateTime?
+  hireDate             DateTime?
+  terminationDate      DateTime?
+  tenure               String? // e.g., "0-6 months", "1-2 years"
+  gender               Gender?
+  maritalStatus        MaritalStatus?
+  localDriver          Boolean        @default(false)
+  telegramNumber       String?
+  thresholdAmount      Float?
+
+  // Medical & Compliance
+  medicalCardExpiry  DateTime
+  drugTestDate       DateTime?
+  backgroundCheck    DateTime?
+  cdlExperience      String? // e.g., "1-2 years"
+  restrictions       String?
+  dlClass            String? // e.g., "A", "B", "C"
+  driverType         DriverType @default(COMPANY_DRIVER)
+  endorsements       String[] // Array of endorsement codes (e.g., ["N", "T"])
+  driverFacingCamera String? // "Yes" or "No"
+
+  // Address Information
+  address1 String?
+  address2 String?
+  city     String?
+  state    String?
+  zipCode  String?
+  country  String? @default("United States")
+
+  // Dispatch Preferences
+  dispatchPreferences String?
+
+  // Status
+  status           DriverStatus     @default(AVAILABLE)
+  employeeStatus   EmployeeStatus   @default(ACTIVE)
+  assignmentStatus AssignmentStatus @default(READY_TO_GO)
+  dispatchStatus   DispatchStatus?
+  currentTruckId   String?
+  currentTruck     Truck?           @relation("TruckDriver", fields: [currentTruckId], references: [id])
+  currentTrailerId String?
+  currentTrailer   Trailer?         @relation("CurrentTrailer", fields: [currentTrailerId], references: [id])
+  homeTerminal     String?
+
+  // Assignments
+  assignedDispatcherId String?
+  assignedDispatcher   User?     @relation("DriverDispatcher", fields: [assignedDispatcherId], references: [id])
+  hrManagerId          String?
+  hrManager            User?     @relation("DriverHRManager", fields: [hrManagerId], references: [id])
+  safetyManagerId      String?
+  safetyManager        User?     @relation("DriverSafetyManager", fields: [safetyManagerId], references: [id])
+  mcNumberId           String?
+  mcNumber             McNumber? @relation(fields: [mcNumberId], references: [id])
+  teamDriver           Boolean   @default(false)
+  otherId              String?
+  driverTags           String[] // Array of tags
+  notes                String?
+
+  // Emergency Contact
+  emergencyContactName     String?
+  emergencyContactRelation String?
+  emergencyContactAddress1 String?
+  emergencyContactAddress2 String?
+  emergencyContactCity     String?
+  emergencyContactState    String?
+  emergencyContactZip      String?
+  emergencyContactCountry  String? @default("United States")
+  emergencyContactPhone    String?
+  emergencyContactEmail    String?
+
+  // Contact (legacy - keeping for backward compatibility)
+  emergencyContact String?
+  emergencyPhone   String?
+
+  // Performance
+  rating           Float?
+  totalLoads       Int    @default(0)
+  totalMiles       Float  @default(0)
+  onTimePercentage Float  @default(100)
+
+  // Pay
+  payType      PayType @default(PER_MILE)
+  payRate      Float
+  driverTariff String? // Calculated tariff display (e.g., "$0.65 per mile + 30 per stop")
+  payTo        String? // Who to pay to (e.g., company name)
+
+  // Deduction Configuration
+  escrowBalance          Float  @default(0) // Current escrow balance (read-only, calculated)
+  escrowTargetAmount     Float? // Target escrow amount (e.g., $2,500)
+  escrowDeductionPerWeek Float? // Deduction per week (e.g., $100)
+  advanceLimit           Float  @default(1000) // Maximum advance allowed
+
+  // Warnings
+  warnings String?
+
+  isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loads                     Load[]
+  coDriverLoads             Load[]                    @relation("CoDriver")
+  loadSegments              LoadSegment[]
+  hosRecords                HOSRecord[]
+  documents                 Document[]
+  settlements               Settlement[]
+  fuelEntries               FuelEntry[]
+  breakdowns                Breakdown[]
+  inspections               Inspection[]
+  safetyIncidents           SafetyIncident[]
+  safetyTrainings           SafetyTraining[]
+  trailers                  Trailer[]                 @relation("TrailerDriver")
+  truckHistory              DriverTruckHistory[]
+  trailerHistory            DriverTrailerHistory[]
+  comments                  DriverComment[]
+  tags                      DriverTag[]
+  communications            Communication[]
+  // Accounting Relations
+  driverAdvances            DriverAdvance[]
+  negativeBalances          DriverNegativeBalance[]   @relation("DriverNegativeBalance")
+  deductionRules            DeductionRule[]
+  // Safety Relations
+  dqf                       DriverQualificationFile?
+  medicalCards              MedicalCard[]
+  cdlRecord                 CDLRecord?
+  mvrRecords                MVRRecord[]
+  drugAlcoholTests          DrugAlcoholTest[]
+  testingPoolDrivers        TestingPoolDriver[]
+  randomSelectedDrivers     RandomSelectedDriver[]
+  fmcsaclearinghouseQueries FMCSAClearinghouseQuery[]
+  hosViolations             HOSViolation[]
+  annualReviews             AnnualReview[]
+  dvirs                     DVIR[]
+  roadsideInspections       RoadsideInspection[]
+  outOfServiceOrders        OutOfServiceOrder[]
+  nearMisses                NearMiss[]
+  propertyDamages           PropertyDamage[]
+  meetingAttendance         MeetingAttendance[]
+  policyAcknowledgments     PolicyAcknowledgment[]
+  campaignParticipants      CampaignParticipant[]
+  safetyRecognitions        SafetyRecognition[]
+  iftaEntries               IFTAEntry[]
+  telegramMapping           TelegramDriverMapping? // Telegram integration
+
+  @@index([companyId])
+  @@index([status])
+  @@index([employeeStatus])
+  @@index([assignmentStatus])
+  @@index([driverNumber])
+  @@index([currentTruckId])
+  @@index([currentTrailerId])
+  @@index([mcNumberId])
+  @@index([companyId, mcNumberId])
+}
+
+model DriverTruckHistory {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  truckId  String
+  truck    Truck  @relation(fields: [truckId], references: [id])
+
+  date        DateTime
+  isActive    Boolean   @default(true)
+  pickupDate  DateTime?
+  dropOffDate DateTime?
+  pickupMile  Float?
+  dropOffMile Float?
+  note        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([truckId])
+  @@index([date])
+}
+
+model DriverTrailerHistory {
+  id        String  @id @default(cuid())
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  trailerId String
+  trailer   Trailer @relation(fields: [trailerId], references: [id])
+
+  pickupDate  DateTime?
+  dropOffDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([trailerId])
+}
+
+model DriverComment {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  comment     String
+  createdById String
+  createdBy   User   @relation("DriverCommentCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([createdAt])
+}
+
+enum DriverStatus {
+  AVAILABLE
+  ON_DUTY
+  DRIVING
+  OFF_DUTY
+  SLEEPER_BERTH
+  ON_LEAVE
+  INACTIVE
+  IN_TRANSIT
+  DISPATCHED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  TERMINATED
+  APPLICANT
+}
+
+enum AssignmentStatus {
+  READY_TO_GO
+  NOT_READY
+  TERMINATED
+}
+
+enum DispatchStatus {
+  DISPATCHED
+  ENROUTE
+  TERMINATION
+  REST
+  AVAILABLE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum DriverType {
+  COMPANY_DRIVER
+  LEASE
+  OWNER_OPERATOR
+}
+
+enum PayType {
+  PER_MILE
+  PER_LOAD
+  PERCENTAGE
+  HOURLY
+  WEEKLY
+}
+
+model HOSRecord {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id])
+
+  date   DateTime
+  status DriverStatus
+
+  // Daily Hours
+  driveTime   Float @default(0) // hours
+  onDutyTime  Float @default(0)
+  offDutyTime Float @default(0)
+  sleeperTime Float @default(0)
+
+  // 8-Day Totals
+  weeklyDriveTime Float @default(0)
+  weeklyOnDuty    Float @default(0)
+
+  // Violations
+  violations Json?
+
+  // Location
+  location  String?
+  latitude  Float?
+  longitude Float?
+
+  // ELD Integration
+  eldRecordId String?
+  eldProvider String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([date])
+}
+
+// ============================================
+// TRUCKS
+// ============================================
+
+model Truck {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Truck Details
+  truckNumber  String    @unique
+  vin          String    @unique
+  make         String
+  model        String
+  year         Int
+  licensePlate String
+  state        String
+  mcNumberId   String?
+  mcNumber     McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  // Specifications
+  equipmentType EquipmentType
+  capacity      Float // weight in lbs
+
+  // Status
+  status          TruckStatus @default(AVAILABLE)
+  fleetStatus     String? // Fleet Status from Excel (separate from status)
+  currentDriverId String?
+  currentDrivers  Driver[]    @relation("TruckDriver")
+  currentLocation String?
+
+  // Ownership & Assignment
+  ownership String? // Ownership type from Excel
+  ownerName String? // Owner name from Excel
+
+  // Maintenance
+  lastMaintenance     DateTime?
+  nextMaintenance     DateTime?
+  odometerReading     Float     @default(0)
+  nextServiceOdometer Float? // Odometer reading when next service is due
+
+  // Registration & Insurance
+  registrationExpiry DateTime
+  insuranceExpiry    DateTime
+  inspectionExpiry   DateTime
+
+  // Tracking
+  eldInstalled  Boolean @default(false)
+  eldProvider   String?
+  gpsInstalled  Boolean @default(false)
+  tollTagNumber String? // Toll tag number from Excel
+  fuelCard      String? // Fuel card from Excel
+
+  // Samsara Integration
+  samsaraId           String?   @unique // Samsara vehicle ID
+  samsaraSyncedAt     DateTime? // Last sync timestamp
+  samsaraSyncStatus   String? // SYNCED | PENDING | ERROR
+  lastOdometerReading Float? // Latest odometer from Samsara
+  lastOdometerUpdate  DateTime? // When odometer was updated
+  lastEngineHours     Float? // Latest engine hours from Samsara
+
+  // Additional Fields from Excel
+  legacyTags Json? // Tags as JSON array (legacy, use tags relation instead)
+  notes      String? // Notes field
+  warnings   String? // Warnings field
+
+  maintenanceSchedules MaintenanceSchedule[]
+  
+  isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loads               Load[]
+  faultHistory        TruckFaultHistory[]
+  loadSegments        LoadSegment[]
+  breakdowns          Breakdown[]
+  documents           Document[]
+  inspections         Inspection[]
+  safetyIncidents     SafetyIncident[]
+  assignedTrailers    Trailer[]            @relation("TruckTrailer")
+  driverTruckHistory  DriverTruckHistory[]
+  tags                TruckTag[]
+  fuelEntries         FuelEntry[]
+  // Safety Relations
+  dvirs               DVIR[]
+  roadsideInspections RoadsideInspection[]
+  outOfServiceOrders  OutOfServiceOrder[]
+  defects             Defect[]
+  nearMisses          NearMiss[]
+  propertyDamages     PropertyDamage[]
+  maintenanceRecords  MaintenanceRecord[]
+  iftaEntries         IFTAEntry[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([truckNumber])
+  @@index([mcNumberId])
+  @@index([companyId, mcNumberId])
+  @@index([samsaraId])
+}
+
+// ============================================
+// TRAILERS
+// ============================================
+
+model Trailer {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Trailer Details
+  trailerNumber String    @unique // Unit number from Excel
+  vin           String?   @unique
+  make          String
+  model         String
+  year          Int?
+  licensePlate  String? // Plate number from Excel
+  state         String?
+  mcNumberId    String?
+  mcNumber      McNumber? @relation(fields: [mcNumberId], references: [id])
+  type          String? // Type from Excel (could be EquipmentType)
+
+  // Ownership
+  ownership String? // Ownership type from Excel
+  ownerName String? // Owner name from Excel
+
+  // Assignment
+  assignedTruckId  String? // Assigned truck
+  assignedTruck    Truck?  @relation("TruckTrailer", fields: [assignedTruckId], references: [id])
+  operatorDriverId String? // Operator (driver) from Excel
+  operatorDriver   Driver? @relation("TrailerDriver", fields: [operatorDriverId], references: [id])
+
+  // Status
+  status      String? // Status from Excel
+  fleetStatus String? // Fleet Status from Excel
+
+  // Registration & Insurance
+  registrationExpiry DateTime?
+  insuranceExpiry    DateTime?
+  inspectionExpiry   DateTime?
+
+  // Samsara Integration
+  samsaraId         String?   @unique // Samsara asset ID
+  samsaraSyncedAt   DateTime? // Last sync timestamp
+  samsaraSyncStatus String? // SYNCED | PENDING | ERROR
+
+  // Additional Fields from Excel
+  legacyTags Json? // Tags as JSON array (legacy)
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  loads                 Load[]
+  driverTrailerHistory  DriverTrailerHistory[]
+  currentDriverTrailers Driver[]               @relation("CurrentTrailer")
+  breakdowns            Breakdown[]
+
+  @@index([companyId])
+  @@index([trailerNumber])
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  @@index([assignedTruckId])
+  @@index([mcNumberId])
+  @@index([companyId, mcNumberId])
+  @@index([samsaraId])
+}
+
+model FuelEntry {
+  id              String    @id @default(cuid())
+  fuelEntryNumber String    @unique // User-facing fuel entry identifier (e.g., FUEL-2024-001)
+  truckId         String
+  truck           Truck     @relation(fields: [truckId], references: [id])
+  driverId        String?
+  driver          Driver?   @relation(fields: [driverId], references: [id])
+  mcNumberId      String?
+  mcNumber        McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  date          DateTime
+  gallons       Float
+  costPerGallon Float
+  totalCost     Float
+  odometer      Int
+
+  location  String?
+  latitude  Float?
+  longitude Float?
+
+  fuelType      FuelType @default(DIESEL)
+  receiptNumber String? // Vendor receipt number (external)
+  notes         String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  settlementDeductions SettlementDeduction[]
+  payments             Payment[]
+
+  @@index([truckId])
+  @@index([driverId])
+  @@index([mcNumberId])
+  @@index([date])
+  @@index([fuelEntryNumber])
+}
+
+enum FuelType {
+  DIESEL
+  GAS
+  DEF
+}
+
+enum TruckStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  MAINTENANCE_DUE
+  OUT_OF_SERVICE
+  INACTIVE
+  NEEDS_REPAIR
+}
+
+model MaintenanceRecord {
+  id                String  @id @default(cuid())
+  maintenanceNumber String? @unique // User-facing maintenance identifier (e.g., MAINT-2024-001)
+  truckId           String
+  truck             Truck   @relation(fields: [truckId], references: [id])
+  companyId         String
+  company           Company @relation(fields: [companyId], references: [id])
+
+  type        MaintenanceType
+  description String
+  cost        Float
+  odometer    Float // Odometer reading at time of service
+
+  date            DateTime // Service date
+  nextServiceDate DateTime? // When next service is due
+
+  vendorId      String?
+  vendor        Vendor? @relation(fields: [vendorId], references: [id])
+  invoiceNumber String? // Vendor invoice number (external)
+
+  status MaintenanceRecordStatus @default(OPEN)
+
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([truckId])
+  @@index([date])
+  @@index([nextServiceDate])
+  @@index([companyId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([maintenanceNumber])
+}
+
+model MaintenanceSchedule {
+  id        String  @id @default(cuid())
+  truckId   String
+  truck     Truck   @relation(fields: [truckId], references: [id])
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  maintenanceType MaintenanceType
+  intervalMiles   Int             @default(0)
+  intervalMonths  Int             @default(0)
+  active          Boolean         @default(true)
+  
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([truckId])
+  @@index([companyId])
+}
+
+enum MaintenanceType {
+  PM_A // Preventive Maintenance A
+  PM_B // Preventive Maintenance B
+  TIRES // Tire service
+  REPAIR // Repair work
+}
+
+enum MaintenanceRecordStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model OnCallShift {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  assignedToId String
+  assignedTo   User   @relation("OnCallShifts", fields: [assignedToId], references: [id])
+
+  shiftType OnCallShiftType
+  startDate DateTime
+  endDate   DateTime
+  notes     String?
+
+  createdById String?
+  createdBy   User?   @relation("OnCallShiftCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([assignedToId])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+enum OnCallShiftType {
+  DAY
+  NIGHT
+  WEEKEND
+  HOLIDAY
+  CUSTOM
+}
+
+model Breakdown {
+  id         String    @id @default(cuid())
+  truckId    String
+  truck      Truck     @relation(fields: [truckId], references: [id])
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  // Breakdown Details
+  breakdownNumber String   @unique // Auto-generated breakdown case number
+  reportedAt      DateTime @default(now())
+  reportedBy      String? // User ID who reported
+
+  // Location & Situation
+  location        String // Where the breakdown occurred
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
+  latitude        Float?
+  longitude       Float?
+  odometerReading Float
+  
+  // Telematics Payload (Phase 2 & 3 support)
+  telematicsSnapshot Json? // Stores full vehicle state (location, fuel, faults) at creation time
+
+  // Breakdown Information
+  breakdownType   BreakdownType
+  priority        BreakdownPriority @default(MEDIUM)
+  problem         String? // Specific problem (e.g., "air valve", "engine shutdown")
+  problemCategory String? // Problem category (e.g., "TRUCK AIR LEAK", "Engine and Power Issues")
+  description     String // Detailed description of the issue
+
+  // Current Load Impact
+  loadId    String? // If breakdown affects a load
+  load      Load?    @relation(fields: [loadId], references: [id])
+  driverId  String? // Driver affected
+  driver    Driver?  @relation(fields: [driverId], references: [id])
+  trailerId String? // Added for trailer breakdowns
+  trailer   Trailer? @relation(fields: [trailerId], references: [id]) // Added for trailer breakdowns
+
+  // Breakdown Status
+  status BreakdownStatus @default(REPORTED)
+
+  // Service Provider
+  serviceProvider String? // Repair shop/service provider name
+  serviceContact  String? // Contact phone
+  serviceAddress  String? // Service provider address
+
+  // Costs
+  repairCost Float?
+  towingCost Float?
+  laborCost  Float?
+  partsCost  Float?
+  otherCosts Float?
+  totalCost  Float  @default(0)
+
+  // Timeline
+  dispatchedAt      DateTime? // When breakdown team was dispatched
+  arrivedAt         DateTime? // When service arrived at location
+  repairStartedAt   DateTime? // When repair work started
+  repairCompletedAt DateTime? // When repair was completed
+  truckReadyAt      DateTime? // When truck was ready to resume
+
+  // Downtime
+  downtimeHours Float? // Calculated downtime
+
+  // Resolution
+  resolution      String? // How the breakdown was resolved
+  repairNotes     String? // Detailed repair notes
+  technicianNotes String? // Notes from technician
+
+  // Follow-up
+  followUpRequired Boolean @default(false)
+  followUpNotes    String?
+
+  // Driver chargeability
+  isDriverChargeable Boolean @default(false)
+  driverChargeNotes  String? // Notes explaining why driver is charged
+
+  // Staff assignments
+  assignments BreakdownAssignment[]
+
+  // Documents/Photos
+  documents Document[]
+
+  // Communications
+  communications Communication[]
+
+  // Payments
+  payments Payment[]
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([truckId])
+  @@index([loadId])
+  @@index([driverId])
+  @@index([trailerId]) // Added for trailer breakdowns
+  @@index([mcNumberId])
+  @@index([status])
+  @@index([breakdownType])
+  @@index([reportedAt])
+}
+
+enum BreakdownType {
+  ENGINE_FAILURE
+  TRANSMISSION_FAILURE
+  BRAKE_FAILURE
+  TIRE_FLAT
+  TIRE_BLOWOUT
+  ELECTRICAL_ISSUE
+  COOLING_SYSTEM
+  FUEL_SYSTEM
+  SUSPENSION
+  ACCIDENT_DAMAGE
+  WEATHER_RELATED
+  OTHER
+}
+
+enum BreakdownPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum BreakdownStatus {
+  REPORTED // Initial report
+  DISPATCHED // Breakdown team/service dispatched
+  IN_PROGRESS // Repair work in progress
+  WAITING_PARTS // Waiting for parts
+  COMPLETED // Repair completed, truck ready
+  RESOLVED // Fully resolved, all documentation complete
+  CANCELLED // False alarm or cancelled
+}
+
+// Breakdown staff assignments (many-to-many with users)
+model BreakdownAssignment {
+  id          String    @id @default(cuid())
+  breakdownId String
+  breakdown   Breakdown @relation(fields: [breakdownId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  role        String? // Role in this breakdown (e.g., "Lead", "Support", "On-Call")
+  assignedAt  DateTime  @default(now())
+  assignedBy  String? // User ID who made the assignment
+  notes       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([breakdownId, userId])
+  @@index([breakdownId])
+  @@index([userId])
+}
+
+// ============================================
+// COMMUNICATIONS
+// ============================================
+
+model Communication {
+  id           String  @id @default(cuid())
+  ticketNumber String? @unique // User-facing ticket/comm identifier (e.g., COMM-2024-001)
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id])
+
+  // Linked to Breakdown Case
+  breakdownId String?
+  breakdown   Breakdown? @relation(fields: [breakdownId], references: [id])
+
+  // Linked to Driver
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  // Communication Channel & Type
+  channel   CommunicationChannel
+  type      CommunicationType // CALL, SMS, MMS, TELEGRAM, EMAIL, VOICEMAIL, NOTE
+  direction CommunicationDirection // INBOUND, OUTBOUND
+
+  // Contact Information
+  fromNumber     String? // Phone number (for calls/SMS)
+  toNumber       String? // Phone number (for calls/SMS)
+  telegramId     String? // Telegram user ID or username
+  telegramChatId String? // Telegram chat ID for the conversation
+  emailAddress   String? // Email address
+
+  // Content
+  content      String? // Text content, transcription, or notes
+  duration     Int? // For calls, duration in seconds
+  recordingUrl String? // For calls, URL to recording
+
+  // Media Attachments (for MMS/Telegram)
+  mediaUrls String[] // Array of URLs for photos/videos
+
+  // Location (if shared via Telegram)
+  location Json? // GPS coordinates: { lat, lng, address }
+
+  // Status & Metadata
+  status       CommunicationStatus @default(SENT)
+  errorMessage String?
+
+  // Auto-created case info
+  autoCreated Boolean @default(false) // Was breakdown case auto-created from this?
+
+  // Created by
+  createdById String?
+  createdBy   User?   @relation("CommunicationCreator", fields: [createdById], references: [id])
+
+  // External IDs (for tracking with providers)
+  externalId       String? // ID from SIP provider, Telegram, etc.
+  providerMetadata Json? // Additional provider-specific data
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  aiResponseLogs AIResponseLog[] // AI analysis logs for this communication
+  telegramMessageId Int? // Telegram message ID for tracking
+
+  @@index([companyId])
+  @@index([breakdownId])
+  @@index([driverId])
+  @@index([channel])
+  @@index([type])
+  @@index([direction])
+  @@index([createdAt])
+  @@index([telegramChatId])
+  @@index([ticketNumber])
+}
+
+enum CommunicationChannel {
+  SIP // Phone calls via SIP provider
+  SMS // Text messages
+  TELEGRAM // Telegram messaging
+  EMAIL // Email
+  MOBILE_APP // Driver mobile app
+}
+
+enum CommunicationType {
+  CALL // Phone call
+  SMS // Text message
+  MMS // Multimedia message
+  TELEGRAM // Telegram message
+  EMAIL // Email
+  VOICEMAIL // Voicemail
+  NOTE // Manual note/log
+  MESSAGE // Mobile app message
+  BREAKDOWN_REPORT // Breakdown report from mobile app
+}
+
+enum CommunicationDirection {
+  INBOUND // Received from driver
+  OUTBOUND // Sent to driver
+}
+
+enum CommunicationStatus {
+  SENT // Message sent
+  DELIVERED // Message delivered
+  READ // Message read
+  FAILED // Delivery failed
+  PENDING // Pending delivery
+}
+
+// ============================================
+// CUSTOMERS
+// ============================================
+
+model Customer {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Customer Details
+  customerNumber  String       @unique
+  name            String
+  type            CustomerType @default(DIRECT)
+  mcNumber        String? // MC Number from Excel
+  location        String? // Location field from Excel
+  website         String? // Website field from Excel
+  referenceNumber String? // Reference number from Excel
+
+  // Contact
+  address       String
+  city          String
+  state         String
+  zip           String
+  phone         String
+  contactNumber String? // Separate contact number field
+  email         String
+
+  // Billing
+  billingAddress String? // Single line billing address
+  billingCity    String?
+  billingState   String?
+  billingZip     String?
+  billingEmail   String?
+  billingEmails  String? // Multiple billing emails (comma-separated)
+  billingType    String? // Billing type from Excel
+
+  // QuickBooks
+  qbCustomerId String? // QuickBooks customer ID
+
+  // Terms
+  paymentTerms         Int       @default(30) // days
+  paymentTermsType     String? // NET, QUICK_PAY, DISCOUNT
+  discountPercentage   Float? // 2% for quick pay
+  discountDays         Int? // 10 days for discount
+  creditLimit          Float?
+  creditAlertThreshold Float     @default(80) // percentage (80%, 90%, etc.)
+  creditHold           Boolean   @default(false)
+  creditHoldReason     String?
+  creditHoldDate       DateTime?
+  creditRate           Float? // Credit rate from Excel
+  creditLimitNotes     String?
+
+  // Additional Fields from Excel
+  rateConfirmationRequired Boolean @default(false)
+  status                   String? // Status field from Excel
+  legacyTags               Json? // Tags as JSON array (legacy, use tags relation instead)
+  warning                  String? // Warning field from Excel
+  riskLevel                String? // Risk level from Excel
+  comments                 String? // Comments field (note: Excel has typo "Commnets")
+
+  // EDI Integration
+  scac String? // Standard Carrier Alpha Code for EDI
+
+  // Portal Access
+  portalEnabled Boolean @default(false)
+  portalUserId  String?
+
+  // EDI
+  ediEnabled Boolean @default(false)
+  ediId      String?
+
+  // Performance
+  rating       Float?
+  totalLoads   Int    @default(0)
+  totalRevenue Float  @default(0)
+
+  // Detention Configuration
+  detentionFreeTimeHours Float? // Customer-specific free time (hours) before detention charges apply
+  detentionRate          Float? // Customer-specific detention rate ($/hour)
+
+  isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Factoring
+  factoringCompanyId     String?
+  factoringCompany       FactoringCompany? @relation(fields: [factoringCompanyId], references: [id])
+  preferredPaymentMethod PaymentMethod?
+
+  // Relations
+  loads          Load[]
+  loadTemplates  LoadTemplate[]
+  invoices       Invoice[]
+  contacts       CustomerContact[]
+  tags           CustomerTag[]
+  invoiceBatches InvoiceBatch[]
+  tariffs        Tariff[]
+
+  @@index([companyId])
+  @@index([customerNumber])
+  @@index([creditHold])
+  @@index([factoringCompanyId])
+  @@index([mcNumber])
+  @@index([companyId, mcNumber])
+}
+
+// ============================================
+// ACTIVITY LOG
+// ============================================
+
+model ActivityLog {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id])
+
+  action      String // CREATE, UPDATE, DELETE, ASSIGN, STATUS_CHANGE, etc.
+  entityType  String // Load, Driver, Truck, Invoice, etc.
+  entityId    String?
+  description String?
+  metadata    Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+enum CustomerType {
+  DIRECT
+  BROKER
+  FREIGHT_FORWARDER
+  THIRD_PARTY_LOGISTICS
+}
+
+model CustomerContact {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  name      String
+  title     String?
+  email     String
+  phone     String
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+// ============================================
+// DOCUMENTS
+// ============================================
+
+model Document {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Document Details
+  type        DocumentType
+  title       String
+  description String?
+
+  // File Storage
+  fileName String
+  fileUrl  String
+  fileSize Int // bytes
+  mimeType String
+
+  // Relations
+  loadId                       String?
+  load                         Load?                 @relation(fields: [loadId], references: [id])
+  driverId                     String?
+  driver                       Driver?               @relation(fields: [driverId], references: [id])
+  truckId                      String?
+  truck                        Truck?                @relation(fields: [truckId], references: [id])
+  breakdownId                  String?
+  breakdown                    Breakdown?            @relation(fields: [breakdownId], references: [id])
+  inspectionId                 String?
+  inspection                   Inspection?           @relation(fields: [inspectionId], references: [id])
+  safetyIncidentId             String?
+  safetyIncident               SafetyIncident?       @relation(fields: [safetyIncidentId], references: [id])
+  safetyTrainingCertificateId  String?               @unique
+  safetyTrainingCertificate    SafetyTraining?       @relation("TrainingCertificate", fields: [safetyTrainingCertificateId], references: [id])
+  // Safety Document Relations (reverse relations - foreign keys are on the other models)
+  dqfDocuments                 DQFDocument[]
+  accidentPhotos               AccidentPhoto[]
+  investigationDocuments       Investigation[]
+  annualReviewDocuments        AnnualReview[]
+  dvirDocuments                DVIR[]
+  roadsideInspectionDocuments  RoadsideInspection[]
+  complianceReviewDocuments    ComplianceReview[]
+  insuranceClaimDocuments      InsuranceClaim[]
+  cargoClaimDocuments          CargoClaim[]
+  // Accounting Relations
+  rateConfirmation             RateConfirmation?
+  // One-to-one relations (these use named relations)
+  medicalCardDocument          MedicalCard?          @relation("MedicalCardDocument")
+  cdlDocument                  CDLRecord?            @relation("CDLDocument")
+  mvrDocument                  MVRRecord?            @relation("MVRDocument")
+  drugTestDocument             DrugAlcoholTest?      @relation("DrugTestDocument")
+  policeReportDocument         PoliceReport?         @relation("PoliceReportDocument")
+  witnessStatementDocument     WitnessStatement?     @relation("WitnessStatementDocument")
+  insurancePolicyDocument      InsurancePolicy?      @relation("InsurancePolicyDocument")
+  insuranceCertificateDocument InsuranceCertificate? @relation("InsuranceCertificateDocument")
+  lossRunDocument              LossRun?              @relation("LossRunDocument")
+  safetyPolicyDocument         SafetyPolicy?         @relation("SafetyPolicyDocument")
+  trainingMaterialDocument     TrainingMaterial?     @relation("TrainingMaterialDocument")
+
+  // Metadata
+  expiryDate DateTime?
+  uploadedBy String
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([loadId])
+  @@index([driverId])
+  @@index([type])
+}
+
+enum DocumentType {
+  BOL // Bill of Lading
+  POD // Proof of Delivery
+  INVOICE
+  RATE_CONFIRMATION
+  DRIVER_LICENSE
+  MEDICAL_CARD
+  INSURANCE
+  REGISTRATION
+  INSPECTION
+  LEASE_AGREEMENT
+  W9
+  COI // Certificate of Insurance
+  OTHER
+}
+
+// ============================================
+// INVOICES & SETTLEMENTS
+// ============================================
+
+model Invoice {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  invoiceNumber String   @unique
+  loadIds       String[] // Array of load IDs
+
+  // Financial
+  subtotal   Float
+  tax        Float @default(0)
+  total      Float
+  amountPaid Float @default(0)
+  balance    Float
+
+  // Status
+  status InvoiceStatus @default(DRAFT)
+
+  // Dates
+  invoiceDate DateTime
+  dueDate     DateTime
+  paidDate    DateTime?
+
+  // QuickBooks
+  qbSynced     Boolean   @default(false)
+  qbInvoiceId  String?
+  qbSyncedAt   DateTime?
+  qbSyncStatus String? // QB sync status tracking (PENDING, SYNCING, SYNCED, FAILED)
+  qbSyncError  String? // QB sync error message
+  qbCustomerId String? // Customer QB ID reference
+
+  // Enhanced fields
+  mcNumber             String?
+  subStatus            InvoiceSubStatus?
+  reconciliationStatus ReconciliationStatus @default(NOT_RECONCILED)
+  invoiceNote          String?
+  paymentNote          String?
+  loadId               String? // Single load reference for display
+  load                 Load?                @relation("InvoiceLoad", fields: [loadId], references: [id])
+
+  // Total amount alias (for compatibility)
+  totalAmount Float? // Alias for total (computed or synchronized)
+
+  // Payment Information
+  paymentMethod       PaymentMethod?
+  expectedPaymentDate DateTime? // Calculated from invoiceDate + paymentTerms
+
+  // Factoring Fields
+  factoringStatus            FactoringStatus   @default(NOT_FACTORED)
+  factoringCompanyId         String?
+  factoringCompany           FactoringCompany? @relation(fields: [factoringCompanyId], references: [id])
+  submittedToFactorAt        DateTime?
+  factoringSubmittedAt       DateTime? // Alias for submittedToFactorAt
+  fundedAt                   DateTime?
+  reserveReleaseDate         DateTime?
+  factoringReserveReleasedAt DateTime? // For reserve release tracking
+  factoringFee               Float?
+  reserveAmount              Float?
+  advanceAmount              Float?
+
+  // Short Pay Tracking
+  shortPayAmount       Float     @default(0)
+  shortPayReasonCode   String?
+  shortPayReason       String?
+  shortPayApproved     Boolean   @default(false)
+  shortPayApprovedById String?
+  shortPayApprovedBy   User?     @relation("ShortPayApprover", fields: [shortPayApprovedById], references: [id])
+  shortPayApprovedAt   DateTime?
+
+  // Dispute Tracking
+  disputedAt     DateTime?
+  disputedReason String?
+
+  // Write-off Tracking
+  writtenOffAt     DateTime?
+  writtenOffReason String?
+  writtenOffById   String?
+  writtenOffBy     User?     @relation("WriteOffBy", fields: [writtenOffById], references: [id])
+
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Factoring Batch
+  factoringBatchId String?
+  factoringBatch   FactoringBatch? @relation(fields: [factoringBatchId], references: [id])
+
+  // Invoice Batch (direct reference for easier querying)
+  invoiceBatchId String?
+  invoiceBatch   InvoiceBatch? @relation(fields: [invoiceBatchId], references: [id])
+
+  // Relations
+  payments           Payment[]
+  batchItems         InvoiceBatchItem[]
+  reconciliations    Reconciliation[]
+  tags               InvoiceTag[]
+  accessorialCharges AccessorialCharge[]
+  rateConfirmation   RateConfirmation?
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@index([mcNumber])
+  @@index([reconciliationStatus])
+  @@index([factoringStatus])
+  @@index([factoringCompanyId])
+  @@index([paymentMethod])
+  @@index([subStatus])
+  @@index([factoringBatchId])
+  @@index([loadId])
+  @@index([invoiceBatchId])
+  // Composite indexes for common query patterns
+  @@index([customerId, status])
+  @@index([customerId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([mcNumber, status])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  INVOICED
+  POSTED
+}
+
+model Settlement {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id])
+
+  settlementNumber String   @unique
+  loadIds          String[] // Array of load IDs
+
+  // Financial
+  grossPay   Float
+  deductions Float @default(0)
+  advances   Float @default(0)
+  netPay     Float
+
+  // Status
+  status SettlementStatus @default(PENDING)
+
+  // Approval Workflow
+  calculatedAt    DateTime?
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedById    String?
+  approvedBy      User?          @relation("SettlementApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // Dates
+  periodStart DateTime
+  periodEnd   DateTime
+  paidDate    DateTime?
+
+  // Payment Information
+  paymentMethod    PaymentMethod?
+  paymentReference String?
+
+  // Owner-Operator 1099 Tracking
+  is1099Eligible Boolean @default(false)
+  year1099       Int? // Tax year for 1099 reporting
+
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  deductionItems          SettlementDeduction[]
+  approvalHistory         SettlementApproval[]
+  driverAdvances          DriverAdvance[]
+  loadExpenses            LoadExpense[]
+  negativeBalances        DriverNegativeBalance[] @relation("NegativeBalanceSettlement")
+  appliedNegativeBalances DriverNegativeBalance[] @relation("AppliedNegativeBalance")
+
+  @@index([driverId])
+  @@index([status])
+  @@index([approvalStatus])
+  @@index([approvedById])
+  @@index([periodStart])
+  @@index([periodEnd])
+  // Composite indexes for common query patterns
+  @@index([driverId, status])
+  @@index([driverId, status, createdAt])
+  @@index([driverId, createdAt])
+  @@index([status, createdAt])
+}
+
+// ============================================
+// SETTLEMENT DEDUCTIONS
+// ============================================
+
+model SettlementDeduction {
+  id           String     @id @default(cuid())
+  settlementId String
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  deductionType DeductionType
+  description   String
+  amount        Float
+
+  // For fuel advances, link to fuel entry
+  fuelEntryId String?
+  fuelEntry   FuelEntry? @relation(fields: [fuelEntryId], references: [id])
+
+  // For cash advances, link to driver advance
+  driverAdvanceId String?
+  driverAdvance   DriverAdvance? @relation(fields: [driverAdvanceId], references: [id])
+
+  // For load expenses
+  loadExpenseId String?
+  loadExpense   LoadExpense? @relation(fields: [loadExpenseId], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([settlementId])
+  @@index([deductionType])
+  @@index([fuelEntryId])
+  @@index([driverAdvanceId])
+  @@index([loadExpenseId])
+}
+
+enum SettlementStatus {
+  PENDING
+  APPROVED
+  PAID
+  DISPUTED
+}
+
+// ============================================
+// DRIVER ADVANCES
+// ============================================
+
+model DriverAdvance {
+  id            String  @id @default(cuid())
+  advanceNumber String? @unique // User-facing advance identifier (e.g., ADV-2024-001)
+  driverId      String
+  driver        Driver  @relation(fields: [driverId], references: [id])
+
+  amount          Float
+  requestDate     DateTime       @default(now())
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedById    String?
+  approvedBy      User?          @relation("AdvanceApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // Optional load association
+  loadId String?
+  load   Load?   @relation(fields: [loadId], references: [id])
+
+  // Settlement tracking
+  settlementId String?
+  settlement   Settlement? @relation(fields: [settlementId], references: [id])
+  deductedAt   DateTime?
+
+  // Payment details
+  paymentMethod    PaymentMethod?
+  paymentReference String?
+  paidAt           DateTime?
+
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  settlementDeductions SettlementDeduction[]
+
+  @@index([driverId])
+  @@index([loadId])
+  @@index([settlementId])
+  @@index([advanceNumber])
+}
+
+// ============================================
+// DRIVER NEGATIVE BALANCE TRACKING
+// ============================================
+
+model DriverNegativeBalance {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation("DriverNegativeBalance", fields: [driverId], references: [id], onDelete: Cascade)
+
+  // Balance tracking
+  amount               Float // Negative balance amount (always positive in DB, negative in calculations)
+  originalSettlementId String? // Settlement that created this negative balance
+  originalSettlement   Settlement? @relation("NegativeBalanceSettlement", fields: [originalSettlementId], references: [id])
+
+  // Application tracking
+  appliedSettlementId String? // Settlement where this balance was applied
+  appliedSettlement   Settlement? @relation("AppliedNegativeBalance", fields: [appliedSettlementId], references: [id])
+  appliedAt           DateTime? // When balance was applied
+
+  // Status
+  isApplied Boolean @default(false) // Whether balance has been fully applied
+
+  // Notes
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([isApplied])
+  @@index([originalSettlementId])
+  @@index([appliedSettlementId])
+}
+
+// ============================================
+// LOAD EXPENSES
+// ============================================
+
+model LoadExpense {
+  id            String  @id @default(cuid())
+  expenseNumber String? @unique // User-facing expense identifier (e.g., EXP-2024-001)
+  loadId        String
+  load          Load    @relation(fields: [loadId], references: [id], onDelete: Cascade)
+
+  expenseType LoadExpenseType
+  category    String? // Additional categorization
+  amount      Float
+
+  // Vendor relation
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+
+  receiptUrl  String? // URL to uploaded receipt
+  description String?
+  date        DateTime @default(now())
+
+  // Reimbursable flag - if true, creates Credit LedgerEntry for driver
+  reimbursable Boolean @default(false)
+
+  // Approval workflow
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedById    String?
+  approvedBy      User?          @relation("ExpenseApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // Settlement tracking
+  settlementId String?
+  settlement   Settlement? @relation(fields: [settlementId], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  settlementDeductions SettlementDeduction[]
+
+  @@index([loadId])
+  @@index([expenseType])
+  @@index([vendorId])
+  @@index([settlementId])
+  @@index([approvalStatus])
+  @@index([approvedById])
+  @@index([date])
+  @@index([expenseNumber])
+}
+
+enum LoadExpenseType {
+  TOLL
+  SCALE
+  SCALE_TICKET
+  PERMIT
+  LUMPER
+  DETENTION
+  PARKING
+  REPAIR
+  TOWING
+  TIRE
+  FUEL_ADDITIVE
+  DEF
+  WASH
+  MEAL
+  LODGING
+  PHONE
+  OTHER
+}
+
+// ============================================
+// DEDUCTION RULES
+// ============================================
+
+model DeductionRule {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  name          String
+  deductionType DeductionType
+  driverType    DriverType? // Apply to specific driver type (COMPANY, OWNER_OPERATOR, LEASE)
+
+  // Unified addition/deduction flag
+  isAddition Boolean @default(false) // true = addition (bonus, overtime), false = deduction
+
+  // Per-driver rule (simplified model for automated deductions)
+  driverId  String? // Specific driver for this rule (if null, applies to driverType)
+  driver    Driver?                 @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type      DeductionRuleType? // Simplified type: LEASE, INSURANCE, ELD
+  amount    Float? // Fixed amount for simplified rules
+  frequency DeductionRuleFrequency? // WEEKLY or MONTHLY for simplified rules
+  startDate DateTime? // When rule becomes active
+  endDate   DateTime? // When rule expires (null = no end date)
+
+  // Amount configuration (existing complex model)
+  calculationType CalculationType // FIXED, PERCENTAGE, PER_MILE
+  percentage      Float? // For PERCENTAGE (e.g., 5% for insurance)
+  perMileRate     Float? // For PER_MILE calculations
+
+  // Frequency (existing complex model)
+  deductionFrequency DeductionFrequency @default(PER_SETTLEMENT)
+
+  // Conditions
+  minGrossPay Float? // Only apply if gross pay exceeds this
+  maxAmount   Float? // Cap the deduction at this amount
+
+  isActive Boolean @default(true)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([deductionType])
+  @@index([driverType])
+  @@index([driverId])
+  @@index([isActive])
+  @@index([isAddition])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+enum CalculationType {
+  FIXED
+  PERCENTAGE
+  PER_MILE
+}
+
+enum DeductionFrequency {
+  PER_SETTLEMENT
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  ONE_TIME
+}
+
+// Simplified deduction rule types for automated deductions
+enum DeductionRuleType {
+  LEASE
+  INSURANCE
+  ELD
+}
+
+// Simplified frequency for automated deduction rules
+enum DeductionRuleFrequency {
+  WEEKLY
+  MONTHLY
+}
+
+// ============================================
+// SETTLEMENT APPROVAL WORKFLOW
+// ============================================
+
+model SettlementApproval {
+  id           String     @id @default(cuid())
+  settlementId String
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  status ApprovalStatus
+  notes  String?
+
+  // Approver
+  approvedById String
+  approvedBy   User   @relation("SettlementApprovalHistory", fields: [approvedById], references: [id])
+
+  // Changes made (if any)
+  changes Json? // Track what was modified
+
+  createdAt DateTime @default(now())
+
+  @@index([settlementId])
+  @@index([approvedById])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ApprovalStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  DISPUTED
+}
+
+// ============================================
+// IFTA (INTERNATIONAL FUEL TAX AGREEMENT)
+// ============================================
+
+model IFTAConfig {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // State tax rates (per mile)
+  stateRates Json // { "KY": 0.0285, "NM": 0.04378, "OR": 0.237, "NY": 0.0546, "CT": 0.1, ... }
+
+  // Default rates for common IFTA states
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId])
+  @@index([companyId])
+}
+
+model IFTAEntry {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  loadId    String
+  load      Load    @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id])
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id])
+
+  // Period information
+  periodType    IFTAPeriodType // QUARTER or MONTH
+  periodYear    Int
+  periodQuarter Int? // 1-4 for quarters
+  periodMonth   Int? // 1-12 for months
+
+  // Calculated totals
+  totalMiles     Float
+  totalTax       Float
+  totalDeduction Float @default(0)
+
+  // Status
+  isCalculated Boolean   @default(false)
+  calculatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  stateMileages IFTAStateMileage[]
+
+  @@unique([loadId])
+  @@index([companyId])
+  @@index([driverId])
+  @@index([truckId])
+  @@index([loadId])
+  @@index([periodYear, periodQuarter, periodMonth])
+}
+
+model IFTAStateMileage {
+  id          String    @id @default(cuid())
+  iftaEntryId String
+  iftaEntry   IFTAEntry @relation(fields: [iftaEntryId], references: [id], onDelete: Cascade)
+
+  state     String // State code (KY, NM, OR, NY, CT, etc.)
+  miles     Float
+  taxRate   Float // Tax rate per mile for this state
+  tax       Float // Calculated tax: miles * taxRate
+  deduction Float  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([iftaEntryId])
+  @@index([state])
+}
+
+enum IFTAPeriodType {
+  QUARTER
+  MONTH
+}
+
+// ============================================
+// INVOICE BATCHES
+// ============================================
+
+model InvoiceBatch {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  batchNumber String          @unique
+  postStatus  BatchPostStatus @default(UNPOSTED)
+  customerId  String? // Optional: primary customer for the batch (for filtering)
+  customer    Customer?       @relation(fields: [customerId], references: [id])
+  mcNumber    String?
+  totalAmount Float           @default(0)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  sentToFactoringAt    DateTime?
+  factoringCompanyId   String?
+  factoringCompany     FactoringCompany? @relation(fields: [factoringCompanyId], references: [id])
+  factoringCompanyName String? // Legacy field for migration
+
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  items    InvoiceBatchItem[]
+  invoices Invoice[]
+
+  @@index([companyId])
+  @@index([postStatus])
+  @@index([batchNumber])
+  @@index([createdById])
+  @@index([factoringCompanyId])
+  @@index([customerId])
+}
+
+model InvoiceBatchItem {
+  id        String       @id @default(cuid())
+  batchId   String
+  batch     InvoiceBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([batchId, invoiceId])
+  @@index([batchId])
+  @@index([invoiceId])
+}
+
+enum BatchPostStatus {
+  UNPOSTED
+  POSTED
+  PAID
+}
+
+// ============================================
+// PAYMENTS
+// ============================================
+
+model Payment {
+  id        String   @id @default(cuid())
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+
+  // Payment type - determines what entity this payment is for
+  type PaymentType @default(INVOICE)
+
+  // Fuel/Breakdown payments
+  fuelEntryId String?
+  fuelEntry   FuelEntry? @relation(fields: [fuelEntryId], references: [id])
+  breakdownId String?
+  breakdown   Breakdown? @relation(fields: [breakdownId], references: [id])
+
+  // MC Number association
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  paymentNumber   String        @unique
+  amount          Float
+  paymentDate     DateTime
+  paymentMethod   PaymentMethod
+  referenceNumber String?
+
+  // Receipt/Invoice tracking
+  receiptNumber String?
+  invoiceNumber String? // Vendor invoice number
+  hasReceipt    Boolean  @default(false)
+  hasInvoice    Boolean  @default(false)
+  documentIds   String[] // Array of document IDs
+
+  notes String?
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  reconciliations Reconciliation[]
+
+  @@index([invoiceId])
+  @@index([fuelEntryId])
+  @@index([breakdownId])
+  @@index([mcNumberId])
+  @@index([paymentNumber])
+  @@index([paymentDate])
+  @@index([createdById])
+  @@index([type])
+}
+
+enum PaymentType {
+  INVOICE
+  FUEL
+  BREAKDOWN
+  OTHER
+}
+
+enum PaymentMethod {
+  CHECK
+  WIRE
+  ACH
+  CREDIT_CARD
+  CASH
+  OTHER
+  FACTOR
+  QUICK_PAY
+  EFS
+  COMDATA
+  CASHAPP
+  ZELLE
+  VENMO
+}
+
+enum FactoringStatus {
+  NOT_FACTORED
+  SUBMITTED_TO_FACTOR
+  FUNDED
+  RESERVE_RELEASED
+}
+
+enum InvoiceSubStatus {
+  NOT_YET_DUE
+  DUE_SOON
+  OVERDUE
+  PARTIALLY_PAID
+  DISPUTED
+  WRITTEN_OFF
+  PAID
+}
+
+enum AccessorialChargeType {
+  DETENTION
+  LAYOVER
+  TONU
+  LUMPER
+  SCALE_TICKET
+  ADDITIONAL_STOP
+  FUEL_SURCHARGE
+  RECLASSIFICATION
+  REEFER_FUEL
+  DRIVER_ASSIST
+  SORT_SEGREGATE
+  INSIDE_DELIVERY
+  RESIDENTIAL_DELIVERY
+  SATURDAY_DELIVERY
+  AFTER_HOURS
+  OTHER
+}
+
+enum AccessorialChargeStatus {
+  PENDING
+  APPROVED
+  BILLED
+  PAID
+  DENIED
+}
+
+enum DeductionType {
+  // Deductions
+  FUEL_ADVANCE
+  CASH_ADVANCE
+  INSURANCE
+  OCCUPATIONAL_ACCIDENT
+  TRUCK_PAYMENT
+  TRUCK_LEASE
+  ESCROW
+  EQUIPMENT_RENTAL
+  MAINTENANCE
+  TOLLS
+  PERMITS
+  FUEL_CARD
+  FUEL_CARD_FEE
+  TRAILER_RENTAL
+  OTHER
+  // Additions (Payments)
+  BONUS
+  OVERTIME
+  INCENTIVE
+  REIMBURSEMENT
+}
+
+// ============================================
+// RECONCILIATION
+// ============================================
+
+model Reconciliation {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  reconciledAmount     Float
+  reconciledAt         DateTime
+  reconciledById       String
+  reconciledBy         User                 @relation(fields: [reconciledById], references: [id])
+  reconciliationMethod ReconciliationMethod @default(MANUAL)
+
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@index([reconciledAt])
+  @@index([reconciledById])
+}
+
+enum ReconciliationStatus {
+  NOT_RECONCILED
+  PARTIALLY_RECONCILED
+  FULLY_RECONCILED
+}
+
+enum ReconciliationMethod {
+  AUTO
+  MANUAL
+  IMPORT
+}
+
+// ============================================
+// FACTORING COMPANIES
+// ============================================
+
+model FactoringCompany {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  name          String
+  accountNumber String?
+
+  // Reserve & Fee Configuration
+  reservePercentage Float @default(10) // 10% default
+  reserveHoldDays   Int   @default(90) // 90 days default
+
+  // API Integration
+  apiProvider String? // RTS, TAFS, etc.
+  apiEndpoint String?
+  apiKey      String?
+  apiSecret   String?
+
+  // File Export Configuration
+  exportFormat String? // CSV, EDI, Excel
+
+  // Contact Information
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+
+  isActive  Boolean  @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  invoices       Invoice[]
+  customers      Customer[]
+  invoiceBatches InvoiceBatch[]
+
+  @@index([companyId])
+  @@index([isActive])
+}
+
+// ============================================
+// FACTORING BATCHES
+// ============================================
+
+model FactoringBatch {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+
+  status      FactoringBatchStatus @default(PENDING)
+  totalAmount Float                @default(0)
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  invoices Invoice[]
+
+  @@index([companyId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+enum FactoringBatchStatus {
+  PENDING
+  SUBMITTED
+  FUNDED
+  COMPLETED
+}
+
+// ============================================
+// ACCESSORIAL CHARGES
+// ============================================
+
+model AccessorialCharge {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  loadId String
+  load   Load   @relation(fields: [loadId], references: [id])
+
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+
+  chargeType  AccessorialChargeType
+  description String?
+
+  // Detention specific
+  detentionHours Float?
+  detentionRate  Float?
+
+  // Layover specific
+  layoverDays Int?
+  layoverRate Float?
+
+  // TONU specific
+  tonuReason String?
+
+  // Amount
+  amount Float
+
+  status AccessorialChargeStatus @default(PENDING)
+
+  // Approval
+  approvedById String?
+  approvedBy   User?     @relation(fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+
+  // Notes
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([loadId])
+  @@index([invoiceId])
+  @@index([chargeType])
+  @@index([status])
+}
+
+// ============================================
+// RATE CONFIRMATIONS
+// ============================================
+
+model RateConfirmation {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  loadId String
+  load   Load   @relation(fields: [loadId], references: [id])
+
+  rateConfNumber String? // Rate confirmation number
+
+  // Rate Details
+  baseRate           Float
+  fuelSurcharge      Float @default(0)
+  accessorialCharges Float @default(0)
+  totalRate          Float
+
+  // Payment Terms
+  paymentTerms  Int     @default(30) // days
+  paymentMethod String? // FACTOR, DIRECT, QUICK_PAY
+
+  // Document
+  documentId String?   @unique
+  document   Document? @relation(fields: [documentId], references: [id])
+
+  // Matching
+  matchedToInvoice Boolean  @default(false)
+  invoiceId        String?  @unique
+  invoice          Invoice? @relation(fields: [invoiceId], references: [id])
+
+  matchedAt   DateTime?
+  matchedById String?
+  matchedBy   User?     @relation(fields: [matchedById], references: [id])
+
+  notes String?
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([loadId])
+  @@index([companyId])
+  @@index([loadId])
+  @@index([invoiceId])
+}
+
+// ============================================
+// SYSTEM & AUDIT
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String   // User who performed action
+  user        User     @relation(fields: [userId], references: [id])
+  
+  action      String   // CREATE_COMPANY, EDIT_USER, etc.
+  entityType  String   // Company, User, McNumber, etc.
+  entityId    String?  // ID of affected entity
+  metadata    Json?    // Detailed changes or context
+  
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  read      Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+enum NotificationType {
+  LOAD_ASSIGNED
+  LOAD_UPDATED
+  MAINTENANCE_DUE
+  HOS_VIOLATION
+  DOCUMENT_EXPIRING
+  INVOICE_PAID
+  SYSTEM_ALERT
+}
+
+model NotificationPreferences {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  emailEnabled Boolean @default(true)
+  pushEnabled  Boolean @default(true)
+
+  // Notification Type Preferences
+  loadAssigned     Boolean @default(true)
+  loadUpdated      Boolean @default(true)
+  maintenanceDue   Boolean @default(true)
+  hosViolation     Boolean @default(true)
+  documentExpiring Boolean @default(true)
+  invoicePaid      Boolean @default(true)
+  systemAlert      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================
+// INTEGRATIONS
+// ============================================
+
+model Integration {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Integration Details
+  provider IntegrationProvider
+  isActive Boolean             @default(true)
+
+  // QuickBooks OAuth
+  realmId        String? // QuickBooks company ID
+  accessToken    String? // Encrypted in production
+  refreshToken   String? // Encrypted in production
+  tokenExpiresAt DateTime?
+
+  // Samsara Configuration
+  apiKey    String? // Encrypted in production
+  apiSecret String? // Encrypted in production
+
+  // Configuration (JSON)
+  config Json?
+
+  // Metadata
+  lastSyncAt     DateTime?
+  lastSyncStatus String? // success, error, pending
+  lastError      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, provider])
+  @@index([companyId])
+  @@index([provider])
+  @@index([isActive])
+}
+
+enum IntegrationProvider {
+  QUICKBOOKS
+  SAMSARA
+  GOOGLE_MAPS
+  DAT
+  TRUCKSTOP
+}
+
+// ============================================
+// INSPECTIONS
+// ============================================
+
+model Inspection {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  truckId   String
+  truck     Truck   @relation(fields: [truckId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id])
+
+  // Inspection Details
+  inspectionNumber String         @unique
+  inspectionType   InspectionType
+  inspectionDate   DateTime
+  performedBy      String? // User ID or inspector name
+  location         String? // Where inspection was performed
+
+  // Results
+  status        InspectionStatus @default(PASSED)
+  defects       Int              @default(0)
+  defectDetails String? // Description of any defects found
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  // DVIR Fields (Daily Vehicle Inspection Report)
+  defectsFound    Boolean  @default(false) // Whether defects were found
+  defectsList     String[] @default([]) // List of defects found
+  mechanicSignoff Boolean  @default(false) // Mechanic signoff status
+
+  // OOS (Out of Service) Information
+  oosStatus   Boolean @default(false) // Out of Service
+  oosItems    String? // List of OOS items
+  oosSeverity String? // MINOR, MAJOR, CRITICAL
+
+  // Mileage
+  odometerReading Float?
+
+  // Notes
+  notes          String?
+  inspectorNotes String?
+
+  // Next Inspection
+  nextInspectionDue DateTime?
+
+  // Documents
+  documents Document[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([truckId])
+  @@index([driverId])
+  @@index([inspectionType])
+  @@index([inspectionDate])
+  @@index([status])
+}
+
+enum InspectionType {
+  DOT_ANNUAL
+  DOT_LEVEL_1
+  DOT_LEVEL_2
+  DOT_LEVEL_3
+  DOT_PRE_TRIP
+  DOT_POST_TRIP
+  STATE_INSPECTION
+  COMPANY_INSPECTION
+  PMI // Preventive Maintenance Inspection
+  SAFETY_INSPECTION
+}
+
+enum InspectionStatus {
+  PASSED
+  FAILED
+  CONDITIONAL
+  OUT_OF_SERVICE
+  PENDING
+}
+
+// ============================================
+// INVENTORY
+// ============================================
+
+model InventoryItem {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Item Details
+  itemNumber   String  @unique
+  name         String
+  description  String?
+  category     String? // Parts, Supplies, Equipment, etc.
+  partNumber   String? // Manufacturer part number
+  manufacturer String?
+  unit         String  @default("EA") // EA, FT, GAL, etc.
+
+  // Stock Information
+  quantityOnHand Float  @default(0)
+  reorderPoint   Float  @default(0)
+  maxStock       Float?
+  minStock       Float?
+
+  // Pricing
+  unitCost    Float
+  averageCost Float?
+  lastCost    Float?
+
+  // Location
+  warehouseLocation String? // Warehouse/shelf location
+  binLocation       String? // Specific bin location
+
+  // Vendor
+  preferredVendorId String?
+  preferredVendor   Vendor? @relation(fields: [preferredVendorId], references: [id])
+
+  // Status
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  transactions InventoryTransaction[]
+
+  @@index([companyId])
+  @@index([itemNumber])
+  @@index([category])
+}
+
+model InventoryTransaction {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id])
+
+  // Transaction Details
+  transactionType InventoryTransactionType
+  transactionDate DateTime
+  quantity        Float
+  unitCost        Float
+  totalCost       Float
+
+  // Reference
+  referenceNumber String? // PO number, work order, etc.
+  referenceType   String? // PURCHASE_ORDER, WORK_ORDER, MAINTENANCE, etc.
+  referenceId     String? // ID of related entity
+
+  // Vendor/Customer
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+
+  // Location
+  fromLocation String? // For transfers
+  toLocation   String? // For transfers
+
+  // Notes
+  notes String?
+
+  // User
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([inventoryItemId])
+  @@index([transactionType])
+  @@index([transactionDate])
+}
+
+enum InventoryTransactionType {
+  RECEIVED
+  ISSUED
+  ADJUSTMENT
+  TRANSFER
+  RETURN
+  DAMAGE
+  THEFT
+}
+
+// ============================================
+// VENDORS
+// ============================================
+
+model Vendor {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Vendor Details
+  vendorNumber String     @unique
+  name         String
+  type         VendorType @default(SUPPLIER)
+
+  // Contact
+  address String?
+  city    String?
+  state   String?
+  zip     String?
+  phone   String?
+  email   String?
+  website String?
+  
+  // Location Data (Phase 3)
+  latitude    Float?
+  longitude   Float?
+  services    String[] @default([]) // e.g. ["TIRE", "TOWING", "ENGINE"]
+
+  // Billing
+  billingAddress String?
+  billingCity    String?
+  billingState   String?
+  billingZip     String?
+  billingEmail   String?
+
+  // Terms
+  paymentTerms Int    @default(30) // days
+  creditLimit  Float?
+
+  // Tax Information
+  taxId    String?
+  w9OnFile Boolean @default(false)
+
+  // Performance
+  rating      Float?
+  totalOrders Int    @default(0)
+  totalSpent  Float  @default(0)
+
+  // Additional Fields from Excel
+  tag String? // Tag field from Excel
+
+  // Fleet Repair Shop Specific
+  hourlyRate  Float? // Approximate hourly rate for repair shops
+  specialties String? // Specialties (e.g., "Engine, Transmission, Brakes")
+
+  // Relations
+  contacts           VendorContact[]
+  inventoryItems     InventoryItem[]
+  transactions       InventoryTransaction[]
+  expenses           LoadExpense[]
+  factoringBatches   FactoringBatch[]
+  maintenanceRecords MaintenanceRecord[]
+  createdBy          User?    @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  createdById        String?
+
+  isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([vendorNumber])
+  @@index([createdById])
+}
+
+enum VendorType {
+  SUPPLIER
+  PARTS_VENDOR
+  SERVICE_PROVIDER
+  FUEL_VENDOR
+  REPAIR_SHOP
+  TIRE_SHOP
+  FACTORING
+  OTHER
+}
+
+model VendorContact {
+  id       String @id @default(cuid())
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id])
+
+  name      String
+  title     String?
+  email     String
+  phone     String
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// LOCATIONS
+// ============================================
+
+model Location {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Location Details
+  locationNumber  String?      @unique // Auto-generated if not provided
+  name            String // Place name from Excel
+  locationCompany String? // Company field from Excel (renamed to avoid conflict with relation)
+  type            LocationType @default(PICKUP)
+
+  // Address
+  address String
+  city    String
+  state   String
+  zip     String?
+  country String  @default("USA")
+
+  // Coordinates
+  latitude  Float?
+  longitude Float?
+
+  // Contact Information
+  contactName  String? // Contact name from Excel
+  contactPhone String?
+  contactEmail String?
+
+  // Operating Hours
+  operatingHours Json? // { monday: { open: "08:00", close: "17:00" }, ... }
+
+  // Notes
+  notes               String?
+  specialInstructions String?
+
+  // Usage Stats
+  pickupCount   Int @default(0)
+  deliveryCount Int @default(0)
+
+  // Status
+  isActive  Boolean   @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([locationNumber])
+  @@index([type])
+  @@index([city, state])
+}
+
+enum LocationType {
+  PICKUP
+  DELIVERY
+  TERMINAL
+  WAREHOUSE
+  CUSTOMER
+  VENDOR
+  REPAIR_SHOP
+  FUEL_STOP
+  REST_AREA
+  SCALE
+}
+
+// ============================================
+// SAFETY
+// ============================================
+
+model SafetyIncident {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id])
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id])
+  loadId    String?
+  load      Load?   @relation(fields: [loadId], references: [id])
+
+  // Incident Details
+  incidentNumber String             @unique
+  incidentType   SafetyIncidentType
+  severity       SafetySeverity     @default(MINOR)
+  date           DateTime
+  time           String? // Time of incident
+  location       String
+  city           String?
+  state          String?
+  zip            String?
+  latitude       Float?
+  longitude      Float?
+
+  // Description
+  description         String
+  contributingFactors String? // What contributed to the incident
+  weatherConditions   String?
+  roadConditions      String?
+
+  // Injuries/Damage
+  injuriesInvolved   Boolean @default(false)
+  fatalitiesInvolved Boolean @default(false)
+  vehicleDamage      String? // Description of vehicle damage
+  propertyDamage     String? // Description of property damage
+
+  // Status
+  status              SafetyIncidentStatus @default(REPORTED)
+  investigationStatus String? // PENDING, IN_PROGRESS, COMPLETED
+
+  // Investigation
+  investigatorId     String? // User ID
+  investigationNotes String?
+  rootCause          String?
+  correctiveActions  String?
+
+  // Regulatory
+  dotReportable      Boolean @default(false)
+  dotReportNumber    String?
+  policeReportNumber String?
+
+  // Costs
+  estimatedCost        Float?
+  insuranceClaimNumber String?
+
+  // Documents
+  documents                Document[]
+  // Safety Relations
+  accidentPhotos           AccidentPhoto[]
+  investigation            Investigation?
+  preventableDetermination PreventableDetermination?
+  policeReports            PoliceReport[]
+  witnessStatements        WitnessStatement[]
+  insuranceClaims          InsuranceClaim[]
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([truckId])
+  @@index([loadId])
+  @@index([incidentType])
+  @@index([severity])
+  @@index([date])
+  @@index([status])
+}
+
+enum SafetyIncidentType {
+  ACCIDENT
+  COLLISION
+  ROLLOVER
+  FIRE
+  SPILL
+  INJURY
+  FATALITY
+  HAZMAT_INCIDENT
+  EQUIPMENT_FAILURE
+  DRIVER_ERROR
+  OTHER
+}
+
+enum SafetySeverity {
+  MINOR
+  MODERATE
+  MAJOR
+  CRITICAL
+  FATAL
+}
+
+enum SafetyIncidentStatus {
+  REPORTED
+  UNDER_INVESTIGATION
+  INVESTIGATION_COMPLETE
+  RESOLVED
+  CLOSED
+}
+
+model SafetyTraining {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id])
+
+  // Training Details
+  trainingType   SafetyTrainingType
+  trainingName   String
+  trainingDate   DateTime
+  completionDate DateTime?
+  expiryDate     DateTime?
+
+  // Provider
+  provider          String? // Training provider
+  instructor        String?
+  certificateNumber String?
+
+  // Status
+  status    SafetyTrainingStatus @default(SCHEDULED)
+  completed Boolean              @default(false)
+  passed    Boolean?
+
+  // Notes
+  notes String?
+  score Float? // If test/exam was taken
+
+  // Documents
+  certificate Document? @relation("TrainingCertificate")
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([trainingType])
+  @@index([trainingDate])
+  @@index([expiryDate])
+}
+
+enum SafetyTrainingType {
+  DEFENSIVE_DRIVING
+  HAZMAT
+  HOURS_OF_SERVICE
+  ELD_TRAINING
+  FIRST_AID
+  CPR
+  FIRE_SAFETY
+  BACKING_SAFETY
+  LOAD_SECUREMENT
+  DOCK_SAFETY
+  OTHER
+}
+
+enum SafetyTrainingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+// ============================================
+// DRIVER COMPLIANCE - DQF (Driver Qualification Files)
+// ============================================
+
+model DriverQualificationFile {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String  @unique
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  // Status
+  status         DQFStatus @default(INCOMPLETE)
+  lastReviewDate DateTime?
+  nextReviewDate DateTime?
+
+  // Documents
+  documents DQFDocument[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([status])
+}
+
+enum DQFStatus {
+  COMPLETE
+  INCOMPLETE
+  EXPIRING
+  EXPIRED
+}
+
+model DQFDocument {
+  id         String                  @id @default(cuid())
+  dqfId      String
+  dqf        DriverQualificationFile @relation(fields: [dqfId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document                @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  documentType   DQFDocumentType
+  status         DQFDocumentStatus @default(MISSING)
+  expirationDate DateTime?
+  issueDate      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dqfId, documentType])
+  @@index([dqfId])
+  @@index([documentType])
+  @@index([status])
+  @@index([expirationDate])
+}
+
+enum DQFDocumentType {
+  APPLICATION
+  ROAD_TEST
+  PREVIOUS_EMPLOYMENT_VERIFICATION
+  ANNUAL_REVIEW
+  MEDICAL_EXAMINERS_CERTIFICATE
+  CDL_COPY
+  MVR_RECORD
+  DRUG_TEST_RESULT
+  ALCOHOL_TEST_RESULT
+  TRAINING_CERTIFICATE
+  OTHER
+}
+
+enum DQFDocumentStatus {
+  COMPLETE
+  MISSING
+  EXPIRING
+  EXPIRED
+}
+
+// ============================================
+// MEDICAL CARDS & CDL TRACKING
+// ============================================
+
+model MedicalCard {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  cardNumber                       String
+  expirationDate                   DateTime
+  issueDate                        DateTime?
+  medicalExaminerName              String?
+  medicalExaminerCertificateNumber String?
+  waiverInformation                String?
+
+  // Documents
+  documentId String?   @unique
+  document   Document? @relation("MedicalCardDocument", fields: [documentId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([expirationDate])
+}
+
+model CDLRecord {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String  @unique
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  cdlNumber      String
+  expirationDate DateTime
+  issueDate      DateTime?
+  issueState     String
+
+  licenseClass String? // A, B, C
+  endorsements String[] // Array of endorsement codes (H, N, T, X, etc.)
+  restrictions String[] // Array of restriction codes (E, L, M, O, Z, etc.)
+
+  // Documents
+  documentId String?   @unique
+  document   Document? @relation("CDLDocument", fields: [documentId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([expirationDate])
+  @@index([cdlNumber])
+}
+
+// ============================================
+// MVR MONITORING
+// ============================================
+
+model MVRRecord {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  pullDate        DateTime
+  state           String
+  nextPullDueDate DateTime
+
+  // Documents
+  documentId String?   @unique
+  document   Document? @relation("MVRDocument", fields: [documentId], references: [id])
+
+  // Violations
+  violations MVRViolation[]
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([pullDate])
+  @@index([nextPullDueDate])
+}
+
+model MVRViolation {
+  id          String    @id @default(cuid())
+  mvrRecordId String
+  mvrRecord   MVRRecord @relation(fields: [mvrRecordId], references: [id], onDelete: Cascade)
+
+  violationCode        String
+  violationDescription String
+  violationDate        DateTime
+  state                String
+  points               Int?
+
+  isNew Boolean @default(false) // New violation compared to previous MVR
+
+  createdAt DateTime @default(now())
+
+  @@index([mvrRecordId])
+  @@index([violationDate])
+  @@index([isNew])
+}
+
+// ============================================
+// DRUG & ALCOHOL TESTING
+// ============================================
+
+model DrugAlcoholTest {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  testType          DrugAlcoholTestType
+  testDate          DateTime
+  result            TestResult
+  isRandom          Boolean             @default(false)
+  randomSelectionId String?
+
+  // Lab Information
+  labName         String?
+  labAddress      String?
+  labPhone        String?
+  labReportNumber String?
+
+  // Collection Site
+  collectionSiteName    String?
+  collectionSiteAddress String?
+
+  // Medical Review Officer
+  mroName  String?
+  mroPhone String?
+
+  // Notes
+  notes String?
+
+  // Documents
+  documentId String?   @unique
+  document   Document? @relation("DrugTestDocument", fields: [documentId], references: [id])
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([testType])
+  @@index([testDate])
+  @@index([result])
+  @@index([isRandom])
+}
+
+enum DrugAlcoholTestType {
+  PRE_EMPLOYMENT
+  RANDOM
+  POST_ACCIDENT
+  REASONABLE_SUSPICION
+  RETURN_TO_DUTY
+  FOLLOW_UP
+  PRE_DUTY
+}
+
+enum TestResult {
+  NEGATIVE
+  POSITIVE
+  REFUSAL
+  CANCELLED
+}
+
+model TestingPool {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  poolType PoolType
+  quarter  Int // 1-4
+  year     Int
+
+  drivers    TestingPoolDriver[]
+  selections RandomSelection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, poolType, quarter, year])
+  @@index([companyId])
+  @@index([year, quarter])
+}
+
+enum PoolType {
+  DRUG
+  ALCOHOL
+}
+
+model TestingPoolDriver {
+  id       String      @id @default(cuid())
+  poolId   String
+  pool     TestingPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  driverId String
+  driver   Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  isEligible Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@unique([poolId, driverId])
+  @@index([poolId])
+  @@index([driverId])
+}
+
+model RandomSelection {
+  id        String      @id @default(cuid())
+  companyId String
+  company   Company     @relation(fields: [companyId], references: [id])
+  poolId    String
+  pool      TestingPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  selectionDate   DateTime
+  selectionMethod String // Algorithm used
+  selectedDrivers RandomSelectedDriver[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([poolId])
+  @@index([selectionDate])
+}
+
+model RandomSelectedDriver {
+  id          String          @id @default(cuid())
+  selectionId String
+  selection   RandomSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  driverId    String
+  driver      Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  notifiedAt      DateTime?
+  testCompletedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([selectionId, driverId])
+  @@index([selectionId])
+  @@index([driverId])
+}
+
+model FMCSAClearinghouseQuery {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  queryDate DateTime
+  queryType ClearinghouseQueryType
+  result    ClearinghouseQueryResult?
+
+  violationsFound  Boolean @default(false)
+  violationDetails String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([queryDate])
+}
+
+enum ClearinghouseQueryType {
+  PRE_EMPLOYMENT
+  ANNUAL
+  LIMITED
+}
+
+enum ClearinghouseQueryResult {
+  NO_VIOLATIONS
+  VIOLATIONS_FOUND
+  PENDING
+  ERROR
+}
+
+// ============================================
+// HOS MONITORING (Extended)
+// ============================================
+
+model HOSViolation {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  violationDate        DateTime
+  violationType        HOSViolationType
+  violationDescription String
+  hoursExceeded        Float?
+
+  // ELD Information
+  eldProvider String?
+  eldRecordId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([violationDate])
+  @@index([violationType])
+}
+
+enum HOSViolationType {
+  FORM_AND_MANNER
+  UNASSIGNED_DRIVING
+  EXCEEDED_11_HOUR
+  EXCEEDED_14_HOUR
+  EXCEEDED_70_HOUR
+  MISSING_LOG
+  DATA_QUALITY
+  OTHER
+}
+
+model ELDProvider {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  providerName String
+  providerType ELDProviderType
+  apiEndpoint  String?
+  apiKey       String?
+  apiSecret    String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  syncLogs ELDSyncLog[]
+
+  @@index([companyId])
+  @@index([providerName])
+}
+
+enum ELDProviderType {
+  SAMSARA
+  KEEPTRUCKIN
+  VERIZON_CONNECT
+  GARMIN
+  RAND_MCNALLY
+  OTHER
+}
+
+model ELDSyncLog {
+  id         String      @id @default(cuid())
+  providerId String
+  provider   ELDProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  syncDate      DateTime
+  syncType      ELDSyncType
+  status        ELDSyncStatus
+  recordsSynced Int           @default(0)
+  errors        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([providerId])
+  @@index([syncDate])
+  @@index([status])
+}
+
+enum ELDSyncType {
+  FULL
+  INCREMENTAL
+  MANUAL
+}
+
+enum ELDSyncStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+// ============================================
+// ANNUAL REVIEWS
+// ============================================
+
+model AnnualReview {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  reviewDate DateTime
+  dueDate    DateTime
+  reviewYear Int
+
+  // Checklist
+  mvrReviewed          Boolean @default(false)
+  violationReviewed    Boolean @default(false)
+  accidentReviewed     Boolean @default(false)
+  trainingCompleted    Boolean @default(false)
+  performanceDiscussed Boolean @default(false)
+
+  // Review Details
+  reviewerId       String? // User ID
+  reviewNotes      String?
+  performanceNotes String?
+  actionItems      String?
+
+  // Signatures
+  driverSignedAt   DateTime?
+  reviewerSignedAt DateTime?
+
+  // Documents
+  documents Document[]
+
+  status AnnualReviewStatus @default(PENDING)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([reviewDate])
+  @@index([dueDate])
+  @@index([status])
+}
+
+enum AnnualReviewStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+// ============================================
+// VEHICLE SAFETY - DVIR
+// ============================================
+
+model DVIR {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  truckId   String
+  truck     Truck   @relation(fields: [truckId], references: [id], onDelete: Cascade)
+
+  inspectionType DVIRType
+  inspectionDate DateTime
+  location       String?
+  latitude       Float?
+  longitude      Float?
+
+  // Inspection Points
+  brakesOk             Boolean @default(true)
+  tiresOk              Boolean @default(true)
+  lightsOk             Boolean @default(true)
+  couplingOk           Boolean @default(true)
+  steeringOk           Boolean @default(true)
+  suspensionOk         Boolean @default(true)
+  frameOk              Boolean @default(true)
+  cargoSecurementOk    Boolean @default(true)
+  emergencyEquipmentOk Boolean @default(true)
+
+  // Defects
+  defects DVIRDefect[]
+
+  // Signatures
+  driverSignedAt    DateTime?
+  driverSignature   String?
+  mechanicSignedAt  DateTime?
+  mechanicSignature String?
+
+  // Status
+  status             DVIRStatus @default(COMPLETED)
+  vehicleNeedsRepair Boolean    @default(false)
+  workOrderId        String?
+
+  // Documents
+  documents Document[]
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([truckId])
+  @@index([inspectionDate])
+  @@index([status])
+}
+
+enum DVIRType {
+  PRE_TRIP
+  POST_TRIP
+}
+
+enum DVIRStatus {
+  IN_PROGRESS
+  COMPLETED
+  DEFECT_REPORTED
+  REPAIRED
+}
+
+model DVIRDefect {
+  id     String @id @default(cuid())
+  dvirId String
+  dvir   DVIR   @relation(fields: [dvirId], references: [id], onDelete: Cascade)
+
+  inspectionPoint String
+  description     String
+  severity        DefectSeverity
+  location        String?
+
+  // Photos
+  photoDocumentIds String[]
+
+  // Work Order
+  workOrderId String?
+
+  // Resolution
+  resolvedAt      DateTime?
+  resolvedBy      String? // User ID
+  resolutionNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dvirId])
+  @@index([severity])
+  @@index([workOrderId])
+}
+
+enum DefectSeverity {
+  CRITICAL
+  NON_CRITICAL
+}
+
+// ============================================
+// ROADSIDE INSPECTIONS
+// ============================================
+
+model RoadsideInspection {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
+
+  inspectionDate     DateTime
+  inspectionLocation String
+  inspectionState    String
+  inspectionLevel    InspectionLevel
+
+  inspectorName        String?
+  inspectorBadgeNumber String?
+
+  // Results
+  violationsFound Boolean @default(false)
+  outOfService    Boolean @default(false)
+  oosReason       String?
+
+  // DataQ
+  dataQSubmitted    Boolean @default(false)
+  dataQSubmissionId String?
+
+  // Documents
+  documents  Document[]
+  violations RoadsideViolation[]
+
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([truckId])
+  @@index([inspectionDate])
+  @@index([inspectionLevel])
+  @@index([outOfService])
+}
+
+enum InspectionLevel {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+  LEVEL_5
+  LEVEL_6
+}
+
+model RoadsideViolation {
+  id           String             @id @default(cuid())
+  inspectionId String
+  inspection   RoadsideInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  violationCode        String
+  violationDescription String
+  severityWeight       Float?
+  basicCategory        CSABasicCategory?
+
+  // DataQ
+  dataQSubmitted    Boolean           @default(false)
+  dataQStatus       DataQStatus?
+  dataQSubmissionId String?
+  dataQSubmissions  DataQSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([inspectionId])
+  @@index([violationCode])
+  @@index([basicCategory])
+}
+
+enum CSABasicCategory {
+  UNSAFE_DRIVING
+  CRASH_INDICATOR
+  HOS_COMPLIANCE
+  VEHICLE_MAINTENANCE
+  CONTROLLED_SUBSTANCES
+  HAZMAT_COMPLIANCE
+  DRIVER_FITNESS
+}
+
+enum DataQStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+// ============================================
+// OUT OF SERVICE ORDERS
+// ============================================
+
+model OutOfServiceOrder {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
+
+  oosDate                  DateTime
+  oosReason                String
+  oosType                  OOSType
+  requiredCorrectiveAction String?
+
+  // Inspector Information
+  inspectorName        String?
+  inspectorBadgeNumber String?
+  inspectionId         String? // Link to roadside inspection
+
+  // Resolution
+  resolvedAt             DateTime?
+  resolvedBy             String? // User ID
+  resolutionNotes        String?
+  verificationDocumentId String?
+
+  status OOSStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([truckId])
+  @@index([oosDate])
+  @@index([status])
+}
+
+enum OOSType {
+  DRIVER
+  VEHICLE
+}
+
+enum OOSStatus {
+  ACTIVE
+  RESOLVED
+  CLOSED
+}
+
+// ============================================
+// DEFECT MANAGEMENT
+// ============================================
+
+model Defect {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
+
+  // Source
+  sourceType DefectSourceType
+  sourceId   String? // DVIR ID or Inspection ID
+
+  // Defect Details
+  description  String
+  severity     DefectSeverity
+  location     String?
+  reportedDate DateTime
+
+  // Work Order
+  workOrderId String?
+
+  // Resolution
+  resolvedAt      DateTime?
+  resolvedBy      String? // User ID
+  resolutionNotes String?
+  timeToRepair    Int? // Hours
+
+  status DefectStatus @default(OPEN)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([truckId])
+  @@index([severity])
+  @@index([status])
+  @@index([reportedDate])
+}
+
+enum DefectSourceType {
+  DVIR
+  DOT_INSPECTION
+  ROADSIDE_INSPECTION
+  COMPANY_INSPECTION
+  OTHER
+}
+
+enum DefectStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// ============================================
+// INCIDENTS & ACCIDENTS (Extended)
+// ============================================
+
+model AccidentPhoto {
+  id         String         @id @default(cuid())
+  incidentId String
+  incident   SafetyIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  category    String? // vehicle_damage, cargo_damage, scene, etc.
+  description String?
+
+  createdAt DateTime @default(now())
+}
+
+model Investigation {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id])
+  incidentId String         @unique
+  incident   SafetyIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  investigatorId String? // User ID
+  assignedDate   DateTime
+  dueDate        DateTime?
+
+  // Evidence Gathering
+  driverInterviewed         Boolean @default(false)
+  eldDataReviewed           Boolean @default(false)
+  vehicleExamined           Boolean @default(false)
+  photosReviewed            Boolean @default(false)
+  witnessStatementsReviewed Boolean @default(false)
+  policeReportReviewed      Boolean @default(false)
+
+  // Findings
+  contributingFactors String?
+  rootCause           String?
+  findings            String?
+  correctiveActions   String?
+  recommendations     String?
+
+  // Follow-up
+  trainingScheduled Boolean @default(false)
+  trainingId        String?
+
+  status InvestigationStatus @default(PENDING)
+
+  // Documents
+  documents Document[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([incidentId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+enum InvestigationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+model PreventableDetermination {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id])
+  incidentId String         @unique
+  incident   SafetyIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  reviewDate             DateTime
+  reviewCommitteeMembers String[] // User IDs
+
+  // Decision
+  determination PreventableDecision
+  justification String
+  votes         PreventableVote[]
+
+  // Appeal
+  appealed            Boolean              @default(false)
+  appealDate          DateTime?
+  appealReason        String?
+  appealDecision      PreventableDecision?
+  appealJustification String?
+
+  // Impact
+  driverScoreImpact Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([incidentId])
+  @@index([determination])
+}
+
+enum PreventableDecision {
+  PREVENTABLE
+  NON_PREVENTABLE
+}
+
+model PreventableVote {
+  id              String                   @id @default(cuid())
+  determinationId String
+  determination   PreventableDetermination @relation(fields: [determinationId], references: [id], onDelete: Cascade)
+  voterId         String // User ID
+  vote            PreventableDecision
+  justification   String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([determinationId, voterId])
+  @@index([determinationId])
+}
+
+model NearMiss {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
+
+  reportDate          DateTime
+  location            String?
+  description         String
+  contributingFactors String?
+  suggestions         String?
+
+  // Analysis
+  patternIdentified  Boolean @default(false)
+  trainingNeeded     Boolean @default(false)
+  policyChangeNeeded Boolean @default(false)
+
+  // Action Items
+  actionItems String?
+
+  isAnonymous Boolean @default(false)
+  reportedBy  String? // User ID
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([reportDate])
+}
+
+model PoliceReport {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id])
+  incidentId String
+  incident   SafetyIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  reportNumber     String
+  officerName      String?
+  reportDate       DateTime
+  citedParty       String?
+  violationsIssued String[]
+
+  // Document
+  documentId String   @unique
+  document   Document @relation("PoliceReportDocument", fields: [documentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([incidentId])
+  @@index([reportNumber])
+}
+
+model WitnessStatement {
+  id         String         @id @default(cuid())
+  companyId  String
+  company    Company        @relation(fields: [companyId], references: [id])
+  incidentId String
+  incident   SafetyIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  witnessName    String
+  witnessPhone   String?
+  witnessEmail   String?
+  witnessAddress String?
+
+  statementDate DateTime
+  statement     String
+
+  // Document
+  documentId String?   @unique
+  document   Document? @relation("WitnessStatementDocument", fields: [documentId], references: [id])
+
+  followUpNeeded Boolean @default(false)
+  followUpNotes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([incidentId])
+}
+
+// ============================================
+// DOT COMPLIANCE - CSA SCORES
+// ============================================
+
+model CSAScore {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  scoreDate     DateTime
+  basicCategory CSABasicCategory
+  percentile    Float
+  score         Float?
+
+  // Comparison
+  previousPercentile Float?
+  trend              CSATrend?
+
+  // Violations
+  violationCount   Int     @default(0)
+  violationDetails String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([scoreDate])
+  @@index([basicCategory])
+}
+
+enum CSATrend {
+  IMPROVING
+  DECLINING
+  STABLE
+}
+
+model FMCSACompliance {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  safetyRating       SafetyRating?
+  safetyRatingDate   DateTime?
+  safetyRatingReason String?
+
+  // Compliance Reviews
+  reviews ComplianceReview[]
+
+  // Action Items
+  actionItems ComplianceActionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum SafetyRating {
+  SATISFACTORY
+  CONDITIONAL
+  UNSATISFACTORY
+}
+
+model ComplianceReview {
+  id           String          @id @default(cuid())
+  complianceId String
+  compliance   FMCSACompliance @relation(fields: [complianceId], references: [id], onDelete: Cascade)
+
+  reviewDate        DateTime
+  reviewType        String
+  findings          String?
+  correctiveActions String?
+  followUpRequired  Boolean   @default(false)
+  followUpDate      DateTime?
+
+  // Documents
+  documents Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([complianceId])
+  @@index([reviewDate])
+}
+
+model ComplianceActionItem {
+  id           String          @id @default(cuid())
+  complianceId String
+  compliance   FMCSACompliance @relation(fields: [complianceId], references: [id], onDelete: Cascade)
+
+  actionItem      String
+  priority        CompliancePriority
+  assignedTo      String? // User ID
+  dueDate         DateTime?
+  completedAt     DateTime?
+  completionNotes String?
+
+  status ComplianceActionStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([complianceId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+enum CompliancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ComplianceActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+model DataQSubmission {
+  id          String             @id @default(cuid())
+  companyId   String
+  company     Company            @relation(fields: [companyId], references: [id])
+  violationId String?
+  violation   RoadsideViolation? @relation(fields: [violationId], references: [id], onDelete: SetNull)
+
+  submissionDate        DateTime
+  fmcsatrackingNumber   String
+  violationChallenged   String
+  reasonForChallenge    String
+  supportingDocumentIds String[]
+
+  status       DataQStatus @default(PENDING)
+  responseDate DateTime?
+  response     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([violationId])
+  @@index([status])
+  @@index([submissionDate])
+}
+
+// ============================================
+// INSURANCE & CLAIMS
+// ============================================
+
+model InsurancePolicy {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  policyType       InsurancePolicyType
+  policyNumber     String
+  insuranceCompany String
+  agentName        String?
+  agentPhone       String?
+  agentEmail       String?
+
+  coverageLimit Float?
+  deductible    Float?
+
+  effectiveDate DateTime
+  renewalDate   DateTime
+
+  // Documents
+  documentId String?   @unique
+  document   Document? @relation("InsurancePolicyDocument", fields: [documentId], references: [id])
+
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  certificates InsuranceCertificate[]
+  claims       InsuranceClaim[]
+
+  @@index([companyId])
+  @@index([policyType])
+  @@index([renewalDate])
+}
+
+enum InsurancePolicyType {
+  LIABILITY
+  PHYSICAL_DAMAGE
+  CARGO
+  GENERAL_LIABILITY
+}
+
+model InsuranceCertificate {
+  id       String          @id @default(cuid())
+  policyId String
+  policy   InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  certificateHolder String
+  additionalInsured Boolean   @default(false)
+  expirationDate    DateTime?
+
+  // Document
+  documentId String   @unique
+  document   Document @relation("InsuranceCertificateDocument", fields: [documentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([policyId])
+  @@index([expirationDate])
+}
+
+model InsuranceClaim {
+  id         String           @id @default(cuid())
+  companyId  String
+  company    Company          @relation(fields: [companyId], references: [id])
+  policyId   String?
+  policy     InsurancePolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  incidentId String?
+  incident   SafetyIncident?  @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  claimNumber String
+  claimType   InsuranceClaimType
+  dateOfLoss  DateTime
+
+  insuranceCompany String
+  adjusterName     String?
+  adjusterPhone    String?
+  adjusterEmail    String?
+
+  estimatedLoss    Float?
+  reserveAmount    Float?
+  paidAmount       Float?
+  settlementAmount Float?
+  settlementDate   DateTime?
+
+  status InsuranceClaimStatus @default(OPEN)
+
+  // Documents
+  documents Document[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([policyId])
+  @@index([incidentId])
+  @@index([status])
+  @@index([dateOfLoss])
+}
+
+enum InsuranceClaimType {
+  ACCIDENT
+  CARGO
+  PROPERTY_DAMAGE
+  OTHER
+}
+
+enum InsuranceClaimStatus {
+  OPEN
+  PENDING
+  CLOSED
+  DENIED
+}
+
+model CargoClaim {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  loadId    String?
+  load      Load?   @relation(fields: [loadId], references: [id], onDelete: SetNull)
+
+  claimNumber  String
+  shipper      String?
+  consignee    String?
+  bolNumber    String?
+  product      String?
+  valueClaimed Float?
+
+  causeOfDamage String?
+  claimDate     DateTime
+
+  // Resolution
+  status           CargoClaimStatus @default(OPEN)
+  denied           Boolean          @default(false)
+  settled          Boolean          @default(false)
+  settlementAmount Float?
+  settlementDate   DateTime?
+
+  // Documents
+  documents Document[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([loadId])
+  @@index([status])
+  @@index([claimDate])
+}
+
+enum CargoClaimStatus {
+  OPEN
+  DENIED
+  SETTLED
+  PAID
+}
+
+model PropertyDamage {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String?
+  driver    Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  truckId   String?
+  truck     Truck?  @relation(fields: [truckId], references: [id], onDelete: SetNull)
+
+  damageType  String // struck_dock, damaged_customer_property, gate_damage, etc.
+  damageDate  DateTime
+  location    String?
+  description String
+  cost        Float?
+
+  responsibility   String? // driver, customer, other
+  customerAtFault  Boolean @default(false)
+  recoveryTracking String?
+
+  // Follow-up
+  driverCoached      Boolean @default(false)
+  correctiveActions  String?
+  preventionMeasures String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([damageDate])
+}
+
+model LossRun {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  reportType   LossRunType
+  reportPeriod String // Q1 2024, Annual 2024, etc.
+  reportDate   DateTime
+
+  // Document
+  documentId String   @unique
+  document   Document @relation("LossRunDocument", fields: [documentId], references: [id], onDelete: Cascade)
+
+  // Summary
+  totalClaims  Int    @default(0)
+  totalPaid    Float  @default(0)
+  totalReserve Float  @default(0)
+  lossRatio    Float?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([reportType])
+  @@index([reportDate])
+}
+
+enum LossRunType {
+  QUARTERLY
+  ANNUAL
+}
+
+// ============================================
+// SAFETY PROGRAMS
+// ============================================
+
+model SafetyMeeting {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  meetingDate DateTime
+  meetingTime String?
+  location    String?
+  topic       String
+  agenda      String?
+
+  // Attendance
+  attendance MeetingAttendance[]
+
+  // Materials
+  handoutDocumentIds String[]
+  minutes            String?
+
+  // Action Items
+  actionItems String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([meetingDate])
+}
+
+model MeetingAttendance {
+  id        String        @id @default(cuid())
+  meetingId String
+  meeting   SafetyMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  driverId  String
+  driver    Driver        @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  attended   Boolean   @default(false)
+  signInTime DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([meetingId, driverId])
+  @@index([meetingId])
+  @@index([driverId])
+}
+
+model SafetyPolicy {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  policyName String
+  category   SafetyPolicyCategory
+  content    String
+  version    Int                  @default(1)
+
+  effectiveDate  DateTime
+  supersededDate DateTime?
+
+  // Distribution
+  distributedAt   DateTime?
+  acknowledgments PolicyAcknowledgment[]
+
+  // Documents
+  documentId String?   @unique
+  document   Document? @relation("SafetyPolicyDocument", fields: [documentId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([category])
+  @@index([effectiveDate])
+}
+
+enum SafetyPolicyCategory {
+  ACCIDENT_PROCEDURES
+  DRUG_ALCOHOL_POLICY
+  VEHICLE_USE_POLICY
+  PERSONAL_CONDUCT
+  OTHER
+}
+
+model PolicyAcknowledgment {
+  id       String       @id @default(cuid())
+  policyId String
+  policy   SafetyPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  driverId String
+  driver   Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  acknowledgedAt DateTime?
+  signature      String?
+
+  status AcknowledgmentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([policyId, driverId])
+  @@index([policyId])
+  @@index([driverId])
+  @@index([status])
+}
+
+enum AcknowledgmentStatus {
+  PENDING
+  ACKNOWLEDGED
+  OVERDUE
+}
+
+model SafetyCampaign {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  campaignName String
+  campaignType SafetyCampaignType
+  goal         String?
+  startDate    DateTime
+  endDate      DateTime
+
+  // Participation
+  participants CampaignParticipant[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+enum SafetyCampaignType {
+  MILLION_MILE_CLUB
+  NO_PREVENTABLE_ACCIDENTS
+  BEST_PRE_TRIP_INSPECTION
+  OTHER
+}
+
+model CampaignParticipant {
+  id         String         @id @default(cuid())
+  campaignId String
+  campaign   SafetyCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  driverId   String
+  driver     Driver         @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  pointsEarned Int     @default(0)
+  achievement  String?
+  bonusAmount  Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([campaignId, driverId])
+  @@index([campaignId])
+  @@index([driverId])
+}
+
+model SafetyRecognition {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  driverId  String
+  driver    Driver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  recognitionType SafetyRecognitionType
+  achievement     String
+  recognitionDate DateTime
+
+  // Award
+  certificateDocumentId String?
+  awardAmount           Float?
+
+  // Announcement
+  announced        Boolean   @default(false)
+  announcementDate DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([driverId])
+  @@index([recognitionDate])
+}
+
+enum SafetyRecognitionType {
+  YEARS_WITHOUT_ACCIDENT
+  MILESTONE_MILES
+  SAFETY_LEADERSHIP
+  OTHER
+}
+
+model TrainingMaterial {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  materialName String
+  category     TrainingMaterialCategory
+  materialType TrainingMaterialType
+  description  String?
+
+  // Document
+  documentId String   @unique
+  document   Document @relation("TrainingMaterialDocument", fields: [documentId], references: [id], onDelete: Cascade)
+
+  version  Int     @default(1)
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([companyId])
+  @@index([category])
+  @@index([materialType])
+}
+
+enum TrainingMaterialCategory {
+  DEFENSIVE_DRIVING
+  WINTER_DRIVING
+  CARGO_SECUREMENT
+  HOS_RULES
+  ELD_TRAINING
+  HAZMAT
+  OTHER
+}
+
+enum TrainingMaterialType {
+  VIDEO
+  POWERPOINT
+  HANDOUT
+  QUIZ
+  PDF
+}
+
+// ============================================
+// COMPLIANCE ALERTS
+// ============================================
+
+model ComplianceAlert {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  alertType ComplianceAlertType
+  severity  AlertSeverity
+  title     String
+  message   String
+
+  // Related Entity
+  relatedEntityType String? // driver, vehicle, document, etc.
+  relatedEntityId   String?
+
+  // Assignment
+  assignedTo     String? // User ID
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+
+  // Status
+  status AlertStatus @default(ACTIVE)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  @@index([companyId])
+  @@index([alertType])
+  @@index([status])
+  @@index([assignedTo])
+  @@index([createdAt])
+}
+
+enum ComplianceAlertType {
+  EXPIRING_DOCUMENT
+  MISSED_DRUG_TEST
+  HOS_VIOLATION
+  OVERDUE_INSPECTION
+  HIGH_CSA_SCORE
+  NEW_VIOLATION
+  OOS_ORDER
+  OVERDUE_ANNUAL_REVIEW
+  OTHER
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================
+// MC NUMBERS
+// ============================================
+
+model McNumber {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id])
+  companyName  String // Company name associated with this MC number
+  type         McNumberType @default(CARRIER)
+  companyPhone String?
+  owner        String? // Owner name
+  isDefault    Boolean      @default(false) // Only one default per company
+  usdot        String? // USDOT number
+  notes        String?
+  number       String // MC number value
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  users                 User[] // Users assigned to this MC number
+  drivers               Driver[] // Drivers assigned to this MC number
+  trucks                Truck[] // Trucks assigned to this MC number
+  trailers              Trailer[] // Trailers assigned to this MC number
+  loads                 Load[] // Loads assigned to this MC number
+  loadTemplates         LoadTemplate[] // Load templates assigned to this MC number
+  paymentConfigurations PaymentConfiguration[]
+  orderPaymentTypes     OrderPaymentType[]
+  dynamicStatuses       DynamicStatus[]
+  documentTemplates     DocumentTemplate[]
+  defaultConfigurations DefaultConfiguration[]
+  workOrderTypes        WorkOrderType[]
+  safetyConfigurations  SafetyConfiguration[]
+  reportTemplates       ReportTemplate[]
+  reportConstructors    ReportConstructor[]
+  netProfitFormulas     NetProfitFormula[]
+  classifications       Classification[]
+  expenseCategories     ExpenseCategory[]
+  expenseTypes          ExpenseType[]
+  tariffs               Tariff[]
+  fuelEntries           FuelEntry[]
+  breakdowns            Breakdown[]
+  payments              Payment[]
+  apiKeys               ApiKeyConfig[]
+
+  @@unique([companyId, number]) // MC number must be unique per company
+  @@index([companyId])
+  @@index([number])
+  @@index([isDefault])
+  @@index([companyId, isDefault]) // For finding default MC number per company
+}
+
+enum McNumberType {
+  CARRIER
+  BROKER
+}
+
+// ============================================
+// TAGS MANAGEMENT
+// ============================================
+
+model Tag {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  name        String
+  color       String? // Hex color code
+  category    String? // Category for grouping tags
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  loadTags     LoadTag[]
+  driverTags   DriverTag[]
+  truckTags    TruckTag[]
+  customerTags CustomerTag[]
+  invoiceTags  InvoiceTag[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([category])
+  @@index([name])
+}
+
+model LoadTag {
+  id     String @id @default(cuid())
+  loadId String
+  load   Load   @relation(fields: [loadId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([loadId, tagId])
+  @@index([loadId])
+  @@index([tagId])
+}
+
+model DriverTag {
+  id       String @id @default(cuid())
+  driverId String
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  tagId    String
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([driverId, tagId])
+  @@index([driverId])
+  @@index([tagId])
+}
+
+model TruckTag {
+  id      String @id @default(cuid())
+  truckId String
+  truck   Truck  @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  tagId   String
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([truckId, tagId])
+  @@index([truckId])
+  @@index([tagId])
+}
+
+model CustomerTag {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([customerId, tagId])
+  @@index([customerId])
+  @@index([tagId])
+}
+
+model InvoiceTag {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([invoiceId, tagId])
+  @@index([invoiceId])
+  @@index([tagId])
+}
+
+// ============================================
+// EXPENSE CATEGORIES
+// ============================================
+
+model ExpenseCategory {
+  id           String            @id @default(cuid())
+  companyId    String
+  company      Company           @relation(fields: [companyId], references: [id])
+  mcNumberId   String?
+  mcNumber     McNumber?         @relation(fields: [mcNumberId], references: [id])
+  name         String
+  code         String? // Category code
+  description  String?
+  parentId     String? // For hierarchical categories
+  parent       ExpenseCategory?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children     ExpenseCategory[] @relation("CategoryParent")
+  expenseTypes ExpenseType[] // Relation to expense types
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([parentId])
+}
+
+model ExpenseType {
+  id              String           @id @default(cuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
+  mcNumberId      String?
+  mcNumber        McNumber?        @relation(fields: [mcNumberId], references: [id])
+  categoryId      String?
+  category        ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  name            String
+  code            String?
+  description     String?
+  defaultAmount   Float?
+  isReimbursable  Boolean          @default(true)
+  requiresReceipt Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([categoryId])
+}
+
+// ============================================
+// TARIFFS & PAYMENTS
+// ============================================
+
+model Tariff {
+  id             String     @id @default(cuid())
+  companyId      String
+  company        Company    @relation(fields: [companyId], references: [id])
+  customerId     String?
+  customer       Customer?  @relation(fields: [customerId], references: [id])
+  mcNumberId     String?
+  mcNumber       McNumber?  @relation(fields: [mcNumberId], references: [id])
+  name           String
+  code           String?
+  description    String?
+  type           TariffType @default(RATE_PER_MILE)
+  rate           Float
+  minimumRate    Float?
+  perStop        Float?
+  perPound       Float?
+  perMile        Float?
+  fuelSurcharge  Float? // Percentage or fixed amount
+  effectiveDate  DateTime?
+  expiryDate     DateTime?
+  originZip      String? // Origin ZIP code for lane-based tariffs
+  destinationZip String? // Destination ZIP code for lane-based tariffs
+  isDefault      Boolean    @default(false)
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  // Relations
+  tariffRules TariffRule[]
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([customerId])
+  @@index([mcNumberId])
+  @@index([type])
+  @@index([isDefault])
+  @@index([originZip, destinationZip])
+}
+
+enum TariffType {
+  RATE_PER_MILE
+  RATE_PER_LOAD
+  RATE_PER_POUND
+  FLAT_RATE
+  PERCENTAGE
+  FUEL_SURCHARGE
+}
+
+model TariffRule {
+  id        String   @id @default(cuid())
+  tariffId  String
+  tariff    Tariff   @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  condition String // e.g., "distance > 500", "weight > 45000"
+  rate      Float
+  priority  Int      @default(0) // Higher priority rules applied first
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tariffId])
+  @@index([priority])
+}
+
+model PaymentConfiguration {
+  id                String         @id @default(cuid())
+  companyId         String
+  company           Company        @relation(fields: [companyId], references: [id])
+  mcNumberId        String?
+  mcNumber          McNumber?      @relation(fields: [mcNumberId], references: [id])
+  paymentType       String // e.g., "DRIVER_SETTLEMENT", "CUSTOMER_INVOICE"
+  defaultMethod     PaymentMethod?
+  defaultTerms      Int? // days
+  autoApprove       Boolean        @default(false)
+  approvalThreshold Float? // Amount above which approval required
+  requiresPO        Boolean        @default(false)
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+
+  @@unique([companyId, mcNumberId, paymentType])
+  @@index([companyId])
+  @@index([mcNumberId])
+}
+
+// ============================================
+// ORDER PAYMENT TYPES
+// ============================================
+
+model OrderPaymentType {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
+  name        String
+  code        String?
+  description String?
+  terms       Int? // Payment terms in days
+  requiresPO  Boolean   @default(false)
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+}
+
+// ============================================
+// DYNAMIC STATUSES
+// ============================================
+
+model DynamicStatus {
+  id            String     @id @default(cuid())
+  companyId     String
+  company       Company    @relation(fields: [companyId], references: [id])
+  mcNumberId    String?
+  mcNumber      McNumber?  @relation(fields: [mcNumberId], references: [id])
+  entityType    EntityType // LOAD, DRIVER, TRUCK, INVOICE, etc.
+  name          String
+  code          String?
+  color         String? // Hex color code
+  icon          String?
+  description   String?
+  order         Int        @default(0) // Display order
+  isDefault     Boolean    @default(false)
+  isActive      Boolean    @default(true)
+  workflowRules Json? // Workflow configuration
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  @@unique([companyId, mcNumberId, entityType, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([entityType])
+  @@index([order])
+}
+
+enum EntityType {
+  LOAD
+  DRIVER
+  TRUCK
+  TRAILER
+  INVOICE
+  CUSTOMER
+  VENDOR
+  SETTLEMENT
+  BREAKDOWN
+  INSPECTION
+  SAFETY_INCIDENT
+}
+
+// ============================================
+// TEMPLATES
+// ============================================
+
+model DocumentTemplate {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?    @relation(fields: [mcNumberId], references: [id])
+  name        String
+  type        DocumentType
+  description String?
+  content     String // Template content (HTML/XML/Markdown)
+  variables   Json? // Available variables
+  isDefault   Boolean      @default(false)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([type])
+}
+
+// ============================================
+// DEFAULT CONFIGURATIONS
+// ============================================
+
+model DefaultConfiguration {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
+  category    String // e.g., "LOAD", "DRIVER", "INVOICE"
+  key         String // Configuration key
+  value       Json // Configuration value (can be any type)
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, category, key])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([category])
+}
+
+// ============================================
+// WORK ORDER & SAFETY
+// ============================================
+
+model WorkOrderType {
+  id              String            @id @default(cuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id])
+  mcNumberId      String?
+  mcNumber        McNumber?         @relation(fields: [mcNumberId], references: [id])
+  name            String
+  code            String?
+  description     String?
+  category        String? // e.g., "MAINTENANCE", "REPAIR", "INSPECTION"
+  defaultPriority WorkOrderPriority @default(MEDIUM)
+  estimatedHours  Float?
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([category])
+}
+
+enum WorkOrderPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model SafetyConfiguration {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
+  category    String // e.g., "TRAINING", "COMPLIANCE", "INCIDENT"
+  key         String
+  value       Json
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, category, key])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([category])
+}
+
+// ============================================
+// REPORTS CUSTOMIZATION
+// ============================================
+
+model ReportTemplate {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?    @relation(fields: [mcNumberId], references: [id])
+  name        String
+  type        ReportType
+  description String?
+  format      ReportFormat @default(PDF)
+  template    Json // Report template configuration
+  fields      Json? // Available fields
+  filters     Json? // Default filters
+  isDefault   Boolean      @default(false)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([type])
+}
+
+enum ReportType {
+  LOADS
+  DRIVERS
+  FINANCIAL
+  SAFETY
+  MAINTENANCE
+  CUSTOM
+}
+
+enum ReportFormat {
+  PDF
+  EXCEL
+  CSV
+  HTML
+}
+
+model ReportConstructor {
+  id          String       @id @default(cuid())
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?    @relation(fields: [mcNumberId], references: [id])
+  name        String
+  description String?
+  entityType  EntityType
+  layout      Json // Drag-and-drop layout configuration
+  fields      Json // Selected fields and configurations
+  filters     Json? // Filter configurations
+  grouping    Json? // Grouping configuration
+  sorting     Json? // Sorting configuration
+  format      ReportFormat @default(PDF)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([entityType])
+}
+
+// ============================================
+// TASK MANAGEMENT PROJECTS
+// ============================================
+
+model Project {
+  id           String          @id @default(cuid())
+  companyId    String
+  company      Company         @relation(fields: [companyId], references: [id])
+  name         String
+  description  String?
+  status       ProjectStatus   @default(ACTIVE)
+  startDate    DateTime?
+  endDate      DateTime?
+  assignedToId String?
+  assignedTo   User?           @relation("ProjectAssignee", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User            @relation("ProjectCreator", fields: [createdById], references: [id])
+  priority     ProjectPriority @default(MEDIUM)
+  isActive     Boolean         @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+
+  // Relations
+  tasks Task[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([status])
+  @@index([assignedToId])
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Task {
+  id             String       @id @default(cuid())
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  status         TaskStatus   @default(PENDING)
+  priority       TaskPriority @default(MEDIUM)
+  dueDate        DateTime?
+  assignedToId   String?
+  assignedTo     User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdById    String
+  createdBy      User         @relation("TaskCreator", fields: [createdById], references: [id])
+  completedAt    DateTime?
+  estimatedHours Float?
+  actualHours    Float?
+  isActive       Boolean      @default(true)
+  
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata Json?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  @@index([projectId])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([dueDate])
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ============================================
+// NET PROFIT CALCULATION
+// ============================================
+
+model NetProfitFormula {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
+  name        String
+  description String?
+  formula     String // Formula expression
+  variables   Json? // Formula variables and their sources
+  isDefault   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+}
+
+// ============================================
+// CLASSIFICATIONS
+// ============================================
+
+model Classification {
+  id          String             @id @default(cuid())
+  companyId   String
+  company     Company            @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?          @relation(fields: [mcNumberId], references: [id])
+  name        String
+  code        String?
+  type        ClassificationType
+  description String?
+  parentId    String? // For hierarchical classifications
+  parent      Classification?    @relation("ClassificationParent", fields: [parentId], references: [id])
+  children    Classification[]   @relation("ClassificationParent")
+  order       Int                @default(0)
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([companyId, mcNumberId, type, name])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([type])
+  @@index([parentId])
+  @@index([order])
+}
+
+enum ClassificationType {
+  EQUIPMENT
+  COMMODITY
+  SERVICE_TYPE
+  CUSTOMER_SEGMENT
+  COST_CENTER
+  CUSTOM
+}
+
+// ============================================
+// API CACHE
+// ============================================
+
+model ApiCache {
+  id        String       @id @default(cuid())
+  cacheKey  String       @unique
+  apiType   ApiCacheType
+  response  Json
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([cacheKey])
+  @@index([apiType])
+  @@index([expiresAt])
+}
+
+enum ApiCacheType {
+  GEOCODE
+  REVERSE_GEOCODE
+  DISTANCE_MATRIX
+  DIRECTIONS
+}
+
+// ============================================
+// SETTINGS
+// ============================================
+
+model CompanySettings {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // General Settings (stored as JSON for flexibility)
+  generalSettings Json?
+
+  // Notification Settings
+  notificationSettings Json?
+
+  // Appearance Settings
+  appearanceSettings Json?
+
+  // Security Settings
+  securitySettings Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+
+model SystemConfig {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Detention Configuration
+  defaultDetentionRate   Float @default(50) // $/hour
+  defaultFreeTimeMinutes Int   @default(120) // minutes (2 hours)
+
+  // TONU Configuration
+  standardTonuFee Float @default(150) // $150 default
+
+  // Factoring Configuration
+  factoringActive         Boolean @default(false)
+  factoringCompanyName    String?
+  factoringCompanyAddress String? // Text area - full address
+
+  // Settlement Defaults
+  payDriverOnFuelSurcharge Boolean @default(false) // Toggle: "Pay Driver % on FSC?"
+  companyFuelTaxRate       Float? // Percentage (e.g., 8.5%)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model CustomField {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name       String // Internal identifier (camelCase)
+  label      String // Display label
+  type       CustomFieldType
+  entityType CustomFieldEntityType
+
+  required     Boolean @default(false)
+  defaultValue String?
+  options      Json? // For SELECT type - array of strings
+  placeholder  String?
+  helpText     String?
+  isActive     Boolean @default(true)
+
+  order Int @default(0) // Display order
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name, entityType])
+  @@index([companyId])
+  @@index([entityType])
+  @@index([isActive])
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  BOOLEAN
+  SELECT
+  TEXTAREA
+  EMAIL
+  PHONE
+  URL
+}
+
+enum CustomFieldEntityType {
+  LOAD
+  DRIVER
+  CUSTOMER
+  TRUCK
+  TRAILER
+  INVOICE
+}
+
+// ============================================
+// AI SUGGESTIONS & VERIFICATION
+// ============================================
+
+model AISuggestion {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation("AISuggestions", fields: [companyId], references: [id])
+
+  // Suggestion Details
+  suggestionType String // RATE_RECOMMENDATION, EXPENSE_CATEGORIZATION, INVOICE_MATCHING, etc.
+  entityType     String // LOAD, INVOICE, SETTLEMENT, EXPENSE, etc.
+  entityId       String?
+
+  // AI Data
+  aiConfidence   Float // 0-100
+  aiReasoning    String
+  suggestedValue Json // The suggested financial value(s)
+  originalValue  Json? // Original value for comparison
+
+  // Verification
+  status          AISuggestionStatus @default(PENDING)
+  reviewedById    String?
+  reviewedBy      User?              @relation("AISuggestionReviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  approved        Boolean?
+  rejectionReason String?
+
+  // Applied Data
+  appliedAt   DateTime?
+  appliedById String?
+  appliedBy   User?     @relation("AISuggestionApplier", fields: [appliedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([suggestionType])
+  @@index([entityType, entityId])
+  @@index([reviewedById])
+  @@index([appliedById])
+}
+
+enum AISuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  APPLIED
+  EXPIRED
+}
+
+// ============================================
+// USER PREFERENCES
+// ============================================
+
+model UserColumnPreference {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType        String // 'trucks', 'loads', 'invoices', etc.
+  columnPreferences Json // { columnId: { visible: boolean, width?: number, order?: number } }
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, entityType])
+  @@index([userId])
+  @@index([entityType])
+}
+
+// ============================================
+// SAMSARA INTEGRATION
+// ============================================
+
+// Queue for Samsara devices pending review/approval
+model SamsaraDeviceQueue {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  samsaraId       String    @unique // Samsara vehicle/asset ID
+  deviceType      String // TRUCK | TRAILER
+  name            String // Samsara device name
+  vin             String?
+  licensePlate    String?
+  make            String?
+  model           String?
+  year            Int?
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED | LINKED
+  matchedRecordId String? // If matched to existing TMS record (Truck.id or Trailer.id)
+  matchedType     String? // TRUCK | TRAILER - type of matched record
+  reviewedAt      DateTime?
+  reviewedById    String?
+  reviewedBy      User?     @relation(fields: [reviewedById], references: [id])
+  rejectionReason String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([deviceType])
+  @@index([samsaraId])
+}
+
+// Fault code history for trucks (from Samsara diagnostics)
+model TruckFaultHistory {
+  id               String    @id @default(cuid())
+  truckId          String
+  truck            Truck     @relation(fields: [truckId], references: [id], onDelete: Cascade)
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id])
+  faultCode        String // DTC code (e.g., P0128, U0100, SPN123)
+  description      String? // Fault description
+  severity         String? // CRITICAL | WARNING | INFO
+  category         String? // engine, transmission, brake, exhaust, electrical, emissions
+  source           String    @default("SAMSARA") // SAMSARA | MANUAL | ELD
+  samsaraFaultId   String? // Original Samsara fault ID for deduplication
+  samsaraVehicleId String? // Samsara vehicle ID
+  spnId            Int? // SPN number for J1939 codes
+  fmiId            Int? // FMI number for J1939 codes
+  checkEngineLight Boolean   @default(false)
+  mileageAtOccur   Float? // Odometer reading when fault occurred
+  occurredAt       DateTime // When fault occurred
+  detectedAt       DateTime  @default(now()) // When TMS detected it
+  resolvedAt       DateTime? // When fault was resolved
+  isActive         Boolean   @default(true)
+  notifiedFleet    Boolean   @default(false) // Whether fleet dept was notified
+  notifiedAt       DateTime?
+  resolvedById     String? // User who marked it resolved
+  resolvedBy       User?     @relation(fields: [resolvedById], references: [id])
+  resolutionNotes  String? // Notes about how fault was resolved
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([truckId, faultCode, occurredAt]) // Prevent duplicate entries
+  @@index([truckId])
+  @@index([companyId])
+  @@index([faultCode])
+  @@index([isActive])
+  @@index([occurredAt])
+  @@index([severity])
+  @@index([category])
+  @@index([truckId, isActive])
+  @@index([companyId, isActive])
+  @@index([companyId, category])
+}
+
+// Static reference data for diagnostic trouble codes with troubleshooting info
+model DiagnosticCodeReference {
+  id              String   @id @default(cuid())
+  code            String   @unique // e.g., "SPN123", "P0420"
+  spnId           Int? // SPN number for J1939 codes
+  fmiId           Int? // FMI number for J1939 codes
+  name            String // Short name
+  description     String // Full description
+  category        String // engine, transmission, brake, exhaust, electrical, emissions, aftertreatment
+  severity        String // critical, warning, info
+  commonCauses    String[] // Array of common causes
+  troubleshooting String[] // Array of troubleshooting steps
+  estimatedCost   String? // e.g., "$100-$500"
+  urgency         String // immediate, soon, monitor
+  vehicleTypes    String[] @default([]) // Empty = all, or ["diesel", "gas", "electric"]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([severity])
+  @@index([spnId])
+}
+
+// ============================================
+// TELEGRAM INTEGRATION
+// ============================================
+
+// Telegram session storage (encrypted)
+model TelegramSession {
+  id             String    @id @default(cuid())
+  sessionData    String    @db.Text // Encrypted session string
+  phoneNumber    String?
+  isActive       Boolean   @default(true)
+  lastConnected  DateTime?
+  connectionError String?  @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+// Map drivers to Telegram IDs
+model TelegramDriverMapping {
+  id           String   @id @default(cuid())
+  driverId     String   @unique
+  driver       Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  telegramId   String   @unique // Telegram user ID (numeric)
+  username     String?  // Telegram username (optional)
+  phoneNumber  String?  // Phone number linked to Telegram
+  firstName    String?  // Telegram first name
+  lastName     String?  // Telegram last name
+  registeredAt DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  @@index([driverId])
+  @@index([telegramId])
+  @@index([phoneNumber])
+}
+
+// AI response logging and tracking
+model AIResponseLog {
+  id              String         @id @default(cuid())
+  communicationId String?
+  communication   Communication? @relation(fields: [communicationId], references: [id])
+
+  messageContent  String         @db.Text
+  aiAnalysis      Json // Store full AI analysis (breakdown detection, entities, urgency, etc.)
+  confidence      Float // 0-1 confidence score
+  wasAutoSent     Boolean        @default(false)
+  requiresReview  Boolean        @default(false)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  responseContent String?        @db.Text // AI-generated response
+  actualResponse  String?        @db.Text // Actual response sent (may be edited by staff)
+
+  createdAt DateTime @default(now())
+
+  @@index([communicationId])
+  @@index([wasAutoSent])
+  @@index([requiresReview])
+  @@index([createdAt])
+}
+
+// Telegram integration settings (per company)
+model TelegramSettings {
+  id        String @id @default(cuid())
+  companyId String @unique
+
+  // Feature toggles
+  autoCreateCases      Boolean @default(true)
+  aiAutoResponse       Boolean @default(false)
+  requireStaffApproval Boolean @default(true)
+
+  // AI configuration
+  confidenceThreshold Float @default(0.8) // 0-1, minimum confidence to auto-respond
+  aiProvider          String @default("OPENAI") // OPENAI | GEMINI
+
+  // Business hours
+  businessHoursOnly  Boolean @default(false)
+  businessHoursStart String? // "09:00"
+  businessHoursEnd   String? // "17:00"
+  timezone           String  @default("America/Chicago")
+
+  // Emergency keywords (trigger immediate escalation)
+  emergencyKeywords String[] @default(["accident", "injured", "fire", "police", "emergency", "crash", "hurt"])
+
+  // Auto-response templates
+  autoAckMessage         String? @default("We received your message. Our team will respond shortly.") // Auto-acknowledgment
+  caseCreatedMessage     String? @default("Case #{caseNumber} created. We'll contact you soon.") // Case creation confirmation
+  afterHoursMessage      String? @default("We received your message after hours. On-call staff will respond within 15 minutes.") // After hours auto-reply
+  emergencyContactNumber String? // Emergency contact number to include in messages
+
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+// ============================================
+// AI KNOWLEDGE BASE (RAG)
+// ============================================
+
+model KnowledgeBaseDocument {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  
+  title       String
+  filename    String
+  fileType    String   // 'PDF', 'TEXT', etc.
+  fileSize    Int
+  url         String   // Storage URL (local or blob)
+  
+  status      String   @default("PENDING") // PENDING, PROCESSING, READY, FAILED
+  errorMessage String?
+  
+  chunks      DocumentChunk[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([companyId])
+}
+
+model DocumentChunk {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    KnowledgeBaseDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  content     String   // The text content
+  chunkIndex  Int      // Order in document
+  embedding   Float[]  // Vector embedding (handled as float array in JS)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([documentId])
+}
+
+// ============================================
+// SAMSARA INTEGRATION SETTINGS
+// ============================================
+
+model SamsaraSettings {
+  id                String   @id @default(cuid())
+  companyId         String   @unique
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  apiToken          String   // Encrypted API token
+  autoSyncDrivers   Boolean  @default(false)
+  autoSyncVehicles  Boolean  @default(false)
+  syncIntervalMinutes Int    @default(60)
+  
+  lastSyncAt        DateTime?
+  lastSyncStatus    String?  // SUCCESS, FAILURE
+  lastSyncError     String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model QuickBooksSettings {
+  id                String   @id @default(cuid())
+  companyId         String   @unique
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  realmId           String   @unique
+  qboEnvironment    String   @default("SANDBOX") // SANDBOX, PRODUCTION
+  
+  autoSyncInvoices  Boolean  @default(false)
+  autoSyncCustomers Boolean  @default(false)
+  
+  accessToken       String?  // Encrypted
+  refreshToken      String?  // Encrypted
+  tokenExpiry       DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+
+// ============================================
+// SAAS / SUBSCRIPTION MODELS
+// ============================================
+
+model Subscription {
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id])
+  
+  planId           String   // e.g. "starter-free", "pro-monthly"
+  status           SubscriptionStatus
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean  @default(false)
+  
+  stripeSubscriptionId String? @unique
+  
+  // Super Admin Manual Override
+  manualOverride       Boolean  @default(false) // If true, Super Admin manually controls this subscription
+  manualModules        SubscriptionModule[] @default([]) // Modules manually enabled by Super Admin
+  
+  addOns           SubscriptionAddOn[]
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model SubscriptionAddOn {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  module         SubscriptionModule
+  isActive       Boolean  @default(true)
+  
+  stripeSubscriptionItemId String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([subscriptionId, module])
+  @@index([subscriptionId])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  FREE
+}
+
+enum SubscriptionModule {
+  FLEET
+  ACCOUNTING
+  SAFETY
+  INTEGRATIONS
+  AI_DISPATCH
+  ANALYTICS
+  HR
+}
+
+enum ApiKeyScope {
+  GLOBAL
+  COMPANY
+  MC
+}
+
+model ApiKeyConfig {
+  id          String      @id @default(cuid())
+  provider    String      // e.g., "SAMSARA", "TELEGRAM", "QUICKBOOKS"
+  scope       ApiKeyScope @default(GLOBAL)
+  
+  companyId   String?
+  company     Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  mcNumberId  String?
+  mcNumber    McNumber?   @relation(fields: [mcNumberId], references: [id], onDelete: Cascade)
+  
+  configKey   String      // e.g., "API_TOKEN", "CLIENT_ID", "CLIENT_SECRET"
+  configValue String      // Encrypted value
+  
+  description String?
+  isActive    Boolean     @default(true)
+  
+  metadata    Json?       // Additional fields like expiry, permissions, etc.
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([provider, scope, companyId, mcNumberId, configKey])
+  @@index([provider])
+  @@index([scope])
+  @@index([companyId])
+  @@index([mcNumberId])
+}
+
+
+

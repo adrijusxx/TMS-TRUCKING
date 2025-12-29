@@ -1,0 +1,363 @@
+'use client';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
+import { usePermissions } from '@/hooks/usePermissions';
+import { AccountingSyncStatus } from '@prisma/client';
+import { apiUrl } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useState } from 'react';
+
+interface LoadFinancialTabProps {
+  load: any;
+  formData: any;
+  onFormDataChange: (data: any) => void;
+  onLoadRefetch?: () => void;
+}
+
+const syncStatusColors: Record<AccountingSyncStatus, string> = {
+  NOT_SYNCED: 'bg-gray-100 text-gray-800 border-gray-200',
+  PENDING_SYNC: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  SYNCED: 'bg-green-100 text-green-800 border-green-200',
+  SYNC_FAILED: 'bg-red-100 text-red-800 border-red-200',
+  REQUIRES_REVIEW: 'bg-orange-100 text-orange-800 border-orange-200',
+};
+
+export default function LoadFinancialTab({
+  load,
+  formData,
+  onFormDataChange,
+  onLoadRefetch,
+}: LoadFinancialTabProps) {
+  const { can } = usePermissions();
+  const canEdit = can('loads.edit');
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  const updateField = (field: string, value: any) => {
+    onFormDataChange({ ...formData, [field]: value });
+  };
+
+  const handleRecalculateDriverPay = async () => {
+    if (!load?.id || !load?.driverId) {
+      toast.error('Driver must be assigned to calculate driver pay');
+      return;
+    }
+
+    setIsRecalculating(true);
+    try {
+      const response = await fetch(apiUrl(`/api/loads/${load.id}/recalculate-driver-pay`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to recalculate driver pay');
+      }
+
+      const result = await response.json();
+      toast.success(`Driver pay recalculated: ${formatCurrency(result.data.calculatedPay)}`);
+      onLoadRefetch?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to recalculate driver pay');
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
+  // Helper to ensure input values are never undefined
+  const getInputValue = (formValue: any, loadValue: any, defaultValue: string | number = '') => {
+    if (formValue !== undefined && formValue !== null) {
+      return formValue;
+    }
+    if (loadValue !== undefined && loadValue !== null) {
+      return loadValue;
+    }
+    return defaultValue;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Financial Information */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Financial Information</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="revenue" className="text-sm">Revenue</Label>
+              {canEdit ? (
+                <Input
+                  id="revenue"
+                  type="number"
+                  step="0.01"
+                  value={getInputValue(formData.revenue, load.revenue, '')}
+                  onChange={(e) => updateField('revenue', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="0.00"
+                  className="font-semibold"
+                />
+              ) : (
+                <p className="font-bold text-lg text-green-600 mt-1">
+                  {formatCurrency(load.revenue)}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="driverPay" className="text-sm">Driver Pay</Label>
+                {load?.driverId && canEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRecalculateDriverPay}
+                    disabled={isRecalculating}
+                    className="h-7 text-xs"
+                  >
+                    <RefreshCw className={`h-3 w-3 mr-1 ${isRecalculating ? 'animate-spin' : ''}`} />
+                    Recalculate
+                  </Button>
+                )}
+              </div>
+              {canEdit ? (
+                <Input
+                  id="driverPay"
+                  type="number"
+                  step="0.01"
+                  value={getInputValue(formData.driverPay, load.driverPay, '')}
+                  onChange={(e) => updateField('driverPay', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="0.00"
+                />
+              ) : (
+                <p className="font-medium text-sm mt-1">
+                  {load.driverPay !== null && load.driverPay !== undefined
+                    ? formatCurrency(load.driverPay)
+                    : '—'}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fuelAdvance" className="text-sm">Fuel Advance</Label>
+              {canEdit ? (
+                <Input
+                  id="fuelAdvance"
+                  type="number"
+                  step="0.01"
+                  value={getInputValue(formData.fuelAdvance, load.fuelAdvance, 0)}
+                  onChange={(e) => updateField('fuelAdvance', e.target.value ? parseFloat(e.target.value) : 0)}
+                  placeholder="0.00"
+                />
+              ) : (
+                <p className="font-medium text-sm mt-1">
+                  {formatCurrency(load.fuelAdvance || 0)}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="serviceFee" className="text-sm">Service Fee</Label>
+              {canEdit ? (
+                <Input
+                  id="serviceFee"
+                  type="number"
+                  step="0.01"
+                  value={getInputValue(formData.serviceFee, load.serviceFee, '')}
+                  onChange={(e) => updateField('serviceFee', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="0.00"
+                />
+              ) : (
+                <p className="font-medium text-sm mt-1">
+                  {load.serviceFee !== null && load.serviceFee !== undefined
+                    ? formatCurrency(load.serviceFee)
+                    : '—'}
+                </p>
+              )}
+            </div>
+
+            {load.totalPay !== null && load.totalPay !== undefined && (
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Total Pay</Label>
+                <p className="font-medium text-sm mt-1">{formatCurrency(load.totalPay)}</p>
+              </div>
+            )}
+
+            {load.profit !== null && load.profit !== undefined && (
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Net Profit
+                </Label>
+                <p className={`font-bold text-lg mt-1 ${load.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {formatCurrency(load.profit)}
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Mileage Information */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Mileage</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="loadedMiles" className="text-sm">Loaded Miles</Label>
+              {canEdit ? (
+                <Input
+                  id="loadedMiles"
+                  type="number"
+                  step="0.1"
+                  value={getInputValue(formData.loadedMiles, load.loadedMiles, '')}
+                  onChange={(e) => updateField('loadedMiles', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="0.0"
+                />
+              ) : (
+                <p className="font-medium text-sm mt-1">
+                  {load.loadedMiles !== null && load.loadedMiles !== undefined
+                    ? `${load.loadedMiles.toFixed(1)} mi`
+                    : '—'}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="emptyMiles" className="text-sm">Empty Miles</Label>
+              {canEdit ? (
+                <Input
+                  id="emptyMiles"
+                  type="number"
+                  step="0.1"
+                  value={getInputValue(formData.emptyMiles, load.emptyMiles, '')}
+                  onChange={(e) => updateField('emptyMiles', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="0.0"
+                />
+              ) : (
+                <p className="font-medium text-sm mt-1">
+                  {load.emptyMiles !== null && load.emptyMiles !== undefined
+                    ? `${load.emptyMiles.toFixed(1)} mi`
+                    : '—'}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="totalMiles" className="text-sm">Total Miles</Label>
+              {canEdit ? (
+                <Input
+                  id="totalMiles"
+                  type="number"
+                  step="0.1"
+                  value={getInputValue(formData.totalMiles, load.totalMiles, '')}
+                  onChange={(e) => updateField('totalMiles', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="0.0"
+                />
+              ) : (
+                <p className="font-semibold text-sm mt-1">
+                  {load.totalMiles !== null && load.totalMiles !== undefined
+                    ? `${load.totalMiles.toFixed(1)} mi`
+                    : '—'}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {load.revenuePerMile !== null && load.revenuePerMile !== undefined && (
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex justify-between items-center">
+                <Label className="text-sm text-muted-foreground">Revenue Per Mile</Label>
+                <p className="font-medium text-sm">
+                  {formatCurrency(load.revenuePerMile)}/mi
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Accounting Status (Read-only) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Accounting Status</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Label className="text-sm text-muted-foreground">Sync Status</Label>
+              <div className="mt-1">
+                <Badge
+                  variant="outline"
+                  className={syncStatusColors[(load.accountingSyncStatus || 'NOT_SYNCED') as AccountingSyncStatus]}
+                >
+                  {load.accountingSyncStatus?.replace(/_/g, ' ') || 'NOT_SYNCED'}
+                </Badge>
+              </div>
+            </div>
+
+            {load.accountingSyncedAt && (
+              <div>
+                <Label className="text-sm text-muted-foreground">Last Synced</Label>
+                <p className="font-medium text-sm mt-1">
+                  {new Date(load.accountingSyncedAt).toLocaleString()}
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              {load.readyForSettlement ? (
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              ) : (
+                <XCircle className="h-4 w-4 text-gray-400" />
+              )}
+              <Label className="text-sm">
+                {load.readyForSettlement ? 'Ready for Settlement' : 'Not Ready for Settlement'}
+              </Label>
+            </div>
+
+            {load.podUploadedAt && (
+              <div>
+                <Label className="text-sm text-muted-foreground">POD Uploaded</Label>
+                <p className="font-medium text-sm mt-1">
+                  {new Date(load.podUploadedAt).toLocaleString()}
+                </p>
+              </div>
+            )}
+
+            {load.totalExpenses !== null && load.totalExpenses !== undefined && (
+              <div>
+                <Label className="text-sm text-muted-foreground">Total Expenses</Label>
+                <p className="font-medium text-sm mt-1">{formatCurrency(load.totalExpenses)}</p>
+              </div>
+            )}
+
+            {load.netProfit !== null && load.netProfit !== undefined && (
+              <div>
+                <Label className="text-sm text-muted-foreground">Net Profit (Calculated)</Label>
+                <p className={`font-medium text-sm mt-1 ${load.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {formatCurrency(load.netProfit)}
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+

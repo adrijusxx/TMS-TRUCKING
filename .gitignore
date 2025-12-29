@@ -1,0 +1,243 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# local env files
+.env*.local
+.env
+.env.*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# prisma
+/generated/prisma
+
+# secrets and credentials
+test.txt
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*password*
+*credential*
+*.private
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.env.local
+*.env.production
+
+# Allow specific scripts that are safe but match catch-all rules
+!scripts/run-migration-with-secrets.sh
+!scripts/start-app-with-secrets.sh
+
+# database connection strings (if accidentally committed)
+*connection*.txt
+*credentials*.txt
+
+# documentation (generated or internal docs)
+/docs/
+
+# pitch materials and screenshots (if not needed in repo)
+/pitch-materials/
+
+# generated files
+typescript-errors.txt
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS files (additional)
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.cache
+
+# PM2
+.pm2/
+*.pid
+
+# deployment artifacts
+*.zip
+*.tar.gz
+deploy.sh.bak
+deploy-to-vm.ps1.bak
+
+# ============================================
+# DEPLOYMENT & INFRASTRUCTURE FILES
+# ============================================
+# These contain server IPs, deployment configs, and should be kept local only
+
+# Deployment scripts (contain hardcoded IPs and server configs)
+deploy.sh
+deploy-to-vm.ps1
+scripts/setup-nginx.sh
+scripts/setup-nginx-aws.sh
+scripts/fix-subdomain-deployment.sh
+scripts/verify-deployment.sh
+scripts/migrate-deploy.sh
+
+# Server configuration files (contain IPs and deployment-specific settings)
+nginx.config.conf
+ecosystem.config.js
+
+# AWS deployment scripts (may contain sensitive info)
+scripts/aws/
+
+# ============================================
+# DEVELOPMENT & UTILITY SCRIPTS
+# ============================================
+# These are for local development/debugging only
+
+# Database utility scripts (may contain connection info)
+scripts/setup-database-urls.sh
+scripts/test-db-connection.sh
+scripts/test-direct-connection.sh
+scripts/get-neon-connection.sh
+scripts/deep-diagnose-connection.sh
+scripts/diagnose-migration-issue.sh
+
+# Development/debugging scripts
+scripts/check-context-update.*
+scripts/check-errors.js
+scripts/filter-dev-logs.js
+scripts/type-check-filtered.*
+scripts/restart-after-schema-fix.ps1
+scripts/restore-removed-dependencies.*
+
+# Audit and diagnostic scripts
+scripts/audit/
+scripts/audit-*.ts
+scripts/diagnose-*.ts
+scripts/cleanup-*.ts
+scripts/reset-*.ts
+scripts/soft-delete-records.ts
+scripts/verify-and-fix-users.ts
+scripts/update-drivers-from-import.ts
+scripts/migrate-demo-to-fourways.ts
+scripts/create-*.ts
+scripts/delete-*.ts
+scripts/move-*.ts
+scripts/assign-*.ts
+scripts/list-*.ts
+scripts/extract-schema-reference.ts
+scripts/apply-schema-fixes.ts
+
+# Security scripts (may contain sensitive operations)
+scripts/security/
+
+# ============================================
+# TEST FILES (Development Only)
+# ============================================
+# Keep test structure but exclude integration tests that may have sensitive data
+tests/integration/
+*.test.md
+
+# ============================================
+# DOCUMENTATION & INTERNAL DOCS
+# ============================================
+# Entire folders excluded (includes all subfolders)
+/docs/
+/pitch-materials/
+# Note: /docs/ includes: archive/, audit-reports/, cleanup/, guides/, 
+# implementation/, migrations/, reports/, setup/, specs/, test-data/
+
+# Project documentation (keep essential, exclude internal)
+PROJECT_RULES.md
+PROJECT-CONTEXT.md
+QUICK-REFERENCE.md
+GITHUB_CLEANUP_GUIDE.md
+# Note: README.md, CHANGELOG.md, LICENSE.md, CONTRIBUTING.md should be kept
+
+# ============================================
+# GITHUB ACTIONS (Review for sensitive info)
+# ============================================
+# .github/workflows/ - Keep but review for hardcoded values
+# (Already committed, but ensure no secrets are hardcoded)
+
+# ============================================
+# LOGS & TEMPORARY FILES
+# ============================================
+logs/
+*.log
+*.pid
+*.lock
+
+# ============================================
+# FOLDER EXCLUSIONS SUMMARY
+# ============================================
+# Complete folders excluded from repository:
+# - /docs/ (entire folder with all subfolders)
+# - /pitch-materials/ (screenshots and demo materials)
+# - scripts/aws/ (AWS deployment scripts)
+# - scripts/audit/ (audit and testing scripts)
+# - scripts/security/ (security-related scripts)
+# - tests/integration/ (integration tests)
+# - logs/ (log files directory)
+#
+# See FOLDER_EXCLUSION_LIST.md for complete details
+
+# ============================================
+# AI GENERATED ARTIFACTS (Local Only)
+# ============================================
+*_STATUS.md
+*_SUMMARY.md
+*_REPORT.md
+*_CHECKLIST.md
+*_GUIDE.md
+FOLDER_EXCLUSION_LIST.md
+PROJECT-CONTEXT.md
+PROJECT_RULES.md
+QUICK-REFERENCE.md
+typescript-errors.txt
+

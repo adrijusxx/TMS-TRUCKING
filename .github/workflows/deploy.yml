@@ -1,0 +1,88 @@
+name: Build and Deploy to VM (DISABLED)
+
+# ⚠️ DISABLED: This workflow is disabled for automatic deployments.
+# Use deploy-aws.yml for AWS deployments instead.
+# This workflow is kept for reference only and will not run on push.
+on:
+  workflow_dispatch: # Manual trigger only - automatic deployments disabled
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      
+      - name: Generate Prisma Client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      
+      - name: Build Next.js
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_BASE_PATH: ${{ secrets.NEXT_PUBLIC_BASE_PATH || '' }}
+          NODE_OPTIONS: '--max-old-space-size=6144'
+      
+      - name: Create deployment archive
+        run: |
+          tar -czf deploy.tar.gz \
+            .next \
+            package.json \
+            package-lock.json \
+            node_modules/.prisma \
+            prisma/schema.prisma
+      
+      - name: Deploy to GCP VM via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: 22
+          timeout: 300s
+          source: "deploy.tar.gz"
+          target: "/home/adrianrepair123/tms/"
+      
+      - name: Extract, update, and restart on VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: 22
+          timeout: 300s
+          script: |
+            set -e
+            cd /home/adrianrepair123/tms
+            
+            echo "Extracting deployment archive..."
+            tar -xzf deploy.tar.gz
+            
+            echo "Installing production dependencies..."
+            npm ci --production --ignore-scripts --legacy-peer-deps
+            
+            echo "Installing Prisma CLI for client generation..."
+            npm install prisma --legacy-peer-deps --no-save
+            
+            echo "Generating Prisma Client..."
+            DATABASE_URL="${{ secrets.DATABASE_URL }}" npx prisma generate
+            
+            echo "Restarting application..."
+            pm2 restart tms || pm2 start ecosystem.config.js
+            
+            echo "Cleaning up..."
+            rm -f deploy.tar.gz
+            
+            echo "✅ Deployment complete!"
