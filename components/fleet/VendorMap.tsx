@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { getPublicEnv } from '@/lib/env-client';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { Loader2, MapPin, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,7 @@ interface VendorMapProps {
 export default function VendorMap({ center, vendors }: VendorMapProps) {
     const { isLoaded, loadError } = useJsApiLoader({
         id: 'google-map-script',
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
+        googleMapsApiKey: getPublicEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY') || ''
     });
 
     const [selectedVendor, setSelectedVendor] = useState<any>(null);

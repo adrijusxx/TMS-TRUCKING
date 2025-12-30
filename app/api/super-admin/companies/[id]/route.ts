@@ -61,7 +61,7 @@ export async function PATCH(
         const body = await request.json();
         const {
             name, dotNumber, email, phone, address, city, state, zip, isActive,
-            subscriptionStatus, manualOverride, manualModules
+            subscriptionStatus, manualOverride, manualModules, planId // Added planId
         } = body;
 
         // Update company
@@ -77,18 +77,19 @@ export async function PATCH(
                 ...(state && { state }),
                 ...(zip && { zip }),
                 ...(isActive !== undefined && { isActive }),
-                ...(subscriptionStatus && { subscriptionStatus }),
+                // subscriptionStatus is deprecated in favor of Subscription model but kept for compat if needed
             },
         });
 
         // Update subscription if needed
-        if (manualOverride !== undefined || manualModules || subscriptionStatus) {
+        if (manualOverride !== undefined || manualModules || subscriptionStatus || planId) {
             await prisma.subscription.update({
                 where: { companyId: id },
                 data: {
                     ...(manualOverride !== undefined && { manualOverride }),
                     ...(manualModules && { manualModules }),
                     ...(subscriptionStatus && { status: subscriptionStatus }),
+                    ...(planId && { planId }), // Update planId
                 },
             });
         }

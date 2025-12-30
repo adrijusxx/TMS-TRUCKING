@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { getPublicEnv } from '@/lib/env-client';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -38,7 +39,7 @@ export function formatDateTime(date: Date | string): string {
  * Don't detect from URL as it may already have basePath appended
  */
 function getBasePath(): string {
-  return process.env.NEXT_PUBLIC_BASE_PATH || '';
+  return getPublicEnv('NEXT_PUBLIC_BASE_PATH') || '';
 }
 
 /**

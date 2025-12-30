@@ -6,7 +6,7 @@ const path = require('path');
 function loadEnvFile() {
   const envPath = path.join(__dirname, '.env');
   const env = {};
-  
+
   if (fs.existsSync(envPath)) {
     const content = fs.readFileSync(envPath, 'utf8');
     content.split('\n').forEach(line => {
@@ -16,8 +16,8 @@ function loadEnvFile() {
         if (key) {
           let value = valueParts.join('=');
           // Remove quotes if present
-          if ((value.startsWith('"') && value.endsWith('"')) || 
-              (value.startsWith("'") && value.endsWith("'"))) {
+          if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
             value = value.slice(1, -1);
           }
           env[key.trim()] = value.trim();
@@ -25,7 +25,7 @@ function loadEnvFile() {
       }
     });
   }
-  
+
   return env;
 }
 
@@ -35,8 +35,8 @@ module.exports = {
   apps: [
     {
       name: 'tms',
-      script: 'bash',
-      args: 'scripts/start-app-with-secrets.sh',
+      script: 'scripts/start-with-secrets.js',
+      // args: 'scripts/start-app-with-secrets.sh', // Deprecated shell script
       cwd: process.cwd(), // Use current directory
       instances: 1,
       exec_mode: 'fork',

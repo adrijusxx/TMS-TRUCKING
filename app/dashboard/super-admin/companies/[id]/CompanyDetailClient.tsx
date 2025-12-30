@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Building2, Users, CreditCard, Shield, ChevronLeft, Trash2, Save, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
+import { SUBSCRIPTION_PLANS } from '@/lib/config/subscription-plans';
 
 interface CompanyDetailClientProps {
     company: any;
@@ -24,6 +25,7 @@ const MODULES = [
     { id: 'INTEGRATIONS', label: 'Integrations' },
     { id: 'AI_DISPATCH', label: 'AI Dispatch' },
     { id: 'ANALYTICS', label: 'Analytics' },
+    { id: 'HR', label: 'HR Management' },
 ];
 
 export default function CompanyDetailClient({ company, subscription }: CompanyDetailClientProps) {
@@ -43,6 +45,7 @@ export default function CompanyDetailClient({ company, subscription }: CompanyDe
 
     const [subData, setSubData] = useState({
         status: subscription.status,
+        planId: subscription.planId || SUBSCRIPTION_PLANS.FREE,
         manualOverride: subscription.manualOverride,
         manualModules: subscription.manualModules || [],
     });
@@ -60,6 +63,7 @@ export default function CompanyDetailClient({ company, subscription }: CompanyDe
                 body: JSON.stringify({
                     ...formData,
                     subscriptionStatus: subData.status,
+                    planId: subData.planId,
                     manualOverride: subData.manualOverride,
                     manualModules: subData.manualModules,
                 }),
@@ -392,14 +396,27 @@ export default function CompanyDetailClient({ company, subscription }: CompanyDe
                         </CardHeader>
                         <CardContent className="pt-6 space-y-6">
                             <div className="space-y-2">
+                                <Label>Plan Type</Label>
+                                <select
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-white text-sm"
+                                    value={subData.planId}
+                                    onChange={(e) => setSubData({ ...subData, planId: e.target.value })}
+                                >
+                                    <option value={SUBSCRIPTION_PLANS.FREE}>Starter Free</option>
+                                    <option value={SUBSCRIPTION_PLANS.PRO}>Pro Monthly</option>
+                                    <option value={SUBSCRIPTION_PLANS.ENTERPRISE}>Enterprise (All Access)</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
                                 <Label>Plan Status</Label>
                                 <select
                                     className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-white text-sm"
                                     value={subData.status}
                                     onChange={(e) => setSubData({ ...subData, status: e.target.value })}
                                 >
-                                    <option value="ACTIVE">Active (Paid)</option>
-                                    <option value="FREE">Free Plan</option>
+                                    <option value="ACTIVE">Active</option>
+                                    <option value="FREE">Free</option>
                                     <option value="TRIALING">Trialing</option>
                                     <option value="PAST_DUE">Past Due</option>
                                     <option value="CANCELED">Canceled</option>

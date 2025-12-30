@@ -1,3 +1,5 @@
+import { getPublicEnv } from '@/lib/env-client';
+
 const DEFAULT_LIBRARIES = ['places', 'geometry', 'drawing'] as const;
 const SCRIPT_ID = 'google-maps-script';
 
@@ -30,8 +32,8 @@ export async function loadGoogleMapsApi(extraLibraries: string[] = []): Promise<
   }
 
   // Try to get API key from environment or fetch from server
-  let apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  
+  let apiKey = getPublicEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY');
+
   // If not available at build time, try to fetch from integration status API
   if (!apiKey) {
     try {

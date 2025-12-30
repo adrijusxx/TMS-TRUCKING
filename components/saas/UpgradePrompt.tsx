@@ -6,41 +6,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { SubscriptionModule } from '@prisma/client';
 import { Lock, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { MODULE_NAMES, MODULE_DESCRIPTIONS, MODULE_PRICES } from '@/lib/config/subscription-plans';
 
 interface UpgradePromptProps {
     module: SubscriptionModule;
 }
 
 export function UpgradePrompt({ module }: UpgradePromptProps) {
-    const moduleNames: Record<string, string> = {
-        FLEET: 'Fleet Management',
-        ACCOUNTING: 'Accounting & Finance',
-        SAFETY: 'Safety & Compliance',
-        INTEGRATIONS: 'Connect & Integrations',
-        AI_DISPATCH: 'AI Dispatch',
-        ANALYTICS: 'Analytics',
-        ['HR' as any]: 'Human Resources',
-    };
-
-    const moduleDescriptions: Record<string, string> = {
-        FLEET: 'Advanced fleet management, tracking, and maintenance tools.',
-        ACCOUNTING: 'Complete financial suite including invoices, settlements, and QuickBooks sync.',
-        SAFETY: 'Compliance tracking, driver files, and incident management.',
-        INTEGRATIONS: 'Connect with Samsara, ELD providers, and external load boards.',
-        AI_DISPATCH: 'AI-powered load optimization and automated dispatching.',
-        ANALYTICS: 'Comprehensive reporting and business intelligence dashboards.',
-        HR: 'Driver evaluations, performance tracking, and personnel management.',
-    };
-
-    const modulePrices: Record<string, string> = {
-        FLEET: '$49/mo',
-        ACCOUNTING: '$79/mo',
-        SAFETY: '$39/mo',
-        INTEGRATIONS: '$29/mo',
-        AI_DISPATCH: '$99/mo',
-        ANALYTICS: '$59/mo',
-        HR: '$49/mo',
-    };
+    // Use centralized configuration for consistency
+    const moduleNames = MODULE_NAMES;
+    const moduleDescriptions = MODULE_DESCRIPTIONS;
+    const modulePrices = MODULE_PRICES;
 
     return (
         <Card className="max-w-md w-full text-center shadow-lg border-primary/20">

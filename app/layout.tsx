@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { McFilterProvider } from '@/lib/contexts/McFilterContext';
 import { Toaster } from 'sonner';
 import { ErrorHandler } from '@/components/providers/ErrorHandler';
+import { EnvInit } from '@/components/providers/EnvInit';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -57,12 +58,17 @@ export default function RootLayout({
             <QueryProvider>
               <McFilterProvider>
                 <ErrorHandler />
+                <EnvInit env={{
+                  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+                  NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+                  NEXT_PUBLIC_GOOGLE_MAPS_PUBLIC_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_PUBLIC_API_KEY
+                }} />
                 {children}
               </McFilterProvider>
             </QueryProvider>
           </SessionProvider>
         </ThemeProvider>
-        <Toaster 
+        <Toaster
           position="bottom-right"
           richColors
           closeButton

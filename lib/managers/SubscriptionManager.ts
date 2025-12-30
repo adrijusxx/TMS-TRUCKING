@@ -1,6 +1,6 @@
-
 import { prisma } from '@/lib/prisma';
 import { SubscriptionModule, SubscriptionStatus } from '@prisma/client';
+import { ALL_ACCESS_PLANS } from '@/lib/config/subscription-plans';
 
 export type PlanDetails = {
     planId: string;
@@ -32,6 +32,11 @@ export class SubscriptionManager {
             return false;
         }
 
+        // Check if plan grants all access
+        if (ALL_ACCESS_PLANS.includes(subscription.planId)) {
+            return true;
+        }
+
         // Check for manual override by Super Admin
         if (subscription.manualOverride && subscription.manualModules) {
             return subscription.manualModules.includes(module);
@@ -59,10 +64,18 @@ export class SubscriptionManager {
             };
         }
 
+        let activeModules = subscription.addOns.filter(a => a.isActive).map(a => a.module);
+
+        // Include manual modules if override is active
+        if (subscription.manualOverride && subscription.manualModules) {
+            // Merge unique modules
+            activeModules = Array.from(new Set([...activeModules, ...subscription.manualModules]));
+        }
+
         return {
             planId: subscription.planId,
             status: subscription.status,
-            modules: subscription.addOns.filter(a => a.isActive).map(a => a.module),
+            modules: activeModules,
             isFreemium: subscription.planId === 'starter-free',
         };
     }
