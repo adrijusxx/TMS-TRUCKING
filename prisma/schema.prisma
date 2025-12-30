@@ -111,6 +111,8 @@ enum UserRole {
   HR
   SAFETY
   FLEET
+  FLEET_MANAGER
+  SAFETY_MANAGER
 }
 
 model RolePermission {

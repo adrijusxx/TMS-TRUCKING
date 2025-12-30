@@ -16,7 +16,7 @@ interface NewUserClientProps {
     companies: any[];
 }
 
-const ROLES = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'FLEET_MANAGER', 'SAFETY_MANAGER'];
+const ROLES = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'FLEET', 'SAFETY'];
 
 export default function NewUserClient({ companies }: NewUserClientProps) {
     const router = useRouter();

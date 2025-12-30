@@ -17,7 +17,7 @@ interface UserDetailClientProps {
     companies: any[];
 }
 
-const ROLES = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'FLEET_MANAGER', 'SAFETY_MANAGER'];
+const ROLES = ['SUPER_ADMIN', 'ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'FLEET', 'SAFETY'];
 
 export default function UserDetailClient({ user, companies }: UserDetailClientProps) {
     const router = useRouter();
