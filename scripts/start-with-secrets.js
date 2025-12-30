@@ -110,11 +110,30 @@ async function main() {
     env.AUTH_TRUST_HOST = "true";
     console.log("[Startup] Set AUTH_TRUST_HOST=true");
 
-    // 4. Start Next.js
-    console.log("[Startup] Starting Next.js...");
-    const nextStart = spawn("npm", ["start", "--", "-p", "3001"], {
+    // 4. Start Next.js (Standalone Mode)
+    console.log("[Startup] Starting Next.js (Standalone Mode)...");
+
+    // Check if standalone server exists
+    const fs = require('fs');
+    const path = require('path');
+    const standalonePath = path.join(process.cwd(), '.next', 'standalone', 'server.js');
+
+    let cmd = 'node';
+    let args = [standalonePath];
+
+    if (!fs.existsSync(standalonePath)) {
+        console.warn("[Startup] Standalone server.js not found. Falling back to 'npm start'...");
+        cmd = 'npm';
+        args = ['start', '--', '-p', '3001'];
+    }
+
+    const nextStart = spawn(cmd, args, {
         stdio: "inherit",
-        env: env,
+        env: {
+            ...env,
+            PORT: "3001",
+            HOSTNAME: "0.0.0.0"
+        },
     });
 
     nextStart.on("close", (code) => {

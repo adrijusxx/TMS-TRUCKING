@@ -40,14 +40,13 @@ jobs:
       - name: Create deployment archive
         run: |
           tar -czf deploy.tar.gz \
-            .next \
+            .next/standalone \
+            .next/static \
+            public \
             package.json \
             package-lock.json \
-            node_modules/.prisma \
             prisma/schema.prisma \
             ecosystem.config.js \
-            next.config.js \
-            public \
             scripts/start-app-with-secrets.sh \
             scripts/run-migration-with-secrets.sh \
             scripts/start-with-secrets.js \
@@ -79,6 +78,17 @@ jobs:
             
             echo "Extracting deployment archive..."
             tar -xzf deploy.tar.gz
+            
+            echo "Organizing standalone build..."
+            # Move static assets to where standalone server expects them
+            mkdir -p .next/standalone/.next
+            mkdir -p .next/standalone/public
+            
+            # Copy static (bundled assets)
+            cp -r .next/static .next/standalone/.next/
+            
+            # Copy public (static files)
+            cp -r public/* .next/standalone/public/ || true
             
             echo "Making startup script executable..."
             chmod +x scripts/start-app-with-secrets.sh scripts/run-migration-with-secrets.sh || true
