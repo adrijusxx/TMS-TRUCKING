@@ -22,7 +22,7 @@ get_secret() {
 }
 
 # Load RDS secret and build DATABASE_URL
-RDS_SECRET_NAME='rds!db-f16-a7-ed-42a5-a907-00fb82f38a16'
+RDS_SECRET_NAME='rds!db-6748f518-a7ef-42a5-a907-00fb82f38a16'
 echo "[Startup] Loading RDS secret: $RDS_SECRET_NAME"
 
 if RDS_SECRET_JSON=$(get_secret "$RDS_SECRET_NAME"); then
