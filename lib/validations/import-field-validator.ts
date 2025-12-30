@@ -296,7 +296,8 @@ export function getModelNameFromEntityType(entityType: string): string {
     'breakdowns': 'Breakdown',
     'rate-confirmations': 'RateConfirmation',
     'factoring-companies': 'FactoringCompany',
+  };
 
-    return mapping[entityType.toLowerCase()] || entityType.charAt(0).toUpperCase() + entityType.slice(1);
-  }
+  return mapping[entityType.toLowerCase()] || entityType.charAt(0).toUpperCase() + entityType.slice(1);
+}
 
