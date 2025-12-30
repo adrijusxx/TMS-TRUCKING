@@ -291,8 +291,12 @@ export function getModelNameFromEntityType(entityType: string): string {
     'invoices': 'Invoice',
     'vendors': 'Vendor',
     'employees': 'Driver', // Employees are drivers
-  };
+    'users': 'User',
+    'batches': 'Batch',
+    'breakdowns': 'Breakdown',
+    'rate-confirmations': 'RateConfirmation',
+    'factoring-companies': 'FactoringCompany',
 
-  return mapping[entityType.toLowerCase()] || entityType.charAt(0).toUpperCase() + entityType.slice(1);
-}
+    return mapping[entityType.toLowerCase()] || entityType.charAt(0).toUpperCase() + entityType.slice(1);
+  }
 

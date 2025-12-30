@@ -196,6 +196,17 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'notes', label: 'Notes' },
     ],
   },
+  users: {
+    label: 'Users',
+    fields: [
+      { key: 'email', label: 'Email', required: true },
+      { key: 'firstName', label: 'First Name', required: true },
+      { key: 'lastName', label: 'Last Name', required: true },
+      { key: 'role', label: 'Role', required: true },
+      { key: 'phone', label: 'Phone' },
+      { key: 'password', label: 'Password' },
+    ],
+  },
 };
 
 export function getEntityConfig(entityType: string): EntityConfig | null {
