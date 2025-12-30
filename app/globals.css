@@ -139,60 +139,99 @@
   }
 
   .amber {
-    /* Amber theme - dark warm background with orange accents */
-    /* Main background - very dark warm black */
-    --background: 20 15% 8%;
-    --foreground: 40 30% 92%;
-    /* Cards and popovers */
-    --card: 20 15% 8%;
-    --card-foreground: 40 30% 92%;
-    --popover: 20 15% 10%;
-    --popover-foreground: 40 30% 92%;
-    /* Primary - vibrant orange */
-    --primary: 25 95% 55%;
-    --primary-foreground: 20 15% 8%;
-    /* Secondary - darker warm gray */
-    --secondary: 20 20% 12%;
-    --secondary-foreground: 40 30% 92%;
-    /* Muted - medium warm gray */
-    --muted: 20 15% 25%;
-    --muted-foreground: 40 20% 70%;
-    /* Accent - for hover states */
-    --accent: 25 85% 45%;
-    --accent-foreground: 40 30% 92%;
-    /* Destructive - red that works on dark */
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 40 30% 92%;
-    /* Borders - subtle warm border */
-    --border: 20 15% 20%;
-    --input: 20 15% 20%;
-    --ring: 25 95% 55%;
+    /* Premium Sunset Amber - High Contrast Professional */
+    --background: 20 18% 4.5%;
+    /* Deep black-charcoal with a hint of warmth */
+    --foreground: 36 20% 95%;
+    /* Clean off-white */
 
-    /* Status - Success (Warm green for amber theme) */
-    --status-success: 150 65% 42%;
-    --status-success-foreground: 0 0% 100%;
-    --status-success-muted: 150 40% 18%;
+    /* Cards - Elegant subtle separation */
+    --card: 20 18% 7%;
+    --card-foreground: 36 20% 95%;
+    --popover: 20 18% 8%;
+    --popover-foreground: 36 20% 95%;
 
-    /* Status - Warning (Matches amber primary) */
-    --status-warning: 30 90% 55%;
-    --status-warning-foreground: 0 0% 0%;
-    --status-warning-muted: 30 50% 18%;
+    /* Primary - Burning Sunset Gold */
+    --primary: 38 100% 55%;
+    --primary-foreground: 20 18% 4.5%;
 
-    /* Status - Error (Warm red) */
-    --status-error: 5 70% 55%;
-    --status-error-foreground: 0 0% 100%;
-    --status-error-muted: 5 50% 18%;
+    /* UI Structural Colors */
+    --secondary: 20 10% 12%;
+    --secondary-foreground: 36 20% 95%;
+    --muted: 20 10% 14%;
+    --muted-foreground: 36 10% 65%;
+    --accent: 38 100% 15%;
+    --accent-foreground: 38 100% 90%;
 
-    /* Status - Info (Warm blue) */
-    --status-info: 200 70% 55%;
-    --status-info-foreground: 0 0% 100%;
-    --status-info-muted: 200 40% 18%;
+    /* Borders - Defined but discreet */
+    --border: 20 10% 16%;
+    --input: 20 10% 16%;
+    --ring: 38 100% 55%;
 
-    /* Status - Neutral (Warm gray) */
-    --status-neutral: 30 10% 55%;
-    --status-neutral-foreground: 0 0% 0%;
-    --status-neutral-muted: 30 10% 18%;
+    /* Status Tokens - Tailored for deep dark BG */
+    --status-success: 142 85% 55%;
+    --status-success-foreground: 142 90% 5%;
+    --status-success-muted: 142 85% 10%;
+
+    --status-warning: 38 100% 55%;
+    /* Matches primary */
+    --status-warning-foreground: 20 18% 4.5%;
+    --status-warning-muted: 38 100% 10%;
+
+    --status-error: 0 90% 65%;
+    --status-error-foreground: 0 90% 5%;
+    --status-error-muted: 0 90% 10%;
+
+    --status-info: 210 95% 70%;
+    --status-info-foreground: 210 95% 5%;
+    --status-info-muted: 210 95% 10%;
+
+    --status-neutral: 36 10% 60%;
+    --status-neutral-foreground: 20 18% 4.5%;
+    --status-neutral-muted: 36 10% 10%;
   }
+}
+
+/* --- High Density / Compact Mode --- */
+.compact-mode {
+  --base-font-size: 0.8125rem;
+  /* 13px */
+}
+
+.compact-mode .container {
+  max-width: 100% !important;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.compact-mode td,
+.compact-mode th {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  height: 2.25rem !important;
+}
+
+.compact-mode .card-header {
+  padding: 0.75rem 1rem !important;
+}
+
+.compact-mode .card-content {
+  padding: 0.75rem 1rem !important;
+}
+
+.compact-mode .header-container {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+.compact-mode aside nav a {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+/* Smooth Transitions */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 @layer base {

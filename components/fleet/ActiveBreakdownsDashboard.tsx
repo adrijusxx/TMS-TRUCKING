@@ -155,29 +155,31 @@ export default function ActiveBreakdownsDashboard() {
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case 'CRITICAL':
-        return <Badge className="bg-red-500 text-white">🔴 CRITICAL</Badge>;
+        return <Badge variant="destructive">🔴 CRITICAL</Badge>;
       case 'HIGH':
-        return <Badge className="bg-orange-500 text-white">🟡 HIGH</Badge>;
+        return <Badge variant="warning">🟡 HIGH</Badge>;
       case 'MEDIUM':
-        return <Badge className="bg-yellow-500 text-white">🟢 MEDIUM</Badge>;
+        // Mapping Medium to Warning (Orange) for semantic consistency, or could use Neutral if preferred.
+        // Using Warning for visibility.
+        return <Badge variant="warning">🟢 MEDIUM</Badge>;
       case 'LOW':
-        return <Badge className="bg-blue-500 text-white">⚪ LOW</Badge>;
+        return <Badge variant="neutral">⚪ LOW</Badge>; // Low priority -> Neutral
       default:
-        return <Badge>{priority}</Badge>;
+        return <Badge variant="outline">{priority}</Badge>;
     }
   };
 
   // Status badge
   const getStatusBadge = (status: string) => {
-    const statusColors: Record<string, string> = {
-      REPORTED: 'bg-gray-500',
-      DISPATCHED: 'bg-blue-500',
-      IN_PROGRESS: 'bg-yellow-500',
-      WAITING_PARTS: 'bg-orange-500',
-      COMPLETED: 'bg-green-500',
+    const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "error" | "info" | "neutral"> = {
+      REPORTED: 'neutral',
+      DISPATCHED: 'info',
+      IN_PROGRESS: 'warning',
+      WAITING_PARTS: 'destructive',
+      COMPLETED: 'success',
     };
     return (
-      <Badge className={statusColors[status] || 'bg-gray-500'}>
+      <Badge variant={statusVariants[status] || 'secondary'}>
         {status.replace('_', ' ')}
       </Badge>
     );

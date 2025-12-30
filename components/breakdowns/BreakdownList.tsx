@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Plus, Upload, Download } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { breakdownsTableConfig } from '@/lib/config/entities/breakdowns';
@@ -51,6 +52,7 @@ interface BreakdownData {
 }
 
 export default function BreakdownList() {
+  const queryClient = useQueryClient();
   const { can } = usePermissions();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
@@ -84,19 +86,19 @@ export default function BreakdownList() {
       data: result.data?.breakdowns || result.data || [],
       meta: result.data?.pagination
         ? {
-            totalCount: result.data.pagination.total,
-            totalPages: result.data.pagination.totalPages,
-            page: result.data.pagination.page,
-            pageSize: result.data.pagination.limit,
-          }
+          totalCount: result.data.pagination.total,
+          totalPages: result.data.pagination.totalPages,
+          page: result.data.pagination.page,
+          pageSize: result.data.pagination.limit,
+        }
         : result.meta
-        ? {
+          ? {
             totalCount: result.meta.total,
             totalPages: result.meta.totalPages,
             page: result.meta.page,
             pageSize: result.meta.limit,
           }
-        : {
+          : {
             totalCount: result.data?.length || 0,
             totalPages: 1,
             page: params.page || 1,
@@ -121,12 +123,15 @@ export default function BreakdownList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
           {can('data.import') && (
-            <ImportDialog entityType="breakdowns">
+            <ImportSheet
+              entityType="breakdowns"
+              onImportComplete={() => queryClient.invalidateQueries({ queryKey: ['breakdowns'] })}
+            >
               <Button variant="outline" size="sm">
                 <Upload className="h-4 w-4 mr-2" />
                 Import
               </Button>
-            </ImportDialog>
+            </ImportSheet>
           )}
           {can('data.export') && (
             <ExportDialog entityType="breakdowns">

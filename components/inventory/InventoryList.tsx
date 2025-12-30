@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Warehouse, Plus, Search, Download, Upload, AlertTriangle } from 'lucide-react';
 import { formatCurrency, apiUrl } from '@/lib/utils';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -113,7 +113,15 @@ export default function InventoryList() {
         <div>
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog entityType="inventory" onImportComplete={() => refetch()} />
+          <ImportSheet
+            entityType="inventory"
+            onImportComplete={() => refetch()}
+          >
+            <Button variant="outline">
+              <Upload className="h-4 w-4 mr-2" />
+              Import
+            </Button>
+          </ImportSheet>
           <ExportDialog entityType="inventory" />
           <Link href="/dashboard/inventory/new">
             <Button>

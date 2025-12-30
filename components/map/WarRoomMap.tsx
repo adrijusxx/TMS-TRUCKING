@@ -19,6 +19,8 @@ import { RefreshCw, Truck, Package, MapPin, Maximize2, AlertTriangle } from 'luc
 import { loadGoogleMapsApi } from '@/lib/maps/google-loader';
 import { DEFAULT_MAP_CONFIG } from '@/lib/maps/map-config';
 import { useLiveMap } from '@/hooks/useLiveMap';
+import { CHART_COLORS } from '@/lib/theme/chart-theme';
+import common from '@/lib/content/common.json';
 
 // ============================================
 // CONFIGURATION
@@ -27,10 +29,10 @@ import { useLiveMap } from '@/hooks/useLiveMap';
 const CLUSTER_RADIUS = 60;
 
 const STATUS_COLORS: Record<string, string> = {
-  MOVING: '#22c55e',
-  STOPPED: '#f59e0b',
-  DELAYED: '#ef4444',
-  IDLE: '#6b7280',
+  MOVING: CHART_COLORS.status.success,
+  STOPPED: CHART_COLORS.status.warning,
+  DELAYED: CHART_COLORS.status.error,
+  IDLE: CHART_COLORS.status.neutral,
 };
 
 // ============================================
@@ -215,7 +217,7 @@ export default function WarRoomMap() {
           </Button>
         </div>
       </div>
-      
+
       {/* Stats */}
       <div className="flex gap-3 px-2 py-1 border-b text-xs">
         <span className="flex items-center gap-1">
@@ -247,7 +249,7 @@ export default function WarRoomMap() {
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center">
               <AlertTriangle className="h-6 w-6 text-destructive mx-auto mb-2" />
-              <p className="text-xs text-destructive">Failed to load map data</p>
+              <p className="text-xs text-destructive">{common.states.error}</p>
               <Button variant="outline" size="sm" className="mt-2 h-6 text-xs" onClick={() => refetch()}>
                 Retry
               </Button>
@@ -292,7 +294,7 @@ export default function WarRoomMap() {
 function createMarkerIcon(point: { type: string; status: string }): google.maps.Icon {
   const color = STATUS_COLORS[point.status] || STATUS_COLORS.IDLE;
   const size = 28;
-  
+
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2"/>

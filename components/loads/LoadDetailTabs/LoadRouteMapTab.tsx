@@ -67,28 +67,28 @@ export default function LoadRouteMapTab({ load }: LoadRouteMapTabProps) {
           {/* Route Info Badges */}
           <div className="flex flex-wrap gap-2">
             {load.totalMiles && (
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              <Badge variant="info-outline">
                 Total: {load.totalMiles.toFixed(0)} mi
               </Badge>
             )}
             {load.loadedMiles && (
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Badge variant="success-outline">
                 Loaded: {load.loadedMiles.toFixed(0)} mi
               </Badge>
             )}
             {load.emptyMiles && (
-              <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+              <Badge variant="neutral-outline">
                 Empty: {load.emptyMiles.toFixed(0)} mi
               </Badge>
             )}
             {load.driver && (
-              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+              <Badge variant="secondary">
                 <Truck className="h-3 w-3 mr-1" />
                 {load.driver.user.firstName} {load.driver.user.lastName}
               </Badge>
             )}
             {load.truck && (
-              <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+              <Badge variant="secondary">
                 Truck #{load.truck.truckNumber}
               </Badge>
             )}
@@ -112,10 +112,10 @@ export default function LoadRouteMapTab({ load }: LoadRouteMapTabProps) {
               <span className="text-muted-foreground">
                 {load.stops && load.stops.length > 0
                   ? (() => {
-                      const deliveries = load.stops.filter((s) => s.stopType === 'DELIVERY');
-                      const lastDelivery = deliveries[deliveries.length - 1];
-                      return `${lastDelivery?.city || ''}, ${lastDelivery?.state || ''}`;
-                    })()
+                    const deliveries = load.stops.filter((s) => s.stopType === 'DELIVERY');
+                    const lastDelivery = deliveries[deliveries.length - 1];
+                    return `${lastDelivery?.city || ''}, ${lastDelivery?.state || ''}`;
+                  })()
                   : `${load.deliveryCity || 'N/A'}, ${load.deliveryState || 'N/A'}`}
               </span>
             </div>

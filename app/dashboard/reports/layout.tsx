@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { FileText, Palette, Wrench } from 'lucide-react';
 
 const tabs = [
+  { name: 'Overview', href: '/dashboard/reports', icon: Palette },
   { name: 'Report Templates', href: '/dashboard/reports/templates', icon: FileText },
   { name: 'Report Constructor', href: '/dashboard/reports/constructor', icon: Wrench },
 ];

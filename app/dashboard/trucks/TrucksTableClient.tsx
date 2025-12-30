@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/export';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import TruckSheet from '@/components/trucks/TruckSheet';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
@@ -172,12 +172,17 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <div className="flex items-center gap-2">
           {can('data.import') && (
-            <ImportDialog entityType="trucks">
+            <ImportSheet
+              entityType="trucks"
+              onImportComplete={() => {
+                handleUpdate();
+              }}
+            >
               <Button variant="outline" size="sm">
                 <Upload className="h-4 w-4 mr-2" />
                 Import
               </Button>
-            </ImportDialog>
+            </ImportSheet>
           )}
           {can('data.export') && (
             <ExportDialog entityType="trucks">

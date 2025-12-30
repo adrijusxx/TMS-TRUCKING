@@ -37,7 +37,7 @@ import { formatDate, apiUrl } from '@/lib/utils';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import AdvancedFilters, { FilterOption } from '@/components/filters/AdvancedFilters';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
@@ -105,7 +105,7 @@ async function fetchUsers(params?: {
   if (params?.sortOrder) queryParams.set('sortOrder', params.sortOrder);
   if (params?.excludeDrivers) queryParams.set('excludeDrivers', 'true');
   if (params?.role) queryParams.set('role', params.role);
-  
+
   // Add advanced filters
   Object.keys(params || {}).forEach((key) => {
     if (!['search', 'page', 'limit', 'sortBy', 'sortOrder', 'excludeDrivers', 'role'].includes(key) && params?.[key]) {
@@ -113,7 +113,7 @@ async function fetchUsers(params?: {
     }
   });
 
-  const url = queryParams.toString() 
+  const url = queryParams.toString()
     ? `/api/settings/users?${queryParams}`
     : '/api/settings/users';
   const response = await fetch(apiUrl(url));
@@ -137,7 +137,7 @@ async function createUser(data: UserFormData) {
   // Remove password if empty, and remove isActive from create
   const { isActive, password, ...createData } = data;
   const payload = password && password.length > 0 ? { ...createData, password } : createData;
-  
+
   const response = await fetch(apiUrl('/api/settings/users'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -156,7 +156,7 @@ async function updateUser(userId: string, data: Partial<UserFormData>) {
   if (!payload.password || payload.password.length === 0) {
     delete payload.password;
   }
-  
+
   const response = await fetch(apiUrl(`/api/settings/users/${userId}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -199,7 +199,7 @@ interface UserManagementProps {
 type SortField = 'firstName' | 'lastName' | 'email' | 'role' | 'isActive' | 'lastLogin' | null;
 type SortDirection = 'asc' | 'desc' | null;
 
-export default function UserManagement({ 
+export default function UserManagement({
   title = 'Team Management',
   description = 'Manage all employees in one comprehensive table'
 }: UserManagementProps = {}) {
@@ -221,7 +221,7 @@ export default function UserManagement({
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [activeTab, setActiveTab] = useState<'employees' | 'drivers'>('employees');
-  
+
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState({
     checkbox: true,
@@ -332,16 +332,16 @@ export default function UserManagement({
   // Bulk edit handler
   const handleBulkEdit = async (updates: Partial<UserFormData>) => {
     if (selectedIds.length === 0) return;
-    
+
     try {
       // Process updates with individual error handling
       const results = await Promise.allSettled(
         selectedIds.map(id => updateUser(id, updates))
       );
-      
+
       const successful = results.filter(r => r.status === 'fulfilled').length;
       const failed = results.filter(r => r.status === 'rejected').length;
-      
+
       // Get failed user IDs for better error reporting
       const failedIds: string[] = [];
       results.forEach((result, index) => {
@@ -349,9 +349,9 @@ export default function UserManagement({
           failedIds.push(selectedIds[index]);
         }
       });
-      
+
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      
+
       if (failed === 0) {
         toast.success(`Updated ${successful} user(s) successfully`);
         setSelectedIds([]);
@@ -362,7 +362,7 @@ export default function UserManagement({
           { duration: 5000 }
         );
         // Remove successfully updated IDs from selection
-        const successfulIds = selectedIds.filter((_, index) => 
+        const successfulIds = selectedIds.filter((_, index) =>
           results[index].status === 'fulfilled'
         );
         setSelectedIds(failedIds);
@@ -443,41 +443,41 @@ export default function UserManagement({
 
   const onCreateSubmit = async (data: UserFormData) => {
     setError(null);
-    
+
     // Auto-set mcNumberId from first MC in mcAccess if not set
     const submitData = { ...data };
     if (submitData.mcAccess && submitData.mcAccess.length > 0 && !submitData.mcNumberId) {
       submitData.mcNumberId = submitData.mcAccess[0];
     }
-    
+
     createMutation.mutate(submitData);
   };
 
   const onEditSubmit = async (data: UserFormData) => {
     if (!editingUser) return;
     setError(null);
-    
+
     // Auto-set mcNumberId from first MC in mcAccess if not set
     const submitData: Partial<UserFormData> = { ...data };
     if (submitData.mcAccess && submitData.mcAccess.length > 0 && !submitData.mcNumberId) {
       submitData.mcNumberId = submitData.mcAccess[0];
     }
-    
+
     // Remove password from submit data if it's empty (to keep current password)
     if (submitData.password === '' || !submitData.password) {
       delete submitData.password;
     }
-    
+
     updateMutation.mutate({ userId: editingUser.id, data: submitData });
   };
 
   const handleEdit = (user: any) => {
     setEditingUser(user);
     // Initialize mcAccess from user's mcAccess or default to their mcNumberId
-    const initialMcAccess = user.mcAccess && user.mcAccess.length > 0 
-      ? user.mcAccess 
+    const initialMcAccess = user.mcAccess && user.mcAccess.length > 0
+      ? user.mcAccess
       : (user.mcNumberId ? [user.mcNumberId] : []);
-    
+
     editForm.reset({
       email: user.email,
       firstName: user.firstName,
@@ -530,7 +530,7 @@ export default function UserManagement({
         const comparison = aVal.localeCompare(bVal);
         return sortDirection === 'asc' ? comparison : -comparison;
       }
-      
+
       if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -551,7 +551,17 @@ export default function UserManagement({
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <ImportDialog entityType="users" />
+            <ImportSheet
+              entityType="users"
+              onImportComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ['users'] });
+              }}
+            >
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+            </ImportSheet>
             <ExportDialog entityType="users" />
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
@@ -655,7 +665,7 @@ export default function UserManagement({
                     <div className="space-y-2">
                       <Label>MC Access *</Label>
                       <p className="text-xs text-muted-foreground">
-                        {selectedRole === 'ADMIN' 
+                        {selectedRole === 'ADMIN'
                           ? 'Leave empty for access to all MCs, or select specific MCs'
                           : 'Select which MC numbers this user can access'}
                       </p>
@@ -689,8 +699,8 @@ export default function UserManagement({
                                     }
                                   }}
                                 />
-                                <Label 
-                                  htmlFor={`create-mc-access-${mc.id}`} 
+                                <Label
+                                  htmlFor={`create-mc-access-${mc.id}`}
                                   className="font-normal cursor-pointer flex-1"
                                 >
                                   {mc.companyName} (MC {mc.number})
@@ -988,24 +998,24 @@ export default function UserManagement({
                 {users.map((user: any) => {
                   // Combine mcAccess with primary mcNumberId to show all accessible MCs
                   const allMcIds = new Set<string>();
-                  
+
                   // Add primary MC if it exists
                   if (user.mcNumberId) {
                     allMcIds.add(user.mcNumberId);
                   }
-                  
+
                   // Add all MCs from mcAccess array
                   if (user.mcAccess && Array.isArray(user.mcAccess)) {
                     user.mcAccess.forEach((mcId: string) => allMcIds.add(mcId));
                   }
-                  
+
                   // Fallback: if no mcAccess but has mcNumber relation
                   if (allMcIds.size === 0 && user.mcNumber?.id) {
                     allMcIds.add(user.mcNumber.id);
                   }
-                  
+
                   const accessibleMcIds = Array.from(allMcIds);
-                  
+
                   return (
                     <TableRow key={user.id}>
                       {visibleColumns.checkbox && (
@@ -1094,8 +1104,8 @@ export default function UserManagement({
                       {visibleColumns.actions && (
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               onClick={() => handleEdit(user)}
                             >
@@ -1202,9 +1212,9 @@ export default function UserManagement({
 
             <div className="space-y-2">
               <Label htmlFor="edit-email">Email *</Label>
-              <Input 
-                id="edit-email" 
-                type="email" 
+              <Input
+                id="edit-email"
+                type="email"
                 {...editForm.register('email')}
               />
               {editForm.formState.errors.email && (
@@ -1283,7 +1293,7 @@ export default function UserManagement({
               <div className="space-y-2">
                 <Label>MC Access *</Label>
                 <p className="text-xs text-muted-foreground">
-                  {editSelectedRole === 'ADMIN' 
+                  {editSelectedRole === 'ADMIN'
                     ? 'Leave empty for access to all MCs, or select specific MCs'
                     : 'Select which MC numbers this user can access'}
                 </p>
@@ -1317,8 +1327,8 @@ export default function UserManagement({
                               }
                             }}
                           />
-                          <Label 
-                            htmlFor={`mc-access-${mc.id}`} 
+                          <Label
+                            htmlFor={`mc-access-${mc.id}`}
                             className="font-normal cursor-pointer flex-1"
                           >
                             {mc.companyName} (MC {mc.number})
@@ -1433,30 +1443,30 @@ export default function UserManagement({
             onSubmit={(e) => {
               e.preventDefault();
               const updates: Partial<UserFormData> = {};
-              
+
               // Add role if selected
               if (bulkEditRole && bulkEditRole !== 'none') {
                 updates.role = bulkEditRole as any;
               }
-              
+
               // Add status if selected
               if (bulkEditStatus && bulkEditStatus !== 'none') {
                 updates.isActive = bulkEditStatus === 'true';
               }
-              
+
               // Add MC Access if selected
               if (bulkEditMcAccess.length > 0) {
                 updates.mcAccess = bulkEditMcAccess;
                 // Auto-set mcNumberId to first MC
                 updates.mcNumberId = bulkEditMcAccess[0];
               }
-              
+
               // Check if there are any updates
               if (Object.keys(updates).length === 0) {
                 toast.error('Please select at least one field to update');
                 return;
               }
-              
+
               handleBulkEdit(updates);
             }}
             className="space-y-4"
@@ -1519,8 +1529,8 @@ export default function UserManagement({
                             }
                           }}
                         />
-                        <Label 
-                          htmlFor={`bulk-mc-access-${mc.id}`} 
+                        <Label
+                          htmlFor={`bulk-mc-access-${mc.id}`}
                           className="font-normal cursor-pointer flex-1"
                         >
                           {mc.companyName} (MC {mc.number})

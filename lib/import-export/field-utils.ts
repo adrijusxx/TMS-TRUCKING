@@ -1,11 +1,12 @@
-/**
- * Utility functions for import/export field handling
- */
+import { schemaReference } from '../schema-reference';
+import { getModelNameFromEntityType } from '../validations/import-field-validator';
+import { getEntityConfig } from './entity-config';
 
 export interface SystemField {
   key: string;
   label: string;
   required?: boolean;
+  suggestedCsvHeaders?: string[];
 }
 
 /**
@@ -16,10 +17,10 @@ export function deduplicateSystemFields(
   fields: SystemField[]
 ): SystemField[] {
   const seen = new Map<string, SystemField>();
-  
+
   for (const field of fields) {
     const normalizedKey = field.key.toLowerCase().trim();
-    
+
     // Keep the first occurrence, prioritizing required fields
     if (!seen.has(normalizedKey)) {
       seen.set(normalizedKey, field);
@@ -31,7 +32,7 @@ export function deduplicateSystemFields(
       }
     }
   }
-  
+
   return Array.from(seen.values());
 }
 
@@ -55,7 +56,7 @@ export function groupFieldsByCategory(
     required: [],
     optional: [],
   };
-  
+
   for (const field of fields) {
     if (field.required) {
       groups.required.push(field);
@@ -63,8 +64,49 @@ export function groupFieldsByCategory(
       groups.optional.push(field);
     }
   }
-  
+
   return groups;
+}
+
+/**
+ * Gets the list of available system fields for a given entity type for import mapping.
+ */
+export function getSystemFieldsForEntity(entityType: string): SystemField[] {
+  // Try to get from curated config first
+  const config = getEntityConfig(entityType);
+  if (config) {
+    return config.fields.map(f => ({
+      key: f.key,
+      label: f.label,
+      required: f.required,
+      suggestedCsvHeaders: f.suggestedCsvHeaders
+    }));
+  }
+
+  // Fallback to schema-based fields
+  const modelName = getModelNameFromEntityType(entityType);
+  const model = schemaReference.models[modelName];
+
+  if (!model) {
+    console.warn(`Model '${modelName}' not found for entity type '${entityType}'`);
+    return [];
+  }
+
+  return model.fields
+    .filter(field =>
+      // Exclude relations, id, and common metadata fields
+      !field.isRelation &&
+      !['id', 'createdAt', 'updatedAt', 'deletedAt', 'mcNumberId', 'companyId', 'userId'].includes(field.name)
+    )
+    .map(field => ({
+      key: field.name,
+      label: field.name
+        .replace(/([A-Z])/g, ' $1') // Add spaces before capitals
+        .replace(/^./, str => str.toUpperCase()) // Uppercase first letter
+        .replace(' Id', ' ID') // Fix ID suffix
+        .trim(),
+      required: !field.isOptional && !field.defaultValue
+    }));
 }
 
 

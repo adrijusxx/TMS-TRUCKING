@@ -20,8 +20,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system');
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'amber'>('light');
+  const [theme, setThemeState] = useState<Theme>('dark');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'amber'>('dark');
   const [fontSize, setFontSizeState] = useState<FontSize>('medium');
   const [compactMode, setCompactModeState] = useState(false);
   const [reduceMotion, setReduceMotionState] = useState(false);
@@ -54,12 +54,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (!mounted) return;
 
     const root = document.documentElement;
-    
+
     // Remove existing theme classes
     root.classList.remove('light', 'dark', 'amber');
 
     let effectiveTheme: 'light' | 'dark' | 'amber' = 'light';
-    
+
     if (theme === 'system') {
       const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       effectiveTheme = systemPrefersDark ? 'dark' : 'light';
@@ -72,6 +72,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     // Only add theme class if it's valid and not empty
     if (effectiveTheme && effectiveTheme.trim() !== '') {
+      // If theme is amber, also apply 'dark' class so dark: utilities work
+      if (effectiveTheme === 'amber') {
+        root.classList.add('dark');
+      }
       root.classList.add(effectiveTheme);
       setResolvedTheme(effectiveTheme);
     }
@@ -80,21 +84,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Apply font size
   useEffect(() => {
     if (!mounted) return;
-    
+
     const root = document.documentElement;
     const fontSizeMap = {
       small: '0.875rem',   // 14px
       medium: '1rem',      // 16px (default)
       large: '1.125rem',   // 18px
     };
-    
+
     root.style.setProperty('--base-font-size', fontSizeMap[fontSize]);
   }, [fontSize, mounted]);
 
   // Apply compact mode
   useEffect(() => {
     if (!mounted) return;
-    
+
     const root = document.documentElement;
     if (compactMode) {
       root.classList.add('compact-mode');
@@ -106,7 +110,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Apply reduce motion
   useEffect(() => {
     if (!mounted) return;
-    
+
     const root = document.documentElement;
     if (reduceMotion) {
       root.classList.add('reduce-motion');

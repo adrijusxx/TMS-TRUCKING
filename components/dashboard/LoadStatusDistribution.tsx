@@ -6,44 +6,15 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { Package } from 'lucide-react';
 import { LoadStatus } from '@prisma/client';
 import { apiUrl } from '@/lib/utils';
+import { CHART_COLORS, CHART_LABELS } from '@/lib/theme/chart-theme';
+import { LoadingState } from '@/components/ui/loading-state';
+import common from '@/lib/content/common.json';
 
 interface StatusData {
   status: LoadStatus;
   count: number;
   percentage: number;
 }
-
-const statusColors: Record<LoadStatus, string> = {
-  PENDING: '#eab308',
-  ASSIGNED: '#3b82f6',
-  EN_ROUTE_PICKUP: '#a855f7',
-  AT_PICKUP: '#f97316',
-  LOADED: '#6366f1',
-  EN_ROUTE_DELIVERY: '#06b6d4',
-  AT_DELIVERY: '#ec4899',
-  DELIVERED: '#10b981',
-  BILLING_HOLD: '#f59e0b',
-  READY_TO_BILL: '#22c55e',
-  INVOICED: '#059669',
-  PAID: '#14b8a6',
-  CANCELLED: '#ef4444',
-};
-
-const statusLabels: Record<LoadStatus, string> = {
-  PENDING: 'Pending',
-  ASSIGNED: 'Assigned',
-  EN_ROUTE_PICKUP: 'En Route Pickup',
-  AT_PICKUP: 'At Pickup',
-  LOADED: 'Loaded',
-  EN_ROUTE_DELIVERY: 'En Route Delivery',
-  AT_DELIVERY: 'At Delivery',
-  DELIVERED: 'Delivered',
-  BILLING_HOLD: 'Billing Hold',
-  READY_TO_BILL: 'Ready to Bill',
-  INVOICED: 'Invoiced',
-  PAID: 'Paid',
-  CANCELLED: 'Cancelled',
-};
 
 async function fetchLoadStatusDistribution() {
   const response = await fetch(apiUrl('/api/dashboard/load-status-distribution'));
@@ -63,10 +34,10 @@ export default function LoadStatusDistribution() {
   const totalLoads = statusData.reduce((sum, item) => sum + item.count, 0);
 
   const chartData = statusData.map((item) => ({
-    name: statusLabels[item.status],
+    name: CHART_LABELS.loadStatus[item.status],
     value: item.count,
     percentage: item.percentage,
-    color: statusColors[item.status],
+    color: CHART_COLORS.loadStatus[item.status],
   }));
 
   return (
@@ -80,13 +51,11 @@ export default function LoadStatusDistribution() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            Loading status data...
-          </div>
+          <LoadingState message="Loading status data..." className="py-8" />
         ) : error ? (
           <div className="text-center py-8">
             <p className="text-sm text-destructive mb-2">
-              Failed to load load status distribution
+              {common.states.error}
             </p>
             <p className="text-xs text-muted-foreground">
               {error instanceof Error ? error.message : 'Unknown error'}
@@ -94,7 +63,7 @@ export default function LoadStatusDistribution() {
           </div>
         ) : statusData.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            No load data available
+            {common.states.empty}
           </div>
         ) : (
           <div className="space-y-4">
@@ -139,10 +108,10 @@ export default function LoadStatusDistribution() {
                 >
                   <div
                     className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: statusColors[item.status] }}
+                    style={{ backgroundColor: CHART_COLORS.loadStatus[item.status] }}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{statusLabels[item.status]}</p>
+                    <p className="font-medium truncate">{CHART_LABELS.loadStatus[item.status]}</p>
                     <p className="text-muted-foreground">
                       {item.count} ({item.percentage.toFixed(1)}%)
                     </p>

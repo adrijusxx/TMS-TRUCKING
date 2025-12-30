@@ -49,15 +49,15 @@ export default function DriverPerformanceScorecard() {
   const meta = data?.meta;
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 80) return 'text-status-success';
+    if (score >= 60) return 'text-status-warning';
+    return 'text-status-error';
   };
 
   const getScoreBadge = (score: number) => {
-    if (score >= 80) return 'bg-green-100 text-green-800 border-green-200';
-    if (score >= 60) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    return 'bg-red-100 text-red-800 border-red-200';
+    if (score >= 80) return 'success';
+    if (score >= 60) return 'warning';
+    return 'destructive';
   };
 
   return (
@@ -213,13 +213,12 @@ export default function DriverPerformanceScorecard() {
                         <div className="flex items-center gap-2">
                           {idx < 3 && (
                             <Award
-                              className={`h-5 w-5 ${
-                                idx === 0
-                                  ? 'text-yellow-500'
-                                  : idx === 1
-                                  ? 'text-gray-400'
-                                  : 'text-orange-600'
-                              }`}
+                              className={`h-5 w-5 ${idx === 0
+                                ? 'text-status-warning'
+                                : idx === 1
+                                  ? 'text-muted-foreground'
+                                  : 'text-status-error'
+                                }`}
                             />
                           )}
                           <span className="font-medium">#{idx + 1}</span>
@@ -234,7 +233,7 @@ export default function DriverPerformanceScorecard() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="outline" className={getScoreBadge(driver.performanceScore)}>
+                        <Badge variant={getScoreBadge(driver.performanceScore) as any}>
                           <span className={getScoreColor(driver.performanceScore)}>
                             {driver.performanceScore}
                           </span>
@@ -246,9 +245,9 @@ export default function DriverPerformanceScorecard() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {driver.rates.onTimeRate >= 90 ? (
-                            <TrendingUp className="h-4 w-4 text-green-600" />
+                            <TrendingUp className="h-4 w-4 text-status-success" />
                           ) : (
-                            <TrendingDown className="h-4 w-4 text-red-600" />
+                            <TrendingDown className="h-4 w-4 text-status-error" />
                           )}
                           {driver.rates.onTimeRate.toFixed(1)}%
                         </div>
@@ -267,11 +266,11 @@ export default function DriverPerformanceScorecard() {
                       </TableCell>
                       <TableCell className="text-right">
                         {driver.metrics.totalHOSViolations > 0 ? (
-                          <span className="text-red-600 font-medium">
+                          <span className="text-status-error font-medium">
                             {driver.metrics.totalHOSViolations}
                           </span>
                         ) : (
-                          <span className="text-green-600">0</span>
+                          <span className="text-status-success">0</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

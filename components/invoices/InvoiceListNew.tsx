@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { invoicesTableConfig } from '@/lib/config/entities/invoices';
@@ -211,12 +211,17 @@ export default function InvoiceListNew() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
           {can('data.import') && (
-            <ImportDialog entityType="invoices">
+            <ImportSheet
+              entityType="invoices"
+              onImportComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ['invoices'] });
+              }}
+            >
               <Button variant="outline" size="sm">
                 <Upload className="h-4 w-4 mr-2" />
                 Import
               </Button>
-            </ImportDialog>
+            </ImportSheet>
           )}
           {can('data.export') && (
             <ExportDialog entityType="invoices">

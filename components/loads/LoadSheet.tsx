@@ -15,6 +15,7 @@ interface LoadSheetProps {
     onOpenChange: (open: boolean) => void;
     mode: SheetMode;
     loadId?: string | null;
+    initialData?: any;
 }
 
 async function fetchLoadWithDetails(id: string) {
@@ -35,7 +36,7 @@ async function fetchAvailableTrucks() {
     return response.json();
 }
 
-export default function LoadSheet({ open, onOpenChange, mode, loadId }: LoadSheetProps) {
+export default function LoadSheet({ open, onOpenChange, mode, loadId, initialData }: LoadSheetProps) {
     const queryClient = useQueryClient();
 
     // Data fetching for Edit/View modes
@@ -89,6 +90,7 @@ export default function LoadSheet({ open, onOpenChange, mode, loadId }: LoadShee
                         onSuccess={handleSuccess}
                         onCancel={() => onOpenChange(false)}
                         isSheet={true}
+                        initialData={initialData}
                     />
                 )}
 

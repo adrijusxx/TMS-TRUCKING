@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Upload, Download } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { locationsTableConfig } from '@/lib/config/entities/locations';
@@ -97,19 +97,19 @@ export default function LocationListNew() {
       data: result.data?.locations || result.data || [],
       meta: result.data?.pagination
         ? {
-            totalCount: result.data.pagination.total,
-            totalPages: result.data.pagination.totalPages,
-            page: result.data.pagination.page,
-            pageSize: result.data.pagination.limit,
-          }
+          totalCount: result.data.pagination.total,
+          totalPages: result.data.pagination.totalPages,
+          page: result.data.pagination.page,
+          pageSize: result.data.pagination.limit,
+        }
         : result.meta
-        ? {
+          ? {
             totalCount: result.meta.total,
             totalPages: result.meta.totalPages,
             page: result.meta.page,
             pageSize: result.meta.limit,
           }
-        : {
+          : {
             totalCount: result.data?.length || 0,
             totalPages: 1,
             page: params.page || 1,
@@ -134,12 +134,17 @@ export default function LocationListNew() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
           {can('data.import') && (
-            <ImportDialog entityType="locations">
+            <ImportSheet
+              entityType="locations"
+              onImportComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ['locations'] });
+              }}
+            >
               <Button variant="outline" size="sm">
                 <Upload className="h-4 w-4 mr-2" />
                 Import
               </Button>
-            </ImportDialog>
+            </ImportSheet>
           )}
           {can('data.export') && (
             <ExportDialog entityType="locations">
@@ -188,7 +193,7 @@ export default function LocationListNew() {
           enableBulkEdit={can('locations.bulk_edit') || can('data.bulk_edit')}
           enableBulkDelete={can('locations.bulk_delete') || can('data.bulk_delete')}
           enableBulkExport={can('data.export') || can('export.execute')}
-          onActionComplete={() => {}}
+          onActionComplete={() => { }}
         />
       )}
     </div>

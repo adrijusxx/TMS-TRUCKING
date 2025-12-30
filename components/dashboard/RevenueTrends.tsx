@@ -14,6 +14,9 @@ import {
   Legend,
 } from 'recharts';
 import { formatCurrency, apiUrl } from '@/lib/utils';
+import { CHART_COLORS } from '@/lib/theme/chart-theme';
+import { LoadingState } from '@/components/ui/loading-state';
+import common from '@/lib/content/common.json';
 
 interface RevenueData {
   month: string;
@@ -71,13 +74,11 @@ export default function RevenueTrends() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            Loading revenue data...
-          </div>
+          <LoadingState message="Loading revenue data..." className="py-8" />
         ) : error ? (
           <div className="text-center py-8">
             <p className="text-sm text-destructive mb-2">
-              Failed to load revenue trends
+              {common.states.error}
             </p>
             <p className="text-xs text-muted-foreground">
               {error instanceof Error ? error.message : 'Unknown error'}
@@ -85,7 +86,7 @@ export default function RevenueTrends() {
           </div>
         ) : revenueData.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            No revenue data available
+            {common.states.empty}
           </div>
         ) : (
           <div className="space-y-4">
@@ -134,7 +135,7 @@ export default function RevenueTrends() {
                   yAxisId="revenue"
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#3b82f6"
+                  stroke={CHART_COLORS.status.assigned}
                   strokeWidth={2}
                   name="Revenue"
                   dot={{ r: 4 }}
@@ -143,7 +144,7 @@ export default function RevenueTrends() {
                   yAxisId="loads"
                   type="monotone"
                   dataKey="loads"
-                  stroke="#10b981"
+                  stroke={CHART_COLORS.status.success}
                   strokeWidth={2}
                   name="Loads"
                   dot={{ r: 4 }}

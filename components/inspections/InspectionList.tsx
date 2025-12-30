@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { ClipboardCheck, Plus, Filter, Download, Upload } from 'lucide-react';
 import { formatDate, apiUrl } from '@/lib/utils';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -141,7 +141,15 @@ export default function InspectionList() {
           <p className="text-sm text-muted-foreground">Manage vehicle inspections and compliance</p>
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog entityType="inspections" onImportComplete={() => refetch()} />
+          <ImportSheet
+            entityType="inspections"
+            onImportComplete={() => refetch()}
+          >
+            <Button variant="outline">
+              <Upload className="h-4 w-4 mr-2" />
+              Import
+            </Button>
+          </ImportSheet>
           <ExportDialog entityType="inspections" />
           <Link href="/dashboard/inspections/new">
             <Button>

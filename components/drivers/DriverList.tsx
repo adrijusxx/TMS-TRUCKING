@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Filter, Download, Save, Columns } from 'lucide-react';
+import { Plus, Search, Filter, Download, Save, Columns, Upload } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import DriverTable from './DriverTable';
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkUpdatePayDialog from './BulkUpdatePayDialog';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
@@ -37,6 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import common from '@/lib/content/common.json';
 
 type DriverTab = 'active' | 'unassigned' | 'all' | 'terminated' | 'vacation';
 
@@ -89,7 +90,7 @@ async function fetchDrivers(params: {
       queryParams.set(key, params[key].toString());
     }
   });
-  
+
   // Add includeDeleted if provided
   if (params.includeDeleted) {
     queryParams.set('includeDeleted', params.includeDeleted);
@@ -107,16 +108,16 @@ export default function DriverList() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  
+
   // Get includeDeleted from URL params (admins only)
   const includeDeleted = searchParams.get('includeDeleted') === 'true';
-  
+
   const [activeTab, setActiveTab] = useState<DriverTab>('active');
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDriverIds, setSelectedDriverIds] = useState<string[]>([]);
   const [rowsPerPage, setRowsPerPage] = useState(500);
-  
+
   // Column visibility state - default to essential columns only
   const [visibleColumns, setVisibleColumns] = useState({
     checkbox: true,
@@ -200,10 +201,10 @@ export default function DriverList() {
           setSelectedDriverIds([]);
         }}>
           <TabsList>
-            <TabsTrigger value="active">Active Drivers</TabsTrigger>
-            <TabsTrigger value="unassigned">Unassigned drivers</TabsTrigger>
-            <TabsTrigger value="all">All Drivers</TabsTrigger>
-            <TabsTrigger value="terminated">Terminated Drivers</TabsTrigger>
+            <TabsTrigger value="active">Active {common.driver.plural}</TabsTrigger>
+            <TabsTrigger value="unassigned">Unassigned {common.driver.plural_lower}</TabsTrigger>
+            <TabsTrigger value="all">All {common.driver.plural}</TabsTrigger>
+            <TabsTrigger value="terminated">Terminated {common.driver.plural}</TabsTrigger>
             <TabsTrigger value="vacation">Vacation board</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -211,7 +212,7 @@ export default function DriverList() {
           <Link href="/dashboard/drivers/new">
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Create driver
+              Create {common.driver.label.toLowerCase()}
             </Button>
           </Link>
         )}
@@ -240,8 +241,8 @@ export default function DriverList() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog 
-            entityType="drivers" 
+          <ImportSheet
+            entityType="drivers"
             onImportComplete={() => {
               // Invalidate and refetch drivers query
               queryClient.invalidateQueries({ queryKey: ['drivers'] });
@@ -253,7 +254,12 @@ export default function DriverList() {
                 refetch();
               }, 100);
             }}
-          />
+          >
+            <Button variant="outline" size="sm">
+              <Upload className="h-4 w-4 mr-2" />
+              Import
+            </Button>
+          </ImportSheet>
           <BulkUpdatePayDialog
             selectedDriverIds={selectedDriverIds.length > 0 ? selectedDriverIds : undefined}
             trigger={
@@ -458,7 +464,7 @@ export default function DriverList() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search other drivers..."
+            placeholder={`Search other ${common.driver.plural_lower}...`}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -471,10 +477,10 @@ export default function DriverList() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="text-center py-8">Loading drivers...</div>
+        <div className="text-center py-8">Loading {common.driver.plural_lower}...</div>
       ) : error ? (
         <div className="text-center py-8 text-destructive">
-          Error loading drivers. Please try again.
+          Error loading {common.driver.plural_lower}. Please try again.
         </div>
       ) : drivers.length === 0 ? (
         <div className="text-center py-12 border rounded-lg">
@@ -482,13 +488,13 @@ export default function DriverList() {
           <p className="text-muted-foreground mb-4">
             {searchQuery
               ? 'Try adjusting your search'
-              : 'Get started by adding your first driver'}
+              : `Get started by adding your first ${common.driver.label.toLowerCase()}`}
           </p>
           {!searchQuery && (
             <Link href="/dashboard/drivers/new">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Driver
+                Add {common.driver.label}
               </Button>
             </Link>
           )}
@@ -533,7 +539,7 @@ export default function DriverList() {
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
                 Showing {((page - 1) * rowsPerPage) + 1} to{' '}
-                {Math.min(page * rowsPerPage, meta.total)} of {meta.total} drivers
+                {Math.min(page * rowsPerPage, meta.total)} of {meta.total} {common.driver.plural_lower}
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">

@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import SimilarCasesPanel from '@/components/breakdowns/SimilarCasesPanel';
 import SolutionSuggestions from '@/components/breakdowns/SolutionSuggestions';
+import common from '@/lib/content/common.json';
 
 async function fetchTrucks() {
   const response = await fetch(apiUrl('/api/trucks?limit=1000'));
@@ -189,7 +190,7 @@ export default function CreateBreakdownForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="driverId">Driver</Label>
+                <Label htmlFor="driverId">{common.driver.label}</Label>
                 <Select
                   onValueChange={(value) => {
                     if (value === 'none') {
@@ -200,7 +201,7 @@ export default function CreateBreakdownForm() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a driver (optional)" />
+                    <SelectValue placeholder={`${common.driver.select_placeholder} (optional)`} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
@@ -330,28 +331,28 @@ export default function CreateBreakdownForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
+                <Label htmlFor="address">{common.address.label}</Label>
                 <Input
                   id="address"
-                  placeholder="Street address"
+                  placeholder={common.address.label}
                   {...register('address')}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
+                  <Label htmlFor="city">{common.address.city}</Label>
                   <Input
                     id="city"
-                    placeholder="City"
+                    placeholder={common.address.city}
                     {...register('city')}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="state">State</Label>
+                  <Label htmlFor="state">{common.address.state}</Label>
                   <Input
                     id="state"
-                    placeholder="State"
+                    placeholder={common.address.state}
                     maxLength={2}
                     {...register('state')}
                   />
@@ -359,10 +360,10 @@ export default function CreateBreakdownForm() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="zip">ZIP Code</Label>
+                <Label htmlFor="zip">{common.address.zip}</Label>
                 <Input
                   id="zip"
-                  placeholder="ZIP Code"
+                  placeholder={common.address.zip}
                   {...register('zip')}
                 />
               </div>

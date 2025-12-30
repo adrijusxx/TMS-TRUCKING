@@ -64,21 +64,47 @@ export async function PATCH(
             subscriptionStatus, manualOverride, manualModules, planId // Added planId
         } = body;
 
+        // Fetch existing company to check constraints
+        const existingCompany = await prisma.company.findUnique({
+            where: { id },
+        });
+
+        if (!existingCompany) {
+            return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+        }
+
+        // Build update data
+        const updateData: any = {
+            ...(name && { name }),
+            ...(email && { email }),
+            ...(phone && { phone }),
+            ...(address && { address }),
+            ...(city && { city }),
+            ...(state && { state }),
+            ...(zip && { zip }),
+            ...(isActive !== undefined && { isActive }),
+        };
+
+        // Only update DOT number if it changed (avoids unique constraint issues on self-update)
+        // And check for duplicates if it IS changing
+        if (dotNumber && dotNumber !== existingCompany.dotNumber) {
+            const duplicate = await prisma.company.findUnique({
+                where: { dotNumber },
+            });
+
+            if (duplicate) {
+                return NextResponse.json(
+                    { error: `DOT Number ${dotNumber} is already in use by company: ${duplicate.name}` },
+                    { status: 400 }
+                );
+            }
+            updateData.dotNumber = dotNumber;
+        }
+
         // Update company
         const updatedCompany = await prisma.company.update({
             where: { id },
-            data: {
-                ...(name && { name }),
-                ...(dotNumber && { dotNumber }),
-                ...(email && { email }),
-                ...(phone && { phone }),
-                ...(address && { address }),
-                ...(city && { city }),
-                ...(state && { state }),
-                ...(zip && { zip }),
-                ...(isActive !== undefined && { isActive }),
-                // subscriptionStatus is deprecated in favor of Subscription model but kept for compat if needed
-            },
+            data: updateData,
         });
 
         // Update subscription if needed

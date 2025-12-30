@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Upload, Download, Edit, Sparkles } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import LoadSheet from '@/components/loads/LoadSheet';
 import LoadStatisticsCard from '@/components/loads/LoadStatisticsCard';
@@ -74,10 +74,12 @@ export default function LoadListNew() {
   const [selectedLoadId, setSelectedLoadId] = React.useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+  const [initialCreateData, setInitialCreateData] = React.useState<any>(undefined);
 
   const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
     setSheetMode(mode);
     if (id) setSelectedLoadId(id);
+    if (mode === 'create') setInitialCreateData(undefined); // Reset
     setSheetOpen(true);
   };
 
@@ -242,12 +244,27 @@ export default function LoadListNew() {
         </div>
         <div className="flex items-center gap-1">
           {can('data.import') && (
-            <ImportDialog entityType="loads">
+            <ImportSheet
+              entityType="loads"
+              onImportComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ['loads'] });
+                toast.success('Import completed successfully');
+              }}
+              onAIImport={(data, file) => {
+                setInitialCreateData(data);
+                setSheetMode('create');
+                setSheetOpen(true);
+                // Note: File handling would need extra logic to attach 'file' to the form or state
+                if (file) {
+                  toast.success('Data extracted. Please review and save.');
+                }
+              }}
+            >
               <Button variant="outline" size="sm" className="h-6 text-xs px-2">
                 <Upload className="h-3 w-3 mr-1" />
                 Import
               </Button>
-            </ImportDialog>
+            </ImportSheet>
           )}
           {can('data.export') && (
             <ExportDialog entityType="loads">
@@ -314,9 +331,15 @@ export default function LoadListNew() {
       {/* Load Sheet (Unified View/Edit/Create) */}
       <LoadSheet
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) {
+            setInitialCreateData(undefined); // Clear initial data on close
+          }
+        }}
         mode={sheetMode}
         loadId={selectedLoadId}
+        initialData={initialCreateData}
       />
     </div>
   );

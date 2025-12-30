@@ -112,7 +112,7 @@ function UserProfileSection({ collapsed }: { collapsed?: boolean }) {
   if (collapsed) {
     return (
       <div className="flex items-center justify-center py-2">
-        <div className="rounded-full bg-primary/20 p-2">
+        <div className="rounded-full bg-accent/20 p-2">
           <Users className="h-4 w-4 text-primary" />
         </div>
       </div>
@@ -125,10 +125,10 @@ function UserProfileSection({ collapsed }: { collapsed?: boolean }) {
         <Users className="h-4 w-4 text-primary" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-slate-200 dark:text-foreground truncate">
+        <div className="text-sm font-medium text-foreground truncate">
           {userName}
         </div>
-        <div className="text-xs text-slate-400 dark:text-muted-foreground truncate">
+        <div className="text-xs text-muted-foreground truncate">
           {userEmail}
         </div>
       </div>
@@ -321,7 +321,7 @@ export default function DashboardLayout({
   }, []); // Empty deps - only log once on mount
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -334,7 +334,7 @@ export default function DashboardLayout({
       {!shouldHideMainNav && (
         <aside
           className={cn(
-            'fixed top-0 left-0 z-50 h-full bg-slate-900 dark:bg-secondary text-slate-100 dark:text-foreground transform transition-all duration-300 ease-in-out',
+            'fixed top-0 left-0 z-50 h-full bg-secondary text-secondary-foreground border-r border-border transform transition-all duration-300 ease-in-out',
             // Mobile: slide in/out (always available)
             sidebarOpen ? 'translate-x-0' : '-translate-x-full',
             // Desktop: hide if mainSidebarHidden is true, otherwise show
@@ -387,7 +387,7 @@ export default function DashboardLayout({
         >
           <div className="flex flex-col h-full">
             {/* Logo */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-800 dark:border-border">
+            <div className="flex items-center justify-between p-4 border-b border-border">
               <div className={cn(
                 'flex items-center space-x-2 transition-opacity',
                 mainSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
@@ -405,7 +405,7 @@ export default function DashboardLayout({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hidden lg:flex text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent"
+                        className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
                         onClick={toggleMainSidebarAlwaysShow}
                       >
                         {mainSidebarAlwaysShow ? (
@@ -424,7 +424,7 @@ export default function DashboardLayout({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="hidden lg:flex text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent"
+                  className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
                   onClick={() => {
                     // Clear any pending timeout
                     if (hoverTimeoutRef.current) {
@@ -473,7 +473,7 @@ export default function DashboardLayout({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="lg:hidden text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent"
+                  className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-accent/10"
                   onClick={() => setSidebarOpen(false)}
                 >
                   <X className="h-5 w-5" />
@@ -504,8 +504,8 @@ export default function DashboardLayout({
                         'flex items-center rounded-lg text-sm font-medium transition-colors',
                         mainSidebarCollapsed ? 'justify-center px-2 py-2' : 'space-x-3 px-3 py-2',
                         isActive
-                          ? 'bg-primary text-primary-foreground dark:bg-accent dark:text-accent-foreground'
-                          : 'text-slate-300 dark:text-foreground/70 hover:bg-slate-800 dark:hover:bg-accent hover:text-white dark:hover:text-foreground'
+                          ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
+                          : 'text-muted-foreground hover:bg-accent/10 hover:text-foreground'
                       )}
                       onClick={() => setSidebarOpen(false)}
                     >
@@ -534,7 +534,7 @@ export default function DashboardLayout({
                 {session?.user?.role === 'SUPER_ADMIN' && (
                   <>
                     {!mainSidebarCollapsed && (
-                      <div className="px-3 py-2 mt-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      <div className="px-3 py-2 mt-4 text-xs font-semibold text-status-error/80 uppercase tracking-wider">
                         System
                       </div>
                     )}
@@ -549,8 +549,8 @@ export default function DashboardLayout({
                             'flex items-center rounded-lg text-sm font-medium transition-colors',
                             mainSidebarCollapsed ? 'justify-center p-3' : 'px-3 py-2',
                             isActive
-                              ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                              : 'text-slate-300 hover:bg-red-500/10 hover:text-red-200'
+                              ? 'bg-status-error text-status-error-foreground shadow-sm shadow-status-error/20'
+                              : 'text-muted-foreground hover:bg-status-error/10 hover:text-status-error'
                           )}
                         >
                           <item.icon className={cn('flex-shrink-0', mainSidebarCollapsed ? 'h-5 w-5' : 'h-5 w-5 mr-3')} />
@@ -590,7 +590,7 @@ export default function DashboardLayout({
                     <Button
                       variant="ghost"
                       className={cn(
-                        'w-full transition-colors text-slate-300 dark:text-foreground/70 hover:text-white dark:hover:text-foreground hover:bg-slate-800 dark:hover:bg-accent',
+                        'w-full transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/10',
                         mainSidebarCollapsed ? 'justify-center px-2' : 'justify-start'
                       )}
                       onClick={async (e) => {
@@ -643,7 +643,7 @@ export default function DashboardLayout({
       )}>
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-background border-b border-border dark:bg-card">
-          <div className="flex items-center gap-2 px-4 py-3">
+          <div className="flex items-center gap-2 px-4 py-3 header-container">
             <Button
               variant="ghost"
               size="icon"

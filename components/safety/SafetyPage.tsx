@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Shield, AlertTriangle, GraduationCap, Plus, Filter, Download, Upload } from 'lucide-react';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -222,7 +222,15 @@ export default function SafetyPage() {
         <TabsContent value="incidents" className="space-y-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-2">
-              <ImportDialog entityType="safety-incidents" onImportComplete={() => refetchIncidents()} />
+              <ImportSheet
+                entityType="safety-incidents"
+                onImportComplete={() => refetchIncidents()}
+              >
+                <Button variant="outline">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+              </ImportSheet>
               <ExportDialog entityType="safety-incidents" />
               <Link href="/dashboard/safety/incidents/new">
                 <Button>
@@ -447,7 +455,15 @@ export default function SafetyPage() {
         <TabsContent value="trainings" className="space-y-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-2">
-              <ImportDialog entityType="safety-trainings" onImportComplete={() => refetchTrainings()} />
+              <ImportSheet
+                entityType="safety-trainings"
+                onImportComplete={() => refetchTrainings()}
+              >
+                <Button variant="outline">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+              </ImportSheet>
               <ExportDialog entityType="safety-trainings" />
               <Link href="/dashboard/safety/trainings/new">
                 <Button>

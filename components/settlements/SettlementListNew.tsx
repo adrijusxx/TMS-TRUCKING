@@ -7,7 +7,7 @@ import { Upload, Download, FileText } from 'lucide-react';
 import { GenerateSettlementsButton } from './GenerateSettlementsButton';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { settlementsTableConfig } from '@/lib/config/entities/settlements';
@@ -96,17 +96,17 @@ export default function SettlementListNew() {
       data: result.data || [],
       meta: result.meta
         ? {
-            totalCount: result.meta.total,
-            totalPages: result.meta.totalPages,
-            page: result.meta.page,
-            pageSize: result.meta.limit,
-          }
+          totalCount: result.meta.total,
+          totalPages: result.meta.totalPages,
+          page: result.meta.page,
+          pageSize: result.meta.limit,
+        }
         : {
-            totalCount: result.data?.length || 0,
-            totalPages: 1,
-            page: params.page || 1,
-            pageSize: params.pageSize || 20,
-          },
+          totalCount: result.data?.length || 0,
+          totalPages: 1,
+          page: params.page || 1,
+          pageSize: params.pageSize || 20,
+        },
     };
   };
 
@@ -139,12 +139,17 @@ export default function SettlementListNew() {
             </Button>
           </Link>
           {can('data.import') && (
-            <ImportDialog entityType="settlements">
+            <ImportSheet
+              entityType="settlements"
+              onImportComplete={() => {
+                queryClient.invalidateQueries({ queryKey: ['settlements'] });
+              }}
+            >
               <Button variant="outline" size="sm">
                 <Upload className="h-4 w-4 mr-2" />
                 Import
               </Button>
-            </ImportDialog>
+            </ImportSheet>
           )}
           {can('data.export') && (
             <ExportDialog entityType="settlements">
@@ -184,7 +189,7 @@ export default function SettlementListNew() {
           enableBulkEdit={can('settlements.bulk_edit') || can('data.bulk_edit')}
           enableBulkDelete={can('settlements.bulk_delete') || can('data.bulk_delete')}
           enableBulkExport={can('data.export') || can('export.execute')}
-          onActionComplete={() => {}}
+          onActionComplete={() => { }}
         />
       )}
     </div>

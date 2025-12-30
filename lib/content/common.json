@@ -1,0 +1,52 @@
+{
+    "actions": {
+        "save": "Save",
+        "submit": "Submit",
+        "cancel": "Cancel",
+        "discard": "Discard",
+        "delete": "Delete",
+        "edit": "Edit",
+        "view": "View",
+        "create": "Create",
+        "add": "Add",
+        "update": "Update",
+        "confirm": "Confirm",
+        "loading": "Loading...",
+        "processing": "Processing..."
+    },
+    "states": {
+        "empty": "No data available",
+        "error": "Something went wrong",
+        "notFound": "Not found",
+        "success": "Success"
+    },
+    "validation": {
+        "required": "This field is required",
+        "invalid": "Invalid input"
+    },
+    "driver": {
+        "label": "Driver",
+        "plural": "Drivers",
+        "plural_lower": "drivers",
+        "required_label": "Driver *",
+        "select_placeholder": "Select a driver"
+    },
+    "address": {
+        "label": "Address",
+        "required_label": "Address *",
+        "line1": "Address 1",
+        "line2": "Address 2",
+        "city": "City",
+        "state": "State",
+        "zip": "Zip Code"
+    },
+    "load": {
+        "label": "Load",
+        "plural": "Loads",
+        "plural_lower": "loads"
+    },
+    "financial": {
+        "placeholder_zero": "0.00",
+        "currency_symbol": "$"
+    }
+}

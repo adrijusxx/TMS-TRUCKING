@@ -24,7 +24,7 @@ import {
 import { Wrench, Plus, Search, Filter, Download, Upload, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -186,7 +186,15 @@ export default function MaintenanceList() {
           <p className="text-sm text-muted-foreground">Manage vehicle maintenance schedules and history</p>
         </div>
         <div className="flex items-center gap-2">
-          <ImportDialog entityType="maintenance" onImportComplete={() => refetch()} />
+          <ImportSheet
+            entityType="maintenance"
+            onImportComplete={() => refetch()}
+          >
+            <Button variant="outline" size="sm">
+              <Upload className="h-4 w-4 mr-2" />
+              Import
+            </Button>
+          </ImportSheet>
           <ExportDialog entityType="maintenance" />
           <Button onClick={() => {
             setEditingRecord(null);

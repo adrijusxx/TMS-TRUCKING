@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/export';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 
 interface CustomerData {
   id: string;
@@ -174,14 +174,14 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
       />
 
       <div className="hidden">
-        <ImportDialog
+        <ImportSheet
           entityType="customers"
           onImportComplete={() => {
-            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            handleUpdate();
           }}
         >
           <button data-import-trigger="customers" type="button" />
-        </ImportDialog>
+        </ImportSheet>
       </div>
     </div>
   );

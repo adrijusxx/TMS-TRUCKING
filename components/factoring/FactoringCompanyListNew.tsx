@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Plus, Upload, Download } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
-import ImportDialog from '@/components/import-export/ImportDialog';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 import { factoringCompaniesTableConfig } from '@/lib/config/entities/factoring-companies';
@@ -32,6 +33,7 @@ interface FactoringCompanyData {
 }
 
 export default function FactoringCompanyListNew() {
+  const queryClient = useQueryClient();
   const { can } = usePermissions();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
@@ -94,12 +96,15 @@ export default function FactoringCompanyListNew() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
           {can('data.import') && (
-            <ImportDialog entityType="factoring-companies">
+            <ImportSheet
+              entityType="factoring-companies"
+              onImportComplete={() => queryClient.invalidateQueries({ queryKey: ['factoring-companies'] })}
+            >
               <Button variant="outline" size="sm">
                 <Upload className="h-4 w-4 mr-2" />
                 Import
               </Button>
-            </ImportDialog>
+            </ImportSheet>
           )}
           {can('data.export') && (
             <ExportDialog entityType="factoring-companies">
@@ -145,7 +150,7 @@ export default function FactoringCompanyListNew() {
           enableBulkEdit={can('factoring_companies.bulk_edit') || can('data.bulk_edit')}
           enableBulkDelete={can('factoring_companies.bulk_delete') || can('data.bulk_delete')}
           enableBulkExport={can('data.export') || can('export.execute')}
-          onActionComplete={() => {}}
+          onActionComplete={() => { }}
         />
       )}
     </div>

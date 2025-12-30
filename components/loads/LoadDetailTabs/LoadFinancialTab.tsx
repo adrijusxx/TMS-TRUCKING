@@ -12,6 +12,7 @@ import { AccountingSyncStatus } from '@prisma/client';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useState } from 'react';
+import common from '@/lib/content/common.json';
 
 interface LoadFinancialTabProps {
   load: any;
@@ -20,12 +21,12 @@ interface LoadFinancialTabProps {
   onLoadRefetch?: () => void;
 }
 
-const syncStatusColors: Record<AccountingSyncStatus, string> = {
-  NOT_SYNCED: 'bg-gray-100 text-gray-800 border-gray-200',
-  PENDING_SYNC: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  SYNCED: 'bg-green-100 text-green-800 border-green-200',
-  SYNC_FAILED: 'bg-red-100 text-red-800 border-red-200',
-  REQUIRES_REVIEW: 'bg-orange-100 text-orange-800 border-orange-200',
+const syncStatusVariant: Record<AccountingSyncStatus, "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "error" | "info" | "neutral"> = {
+  NOT_SYNCED: 'neutral',
+  PENDING_SYNC: 'warning',
+  SYNCED: 'success',
+  SYNC_FAILED: 'error',
+  REQUIRES_REVIEW: 'warning',
 };
 
 export default function LoadFinancialTab({
@@ -102,11 +103,11 @@ export default function LoadFinancialTab({
                   step="0.01"
                   value={getInputValue(formData.revenue, load.revenue, '')}
                   onChange={(e) => updateField('revenue', e.target.value ? parseFloat(e.target.value) : null)}
-                  placeholder="0.00"
+                  placeholder={common.financial.placeholder_zero}
                   className="font-semibold"
                 />
               ) : (
-                <p className="font-bold text-lg text-green-600 mt-1">
+                <p className="font-bold text-lg text-status-success mt-1">
                   {formatCurrency(load.revenue)}
                 </p>
               )}
@@ -136,7 +137,7 @@ export default function LoadFinancialTab({
                   step="0.01"
                   value={getInputValue(formData.driverPay, load.driverPay, '')}
                   onChange={(e) => updateField('driverPay', e.target.value ? parseFloat(e.target.value) : null)}
-                  placeholder="0.00"
+                  placeholder={common.financial.placeholder_zero}
                 />
               ) : (
                 <p className="font-medium text-sm mt-1">
@@ -156,7 +157,7 @@ export default function LoadFinancialTab({
                   step="0.01"
                   value={getInputValue(formData.fuelAdvance, load.fuelAdvance, 0)}
                   onChange={(e) => updateField('fuelAdvance', e.target.value ? parseFloat(e.target.value) : 0)}
-                  placeholder="0.00"
+                  placeholder={common.financial.placeholder_zero}
                 />
               ) : (
                 <p className="font-medium text-sm mt-1">
@@ -174,7 +175,7 @@ export default function LoadFinancialTab({
                   step="0.01"
                   value={getInputValue(formData.serviceFee, load.serviceFee, '')}
                   onChange={(e) => updateField('serviceFee', e.target.value ? parseFloat(e.target.value) : null)}
-                  placeholder="0.00"
+                  placeholder={common.financial.placeholder_zero}
                 />
               ) : (
                 <p className="font-medium text-sm mt-1">
@@ -198,7 +199,7 @@ export default function LoadFinancialTab({
                   <TrendingUp className="h-3.5 w-3.5" />
                   Net Profit
                 </Label>
-                <p className={`font-bold text-lg mt-1 ${load.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                <p className={`font-bold text-lg mt-1 ${load.profit >= 0 ? 'text-status-success' : 'text-status-error'}`}>
                   {formatCurrency(load.profit)}
                 </p>
               </div>
@@ -302,8 +303,7 @@ export default function LoadFinancialTab({
               <Label className="text-sm text-muted-foreground">Sync Status</Label>
               <div className="mt-1">
                 <Badge
-                  variant="outline"
-                  className={syncStatusColors[(load.accountingSyncStatus || 'NOT_SYNCED') as AccountingSyncStatus]}
+                  variant={syncStatusVariant[(load.accountingSyncStatus || 'NOT_SYNCED') as AccountingSyncStatus]}
                 >
                   {load.accountingSyncStatus?.replace(/_/g, ' ') || 'NOT_SYNCED'}
                 </Badge>
@@ -321,9 +321,9 @@ export default function LoadFinancialTab({
 
             <div className="flex items-center gap-2">
               {load.readyForSettlement ? (
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-4 w-4 text-status-success" />
               ) : (
-                <XCircle className="h-4 w-4 text-gray-400" />
+                <XCircle className="h-4 w-4 text-muted-foreground" />
               )}
               <Label className="text-sm">
                 {load.readyForSettlement ? 'Ready for Settlement' : 'Not Ready for Settlement'}
@@ -349,7 +349,7 @@ export default function LoadFinancialTab({
             {load.netProfit !== null && load.netProfit !== undefined && (
               <div>
                 <Label className="text-sm text-muted-foreground">Net Profit (Calculated)</Label>
-                <p className={`font-medium text-sm mt-1 ${load.netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                <p className={`font-medium text-sm mt-1 ${load.netProfit >= 0 ? 'text-status-success' : 'text-status-error'}`}>
                   {formatCurrency(load.netProfit)}
                 </p>
               </div>
@@ -360,4 +360,3 @@ export default function LoadFinancialTab({
     </div>
   );
 }
-

@@ -78,9 +78,9 @@ export function DriverSettlementHistory({ driverId }: { driverId: string }) {
   };
 
   const getStatusBadge = (status: string) => {
-    if (status === 'PAID') return <Badge className="bg-green-500">Paid</Badge>;
-    if (status === 'APPROVED') return <Badge className="bg-blue-500">Approved</Badge>;
-    if (status === 'PENDING') return <Badge className="bg-yellow-500">Pending</Badge>;
+    if (status === 'PAID') return <Badge variant="success">Paid</Badge>;
+    if (status === 'APPROVED') return <Badge variant="info">Approved</Badge>;
+    if (status === 'PENDING') return <Badge variant="warning">Pending</Badge>;
     return <Badge variant="secondary">{status}</Badge>;
   };
 
@@ -138,10 +138,10 @@ export function DriverSettlementHistory({ driverId }: { driverId: string }) {
                   <TableCell className="text-right font-medium">
                     ${settlement.grossPay.toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right text-red-600">
+                  <TableCell className="text-right text-status-error">
                     -${settlement.totalDeductions.toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right font-bold text-green-600">
+                  <TableCell className="text-right font-bold text-status-success">
                     ${settlement.netPay.toLocaleString()}
                   </TableCell>
                   <TableCell>{getStatusBadge(settlement.status)}</TableCell>

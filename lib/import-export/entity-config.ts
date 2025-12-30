@@ -5,7 +5,7 @@
 
 interface EntityConfig {
   label: string;
-  fields: Array<{ key: string; label: string; required?: boolean }>;
+  fields: Array<{ key: string; label: string; required?: boolean; suggestedCsvHeaders?: string[] }>;
   exampleFileUrl?: string;
 }
 
@@ -16,34 +16,34 @@ const entityConfigs: Record<string, EntityConfig> = {
       // Required Fields
       { key: 'unit_number', label: 'Unit Number *', required: true },
       { key: 'vin', label: 'VIN *', required: true },
-      
+
       // Vehicle Details
       { key: 'make', label: 'Make' },
       { key: 'model', label: 'Model' },
       { key: 'year', label: 'Year' },
-      
+
       // License & Registration
       { key: 'plate_number', label: 'Plate Number' },
       { key: 'state', label: 'License State' },
       { key: 'registration_expiry_date', label: 'Registration Expiry Date' },
-      
+
       // Inspection & Insurance
       { key: 'annual_inspection_expiry_date', label: 'Annual Inspection Expiry Date' },
       { key: 'insurance_expiry_date', label: 'Insurance Expiry Date' },
-      
+
       // MC Number & Ownership
       { key: 'mc_number', label: 'MC Number' },
       { key: 'ownership', label: 'Ownership' },
       { key: 'owner_name', label: 'Owner Name' },
-      
+
       // Assignments
       { key: 'operator_(driver)', label: 'Operator (Driver)' },
       { key: 'trailer', label: 'Trailer' },
-      
+
       // Status
       { key: 'status', label: 'Status' },
       { key: 'fleet_status', label: 'Fleet Status' },
-      
+
       // Additional
       { key: 'odometer', label: 'Odometer' },
       { key: 'tags', label: 'Tags' },
@@ -60,34 +60,34 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'unit_number', label: 'Unit Number *', required: true },
       { key: 'make', label: 'Make *', required: true },
       { key: 'model', label: 'Model *', required: true },
-      
+
       // Vehicle Details
       { key: 'vin', label: 'VIN' },
       { key: 'year', label: 'Year' },
       { key: 'type', label: 'Type' },
-      
+
       // License & Registration
       { key: 'plate_number', label: 'Plate Number' },
       { key: 'state', label: 'State' },
       { key: 'registration_expiry_date', label: 'Registration Expiry Date' },
-      
+
       // MC Number & Ownership
       { key: 'mc_number', label: 'MC Number' },
       { key: 'ownership', label: 'Ownership' },
       { key: 'owner_name', label: 'Owner Name' },
-      
+
       // Assignments
       { key: 'assigned_truck', label: 'Assigned Truck' },
       { key: 'operator_(driver)', label: 'Operator (Driver)' },
-      
+
       // Status
       { key: 'status', label: 'Status' },
       { key: 'fleet_status', label: 'Fleet Status' },
-      
+
       // Inspection & Insurance
       { key: 'annual_inspection_expiry_date', label: 'Annual Inspection Expiry Date' },
       { key: 'insurance_expiry_date', label: 'Insurance Expiry Date' },
-      
+
       // Additional
       { key: 'tags', label: 'Tags' },
     ],

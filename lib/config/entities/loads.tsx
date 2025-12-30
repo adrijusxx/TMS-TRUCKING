@@ -106,7 +106,7 @@ export const statusColors: Record<LoadStatus, string> = {
  */
 export function getLoadRowClassName(load: LoadData): string {
   const classes: string[] = [];
-  
+
   // Check if created today
   if (load.createdAt) {
     const createdAt = new Date(load.createdAt);
@@ -114,12 +114,13 @@ export function getLoadRowClassName(load: LoadData): string {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     if (createdAt >= today && createdAt < tomorrow) {
-      classes.push('bg-green-50 border-l-4 border-l-green-500');
+      // Subtle success highlight
+      classes.push('bg-status-success-muted/20 border-l-2 border-l-status-success');
     }
   }
-  
+
   // Check if pickup date is today
   if (load.pickupDate) {
     const pickupDate = new Date(load.pickupDate);
@@ -127,17 +128,18 @@ export function getLoadRowClassName(load: LoadData): string {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     if (pickupDate >= today && pickupDate < tomorrow) {
       if (classes.length > 0) {
         // Both conditions met - use combined styling
-        classes[0] = 'bg-gradient-to-r from-green-50 to-blue-50 border-l-4 border-l-green-500';
+        classes[0] = 'bg-status-success-muted/30 border-l-2 border-l-status-success shadow-sm';
       } else {
-        classes.push('bg-blue-50 border-l-4 border-l-blue-500');
+        // Subtle info/info highlight for upcoming pickup
+        classes.push('bg-status-info-muted/20 border-l-2 border-l-status-info');
       }
     }
   }
-  
+
   return classes.join(' ');
 }
 
@@ -175,7 +177,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
             {row.original.loadNumber}
           </Link>
           {isNew && (
-            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
+            <Badge variant="success-outline" className="text-[10px] h-4.5 px-1 uppercase tracking-tighter font-bold">
               New
             </Badge>
           )}
@@ -492,11 +494,11 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       // Handle both object format (from API) and string format
       if (isMcNumberObject(mcNumber)) {
         return (
-          <McBadge 
-            mcNumber={mcNumber.number} 
+          <McBadge
+            mcNumber={mcNumber.number}
             mcNumberId={mcNumber.id}
             companyName={mcNumber.companyName}
-            size="sm" 
+            size="sm"
           />
         );
       }
@@ -561,31 +563,31 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       // createdAt might be a string or Date
       const date = row.original.createdAt || (row.original as any).createdAt;
       if (!date) return '—';
-      
+
       const dateObj = new Date(date);
       const now = new Date();
       const diffMs = now.getTime() - dateObj.getTime();
       const diffMins = Math.floor(diffMs / 60000);
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
-      
+
       // Check if today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const dateToday = new Date(dateObj);
       dateToday.setHours(0, 0, 0, 0);
       const isToday = dateToday.getTime() === today.getTime();
-      
+
       if (isToday) {
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
         if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
         return 'Today';
       }
-      
+
       if (diffDays === 1) return 'Yesterday';
       if (diffDays < 7) return `${diffDays} days ago`;
-      
+
       return formatDate(dateObj);
     },
     defaultVisible: true,
@@ -673,73 +675,73 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
       options: [], // Will be populated dynamically
       permission: 'mc_numbers.view',
     },
-    { 
-      key: 'customerId', 
-      label: 'Customer', 
+    {
+      key: 'customerId',
+      label: 'Customer',
       type: 'searchable-select',
       entityType: 'loads',
       filterKey: 'customerId',
     },
-    { 
-      key: 'driverId', 
-      label: 'Driver', 
+    {
+      key: 'driverId',
+      label: 'Driver',
       type: 'searchable-select',
       entityType: 'loads',
       filterKey: 'driverId',
     },
-    { 
-      key: 'pickupCity', 
-      label: 'Pickup City', 
+    {
+      key: 'pickupCity',
+      label: 'Pickup City',
       type: 'text',
     },
-    { 
-      key: 'pickupState', 
-      label: 'Pickup State', 
+    {
+      key: 'pickupState',
+      label: 'Pickup State',
       type: 'text',
     },
-    { 
-      key: 'deliveryCity', 
-      label: 'Delivery City', 
+    {
+      key: 'deliveryCity',
+      label: 'Delivery City',
       type: 'text',
     },
-    { 
-      key: 'deliveryState', 
-      label: 'Delivery State', 
+    {
+      key: 'deliveryState',
+      label: 'Delivery State',
       type: 'text',
     },
-    { 
-      key: 'truckNumber', 
-      label: 'Truck Number', 
+    {
+      key: 'truckNumber',
+      label: 'Truck Number',
       type: 'text',
     },
-    { 
-      key: 'dispatcherId', 
-      label: 'Dispatcher', 
+    {
+      key: 'dispatcherId',
+      label: 'Dispatcher',
       type: 'text',
     },
-    { 
-      key: 'pickupDate', 
-      label: 'Pickup Date Range', 
+    {
+      key: 'pickupDate',
+      label: 'Pickup Date Range',
       type: 'daterange',
     },
-    { 
-      key: 'deliveryDate', 
-      label: 'Delivery Date Range', 
+    {
+      key: 'deliveryDate',
+      label: 'Delivery Date Range',
       type: 'daterange',
     },
-    { 
-      key: 'date', 
-      label: 'Created Date Range', 
+    {
+      key: 'date',
+      label: 'Created Date Range',
       type: 'daterange',
     },
-    { 
-      key: 'revenue', 
-      label: 'Min Revenue', 
+    {
+      key: 'revenue',
+      label: 'Min Revenue',
       type: 'number',
     },
-    { 
-      key: 'miles', 
-      label: 'Min Miles', 
+    {
+      key: 'miles',
+      label: 'Min Miles',
       type: 'number',
     },
     {

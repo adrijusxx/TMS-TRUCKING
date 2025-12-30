@@ -21,6 +21,17 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
+    // Get fixed values if provided
+    let fixedValues: Record<string, string> = {};
+    const fixedValuesStr = formData.get('fixedValues') as string | null;
+    if (fixedValuesStr) {
+      try {
+        fixedValues = JSON.parse(fixedValuesStr);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
     if (!file) {
       return NextResponse.json(
         { success: false, error: { code: 'MISSING_FILE', message: 'No file provided' } },
@@ -57,6 +68,12 @@ export async function POST(request: NextRequest) {
         if (index >= 0 && row[index] !== undefined && row[index] !== null && row[index] !== '') {
           return row[index];
         }
+      }
+      // Check fixed values fallback
+      for (const headerName of headerNames) {
+        if (fixedValues[headerName]) return fixedValues[headerName];
+        const normalized = headerName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        if (fixedValues[normalized]) return fixedValues[normalized];
       }
       return null;
     };
@@ -229,7 +246,7 @@ export async function POST(request: NextRequest) {
         const subStatus = getValue(row, ['Sub status', 'sub_status', 'Sub Status'])?.toString() || null;
         const invoiceNote = getValue(row, ['Invoice note', 'invoice_note', 'Invoice Note'])?.toString() || null;
         const paymentNote = getValue(row, ['Payment note', 'payment_note', 'Payment Note'])?.toString() || null;
-        
+
         // Additional fields from spreadsheet (stored in notes if needed)
         const batchId = getValue(row, ['Batch ID', 'batch_id', 'Batch', 'batch'])?.toString() || null;
         const driverCarrier = getValue(row, ['Driver/Carrier', 'driver_carrier', 'Driver', 'Carrier'])?.toString() || null;
@@ -237,7 +254,7 @@ export async function POST(request: NextRequest) {
         const deliveryAppointment = getValue(row, ['Delivery appointment', 'delivery_appointment', 'Delivery Appointment'])?.toString() || null;
         const dispatcher = getValue(row, ['Dispatcher', 'dispatcher'])?.toString() || null;
         const invoiceNoteAuth = getValue(row, ['Invoice note auth', 'invoice_note_auth', 'Invoice Note Auth'])?.toString() || null;
-        
+
         // Combine additional info into notes if needed
         const additionalNotes: string[] = [];
         if (batchId) additionalNotes.push(`Batch: ${batchId}`);
@@ -246,7 +263,7 @@ export async function POST(request: NextRequest) {
         if (deliveryAppointment) additionalNotes.push(`Delivery: ${deliveryAppointment}`);
         if (dispatcher) additionalNotes.push(`Dispatcher: ${dispatcher}`);
         if (invoiceNoteAuth) additionalNotes.push(`Note Auth: ${invoiceNoteAuth}`);
-        
+
         const combinedNotes = [
           invoiceNote,
           paymentNote,
