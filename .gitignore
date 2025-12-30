@@ -129,7 +129,8 @@ scripts/migrate-deploy.sh
 
 # Server configuration files (contain IPs and deployment-specific settings)
 nginx.config.conf
-ecosystem.config.js
+# ecosystem.config.js - REMOVED: This file is needed for PM2 deployment on EC2
+
 
 # AWS deployment scripts (may contain sensitive info)
 scripts/aws/
