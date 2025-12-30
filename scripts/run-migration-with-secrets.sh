@@ -6,7 +6,7 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-# Force us-east-1 since that's where the RDS secret is located
+# Force us-east-1 since that's where the secrets are located
 REGION=us-east-1
 export AWS_REGION=us-east-1
 
@@ -21,36 +21,24 @@ get_secret() {
         --output text 2>/dev/null || echo ""
 }
 
-# Load RDS secret and build DATABASE_URL
-RDS_SECRET_NAME='rds!db-6748f518-a7ef-42a5-a907-00fb82f38a16'
-# echo "[Migration] Loading RDS secret: $RDS_SECRET_NAME"
+# Load DATABASE_URL directly from secret
+DATABASE_URL_SECRET_NAME='tms/database/url'
+echo "[Migration] Loading DATABASE_URL from: $DATABASE_URL_SECRET_NAME"
 
-if RDS_SECRET_JSON=$(get_secret "$RDS_SECRET_NAME"); then
-    if [ -n "$RDS_SECRET_JSON" ]; then
-        # RDS endpoint configuration
-        RDS_ENDPOINT="tms-database.c6pekwuuuh43.us-east-1.rds.amazonaws.com"
-        RDS_PORT="5432"
-        RDS_DBNAME="tms_database"
-        
-        # Use Node.js to parse JSON and build connection string
-        DATABASE_URL=$(node -e "
-            const secret = JSON.parse(process.argv[1]);
-            const endpoint = process.argv[2];
-            const port = process.argv[3] || '5432';
-            const dbname = process.argv[4] || 'tms_database';
-            const encoded = encodeURIComponent(secret.password);
-            console.log('postgresql://' + secret.username + ':' + encoded + '@' + endpoint + ':' + port + '/' + dbname + '?sslmode=require');
-        " "$RDS_SECRET_JSON" "$RDS_ENDPOINT" "$RDS_PORT" "$RDS_DBNAME")
-        
+if DATABASE_URL=$(get_secret "$DATABASE_URL_SECRET_NAME"); then
+    if [ -n "$DATABASE_URL" ]; then
         export DATABASE_URL
         export DATABASE_URL_MIGRATE="$DATABASE_URL"
-        echo "[Migration] DATABASE_URL loaded"
+        echo "[Migration] DATABASE_URL loaded successfully"
     else
-        echo "[Migration] ERROR: RDS secret is empty"
+        echo "[Migration] ERROR: DATABASE_URL secret is empty"
+        echo "[Migration] Please create secret '$DATABASE_URL_SECRET_NAME' in AWS Secrets Manager"
+        echo "[Migration] Example value: postgresql://user:pass@host:5432/dbname?sslmode=require"
         exit 1
     fi
 else
-    echo "[Migration] ERROR: Failed to load RDS secret"
+    echo "[Migration] ERROR: Failed to load DATABASE_URL secret"
+    echo "[Migration] Please create secret '$DATABASE_URL_SECRET_NAME' in AWS Secrets Manager"
     exit 1
 fi
 
