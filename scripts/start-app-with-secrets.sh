@@ -22,7 +22,7 @@ get_secret() {
 }
 
 # Load DATABASE_URL directly from secret
-DATABASE_URL_SECRET_NAME='tms/database/url'
+DATABASE_URL_SECRET_NAME='rds!db-f16-a7-ed-42a5-a907-00fb82f38a16'
 echo "[Startup] Loading DATABASE_URL from: $DATABASE_URL_SECRET_NAME"
 
 if DATABASE_URL=$(get_secret "$DATABASE_URL_SECRET_NAME"); then
