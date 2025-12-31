@@ -171,13 +171,11 @@ async function resetToSuperAdmin() {
             prisma.factoringCompany.deleteMany({}),
         ]);
 
-        // Group 4: Users & Companies
-        await Promise.all([
-            prisma.userCompany.deleteMany({}),
-            prisma.mcNumber.deleteMany({}),
-            prisma.user.deleteMany({}),
-            prisma.company.deleteMany({}),
-        ]);
+        // Group 4: Users & Companies (Sequential to avoid FK constraints)
+        await prisma.userCompany.deleteMany({});
+        await prisma.user.deleteMany({});
+        await prisma.mcNumber.deleteMany({});
+        await prisma.company.deleteMany({});
 
         console.log('✅ All data deleted');
         console.log('');
