@@ -98,7 +98,7 @@ async function main() {
   // ============================================
   console.log('🚛 Creating MC Numbers...');
   const mcNumbers: any[] = [];
-  
+
   for (const company of companies) {
     const companyMcNumbers = await Promise.all([
       prisma.mcNumber.upsert({
@@ -184,7 +184,7 @@ async function main() {
         const email = `${role.toLowerCase()}${i}@${company.name.toLowerCase().replace(/\s+/g, '')}.com`;
         // Set mcAccess: empty array for admins (all access), or [mcNumberId] for others
         const mcAccess = role === 'ADMIN' ? [] : [defaultMcNumber.id];
-        
+
         const user = await prisma.user.upsert({
           where: { email },
           update: {},
@@ -226,9 +226,14 @@ async function main() {
     for (let i = 0; i < driverUsers.length; i++) {
       const driverUser = driverUsers[i];
       const driverNumber = `DRV-${company.dotNumber.slice(0, 3)}-${String(i + 1).padStart(3, '0')}`;
-      
+
       const driver = await prisma.driver.upsert({
-        where: { driverNumber },
+        where: {
+          companyId_driverNumber: {
+            companyId: company.id,
+            driverNumber,
+          },
+        },
         update: {},
         create: {
           userId: driverUser.id,
@@ -278,9 +283,14 @@ async function main() {
     for (let i = 1; i <= 3; i++) {
       const truckNumber = `TRK-${company.dotNumber.slice(0, 3)}-${String(i).padStart(3, '0')}`;
       const vin = `1HGBH41JXMN${company.dotNumber.slice(0, 6)}${i}`;
-      
+
       const truck = await prisma.truck.upsert({
-        where: { truckNumber },
+        where: {
+          companyId_truckNumber: {
+            companyId: company.id,
+            truckNumber,
+          },
+        },
         update: {},
         create: {
           companyId: company.id,
@@ -322,9 +332,14 @@ async function main() {
 
     for (let i = 1; i <= 3; i++) {
       const trailerNumber = `TRL-${company.dotNumber.slice(0, 3)}-${String(i).padStart(3, '0')}`;
-      
+
       const trailer = await prisma.trailer.upsert({
-        where: { trailerNumber },
+        where: {
+          companyId_trailerNumber: {
+            companyId: company.id,
+            trailerNumber,
+          },
+        },
         update: {},
         create: {
           companyId: company.id,
@@ -360,9 +375,14 @@ async function main() {
   for (const company of companies) {
     for (let i = 1; i <= 3; i++) {
       const customerNumber = `CUST-${company.dotNumber.slice(0, 3)}-${String(i).padStart(3, '0')}`;
-      
+
       const customer = await prisma.customer.upsert({
-        where: { customerNumber },
+        where: {
+          companyId_customerNumber: {
+            companyId: company.id,
+            customerNumber,
+          },
+        },
         update: {},
         create: {
           companyId: company.id,
@@ -453,7 +473,12 @@ async function main() {
       };
 
       const load = await prisma.load.upsert({
-        where: { loadNumber },
+        where: {
+          companyId_loadNumber: {
+            companyId: company.id,
+            loadNumber,
+          },
+        },
         update: loadData,
         create: {
           loadNumber,
@@ -508,7 +533,7 @@ async function main() {
       const load = companyLoads[i];
       // Generate unique invoice number: include company index to ensure uniqueness
       const invoiceNumber = `INV-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
-      
+
       const invoiceData = {
         companyId: company.id,
         loadIds: [load.id],
@@ -524,9 +549,14 @@ async function main() {
         amountPaid: i === 2 ? load.revenue * 1.08 : 0,
         paidDate: i === 2 ? new Date() : null,
       };
-      
+
       const invoice = await prisma.invoice.upsert({
-        where: { invoiceNumber },
+        where: {
+          companyId_invoiceNumber: {
+            companyId: company.id,
+            invoiceNumber,
+          },
+        },
         update: invoiceData,
         create: {
           invoiceNumber,
@@ -553,14 +583,14 @@ async function main() {
     for (let i = 0; i < 3 && i < companyDrivers.length; i++) {
       const driver = companyDrivers[i];
       const driverLoads = companyLoads.filter(l => l.driverId === driver.id).slice(0, 3);
-      
+
       if (driverLoads.length === 0) continue;
 
       // Generate unique settlement number: include company index to ensure uniqueness
       const settlementNumber = `SET-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
       const totalRevenue = driverLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
       const totalPay = driverLoads.reduce((sum, l) => sum + (l.driverPay || 0), 0);
-      
+
       const settlementData = {
         driverId: driver.id,
         periodStart: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
@@ -572,7 +602,7 @@ async function main() {
         netPay: totalPay * 0.9,
         loadIds: driverLoads.map(l => l.id),
       };
-      
+
       const settlement = await prisma.settlement.upsert({
         where: { settlementNumber },
         update: settlementData,
@@ -599,7 +629,7 @@ async function main() {
 
     for (let i = 0; i < 3 && i < companyTrucks.length; i++) {
       const truck = companyTrucks[i];
-      
+
       const maintenance = await prisma.maintenanceRecord.create({
         data: {
           companyId: company.id,
@@ -633,10 +663,10 @@ async function main() {
     for (let i = 0; i < 3 && i < companyTrucks.length; i++) {
       const truck = companyTrucks[i];
       const driver = companyDrivers[i];
-      
+
       // Generate unique breakdown number: include company index to ensure uniqueness
       const breakdownNumber = `BD-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
-      
+
       const breakdownData = {
         companyId: company.id,
         truckId: truck.id,
@@ -651,9 +681,14 @@ async function main() {
         totalCost: 500 + (i * 200),
         status: (i === 0 ? 'REPORTED' : 'RESOLVED') as any,
       };
-      
+
       const breakdown = await prisma.breakdown.upsert({
-        where: { breakdownNumber },
+        where: {
+          companyId_breakdownNumber: {
+            companyId: company.id,
+            breakdownNumber,
+          },
+        },
         update: breakdownData,
         create: {
           breakdownNumber,
@@ -678,10 +713,10 @@ async function main() {
 
     for (let i = 0; i < 3 && i < companyDrivers.length; i++) {
       const driver = companyDrivers[i];
-      
+
       // Generate unique incident number: include company index to ensure uniqueness
       const incidentNumber = `SI-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i + 1).padStart(4, '0')}`;
-      
+
       const incidentData = {
         companyId: company.id,
         driverId: driver.id,
@@ -694,7 +729,7 @@ async function main() {
         date: new Date(Date.now() - (i + 1) * 30 * 24 * 60 * 60 * 1000),
         status: (i === 0 ? 'UNDER_INVESTIGATION' : i === 1 ? 'RESOLVED' : 'CLOSED') as any,
       };
-      
+
       const incident = await prisma.safetyIncident.upsert({
         where: { incidentNumber },
         update: incidentData,
@@ -721,7 +756,7 @@ async function main() {
 
     for (let i = 0; i < 3 && i < companyLoads.length; i++) {
       const load = companyLoads[i];
-      
+
       const dispatcher = users.find(u => u.companyId === company.id && u.role === 'DISPATCHER');
       const document = await prisma.document.create({
         data: {
@@ -782,7 +817,7 @@ async function main() {
     for (let i = 1; i <= 3; i++) {
       // Generate unique vendor number: include company index to ensure uniqueness
       const vendorNumber = `VEND-${company.dotNumber.slice(0, 3)}-${String((c * 3) + i).padStart(3, '0')}`;
-      
+
       const vendorData = {
         companyId: company.id,
         name: `${['Fuel Supplier', 'Parts Store', 'Service Center'][i - 1]} ${i}`,
@@ -796,9 +831,14 @@ async function main() {
         paymentTerms: [15, 30, 45][i - 1],
         isActive: true,
       };
-      
+
       const vendor = await prisma.vendor.upsert({
-        where: { vendorNumber },
+        where: {
+          companyId_vendorNumber: {
+            companyId: company.id,
+            vendorNumber,
+          },
+        },
         update: vendorData,
         create: {
           vendorNumber,
@@ -847,7 +887,7 @@ async function main() {
 
     for (let i = 0; i < 3 && i < companyCategories.length; i++) {
       const category = companyCategories[i];
-      
+
       const expenseType = await prisma.expenseType.create({
         data: {
           companyId: company.id,
@@ -904,7 +944,7 @@ async function main() {
 
     for (let i = 0; i < 3 && i < companyLoads.length; i++) {
       const load = companyLoads[i];
-      
+
       const charge = await prisma.accessorialCharge.create({
         data: {
           companyId: company.id,

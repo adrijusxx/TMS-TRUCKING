@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Building2, Users, CreditCard, Shield, ChevronLeft, Trash2, Save, ExternalLink } from 'lucide-react';
+import { Building2, Users, CreditCard, Shield, ChevronLeft, Trash2, Save, ExternalLink, Edit2, X, Check } from 'lucide-react';
 import Link from 'next/link';
 import { SUBSCRIPTION_PLANS } from '@/lib/config/subscription-plans';
 
@@ -53,6 +53,8 @@ export default function CompanyDetailClient({ company, subscription }: CompanyDe
     const [isAddingMc, setIsAddingMc] = useState(false);
     const [newMcNumber, setNewMcNumber] = useState('');
     const [newMcType, setNewMcType] = useState('CARRIER');
+    const [editingMcId, setEditingMcId] = useState<string | null>(null);
+    const [editMcNumber, setEditMcNumber] = useState('');
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -105,6 +107,34 @@ export default function CompanyDetailClient({ company, subscription }: CompanyDe
         } catch (error) {
             console.error(error);
             toast.error('Failed to delete MC number');
+        }
+    };
+
+    const handleUpdateMc = async (mcId: string) => {
+        if (!editMcNumber) return;
+        setIsSaving(true);
+        try {
+            const response = await fetch(`/api/super-admin/mc-numbers/${mcId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    number: editMcNumber
+                }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to update MC number');
+            }
+
+            toast.success('MC number updated successfully');
+            setEditingMcId(null);
+            setEditMcNumber('');
+            router.refresh();
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -330,15 +360,56 @@ export default function CompanyDetailClient({ company, subscription }: CompanyDe
                                             <div className="text-xs text-slate-400">{mc.companyName} ({mc.type})</div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-4 w-4" /></Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-red-400"
-                                                onClick={() => handleDeleteMc(mc.id, mc.number)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            {editingMcId === mc.id ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Input
+                                                        value={editMcNumber}
+                                                        onChange={(e) => setEditMcNumber(e.target.value)}
+                                                        className="h-8 w-32 bg-slate-900 border-slate-700 text-sm"
+                                                    />
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-green-400"
+                                                        onClick={() => handleUpdateMc(mc.id)}
+                                                    >
+                                                        <Check className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-slate-400"
+                                                        onClick={() => {
+                                                            setEditingMcId(null);
+                                                            setEditMcNumber('');
+                                                        }}
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8"
+                                                        onClick={() => {
+                                                            setEditingMcId(mc.id);
+                                                            setEditMcNumber(mc.number);
+                                                        }}
+                                                    >
+                                                        <Edit2 className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-red-400"
+                                                        onClick={() => handleDeleteMc(mc.id, mc.number)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

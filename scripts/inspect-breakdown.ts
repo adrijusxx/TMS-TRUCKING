@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function inspectBreakdown(breakdownNumber: string) {
-    const breakdown = await prisma.breakdown.findUnique({
+    const breakdown = await prisma.breakdown.findFirst({
         where: { breakdownNumber },
         include: {
             truck: true

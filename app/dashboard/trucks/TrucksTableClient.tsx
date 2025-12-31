@@ -6,9 +6,7 @@ import { createTruckColumns } from './columns';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
 import { toast } from 'sonner';
-import { exportToCSV } from '@/lib/export';
 import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import TruckSheet from '@/components/trucks/TruckSheet';
@@ -62,30 +60,7 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
     router.refresh();
   }, [queryClient, router]);
 
-  const handleDelete = React.useCallback(async (ids: string[]) => {
-    try {
-      const result = await bulkDeleteEntities('truck', ids);
-      if (result.success) {
-        toast.success(`Successfully deleted ${result.deletedCount || ids.length} truck(s)`);
-        queryClient.invalidateQueries({ queryKey: ['trucks'] });
-      } else {
-        toast.error(result.error || 'Failed to delete trucks');
-      }
-    } catch (err) {
-      toast.error('Failed to delete trucks');
-      console.error(err);
-    }
-  }, [queryClient]);
 
-  const handleExport = React.useCallback(() => {
-    if (data.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-    const headers = Object.keys(data[0]);
-    exportToCSV(data, headers, `trucks-export-${new Date().toISOString().split('T')[0]}.csv`);
-    toast.success(`Exported ${data.length} truck(s)`);
-  }, [data]);
 
   const columns = React.useMemo(
     () => createTruckColumns(handleUpdate),
@@ -121,20 +96,7 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
     return Object.keys(rowSelection).filter((key) => rowSelection[key]);
   }, [rowSelection]);
 
-  const handleDeleteSelected = React.useCallback((ids: string[]) => {
-    handleDelete(ids);
-  }, [handleDelete]);
 
-  const handleExportSelected = React.useCallback((ids: string[]) => {
-    const selectedData = data.filter((row) => ids.includes(row.id));
-    if (selectedData.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-    const headers = Object.keys(selectedData[0]);
-    exportToCSV(selectedData, headers, `trucks-selected-export-${new Date().toISOString().split('T')[0]}.csv`);
-    toast.success(`Exported ${selectedData.length} selected truck(s)`);
-  }, [data]);
 
   const bulkEditFields: BulkEditField[] = React.useMemo(() => [
     {
@@ -209,9 +171,6 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
         rowActions={rowActions}
         emptyMessage="No trucks found"
         filterKey="truckNumber"
-        onDeleteSelected={handleDeleteSelected}
-        onExportSelected={handleExportSelected}
-        onExport={handleExport}
       />
       <TruckSheet
         open={sheetOpen}

@@ -15,7 +15,6 @@ import { apiUrl } from '@/lib/utils';
 const companySchema = z.object({
   name: z.string().min(1, 'Company name is required'),
   dotNumber: z.string().min(1, 'DOT number is required'),
-  mcNumber: z.string().optional(),
   address: z.string().min(1, 'Address is required'),
   city: z.string().min(1, 'City is required'),
   state: z.string().length(2, 'State must be 2 characters'),
@@ -138,8 +137,24 @@ export default function CompanySettings() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="mcNumber">MC Number</Label>
-              <Input id="mcNumber" {...register('mcNumber')} />
+              <Label>MC Numbers</Label>
+              <div className="bg-muted p-3 rounded-md border text-sm space-y-1">
+                {data?.data?.mcNumbers && data.data.mcNumbers.length > 0 ? (
+                  data.data.mcNumbers.map((mc: any) => (
+                    <div key={mc.id} className="flex justify-between items-center">
+                      <span className="font-medium">{mc.number}</span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {mc.type.toLowerCase()} {mc.isDefault && '(Default)'}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground italic">No MC Numbers Assigned</span>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                To add or modify MC numbers, please contact support or your Super Admin.
+              </p>
             </div>
 
             <div className="space-y-2">

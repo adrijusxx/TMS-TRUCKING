@@ -48,24 +48,27 @@ async function generateCustomerNumber(companyId: string): Promise<string> {
 export async function generateUniqueCustomerNumber(companyId: string, maxAttempts: number = 10): Promise<string> {
   let attempts = 0;
   let customerNumber: string;
-  
+
   while (attempts < maxAttempts) {
     customerNumber = await generateCustomerNumber(companyId);
-    
-    // Check if this number already exists
-    const existing = await prisma.customer.findUnique({
-      where: { customerNumber },
+
+    // Check if this number already exists within this company
+    const existing = await prisma.customer.findFirst({
+      where: {
+        companyId,
+        customerNumber
+      },
     });
-    
+
     if (!existing) {
       return customerNumber; // Found unique number
     }
-    
+
     attempts++;
     // Small delay to allow other transactions to complete
     await new Promise(resolve => setTimeout(resolve, 50));
   }
-  
+
   throw new Error(`Failed to generate unique customer number after ${maxAttempts} attempts`);
 }
 

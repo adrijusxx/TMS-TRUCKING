@@ -16,6 +16,8 @@ interface TruckData {
   year: number;
   licensePlate: string;
   state: string;
+  vin: string;
+  equipmentType?: string;
   status: TruckStatus;
   createdAt: Date;
   notes?: string | null;
@@ -84,6 +86,48 @@ export function createTruckColumns(
       header: 'License Plate',
       cell: ({ row }) => `${row.original.licensePlate} (${row.original.state})`,
       defaultVisible: true,
+    },
+    {
+      id: 'vin',
+      accessorKey: 'vin',
+      header: 'VIN',
+      cell: ({ row }) => <span className="font-mono">{row.original.vin}</span>,
+      defaultVisible: false,
+    },
+    {
+      id: 'make',
+      accessorKey: 'make',
+      header: 'Make',
+      cell: ({ row }) => row.original.make,
+      defaultVisible: false,
+    },
+    {
+      id: 'model',
+      accessorKey: 'model',
+      header: 'Model',
+      cell: ({ row }) => row.original.model,
+      defaultVisible: false,
+    },
+    {
+      id: 'year',
+      accessorKey: 'year',
+      header: 'Year',
+      cell: ({ row }) => row.original.year,
+      defaultVisible: false,
+    },
+    {
+      id: 'state',
+      accessorKey: 'state',
+      header: 'State',
+      cell: ({ row }) => row.original.state,
+      defaultVisible: false,
+    },
+    {
+      id: 'equipmentType',
+      accessorKey: 'equipmentType',
+      header: 'Equip Type',
+      cell: ({ row }) => row.original.equipmentType?.replace(/_/g, ' ') || '-',
+      defaultVisible: false,
     },
     {
       id: 'notes',

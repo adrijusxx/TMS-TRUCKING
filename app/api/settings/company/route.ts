@@ -42,6 +42,14 @@ export async function GET(request: NextRequest) {
         email: true,
         createdAt: true,
         updatedAt: true,
+        mcNumbers: {
+          select: {
+            id: true,
+            number: true,
+            type: true,
+            isDefault: true,
+          }
+        }
       },
     });
 

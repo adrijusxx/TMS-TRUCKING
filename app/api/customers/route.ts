@@ -32,11 +32,11 @@ export async function GET(request: NextRequest) {
     // Note: Customer model uses mcNumber string field, not mcNumberId relation
     // We need to convert mcNumberId to mcNumber string
     const mcWhereWithId = await buildMcNumberWhereClause(session, request);
-    
+
     let mcWhere: { companyId?: string; mcNumber?: string | { in: string[] } } = {
       companyId: mcWhereWithId.companyId
     };
-    
+
     // Convert mcNumberId to mcNumber string for Customer model
     if (mcWhereWithId.mcNumberId) {
       if (typeof mcWhereWithId.mcNumberId === 'object' && 'in' in mcWhereWithId.mcNumberId) {
@@ -74,17 +74,17 @@ export async function GET(request: NextRequest) {
 
     // Parse includeDeleted parameter (admins only)
     const includeDeleted = parseIncludeDeleted(request);
-    
+
     // Build deleted records filter (admins can include deleted records if requested)
     const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
-    
+
     // Build where clause
     const where: any = {
       ...mcWhere,
       isActive: true,
       ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
     };
-    
+
     // Include customers with matching MC number OR no MC number (null)
     // This ensures newly created customers without MC numbers still appear
     if (mcWhere.mcNumber) {
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
         { customerNumber: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
       ];
-      
+
       if (where.AND) {
         where.AND.push({ OR: searchConditions });
       } else {
@@ -207,17 +207,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    
+
     // Check if this is a quick create (only name and email provided)
     const isQuickCreate = body.name && body.email && !body.address && !body.city && !body.state && !body.zip && !body.phone;
-    
+
     let validated: any;
     let customerNumber: string;
-    
+
     if (isQuickCreate) {
       // Use simplified schema for quick create
       validated = quickCreateCustomerSchema.parse(body);
-      
+
       // Auto-generate customer number if not provided
       if (!validated.customerNumber) {
         try {
@@ -236,10 +236,13 @@ export async function POST(request: NextRequest) {
         }
       } else {
         customerNumber = validated.customerNumber;
-        
-        // Check if provided customer number already exists
-        const existingCustomer = await prisma.customer.findUnique({
-          where: { customerNumber },
+
+        // Check if provided customer number already exists within this company
+        const existingCustomer = await prisma.customer.findFirst({
+          where: {
+            companyId: session.user.companyId,
+            customerNumber
+          },
         });
 
         if (existingCustomer) {
@@ -255,12 +258,12 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      
+
       // Determine mcNumber for the new customer
       const isAdmin = (session?.user as any)?.role === 'ADMIN';
       const mcState = await McStateManager.getMcState(session, request);
       let customerMcNumber: string | null = null;
-      
+
       if (isAdmin) {
         // Admins can assign to any MC they have selected
         customerMcNumber = mcState.mcNumber;
@@ -281,7 +284,7 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      
+
       // Create customer with minimal required fields
       const customer = await prisma.customer.create({
         data: {
@@ -299,7 +302,7 @@ export async function POST(request: NextRequest) {
           mcNumber: customerMcNumber,
         },
       });
-      
+
       return NextResponse.json(
         {
           success: true,
@@ -310,10 +313,13 @@ export async function POST(request: NextRequest) {
     } else {
       // Full customer creation with all fields
       validated = createCustomerSchema.parse(body);
-      
-      // Check if customer number already exists
-      const existingCustomer = await prisma.customer.findUnique({
-        where: { customerNumber: validated.customerNumber },
+
+      // Check if customer number already exists within this company
+      const existingCustomer = await prisma.customer.findFirst({
+        where: {
+          companyId: session.user.companyId,
+          customerNumber: validated.customerNumber
+        },
       });
 
       if (existingCustomer) {
@@ -333,7 +339,7 @@ export async function POST(request: NextRequest) {
       const isAdmin = (session?.user as any)?.role === 'ADMIN';
       const mcState = await McStateManager.getMcState(session, request);
       let customerMcNumber: string | null = validated.mcNumber || null;
-      
+
       if (!isAdmin) {
         // Non-admins automatically assign to their default MC
         const userMcNumber = (session.user as any)?.mcNumber || null;
@@ -355,7 +361,7 @@ export async function POST(request: NextRequest) {
         // Admin didn't specify MC, use their current selection
         customerMcNumber = mcState.mcNumber;
       }
-      
+
       const customer = await prisma.customer.create({
         data: {
           ...validated,
@@ -363,7 +369,7 @@ export async function POST(request: NextRequest) {
           mcNumber: customerMcNumber,
         },
       });
-      
+
       return NextResponse.json(
         {
           success: true,

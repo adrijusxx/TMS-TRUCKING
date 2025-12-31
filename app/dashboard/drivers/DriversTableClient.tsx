@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { DataTable } from '@/components/data-table/DataTable';
-import { createDriverColumns } from './columns';
+import { createDriverColumns, type DriverData } from './columns';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -19,33 +19,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useRouter } from 'next/navigation';
 import DriverSheet from '@/components/drivers/DriverSheet';
 
-interface DriverData {
-  id: string;
-  driverNumber: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string | null;
-  address1: string | null;
-  address2: string | null;
-  city: string | null;
-  state: string | null;
-  zipCode: string | null;
-  notes: string | null;
-  status: any;
-  employeeStatus?: any;
-  assignmentStatus?: any;
-  mcNumberId?: string | null;
-  mcNumber?: { id: string; number: string } | null;
-  createdAt: Date;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string | null;
-  };
-}
+
 
 interface DriversTableClientProps {
   data: DriverData[];

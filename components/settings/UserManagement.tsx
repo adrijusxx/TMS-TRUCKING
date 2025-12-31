@@ -220,7 +220,7 @@ export default function UserManagement({
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [activeTab, setActiveTab] = useState<'employees' | 'drivers'>('employees');
+  // Drivers are now managed in HR - always exclude them from team management
 
   // Column visibility state
   const [visibleColumns, setVisibleColumns] = useState({
@@ -237,7 +237,7 @@ export default function UserManagement({
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['users', searchQuery, advancedFilters, page, sortField, sortDirection, activeTab],
+    queryKey: ['users', searchQuery, advancedFilters, page, sortField, sortDirection],
     queryFn: () => fetchUsers({
       search: searchQuery || undefined,
       page,
@@ -245,8 +245,7 @@ export default function UserManagement({
       ...advancedFilters,
       sortBy: sortField || undefined,
       sortOrder: sortDirection || undefined,
-      excludeDrivers: activeTab === 'employees', // Exclude drivers when on employees tab
-      role: activeTab === 'drivers' ? 'DRIVER' : undefined, // Only show drivers when on drivers tab
+      excludeDrivers: true, // Drivers are managed in HR, not Settings
     }),
   });
 
@@ -763,13 +762,10 @@ export default function UserManagement({
         </div>
       </CardHeader>
       <CardContent>
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'employees' | 'drivers')} className="mb-4">
-          <TabsList>
-            <TabsTrigger value="employees">Employees</TabsTrigger>
-            <TabsTrigger value="drivers">Drivers</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Note about drivers */}
+        <p className="text-xs text-muted-foreground mb-4">
+          💡 Drivers are managed in the <a href="/dashboard/drivers" className="text-primary hover:underline">Drivers Dashboard</a>
+        </p>
 
         {/* Search and Filters */}
         <div className="space-y-4 mb-4">

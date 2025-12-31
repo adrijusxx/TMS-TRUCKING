@@ -11,7 +11,7 @@ import { updateEntityField } from '@/lib/utils/updateEntityField';
 import { useQueryClient } from '@tanstack/react-query';
 import { DriverStatus } from '@prisma/client';
 
-interface DriverData {
+export interface DriverData {
   id: string;
   driverNumber: string;
   firstName: string;
@@ -24,6 +24,10 @@ interface DriverData {
   state: string | null;
   zipCode: string | null;
   notes: string | null;
+  warnings?: string | null;
+  teamDriver?: boolean;
+  currentTruck?: { id: string; truckNumber: string } | null;
+  currentTrailer?: { id: string; trailerNumber: string } | null;
   status: DriverStatus;
   createdAt: Date;
   user: {
@@ -33,6 +37,18 @@ interface DriverData {
     email: string;
     phone: string | null;
   };
+  // HR Fields
+  employeeStatus?: string;
+  driverType?: string;
+  hireDate?: Date | null;
+  payRate?: number | null;
+  payType?: string | null;
+  payTo?: string | null;
+  driverTariff?: string | null;
+  licenseExpiry?: Date | null;
+  medicalCardExpiry?: Date | null;
+  mcNumberId: string;
+  mcNumber?: { id: string; number: string; } | null;
 }
 
 const statusColors: Record<DriverStatus, string> = {
@@ -139,7 +155,7 @@ export function createDriverColumns(
           placeholder="Enter address"
         />
       ),
-      defaultVisible: true,
+      defaultVisible: false,
     },
     {
       id: 'city',
@@ -155,7 +171,7 @@ export function createDriverColumns(
           placeholder="Enter city"
         />
       ),
-      defaultVisible: true,
+      defaultVisible: false,
     },
     {
       id: 'state',
@@ -171,7 +187,7 @@ export function createDriverColumns(
           placeholder="Enter state"
         />
       ),
-      defaultVisible: true,
+      defaultVisible: false,
     },
     {
       id: 'zip',
@@ -187,6 +203,155 @@ export function createDriverColumns(
           placeholder="Enter zip code"
         />
       ),
+      defaultVisible: false,
+    },
+    {
+      id: 'currentTruck',
+      accessorKey: 'currentTruck.truckNumber',
+      header: 'Truck',
+      cell: ({ row }) => {
+        const num = row.original.currentTruck?.truckNumber;
+        return num ? <span className="font-mono">{num}</span> : '-';
+      },
+      defaultVisible: true,
+    },
+    {
+      id: 'currentTrailer',
+      accessorKey: 'currentTrailer.trailerNumber',
+      header: 'Trailer',
+      cell: ({ row }) => {
+        const num = row.original.currentTrailer?.trailerNumber;
+        return num ? <span className="font-mono">{num}</span> : '-';
+      },
+      defaultVisible: true,
+    },
+    {
+      id: 'teamDriver',
+      accessorKey: 'teamDriver',
+      header: 'Team',
+      cell: ({ row }) => row.original.teamDriver ? <Badge variant="secondary">Team</Badge> : null,
+      defaultVisible: false,
+    },
+    {
+      id: 'warnings',
+      accessorKey: 'warnings',
+      header: 'Warnings',
+      cell: ({ row }) => {
+        const w = row.original.warnings;
+        if (!w) return null;
+        return <Badge variant="destructive">{w}</Badge>;
+      },
+      defaultVisible: true,
+    },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <Badge variant="outline" className={statusColors[row.original.status]}>
+          {formatStatus(row.original.status)}
+        </Badge>
+      ),
+      defaultVisible: true,
+    },
+    // HR Columns
+    {
+      id: 'employeeStatus',
+      accessorKey: 'employeeStatus',
+      header: 'Emp Status',
+      cell: ({ row }) => {
+        const status = row.original.employeeStatus;
+        if (!status) return null;
+        return (
+          <Badge variant="secondary">
+            {status}
+          </Badge>
+        );
+      },
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'driverType',
+      accessorKey: 'driverType',
+      header: 'Type',
+      cell: ({ row }) => {
+        const type = row.original.driverType;
+        if (!type) return null;
+        return <Badge variant="outline">{type.replace(/_/g, ' ')}</Badge>;
+      },
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'hireDate',
+      accessorKey: 'hireDate',
+      header: 'Hire Date',
+      cell: ({ row }) => row.original.hireDate ? formatDate(row.original.hireDate) : '-',
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'pay',
+      header: 'Pay',
+      cell: ({ row }) => {
+        if (!row.original.payRate) return null;
+        return (
+          <div className="text-xs">
+            <span className="font-medium">${row.original.payRate.toFixed(2)}</span>
+            {row.original.payType && <span className="text-muted-foreground ml-1">{row.original.payType.replace(/_/g, ' ')}</span>}
+          </div>
+        );
+      },
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'payTo',
+      accessorKey: 'payTo',
+      header: 'Pay To',
+      cell: ({ row }) => row.original.payTo || '-',
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'driverTariff',
+      accessorKey: 'driverTariff',
+      header: 'Tariff',
+      cell: ({ row }) => row.original.driverTariff || '-',
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'license',
+      header: 'License',
+      cell: ({ row }) => row.original.licenseExpiry ? formatDate(row.original.licenseExpiry) : '-',
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'medical',
+      header: 'Medical',
+      cell: ({ row }) => row.original.medicalCardExpiry ? formatDate(row.original.medicalCardExpiry) : '-',
+      defaultVisible: false,
+      permission: 'hr.view',
+    },
+    {
+      id: 'mcNumber',
+      header: 'MC Number',
+      cell: ({ row }) => {
+        const mcNumber = row.original.mcNumber;
+        return mcNumber ? (
+          <Link
+            href={`/dashboard/mc-numbers/${mcNumber.id}`}
+            className="text-primary hover:underline"
+          >
+            {mcNumber.number}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">N/A</span>
+        );
+      },
       defaultVisible: true,
     },
     {
@@ -204,35 +369,6 @@ export function createDriverColumns(
         />
       ),
       defaultVisible: false,
-    },
-    {
-      id: 'status',
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => (
-        <Badge variant="outline" className={statusColors[row.original.status]}>
-          {formatStatus(row.original.status)}
-        </Badge>
-      ),
-      defaultVisible: true,
-    },
-    {
-      id: 'mcNumber',
-      header: 'MC Number',
-      cell: ({ row }) => {
-        const mcNumber = (row.original as any).mcNumber;
-        return mcNumber ? (
-          <Link
-            href={`/dashboard/mc-numbers/${mcNumber.id}`}
-            className="text-primary hover:underline"
-          >
-            {mcNumber.number}
-          </Link>
-        ) : (
-          <span className="text-muted-foreground">N/A</span>
-        );
-      },
-      defaultVisible: true,
     },
     {
       id: 'createdAt',

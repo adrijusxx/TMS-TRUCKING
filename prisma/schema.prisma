@@ -256,7 +256,7 @@ model Company {
 
 model Load {
   id            String    @id @default(cuid())
-  loadNumber    String    @unique
+  loadNumber    String
   companyId     String
   company       Company   @relation(fields: [companyId], references: [id])
   customerId    String
@@ -415,6 +415,7 @@ model Load {
   @@index([companyId, mcNumberId, createdAt])
   @@index([companyId, driverId, status])
   @@index([companyId, status, createdAt])
+  @@unique([companyId, loadNumber])
 }
 
 model LoadStop {
@@ -771,7 +772,7 @@ model Driver {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Driver Details
-  driverNumber     String    @unique
+  driverNumber     String
   licenseNumber    String
   licenseState     String
   licenseExpiry    DateTime
@@ -936,6 +937,7 @@ model Driver {
   @@index([currentTrailerId])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
+  @@unique([companyId, driverNumber])
 }
 
 model DriverTruckHistory {
@@ -1100,8 +1102,8 @@ model Truck {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Truck Details
-  truckNumber  String    @unique
-  vin          String    @unique
+  truckNumber  String
+  vin          String
   make         String
   model        String
   year         Int
@@ -1195,6 +1197,8 @@ model Truck {
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
   @@index([samsaraId])
+  @@unique([companyId, truckNumber])
+  @@unique([companyId, vin])
 }
 
 // ============================================
@@ -1207,8 +1211,8 @@ model Trailer {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Trailer Details
-  trailerNumber String    @unique // Unit number from Excel
-  vin           String?   @unique
+  trailerNumber String // Unit number from Excel
+  vin           String?
   make          String
   model         String
   year          Int?
@@ -1265,6 +1269,8 @@ model Trailer {
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
   @@index([samsaraId])
+  @@unique([companyId, trailerNumber])
+  @@unique([companyId, vin])
 }
 
 model FuelEntry {
@@ -1326,7 +1332,7 @@ enum TruckStatus {
 
 model MaintenanceRecord {
   id                String  @id @default(cuid())
-  maintenanceNumber String? @unique // User-facing maintenance identifier (e.g., MAINT-2024-001)
+  maintenanceNumber String? // User-facing maintenance identifier (e.g., MAINT-2024-001)
   truckId           String
   truck             Truck   @relation(fields: [truckId], references: [id])
   companyId         String
@@ -1361,6 +1367,7 @@ model MaintenanceRecord {
   @@index([vendorId])
   @@index([status])
   @@index([maintenanceNumber])
+  @@unique([companyId, maintenanceNumber])
 }
 
 model MaintenanceSchedule {
@@ -1442,7 +1449,7 @@ model Breakdown {
   mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
 
   // Breakdown Details
-  breakdownNumber String   @unique // Auto-generated breakdown case number
+  breakdownNumber String // Auto-generated breakdown case number
   reportedAt      DateTime @default(now())
   reportedBy      String? // User ID who reported
 
@@ -1541,6 +1548,7 @@ model Breakdown {
   @@index([status])
   @@index([breakdownType])
   @@index([reportedAt])
+  @@unique([companyId, breakdownNumber])
 }
 
 enum BreakdownType {
@@ -1601,7 +1609,7 @@ model BreakdownAssignment {
 
 model Communication {
   id           String  @id @default(cuid())
-  ticketNumber String? @unique // User-facing ticket/comm identifier (e.g., COMM-2024-001)
+  ticketNumber String? // User-facing ticket/comm identifier (e.g., COMM-2024-001)
   companyId    String
   company      Company @relation(fields: [companyId], references: [id])
 
@@ -1670,6 +1678,7 @@ model Communication {
   @@index([createdAt])
   @@index([telegramChatId])
   @@index([ticketNumber])
+  @@unique([companyId, ticketNumber])
 }
 
 enum CommunicationChannel {
@@ -1715,7 +1724,7 @@ model Customer {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Customer Details
-  customerNumber  String       @unique
+  customerNumber  String
   name            String
   type            CustomerType @default(DIRECT)
   mcNumber        String? // MC Number from Excel
@@ -1814,6 +1823,7 @@ model Customer {
   @@index([factoringCompanyId])
   @@index([mcNumber])
   @@index([companyId, mcNumber])
+  @@unique([companyId, customerNumber])
 }
 
 // ============================================
@@ -1972,7 +1982,7 @@ model Invoice {
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id])
 
-  invoiceNumber String   @unique
+  invoiceNumber String
   loadIds       String[] // Array of load IDs
 
   // Financial
@@ -2089,6 +2099,7 @@ model Invoice {
   @@index([customerId, status, createdAt])
   @@index([status, createdAt])
   @@index([mcNumber, status])
+  @@unique([companyId, invoiceNumber])
 }
 
 enum InvoiceStatus {
@@ -2583,7 +2594,7 @@ model InvoiceBatch {
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
 
-  batchNumber String          @unique
+  batchNumber String
   postStatus  BatchPostStatus @default(UNPOSTED)
   customerId  String? // Optional: primary customer for the batch (for filtering)
   customer    Customer?       @relation(fields: [customerId], references: [id])
@@ -2616,6 +2627,7 @@ model InvoiceBatch {
   @@index([createdById])
   @@index([factoringCompanyId])
   @@index([customerId])
+  @@unique([companyId, batchNumber])
 }
 
 model InvoiceBatchItem {
@@ -3154,7 +3166,7 @@ model Inspection {
   driver    Driver? @relation(fields: [driverId], references: [id])
 
   // Inspection Details
-  inspectionNumber String         @unique
+  inspectionNumber String
   inspectionType   InspectionType
   inspectionDate   DateTime
   performedBy      String? // User ID or inspector name
@@ -3201,6 +3213,7 @@ model Inspection {
   @@index([inspectionType])
   @@index([inspectionDate])
   @@index([status])
+  @@unique([companyId, inspectionNumber])
 }
 
 enum InspectionType {
@@ -3234,7 +3247,7 @@ model InventoryItem {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Item Details
-  itemNumber   String  @unique
+  itemNumber   String
   name         String
   description  String?
   category     String? // Parts, Supplies, Equipment, etc.
@@ -3273,6 +3286,7 @@ model InventoryItem {
   @@index([companyId])
   @@index([itemNumber])
   @@index([category])
+  @@unique([companyId, itemNumber])
 }
 
 model InventoryTransaction {
@@ -3337,7 +3351,7 @@ model Vendor {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Vendor Details
-  vendorNumber String     @unique
+  vendorNumber String
   name         String
   type         VendorType @default(SUPPLIER)
 
@@ -3404,6 +3418,7 @@ model Vendor {
   @@index([companyId])
   @@index([vendorNumber])
   @@index([createdById])
+  @@unique([companyId, vendorNumber])
 }
 
 enum VendorType {
@@ -3442,7 +3457,7 @@ model Location {
   company   Company @relation(fields: [companyId], references: [id])
 
   // Location Details
-  locationNumber  String?      @unique // Auto-generated if not provided
+  locationNumber  String? // Auto-generated if not provided
   name            String // Place name from Excel
   locationCompany String? // Company field from Excel (renamed to avoid conflict with relation)
   type            LocationType @default(PICKUP)
@@ -3488,6 +3503,7 @@ model Location {
   @@index([locationNumber])
   @@index([type])
   @@index([city, state])
+  @@unique([companyId, locationNumber])
 }
 
 enum LocationType {

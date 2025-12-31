@@ -1754,15 +1754,19 @@ export async function POST(
           if (trailersToUpdate.length > 0) {
             for (const trailerData of trailersToUpdate) {
               try {
-                await prisma.trailer.update({
-                  where: {
-                    trailerNumber: trailerData.trailerNumber,
-                  },
-                  data: {
-                    ...trailerData,
-                    updatedAt: new Date(), // Ensure updatedAt is refreshed
-                  },
-                });
+                // Find the existing trailer to get its ID
+                const existingTrailer = activeTrailers.find(t => t.trailerNumber === trailerData.trailerNumber);
+                if (existingTrailer) {
+                  await prisma.trailer.update({
+                    where: {
+                      id: existingTrailer.id,
+                    },
+                    data: {
+                      ...trailerData,
+                      updatedAt: new Date(), // Ensure updatedAt is refreshed
+                    },
+                  });
+                }
               } catch (updateError: any) {
                 console.error(`[Import Trailers] Failed to update trailer ${trailerData.trailerNumber}:`, updateError.message);
                 errors.push({
@@ -1780,17 +1784,21 @@ export async function POST(
 
             for (const trailerData of trailersToRestore) {
               try {
-                await prisma.trailer.update({
-                  where: {
-                    trailerNumber: trailerData.trailerNumber,
-                  },
-                  data: {
-                    ...trailerData,
-                    deletedAt: null, // Restore
-                    isActive: true,
-                    updatedAt: new Date(),
-                  },
-                });
+                // Find the soft-deleted trailer to get its ID
+                const existingSoftDeleted = softDeletedTrailers.find(t => t.trailerNumber === trailerData.trailerNumber);
+                if (existingSoftDeleted) {
+                  await prisma.trailer.update({
+                    where: {
+                      id: existingSoftDeleted.id,
+                    },
+                    data: {
+                      ...trailerData,
+                      deletedAt: null, // Restore
+                      isActive: true,
+                      updatedAt: new Date(),
+                    },
+                  });
+                }
               } catch (restoreError: any) {
                 console.error(`[Import Trailers] Failed to restore trailer ${trailerData.trailerNumber}:`, restoreError.message);
                 errors.push({
@@ -3144,18 +3152,21 @@ export async function POST(
 
             for (const load of loadsToUpdate) {
               try {
-                await prisma.load.update({
-                  where: {
-                    loadNumber: load.data.loadNumber,
-                    companyId: session.user.companyId,
-                  },
-                  data: {
-                    ...load.data,
-                    id: undefined, // Don't update the ID
-                    createdAt: undefined, // Don't update createdAt
-                    updatedAt: undefined, // Let Prisma handle updatedAt
-                  },
-                });
+                // Find the existing load to get its ID
+                const existingLoad = activeLoads.find(l => l.loadNumber === load.data.loadNumber);
+                if (existingLoad) {
+                  await prisma.load.update({
+                    where: {
+                      id: existingLoad.id,
+                    },
+                    data: {
+                      ...load.data,
+                      id: undefined, // Don't update the ID
+                      createdAt: undefined, // Don't update createdAt
+                      updatedAt: undefined, // Let Prisma handle updatedAt
+                    },
+                  });
+                }
               } catch (error: any) {
                 // Error updating load
                 errors.push({
@@ -3174,19 +3185,22 @@ export async function POST(
 
             for (const load of loadsToRestore) {
               try {
-                await prisma.load.update({
-                  where: {
-                    loadNumber: load.data.loadNumber,
-                    companyId: session.user.companyId,
-                  },
-                  data: {
-                    ...load.data,
-                    deletedAt: null,
-                    id: undefined, // Don't update the ID
-                    createdAt: undefined, // Don't update createdAt
-                    updatedAt: undefined, // Let Prisma handle updatedAt
-                  },
-                });
+                // Find the soft-deleted load to get its ID
+                const existingDeletedLoad = deletedLoads.find(l => l.loadNumber === load.data.loadNumber);
+                if (existingDeletedLoad) {
+                  await prisma.load.update({
+                    where: {
+                      id: existingDeletedLoad.id,
+                    },
+                    data: {
+                      ...load.data,
+                      deletedAt: null,
+                      id: undefined, // Don't update the ID
+                      createdAt: undefined, // Don't update createdAt
+                      updatedAt: undefined, // Let Prisma handle updatedAt
+                    },
+                  });
+                }
               } catch (error: any) {
                 // Error restoring load
                 errors.push({
@@ -3324,6 +3338,15 @@ export async function POST(
         select: { id: true, truckNumber: true },
       });
 
+      // Pre-fetch all trailers for efficient lookup
+      const allTrailers = await prisma.trailer.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { id: true, trailerNumber: true },
+      });
+
       // Create truck lookup map
       const truckMap = new Map<string, string>(); // truckNumber -> id
       allTrucks.forEach((t) => {
@@ -3336,6 +3359,20 @@ export async function POST(
         }
         // Also store original case
         truckMap.set(t.truckNumber.trim(), t.id);
+      });
+
+      // Create trailer lookup map
+      const trailerMap = new Map<string, string>(); // trailerNumber -> id
+      allTrailers.forEach((t) => {
+        const normalized = t.trailerNumber.toLowerCase().trim();
+        trailerMap.set(normalized, t.id);
+        // Also store without leading zeros for flexible matching
+        const noZeros = normalized.replace(/^0+/, '');
+        if (noZeros !== normalized) {
+          trailerMap.set(noZeros, t.id);
+        }
+        // Also store original case
+        trailerMap.set(t.trailerNumber.trim(), t.id);
       });
 
       // Pre-fetch existing drivers and users to avoid duplicate checks
@@ -3551,7 +3588,7 @@ export async function POST(
           }
 
           // Get truck number
-          const truckNumber = getValue(row, ['Truck', 'truck', 'Truck Number', 'truck_number', 'Truck#', 'truck#', 'Truck Number', 'Unit number', 'Unit Number', 'Unit']) || null;
+          const truckNumber = getValue(row, ['Truck', 'truck', 'Truck Number', 'truck_number', 'Truck#', 'truck#', 'Unit number', 'Unit Number', 'Unit']) || null;
           let currentTruckId: string | null = null;
 
           if (truckNumber) {
@@ -3563,6 +3600,34 @@ export async function POST(
             if (truckId) {
               currentTruckId = truckId;
             }
+          }
+
+          // Get trailer number
+          const trailerNumber = getValue(row, ['Trailer', 'trailer', 'Trailer Number', 'trailer_number', 'Trailer#', 'trailer#']) || null;
+          let currentTrailerId: string | null = null;
+
+          if (trailerNumber) {
+            const normalizedTrailerNumber = String(trailerNumber).trim().toLowerCase();
+            const trailerId = trailerMap.get(normalizedTrailerNumber) ||
+              trailerMap.get(String(trailerNumber).trim()) ||
+              trailerMap.get(normalizedTrailerNumber.replace(/^0+/, ''));
+
+            if (trailerId) {
+              currentTrailerId = trailerId;
+            }
+          }
+
+          // Get additional fields
+          const teamDriverValue = getValue(row, ['Team Driver', 'team_driver', 'Team', 'team', 'Is Team', 'is_team']);
+          const teamDriver = teamDriverValue ? (['yes', 'true', '1', 'y'].includes(String(teamDriverValue).toLowerCase())) : false;
+
+          const notesVal = getValue(row, ['Notes', 'notes', 'Note', 'note']) || '';
+          const warningsVal = getValue(row, ['Warnings', 'warnings', 'Warning', 'warning']) || '';
+
+          // Combine notes and warnings
+          let finalNotes = notesVal;
+          if (warningsVal) {
+            finalNotes = finalNotes ? `${finalNotes}\n\nWARNING: ${warningsVal}` : `WARNING: ${warningsVal}`;
           }
 
           // Get assignment status and dispatch status
@@ -3660,6 +3725,9 @@ export async function POST(
                 emergencyPhone: getValue(row, ['Emergency Phone', 'Emergency Phone', 'emergency_phone', 'EmergencyPhone', 'Emergency Contact Phone', 'emergency_contact_phone', 'EC Phone', 'ec_phone', 'Emergency #', 'emergency #']) || null,
                 mcNumberId: driverMcNumberId || null,
                 currentTruckId: currentTruckId || null,
+                currentTrailerId: currentTrailerId || null,
+                teamDriver,
+                notes: finalNotes || null,
                 ...(needsReactivation ? {
                   deletedAt: null, // Reactivate soft-deleted driver
                   isActive: true,  // Reactivate inactive driver
@@ -3761,6 +3829,10 @@ export async function POST(
                   emergencyPhone: getValue(row, ['Emergency Phone', 'Emergency Phone', 'emergency_phone', 'EmergencyPhone', 'Emergency Contact Phone', 'emergency_contact_phone', 'EC Phone', 'ec_phone', 'Emergency #', 'emergency #']) || null,
                   mcNumberId: driverMcNumberId || null,
                   currentTruckId: currentTruckId || null,
+                  currentTrailerId: currentTrailerId || null,
+                  teamDriver,
+                  warnings: warningsVal || null,
+                  notes: notesVal || null,
                   isActive: true,
                 },
               });
@@ -3844,6 +3916,10 @@ export async function POST(
               emergencyPhone: getValue(row, ['Emergency Phone', 'Emergency Phone', 'emergency_phone', 'EmergencyPhone', 'Emergency Contact Phone', 'emergency_contact_phone', 'EC Phone', 'ec_phone', 'Emergency #', 'emergency #']) || null,
               mcNumberId: finalMcNumberId, // Use finalMcNumberId (ensured to be non-null)
               currentTruckId: currentTruckId || null,
+              currentTrailerId: currentTrailerId || null,
+              teamDriver,
+              warnings: warningsVal || null,
+              notes: notesVal || null,
               isActive: true, // Explicitly set isActive to true for new drivers
             },
           });

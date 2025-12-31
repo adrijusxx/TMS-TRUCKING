@@ -12,6 +12,7 @@ import DriverComplianceTab from './DriverEditTabs/DriverComplianceTab';
 import DriverWorkDetailsTab from './DriverEditTabs/DriverWorkDetailsTab';
 import DriverFinancialPayrollTab from './DriverEditTabs/DriverFinancialPayrollTab';
 import { useMutation } from '@tanstack/react-query';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface DriverExpandedEditProps {
   driverId: string;
@@ -68,6 +69,10 @@ async function updateDriver(driverId: string, data: any) {
 
 export default function DriverExpandedEdit({ driverId, onSave, onCancel }: DriverExpandedEditProps) {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
+  // Check permissions - assume HR or ADMIN can see financial/payroll
+  const hasFinancialAccess = can('hr.view' as any) || can('hr.manage' as any) || can('financial.view' as any);
+
   const [activeTab, setActiveTab] = useState('personal');
   const [formDataRef, setFormDataRef] = useState<any>(null);
 
@@ -189,24 +194,18 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
           </div>
         </div>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="personal">Personal Info</TabsTrigger>
-            <TabsTrigger value="compliance">Compliance</TabsTrigger>
             <TabsTrigger value="work">Work Details</TabsTrigger>
-            <TabsTrigger value="financial">Financial & Payroll</TabsTrigger>
+            <TabsTrigger value="compliance">Compliance</TabsTrigger>
+            {hasFinancialAccess && (
+              <TabsTrigger value="financial">Financial & Payroll</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="personal" className="space-y-4 mt-4">
             <DriverPersonalInfoTab
-              driver={driver}
-              onSave={handleSave}
-            />
-          </TabsContent>
-
-          <TabsContent value="compliance" className="space-y-4 mt-4">
-            <DriverComplianceTab
               driver={driver}
               onSave={handleSave}
             />
@@ -232,12 +231,21 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
             />
           </TabsContent>
 
-          <TabsContent value="financial" className="space-y-4 mt-4">
-            <DriverFinancialPayrollTab
+          <TabsContent value="compliance" className="space-y-4 mt-4">
+            <DriverComplianceTab
               driver={driver}
               onSave={handleSave}
             />
           </TabsContent>
+
+          {hasFinancialAccess && (
+            <TabsContent value="financial" className="space-y-4 mt-4">
+              <DriverFinancialPayrollTab
+                driver={driver}
+                onSave={handleSave}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

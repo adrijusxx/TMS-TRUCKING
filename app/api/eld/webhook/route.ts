@@ -100,7 +100,9 @@ export async function POST(request: NextRequest) {
         where: { id: validated.driverId },
       });
     } else if (validated.driverNumber) {
-      driver = await prisma.driver.findUnique({
+      // Note: driverNumber is company-scoped, webhook doesn't have company context
+      // This will find the first driver with this number across all companies
+      driver = await prisma.driver.findFirst({
         where: { driverNumber: validated.driverNumber },
       });
     } else if (validated.samsaraDriverId) {

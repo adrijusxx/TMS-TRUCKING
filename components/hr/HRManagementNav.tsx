@@ -29,16 +29,16 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
-    name: 'HR Management',
+    name: 'HR Dashboard',
     href: '/dashboard/hr',
     icon: Users,
-    description: 'Comprehensive HR management dashboard for managing all personnel in your organization. Manage dispatchers, employees, and drivers through tabbed interface. View employee information, roles, permissions, and employment status. Track employee performance, manage user accounts, and maintain organizational structure. Access HR reports and employee analytics.',
+    description: 'Comprehensive HR management dashboard. View performance metrics, settlements, retention analytics, and bonus calculations.',
   },
   {
-    name: 'Drivers',
+    name: 'Driver Management',
     href: '/dashboard/drivers',
     icon: UserCheck,
-    description: 'Manage driver personnel including driver profiles, qualifications, employment status, and assignments. View driver information, track driver performance, manage driver accounts, and maintain driver records. Access driver history, qualifications, and performance metrics. Use this section for comprehensive driver management and HR functions related to drivers.',
+    description: 'Unified driver management including employment status, payroll, compliance, and operational details.',
   },
 ];
 
@@ -106,7 +106,7 @@ export default function HRManagementNav() {
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item);
-            
+
             return (
               <Tooltip key={item.href}>
                 <TooltipTrigger asChild>

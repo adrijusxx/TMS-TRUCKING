@@ -14,6 +14,10 @@ interface TrailerData {
   year: number | null;
   licensePlate: string | null;
   state: string | null;
+  vin: string | null;
+  type: string | null;
+  status: string | null;
+  assignedTruck?: { id: string; truckNumber: string } | null;
   createdAt: Date;
   notes?: string | null;
 }
@@ -70,6 +74,62 @@ export function createTrailerColumns(
         row.original.licensePlate
           ? `${row.original.licensePlate}${row.original.state ? ` (${row.original.state})` : ''}`
           : 'N/A',
+      defaultVisible: true,
+    },
+    {
+      id: 'vin',
+      accessorKey: 'vin',
+      header: 'VIN',
+      cell: ({ row }) => <span className="font-mono">{row.original.vin || '-'}</span>,
+      defaultVisible: false,
+    },
+    {
+      id: 'make',
+      accessorKey: 'make',
+      header: 'Make',
+      cell: ({ row }) => row.original.make,
+      defaultVisible: false,
+    },
+    {
+      id: 'model',
+      accessorKey: 'model',
+      header: 'Model',
+      cell: ({ row }) => row.original.model,
+      defaultVisible: false,
+    },
+    {
+      id: 'year',
+      accessorKey: 'year',
+      header: 'Year',
+      cell: ({ row }) => row.original.year || '-',
+      defaultVisible: false,
+    },
+    {
+      id: 'state',
+      accessorKey: 'state',
+      header: 'State',
+      cell: ({ row }) => row.original.state || '-',
+      defaultVisible: false,
+    },
+    {
+      id: 'type',
+      accessorKey: 'type',
+      header: 'Type',
+      cell: ({ row }) => row.original.type?.replace(/_/g, ' ') || '-',
+      defaultVisible: false,
+    },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => row.original.status ? <span className="capitalize">{row.original.status.toLowerCase().replace(/_/g, ' ')}</span> : '-',
+      defaultVisible: false,
+    },
+    {
+      id: 'assignedTruck',
+      accessorKey: 'assignedTruck.truckNumber',
+      header: 'Truck',
+      cell: ({ row }) => row.original.assignedTruck?.truckNumber || '-',
       defaultVisible: true,
     },
     {

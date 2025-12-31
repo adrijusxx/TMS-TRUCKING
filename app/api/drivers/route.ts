@@ -60,10 +60,10 @@ export async function GET(request: NextRequest) {
 
     // Parse includeDeleted parameter (admins only)
     const includeDeleted = parseIncludeDeleted(request);
-    
+
     // Build deleted records filter (admins can include deleted records if requested)
     const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
-    
+
     // Merge MC filter with role filter and deleted filter
     const where: any = {
       ...mcWhere,
@@ -213,7 +213,7 @@ export async function GET(request: NextRequest) {
         { user: { lastName: { contains: search, mode: 'insensitive' } } },
         { user: { email: { contains: search, mode: 'insensitive' } } },
       ];
-      
+
       if (where.OR && Array.isArray(where.OR)) {
         // If OR already exists (from MC number filtering), combine conditions
         // We need both MC number match AND search match, so use AND with OR groups
@@ -431,9 +431,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if driver number already exists
-    const existingDriver = await prisma.driver.findUnique({
-      where: { driverNumber: validated.driverNumber },
+    // Check if driver number already exists within this company
+    const existingDriver = await prisma.driver.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        driverNumber: validated.driverNumber
+      },
     });
 
     if (existingDriver) {
@@ -496,7 +499,7 @@ export async function POST(request: NextRequest) {
     } else {
       // No mcNumberId provided - use user's default MC
       assignedMcNumberId = (session.user as any).mcNumberId || null;
-      
+
       // Validate default MC is accessible
       if (assignedMcNumberId && !(await McStateManager.canAccessMc(session, assignedMcNumberId))) {
         // If default MC is not accessible, try to use first accessible MC
@@ -515,7 +518,7 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      
+
       if (!assignedMcNumberId) {
         return NextResponse.json(
           {

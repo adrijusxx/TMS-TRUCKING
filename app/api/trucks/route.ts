@@ -224,9 +224,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createTruckSchema.parse(body);
 
-    // Check if truck number already exists
-    const existingTruck = await prisma.truck.findUnique({
-      where: { truckNumber: validated.truckNumber },
+    // Check if truck number already exists within this company
+    const existingTruck = await prisma.truck.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        truckNumber: validated.truckNumber
+      },
     });
 
     if (existingTruck) {
@@ -242,9 +245,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if VIN already exists
-    const existingVIN = await prisma.truck.findUnique({
-      where: { vin: validated.vin },
+    // Check if VIN already exists within this company
+    const existingVIN = await prisma.truck.findFirst({
+      where: {
+        companyId: session.user.companyId,
+        vin: validated.vin
+      },
     });
 
     if (existingVIN) {
