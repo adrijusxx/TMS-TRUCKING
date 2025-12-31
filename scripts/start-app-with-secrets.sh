@@ -98,6 +98,9 @@ echo "[Startup] AUTH_TRUST_HOST=true"
 echo "[Startup] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:0:20}..."
 echo "[Startup] Starting Next.js on port 3001..."
 
-# Start Next.js with all environment variables
-exec npm start -- -p 3001
+if [ "$1" ]; then
+  exec "$@"
+else
+  exec npm start -- -p 3001
+fi
 
