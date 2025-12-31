@@ -169,6 +169,11 @@ async function resetToSuperAdmin() {
             prisma.expenseCategory.deleteMany({}),
             prisma.deductionRule.deleteMany({}),
             prisma.factoringCompany.deleteMany({}),
+            // Missing Company relations
+            prisma.samsaraDeviceQueue.deleteMany({}),
+            prisma.truckFaultHistory.deleteMany({}),
+            prisma.knowledgeBaseDocument.deleteMany({}),
+            prisma.apiKeyConfig.deleteMany({}),
         ]);
 
         // Group 4: Users & Companies (Sequential to avoid FK constraints)
