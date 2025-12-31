@@ -170,10 +170,19 @@ async function resetToSuperAdmin() {
             prisma.deductionRule.deleteMany({}),
             prisma.factoringCompany.deleteMany({}),
             // Missing Company relations
+            prisma.subscriptionAddOn.deleteMany({}),
+            prisma.subscription.deleteMany({}),
+            prisma.documentChunk.deleteMany({}),
+            prisma.knowledgeBaseDocument.deleteMany({}),
             prisma.samsaraDeviceQueue.deleteMany({}),
             prisma.truckFaultHistory.deleteMany({}),
-            prisma.knowledgeBaseDocument.deleteMany({}),
             prisma.apiKeyConfig.deleteMany({}),
+
+            // Settings & Configs
+            prisma.quickBooksSettings.deleteMany({}),
+            prisma.samsaraSettings.deleteMany({}),
+            prisma.telegramSettings.deleteMany({}),
+            prisma.systemConfig.deleteMany({}),
         ]);
 
         // Group 4: Users & Companies (Sequential to avoid FK constraints)
