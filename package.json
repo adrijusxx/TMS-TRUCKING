@@ -30,6 +30,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "tsx scripts/reset-database.ts",
     "db:reset-clean": "tsx scripts/reset-to-clean-admin.ts",
+    "db:reset-super": "tsx scripts/reset-to-super-admin.ts",
     "db:migrate-demo": "tsx scripts/migrate-demo-to-fourways.ts",
     "db:create-fourways": "tsx scripts/create-fourways-company.ts",
     "db:create-admin": "tsx scripts/create-admin-user.ts",
