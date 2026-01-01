@@ -108,6 +108,7 @@ Return ONLY a JSON array of the top ${limit} most similar cases with this format
 
     /**
      * Suggest solution based on problem description and similar cases
+     * OPTIMIZED: Runs KB search and similar cases in parallel, uses faster model
      */
     async suggestSolution(input: {
         description: string;
@@ -116,40 +117,57 @@ Return ONLY a JSON array of the top ${limit} most similar cases with this format
         breakdownType?: string;
         faultCodes?: Array<{ code: string; description?: string; active?: boolean }>;
     }): Promise<SolutionSuggestion> {
-        try {
-            // Find similar cases first
-            const similarCases = await this.findSimilarCases(input.description, {
-                truckId: input.truckId,
-                breakdownType: input.breakdownType,
-                limit: 3,
-            });
+        const startTime = Date.now();
 
-            // Find relevant documents from Knowledge Base
-            const kbService = new KnowledgeBaseService(this.companyId);
-            const kbDocs = await kbService.search(`${input.description} ${input.problem || ''} ${input.breakdownType || ''}`, 3);
+        try {
+            // Run KB search and similar cases IN PARALLEL for speed
+            const searchQuery = `${input.description} ${input.problem || ''} ${input.breakdownType || ''}`.trim();
+
+            const [similarCases, kbDocs] = await Promise.all([
+                this.findSimilarCases(input.description, {
+                    truckId: input.truckId,
+                    breakdownType: input.breakdownType,
+                    limit: 3,
+                }).catch(err => {
+                    console.warn('[BreakdownAssistant] Similar cases search failed:', err.message);
+                    return [] as SimilarCase[];
+                }),
+                new KnowledgeBaseService(this.companyId).search(searchQuery, 3).catch(err => {
+                    console.warn('[BreakdownAssistant] KB search failed:', err.message);
+                    return [];
+                }),
+            ]);
+
+            // DEBUG: Log what we found
+            console.log(`[BreakdownAssistant] Search completed in ${Date.now() - startTime}ms`);
+            console.log(`[BreakdownAssistant] Found ${kbDocs.length} KB documents, ${similarCases.length} similar cases`);
+            if (kbDocs.length > 0) {
+                console.log(`[BreakdownAssistant] KB docs: ${kbDocs.map(d => d.documentTitle).join(', ')}`);
+            }
 
             const kbContext = kbDocs.length > 0
-                ? `Reference Documents:\n${kbDocs.map(d =>
-                    `- [${d.documentTitle}]: ${d.content.substring(0, 200)}...`
-                ).join('\n')}`
-                : 'No relevant documents found.';
+                ? `📚 KNOWLEDGE BASE DOCUMENTS (MUST USE FOR PRICING & TROUBLESHOOTING):\n${kbDocs.map(d =>
+                    `Document: "${d.documentTitle}"\n${d.content.substring(0, 500)}`
+                ).join('\n\n---\n\n')}`
+                : '⚠️ No relevant documents found in knowledge base.';
 
             // Build context from similar cases
             const context = similarCases.length > 0
-                ? `Similar past cases:\n${similarCases.map(c =>
+                ? `📋 SIMILAR PAST CASES:\n${similarCases.map(c =>
                     `- ${c.breakdownNumber}: ${c.problem}\n  Solution: ${c.solution}\n  Time: ${c.resolutionTimeHours}h, Cost: $${c.totalCost}`
                 ).join('\n')}`
                 : 'No similar cases found in history.';
 
             const faultCodesText = input.faultCodes && input.faultCodes.length > 0
-                ? `Active Fault Codes:\n${input.faultCodes.map(f => `- ${f.code}: ${f.description}`).join('\n')}`
+                ? `🔧 ACTIVE FAULT CODES:\n${input.faultCodes.map(f => `- ${f.code}: ${f.description}`).join('\n')}`
                 : 'No active fault codes detected.';
 
-            const prompt = `You are a truck maintenance expert. Analyze this breakdown and suggest a solution.
+            const prompt = `You are a truck maintenance expert. Your PRIMARY source of information is the KNOWLEDGE BASE DOCUMENTS below.
 
-Problem: ${input.problem || 'Unknown'}
-Description: ${input.description}
-Breakdown Type: ${input.breakdownType || 'Unknown'}
+CURRENT BREAKDOWN:
+- Problem: ${input.problem || 'Unknown'}
+- Description: ${input.description}
+- Type: ${input.breakdownType || 'Unknown'}
 
 ${faultCodesText}
 
@@ -157,29 +175,40 @@ ${kbContext}
 
 ${context}
 
-Provide a detailed solution suggestion in JSON format:
+CRITICAL INSTRUCTIONS:
+1. If Knowledge Base documents are provided above, you MUST use the troubleshooting steps and pricing from those documents
+2. Estimated costs MUST match the pricing in the KB documents, not generic estimates
+3. If the KB has repair procedures, include those exact steps
+4. Reference which document(s) you used in sourceDocuments
+
+Provide your response in this exact JSON format:
 {
-  "rootCause": "Most likely cause",
-  "recommendedSteps": ["Step 1", "Step 2", "Step 3"],
+  "rootCause": "Based on fault codes and KB documents...",
+  "recommendedSteps": ["Step from KB document...", "Step 2", "Step 3"],
   "estimatedTimeHours": 4,
   "estimatedCost": 500,
-  "requiredParts": ["Part 1", "Part 2"],
+  "requiredParts": ["Part mentioned in KB..."],
   "urgencyLevel": "HIGH|MEDIUM|LOW",
-  "confidence": 0.85
+  "confidence": 0.85,
+  "sourceDocuments": ["Document title from KB that was used"]
 }`;
 
+            // Use gpt-4o-mini for faster responses (still high quality)
             const response = await this.openai.chat.completions.create({
-                model: 'gpt-4',
+                model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
-                temperature: 0.4,
+                temperature: 0.3,
             });
 
             const content = response.choices[0].message.content || '{}';
             const suggestion = JSON.parse(content.replace(/```json\n?|\n?```/g, ''));
 
+            console.log(`[BreakdownAssistant] Total suggestion time: ${Date.now() - startTime}ms`);
+
             return {
                 ...suggestion,
                 similarCaseIds: similarCases.map(c => c.id),
+                kbDocumentsUsed: kbDocs.length,
             };
         } catch (error) {
             console.error('[BreakdownAssistant] Error suggesting solution:', error);
@@ -265,4 +294,6 @@ export interface SolutionSuggestion {
     urgencyLevel: 'HIGH' | 'MEDIUM' | 'LOW';
     confidence: number;
     similarCaseIds: string[];
+    kbDocumentsUsed?: number;
+    sourceDocuments?: string[];
 }

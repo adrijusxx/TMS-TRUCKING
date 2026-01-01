@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, AlertCircle, CheckCircle2, X, Loader2, Settings2, Trash2, ArrowRight } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle2, X, Loader2, Settings2, Trash2, ArrowRight, Download, Copy, AlertTriangle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
@@ -52,12 +52,19 @@ export default function BulkImportSidebar({
         message: string;
         progress: number;
         created?: number;
+        updated?: number;
         errors?: number;
     }>({
         status: 'idle',
         message: '',
         progress: 0,
     });
+
+    const [importDetails, setImportDetails] = useState<{
+        created: any[];
+        errors: Array<{ row: number; field: string; error: string }>;
+    } | null>(null);
+
 
     // Derived
     const systemFields = useMemo(() => {
@@ -96,6 +103,8 @@ export default function BulkImportSidebar({
         setImportResult(null);
         setColumnMapping({});
         setFixedValues({});
+        setImportDetails(null);
+        setImportProgress({ status: 'idle', message: '', progress: 0 });
         setIsProcessing(true);
 
         try {
@@ -172,9 +181,35 @@ export default function BulkImportSidebar({
         setColumnMapping({});
         setActiveStep(1);
         setUpdateExisting(false); // Reset this option too
+        setImportDetails(null);
+        setImportProgress({ status: 'idle', message: '', progress: 0 });
         // Do NOT reset MC Number as user likely wants to keep it
         if (fileInputRef.current) fileInputRef.current.value = '';
         setSelectedMcNumberId(''); // Reset this too to avoid stale state
+    };
+
+    // Helper to generate smart summary for toast
+    const generateErrorSummary = (errors: any[]) => {
+        if (!errors || errors.length === 0) return '';
+
+        // Group by error message
+        const groups: Record<string, number> = {};
+        errors.forEach(e => {
+            // Simplify error message for grouping (remove specific values if possible)
+            let key = e.error || 'Unknown error';
+            if (key.includes('Unique constraint')) key = 'Duplicate record found';
+            if (key.includes('User with email')) key = 'Email already exists';
+
+            groups[key] = (groups[key] || 0) + 1;
+        });
+
+        const topErrors = Object.entries(groups)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 2)
+            .map(([msg, count]) => `${msg} (${count})`)
+            .join(', ');
+
+        return topErrors + (Object.keys(groups).length > 2 ? ', ...' : '');
     };
 
     // Import Mutation
@@ -183,6 +218,7 @@ export default function BulkImportSidebar({
             if (!selectedFile || !importResult) throw new Error("No file");
 
             setImportProgress({ status: 'uploading', message: 'Uploading...', progress: 10 });
+            setImportDetails(null);
 
             const formData = new FormData();
             formData.append('file', selectedFile);
@@ -215,38 +251,58 @@ export default function BulkImportSidebar({
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error?.message || 'Import failed');
 
-                // Fix: Handle nested response structure
-                const createdCount = data.data?.created ?? data.data?.details?.created?.length ?? 0;
-                const errorsCount = data.data?.errors ?? data.data?.details?.errors?.length ?? 0;
-                const createdItems = data.data?.details?.created ?? (Array.isArray(data.data?.created) ? data.data.created : []);
+                const summary = data.data;
+                const createdCount = summary.created ?? summary.details?.created?.length ?? 0;
+                const updatedCount = summary.updated ?? 0;
+                const errorsCount = summary.errors ?? summary.details?.errors?.length ?? 0;
+
+                const createdItems = summary.details?.created ?? (Array.isArray(summary.created) ? summary.created : []);
+                const errorItems = summary.details?.errors ?? [];
 
                 setImportProgress({
                     status: 'complete',
-                    message: `Complete: ${createdCount} created, ${errorsCount} errors`,
+                    message: `Complete: ${createdCount} created, ${updatedCount} updated, ${errorsCount} errors`,
                     progress: 100,
                     created: createdCount,
+                    updated: updatedCount,
                     errors: errorsCount
                 });
 
-                return data;
+                setImportDetails({
+                    created: createdItems,
+                    errors: errorItems
+                });
+
+                return { ...data, errorItems, createdItems, createdCount, updatedCount, errorsCount };
             } catch (err) {
                 clearInterval(progressInterval);
                 throw err;
             }
         },
         onSuccess: (data) => {
-            const createdItems = data.data?.details?.created ?? (Array.isArray(data.data?.created) ? data.data.created : []);
-            const createdCount = data.data?.created ?? data.data?.details?.created?.length ?? 0;
-            const errorsCount = data.data?.errors ?? data.data?.details?.errors?.length ?? 0;
+            const { createdCount, updatedCount, errorsCount, errorItems, createdItems } = data;
 
-            if (createdCount > 0) {
-                toast.success(`Imported ${createdCount} records`);
-                if (onImportComplete) onImportComplete(createdItems);
-                if (errorsCount === 0 && onClose) {
-                    setTimeout(onClose, 1500);
+            if (createdCount > 0 || updatedCount > 0) {
+                const action = updatedCount > 0 ? (createdCount > 0 ? 'Imported & Updated' : 'Updated') : 'Imported';
+                const count = createdCount + updatedCount;
+
+                if (errorsCount > 0) {
+                    const errorSummary = generateErrorSummary(errorItems);
+                    toast.warning(`${action} ${count} records. ${errorsCount} failed.`, {
+                        description: `Issues: ${errorSummary}. Check the list below for details.`,
+                        duration: 8000,
+                    });
+                } else {
+                    toast.success(`${action} ${count} records successfully.`);
+                    if (onImportComplete) onImportComplete(createdItems);
+                    if (onClose) setTimeout(onClose, 1500); // Only close automatically if purely successful
                 }
             } else {
-                toast.warning(`No records created. ${errorsCount} errors found.`);
+                const errorSummary = generateErrorSummary(errorItems);
+                toast.error(`Import failed. ${errorsCount} errors found.`, {
+                    description: `Top issues: ${errorSummary}. Check the list below for details.`,
+                    duration: 8000,
+                });
             }
         },
         onError: (err: any) => {
@@ -562,8 +618,87 @@ export default function BulkImportSidebar({
                         </section>
                     )}
 
-                    {/* Progress Status */}
-                    {importProgress.status !== 'idle' && (
+                    {/* Step 3: Results (Enhanced) */}
+                    {importDetails && (
+                        <section className="space-y-4 animate-in fade-in duration-300">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold flex items-center gap-2">
+                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs border ${importDetails.errors.length === 0 ? 'bg-green-500 border-green-500 text-white' : 'bg-orange-500 border-orange-500 text-white'
+                                        }`}>
+                                        <CheckCircle2 className="w-3 h-3" />
+                                    </span>
+                                    Import Results
+                                </h3>
+                            </div>
+
+                            <div className="ml-8 space-y-4">
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                        <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                                            {importDetails.created.length}
+                                        </p>
+                                        <p className="text-xs text-green-600 dark:text-green-400 font-medium">Synced</p>
+                                    </div>
+                                    <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                                        <p className="text-2xl font-bold text-red-700 dark:text-red-300">
+                                            {importDetails.errors.length}
+                                        </p>
+                                        <p className="text-xs text-red-600 dark:text-red-400 font-medium">Failed</p>
+                                    </div>
+                                    <div className="p-3 bg-muted border rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-muted/80" onClick={() => {
+                                        if (importDetails.errors.length > 0) {
+                                            const errorText = importDetails.errors.map(e => `Row ${e.row} [${e.field}]: ${e.error}`).join('\n');
+                                            navigator.clipboard.writeText(errorText);
+                                            toast.success('Error log copied to clipboard');
+                                        }
+                                    }}>
+                                        <Copy className="w-5 h-5 mb-1 text-muted-foreground" />
+                                        <p className="text-xs text-muted-foreground">Copy Log</p>
+                                    </div>
+                                </div>
+
+                                {importDetails.errors.length > 0 && (
+                                    <div className="space-y-2">
+                                        <h4 className="text-sm font-medium flex items-center gap-2 text-red-700 dark:text-red-400">
+                                            <AlertTriangle className="w-4 h-4" />
+                                            Error Log
+                                        </h4>
+                                        <ScrollArea className="h-[250px] border rounded-md bg-white dark:bg-gray-950">
+                                            <div className="divide-y">
+                                                {importDetails.errors.map((error, idx) => (
+                                                    <div key={idx} className="p-3 text-sm hover:bg-muted/50">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <Badge variant="outline" className="text-[10px] h-4 px-1">
+                                                                Row {error.row}
+                                                            </Badge>
+                                                            <span className="font-semibold text-xs text-muted-foreground">
+                                                                {error.field}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-red-600 dark:text-red-400 text-xs">
+                                                            {error.error}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+                                )}
+
+                                {importDetails.errors.length === 0 && (
+                                    <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg flex items-center gap-3">
+                                        <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                        <p className="text-sm text-green-700 dark:text-green-300">
+                                            Success! All records were imported without errors.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Progress Status (Only show when running, hide when showing results) */}
+                    {importProgress.status !== 'idle' && !importDetails && (
                         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t">
                             <div className="space-y-2">
                                 <div className="flex justify-between text-xs">

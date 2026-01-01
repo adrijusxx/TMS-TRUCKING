@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,8 +30,12 @@ import {
   Calendar,
   Filter,
   BarChart3,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { formatDate, apiUrl } from '@/lib/utils';
+import { GoogleMap, useJsApiLoader, Circle, InfoWindow } from '@react-google-maps/api';
+import { getPublicEnv } from '@/lib/env-client';
 
 interface Hotspot {
   location: string;
@@ -102,6 +106,28 @@ export default function BreakdownHotspots() {
     byTimeOfDay: {},
   };
 
+  // Export CSV function
+  const exportToCSV = useCallback(() => {
+    if (hotspots.length === 0) return;
+
+    const headers = ['Location', 'City', 'State', 'Breakdown Count', 'Latitude', 'Longitude'];
+    const rows = hotspots.map(h => [
+      h.location,
+      h.city || '',
+      h.state || '',
+      h.count.toString(),
+      h.latitude?.toString() || '',
+      h.longitude?.toString() || '',
+    ]);
+
+    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `breakdown-hotspots-${dateRange.start}-to-${dateRange.end}.csv`;
+    link.click();
+  }, [hotspots, dateRange]);
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -114,11 +140,15 @@ export default function BreakdownHotspots() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <p className="text-sm text-muted-foreground mt-1">
+      {/* Header with Export */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
           Geographic analysis of where breakdowns commonly occur
         </p>
+        <Button variant="outline" size="sm" onClick={exportToCSV} disabled={hotspots.length === 0}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -341,10 +371,10 @@ export default function BreakdownHotspots() {
                             ))}
                           {Array.from(new Set(hotspot.breakdowns.map((b) => b.breakdownType)))
                             .length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{Array.from(new Set(hotspot.breakdowns.map((b) => b.breakdownType))).length - 3}
-                            </Badge>
-                          )}
+                              <Badge variant="outline" className="text-xs">
+                                +{Array.from(new Set(hotspot.breakdowns.map((b) => b.breakdownType))).length - 3}
+                              </Badge>
+                            )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -364,8 +394,56 @@ export default function BreakdownHotspots() {
           )}
         </CardContent>
       </Card>
+      {/* Hotspot Map */}
+      <HotspotMapSection hotspots={hotspots} />
+    </div>
+  );
+}
 
-      {/* Map Placeholder */}
+// Separate component for the map to isolate the useJsApiLoader hook
+function HotspotMapSection({ hotspots }: { hotspots: Hotspot[] }) {
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: getPublicEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY') || ''
+  });
+
+  const [selectedHotspot, setSelectedHotspot] = useState<Hotspot | null>(null);
+  const [, setMap] = useState<google.maps.Map | null>(null);
+
+  // Calculate center based on hotspots with coordinates
+  const hotspotsWithCoords = hotspots.filter(h => h.latitude && h.longitude);
+  const center = hotspotsWithCoords.length > 0
+    ? {
+      lat: hotspotsWithCoords.reduce((sum, h) => sum + (h.latitude || 0), 0) / hotspotsWithCoords.length,
+      lng: hotspotsWithCoords.reduce((sum, h) => sum + (h.longitude || 0), 0) / hotspotsWithCoords.length,
+    }
+    : { lat: 39.8283, lng: -98.5795 }; // Center of US
+
+  const onLoad = useCallback((map: google.maps.Map) => {
+    if (hotspotsWithCoords.length > 0) {
+      const bounds = new window.google.maps.LatLngBounds();
+      hotspotsWithCoords.forEach(h => {
+        if (h.latitude && h.longitude) {
+          bounds.extend({ lat: h.latitude, lng: h.longitude });
+        }
+      });
+      map.fitBounds(bounds);
+    }
+    setMap(map);
+  }, [hotspotsWithCoords]);
+
+  // Calculate circle radius based on breakdown count (scale: 5000-50000 meters)
+  const getRadius = (count: number) => Math.min(5000 + count * 8000, 50000);
+
+  // Get color based on count (green -> yellow -> red)
+  const getColor = (count: number) => {
+    if (count >= 5) return '#ef4444'; // red
+    if (count >= 3) return '#f59e0b'; // amber
+    return '#22c55e'; // green
+  };
+
+  if (loadError) {
+    return (
       <Card>
         <CardHeader>
           <CardTitle>Hotspot Map</CardTitle>
@@ -374,16 +452,93 @@ export default function BreakdownHotspots() {
         <CardContent>
           <div className="h-96 border rounded-lg flex items-center justify-center bg-muted/30">
             <div className="text-center">
-              <MapPin className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground mb-2">Map visualization coming soon</p>
-              <p className="text-sm text-muted-foreground">
-                This will show a heat map of breakdown locations
-              </p>
+              <MapPin className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">Map cannot load - check API key</p>
             </div>
           </div>
         </CardContent>
       </Card>
-    </div>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Hotspot Map</CardTitle>
+          <CardDescription>Geographic visualization of breakdown locations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-96 border rounded-lg flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Hotspot Map</CardTitle>
+        <CardDescription>
+          Circle size indicates breakdown frequency • Click for details
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-lg overflow-hidden border">
+          <GoogleMap
+            mapContainerStyle={{ width: '100%', height: '400px' }}
+            center={center}
+            zoom={4}
+            onLoad={onLoad}
+            options={{
+              streetViewControl: false,
+              mapTypeControl: false,
+            }}
+          >
+            {hotspotsWithCoords.map((hotspot, idx) => (
+              <Circle
+                key={`${hotspot.location}-${idx}`}
+                center={{ lat: hotspot.latitude!, lng: hotspot.longitude! }}
+                radius={getRadius(hotspot.count)}
+                options={{
+                  fillColor: getColor(hotspot.count),
+                  fillOpacity: 0.4,
+                  strokeColor: getColor(hotspot.count),
+                  strokeOpacity: 0.8,
+                  strokeWeight: 2,
+                  clickable: true,
+                }}
+                onClick={() => setSelectedHotspot(hotspot)}
+              />
+            ))}
+            {selectedHotspot && selectedHotspot.latitude && selectedHotspot.longitude && (
+              <InfoWindow
+                position={{ lat: selectedHotspot.latitude, lng: selectedHotspot.longitude }}
+                onCloseClick={() => setSelectedHotspot(null)}
+              >
+                <div className="p-1 min-w-[180px]">
+                  <h4 className="font-bold text-sm mb-1">{selectedHotspot.location}</h4>
+                  {selectedHotspot.city && <p className="text-xs text-gray-600">{selectedHotspot.city}, {selectedHotspot.state}</p>}
+                  <p className="text-sm font-medium mt-1 text-red-600">{selectedHotspot.count} breakdowns</p>
+                  <Link href={`/dashboard/fleet/breakdowns/history?location=${encodeURIComponent(selectedHotspot.location)}`}>
+                    <Button size="sm" variant="secondary" className="w-full mt-2 h-7 text-xs">
+                      View Breakdowns
+                    </Button>
+                  </Link>
+                </div>
+              </InfoWindow>
+            )}
+          </GoogleMap>
+        </div>
+        {hotspotsWithCoords.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            No hotspots with coordinates to display on map
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

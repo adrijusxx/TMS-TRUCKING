@@ -316,28 +316,36 @@ export default function BreakdownsDataTable({
                                             </div>
                                         </TableCell>
                                         <TableCell className="py-2 text-right">
-                                            {breakdown.totalCost > 0 || (breakdown.totalPaid && breakdown.totalPaid > 0) ? (
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <div className="text-xs">
-                                                                <span className="font-medium">${breakdown.totalCost?.toFixed(0) || 0}</span>
-                                                                {breakdown.totalPaid && breakdown.totalPaid > 0 && (
-                                                                    <span className="text-green-600 ml-1">
-                                                                        ({((breakdown.totalPaid / breakdown.totalCost) * 100).toFixed(0)}%)
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p className="text-xs">Estimated: ${breakdown.totalCost?.toFixed(2)}</p>
-                                                            <p className="text-xs text-green-600">Paid: ${breakdown.totalPaid?.toFixed(2) || 0}</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground">-</span>
-                                            )}
+                                            {(() => {
+                                                // Calculate estimated from individual costs to avoid stale totalCost
+                                                const estimated = (breakdown.repairCost || 0) + (breakdown.towingCost || 0) +
+                                                    (breakdown.laborCost || 0) + (breakdown.partsCost || 0) + (breakdown.otherCosts || 0);
+
+                                                const hasCosts = estimated > 0 || (breakdown.totalPaid !== undefined && breakdown.totalPaid > 0);
+
+                                                return hasCosts ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div className="text-xs">
+                                                                    <span className="font-medium">{`$${estimated.toFixed(0)}`}</span>
+                                                                    {breakdown.totalPaid !== undefined && breakdown.totalPaid > 0 && estimated > 0 && (
+                                                                        <span className="text-green-600 ml-1">
+                                                                            ({((breakdown.totalPaid / estimated) * 100).toFixed(0)}%)
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p className="text-xs">{`Estimated: $${estimated.toFixed(2)}`}</p>
+                                                                <p className="text-xs text-green-600">{`Paid: $${breakdown.totalPaid?.toFixed(2) || 0}`}</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">-</span>
+                                                );
+                                            })()}
                                         </TableCell>
                                         <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
                                             <DropdownMenu>
@@ -375,7 +383,7 @@ export default function BreakdownsDataTable({
                                 ))}
                             </TableBody>
                         </Table>
-                    </div>
+                    </div >
 
                     {mode === 'compact' && filteredBreakdowns.length > (maxRows || 20) && (
                         <div className="p-3 border-t text-center">
@@ -385,15 +393,18 @@ export default function BreakdownsDataTable({
                                 </Button>
                             </Link>
                         </div>
-                    )}
+                    )
+                    }
 
-                    {searchQuery && filteredBreakdowns.length === 0 && breakdowns.length > 0 && (
-                        <div className="p-6 text-center">
-                            <p className="text-muted-foreground text-sm">No cases match your search "{searchQuery}"</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                    {
+                        searchQuery && filteredBreakdowns.length === 0 && breakdowns.length > 0 && (
+                            <div className="p-6 text-center">
+                                <p className="text-muted-foreground text-sm">No cases match your search "{searchQuery}"</p>
+                            </div>
+                        )
+                    }
+                </CardContent >
+            </Card >
 
             <Sheet open={!!selectedBreakdown} onOpenChange={(open) => !open && setSelectedBreakdown(null)}>
                 <SheetContent className="sm:max-w-5xl overflow-y-auto">

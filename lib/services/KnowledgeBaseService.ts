@@ -92,50 +92,116 @@ export class KnowledgeBaseService {
     }
 
     /**
-     * Search knowledge base
+     * Search knowledge base - MEMORY EFFICIENT VERSION
+     * Uses batched streaming to avoid loading all embeddings at once
      */
     async search(query: string, limit = 5): Promise<any[]> {
-        // 1. Generate query embedding
-        const response = await this.openai.embeddings.create({
-            model: 'text-embedding-3-small',
-            input: query,
-        });
-        const queryEmbedding = response.data[0].embedding;
-
-        // 2. Fetch all chunks for this company (Naive approach for now)
-        // For production with pgvector, we would do a raw SQL query here using vector cosine distance
-        // Since we don't have pgvector extension guaranteed, we'll fetch chunks and calculate cosine similarity in JS.
-        // Optimization: Only fetch chunks from "READY" documents.
-
-        // Fetch limited fields to save memory
-        const documents = await prisma.knowledgeBaseDocument.findMany({
-            where: { companyId: this.companyId, status: 'READY' },
-            include: { chunks: true } // Fetches all chunks. CAUTION: Heavy if DB is huge.
-        });
-
-        const allChunks: any[] = [];
-        documents.forEach(doc => {
-            doc.chunks.forEach(chunk => {
-                allChunks.push({
-                    ...chunk,
-                    documentTitle: doc.title,
-                    documentId: doc.id
-                });
+        try {
+            // 1. Generate query embedding
+            const response = await this.openai.embeddings.create({
+                model: 'text-embedding-3-small',
+                input: query,
             });
-        });
+            const queryEmbedding = response.data[0].embedding;
 
-        if (allChunks.length === 0) return [];
+            // 2. Get document IDs for this company (lightweight query)
+            const documents = await prisma.knowledgeBaseDocument.findMany({
+                where: { companyId: this.companyId, status: 'READY' },
+                select: { id: true, title: true },
+            });
 
-        // 3. Calculate Similarity (Cosine)
-        const scoredChunks = allChunks.map(chunk => ({
-            ...chunk,
-            score: this.cosineSimilarity(queryEmbedding, chunk.embedding)
-        }));
+            if (documents.length === 0) return [];
 
-        // 4. Sort and return top K
-        return scoredChunks
-            .sort((a, b) => b.score - a.score)
-            .slice(0, limit);
+            const docMap = new Map(documents.map(d => [d.id, d.title]));
+            const documentIds = documents.map(d => d.id);
+
+            // 3. Count total chunks to set expectations
+            const totalChunks = await prisma.documentChunk.count({
+                where: { documentId: { in: documentIds } },
+            });
+
+            if (totalChunks === 0) return [];
+
+            // 4. Process chunks in batches to avoid memory issues
+            // Keep a min-heap of top K results
+            const BATCH_SIZE = 100; // Process 100 chunks at a time
+            const MAX_CHUNKS = 500; // Safety limit - don't process more than 500 chunks
+            const topResults: Array<{ score: number; chunk: any }> = [];
+
+            let processedCount = 0;
+            let skip = 0;
+
+            while (processedCount < Math.min(totalChunks, MAX_CHUNKS)) {
+                // Fetch batch of chunks
+                const chunkBatch = await prisma.documentChunk.findMany({
+                    where: { documentId: { in: documentIds } },
+                    select: {
+                        id: true,
+                        documentId: true,
+                        content: true,
+                        chunkIndex: true,
+                        embedding: true,
+                    },
+                    skip,
+                    take: BATCH_SIZE,
+                    orderBy: { id: 'asc' },
+                });
+
+                if (chunkBatch.length === 0) break;
+
+                // Calculate similarity for this batch
+                for (const chunk of chunkBatch) {
+                    const embedding = chunk.embedding as number[];
+                    if (!embedding || embedding.length === 0) continue;
+
+                    const score = this.cosineSimilarity(queryEmbedding, embedding);
+
+                    // Keep only top K results
+                    if (topResults.length < limit) {
+                        topResults.push({
+                            score,
+                            chunk: {
+                                id: chunk.id,
+                                documentId: chunk.documentId,
+                                documentTitle: docMap.get(chunk.documentId) || 'Unknown',
+                                content: chunk.content,
+                                chunkIndex: chunk.chunkIndex,
+                            },
+                        });
+                        topResults.sort((a, b) => a.score - b.score); // Min at front
+                    } else if (score > topResults[0].score) {
+                        // Replace minimum if new score is higher
+                        topResults[0] = {
+                            score,
+                            chunk: {
+                                id: chunk.id,
+                                documentId: chunk.documentId,
+                                documentTitle: docMap.get(chunk.documentId) || 'Unknown',
+                                content: chunk.content,
+                                chunkIndex: chunk.chunkIndex,
+                            },
+                        };
+                        topResults.sort((a, b) => a.score - b.score);
+                    }
+                }
+
+                processedCount += chunkBatch.length;
+                skip += BATCH_SIZE;
+
+                // Clear batch from memory
+                chunkBatch.length = 0;
+            }
+
+            // Return sorted by score (highest first)
+            return topResults
+                .sort((a, b) => b.score - a.score)
+                .map(r => ({ ...r.chunk, score: r.score }));
+
+        } catch (error: any) {
+            console.error('[KnowledgeBase] Search error:', error.message);
+            // Don't crash - return empty results
+            return [];
+        }
     }
 
     private cosineSimilarity(vecA: number[], vecB: number[]): number {

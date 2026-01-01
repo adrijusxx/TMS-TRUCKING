@@ -76,6 +76,12 @@ const navigationSections = [
         description: 'Complete historical record of all vehicle breakdowns and repairs.',
       },
       {
+        name: 'Hotspots & Analytics',
+        href: '/dashboard/fleet/hotspots',
+        icon: BarChart3,
+        description: 'Geographic analysis and heatmap of breakdown locations.',
+      },
+      {
         name: 'Diagnostics',
         href: '/dashboard/fleet/diagnostics',
         icon: Gauge,
