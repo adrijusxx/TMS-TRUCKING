@@ -35,6 +35,7 @@ import AddStopDialog from '@/components/loads/AddStopDialog';
 import CustomerSheet from '@/components/customers/CustomerSheet';
 import CustomerCombobox from '@/components/customers/CustomerCombobox';
 import DriverCombobox from '@/components/drivers/DriverCombobox';
+import DispatcherCombobox from '@/components/users/DispatcherCombobox';
 import TruckCombobox from '@/components/trucks/TruckCombobox';
 import TrailerCombobox from '@/components/trailers/TrailerCombobox';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
@@ -198,6 +199,7 @@ export default function LoadForm({
         emptyMiles: data.emptyMiles || undefined,
         trailerNumber: data.trailerNumber || '',
         dispatchNotes: data.dispatchNotes || '',
+        dispatcherId: data.dispatcherId || '',
         pickupLocation: data.pickupLocation || '',
         pickupAddress: data.pickupAddress || '',
         pickupCity: data.pickupCity || '',
@@ -243,6 +245,7 @@ export default function LoadForm({
       hazmat: false,
       fuelAdvance: 0,
       customerId: '',
+      dispatcherId: session?.user?.id || '',
     };
   };
 
@@ -1362,6 +1365,15 @@ export default function LoadForm({
             )}
           </div>
         )}
+
+        <div className="space-y-1.5 mb-2">
+          <Label htmlFor="dispatcherId" className={isCreateMode ? "text-xs" : ""}>Dispatcher</Label>
+          <DispatcherCombobox
+            value={watch('dispatcherId') || ''}
+            onValueChange={(value) => setValue('dispatcherId', value, { shouldValidate: true })}
+            className={isCreateMode ? "h-8 text-sm" : ""}
+          />
+        </div>
 
         <div className={isCreateMode ? "grid grid-cols-2 gap-2" : "grid grid-cols-2 gap-4"}>
           <div className="space-y-1.5">

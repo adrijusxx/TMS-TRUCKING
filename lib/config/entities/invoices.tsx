@@ -112,9 +112,9 @@ const columns: ExtendedColumnDef<InvoiceData>[] = [
     header: 'Status',
     cell: ({ row }) => {
       const displayStatus = row.original.status === 'DRAFT' ? 'Draft' :
-                            row.original.status === 'SENT' ? 'Sent' :
-                            row.original.status === 'PAID' ? 'Paid' :
-                            formatStatus(row.original.status);
+        row.original.status === 'SENT' ? 'Sent' :
+          row.original.status === 'PAID' ? 'Paid' :
+            formatStatus(row.original.status);
       return (
         <Badge variant="outline" className={statusColors[row.original.status]}>
           {displayStatus}
@@ -298,8 +298,8 @@ export const invoicesTableConfig = createEntityTableConfig<InvoiceData>({
   defaultPageSize: 20,
   enableRowSelection: true,
   enableColumnVisibility: true,
-  enableImport: true,
-  enableExport: true,
+  enableImport: false, // Handled by header buttons in InvoiceListNew
+  enableExport: false, // Handled by header buttons in InvoiceListNew
   enableBulkEdit: true,
   enableBulkDelete: true,
   filterDefinitions: [

@@ -66,6 +66,25 @@ export const authOptions: NextAuthConfig = {
                   id: true,
                   name: true
                 }
+              },
+              // Fetch all driver profiles (multi-company support)
+              drivers: {
+                select: {
+                  id: true,
+                  companyId: true,
+                  driverNumber: true
+                }
+              },
+              // Fetch all company associations
+              userCompanies: {
+                select: {
+                  companyId: true,
+                  role: true,
+                  createdAt: true
+                },
+                orderBy: {
+                  createdAt: 'desc' // Newest first
+                }
               }
             }
           });
@@ -121,12 +140,23 @@ export const authOptions: NextAuthConfig = {
             console.log('[Auth] Cleared tempPassword for user:', email);
           }
 
+          // Determine effective company ID
+          let effectiveCompanyId = user.companyId;
+
+          // For DRIVERS: Default to the newest company assignment if available
+          // This handles cases where a driver works for multiple companies or switches companies
+          if (user.role === 'DRIVER' && user.userCompanies && user.userCompanies.length > 0) {
+            // userCompanies is already ordered by createdAt desc in the query
+            effectiveCompanyId = user.userCompanies[0].companyId;
+            console.log('[Auth] Driver login - defaulting to newest company:', effectiveCompanyId);
+          }
+
           return {
             id: user.id,
             email: user.email,
             name: `${user.firstName} ${user.lastName}`,
             role: user.role,
-            companyId: user.companyId,
+            companyId: effectiveCompanyId, // Use the determined company ID
             mcAccess: user.mcAccess || []
           };
         } catch (error) {

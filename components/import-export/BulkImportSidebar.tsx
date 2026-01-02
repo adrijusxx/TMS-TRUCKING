@@ -65,6 +65,17 @@ export default function BulkImportSidebar({
         errors: Array<{ row: number; field: string; error: string }>;
     } | null>(null);
 
+    // Preview mode state
+    const [previewData, setPreviewData] = useState<{
+        totalRows: number;
+        validCount: number;
+        invalidCount: number;
+        warningCount: number;
+        valid: any[];
+        invalid: any[];
+        warnings: any[];
+    } | null>(null);
+
 
     // Derived
     const systemFields = useMemo(() => {
@@ -182,6 +193,7 @@ export default function BulkImportSidebar({
         setActiveStep(1);
         setUpdateExisting(false); // Reset this option too
         setImportDetails(null);
+        setPreviewData(null); // Reset preview data
         setImportProgress({ status: 'idle', message: '', progress: 0 });
         // Do NOT reset MC Number as user likely wants to keep it
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -211,6 +223,49 @@ export default function BulkImportSidebar({
 
         return topErrors + (Object.keys(groups).length > 2 ? ', ...' : '');
     };
+
+    // Preview Mutation - validates data and returns preview without saving
+    const previewMutation = useMutation({
+        mutationFn: async () => {
+            if (!selectedFile || !importResult) throw new Error("No file");
+
+            setImportProgress({ status: 'processing', message: 'Analyzing data...', progress: 20 });
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('columnMapping', JSON.stringify(columnMapping));
+            formData.append('fixedValues', JSON.stringify(fixedValues));
+            formData.append('mcNumberId', selectedMcNumberId);
+            formData.append('updateExisting', updateExisting.toString());
+            formData.append('previewOnly', 'true'); // KEY: Enable preview mode
+
+            if (entityType === 'drivers' && updateExisting) {
+                formData.append('importMode', 'upsert');
+            }
+
+            const endpoint = entityType === 'invoices' ? '/api/invoices/import' : `/api/import-export/${entityType}`;
+            const res = await fetch(apiUrl(endpoint), { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error?.message || 'Preview failed');
+
+            setImportProgress({ status: 'idle', message: '', progress: 0 });
+            return data;
+        },
+        onSuccess: (data) => {
+            if (data.preview && data.data) {
+                setPreviewData(data.data);
+                setActiveStep(3); // Move to preview step
+                toast.success(`Preview ready: ${data.data.validCount} valid, ${data.data.warningCount} warnings, ${data.data.invalidCount} errors`);
+            } else {
+                toast.error('Invalid preview response');
+            }
+        },
+        onError: (err: any) => {
+            setImportProgress({ status: 'error', message: err.message, progress: 0 });
+            toast.error(err.message);
+        }
+    });
 
     // Import Mutation
     const importMutation = useMutation({
@@ -601,16 +656,16 @@ export default function BulkImportSidebar({
 
                                     <Button
                                         className="w-full"
-                                        onClick={() => importMutation.mutate()}
-                                        disabled={unmappedRequired.length > 0 || importMutation.isPending}
+                                        onClick={() => previewMutation.mutate()}
+                                        disabled={unmappedRequired.length > 0 || previewMutation.isPending}
                                     >
-                                        {importMutation.isPending ? (
+                                        {previewMutation.isPending ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Importing...
+                                                Analyzing...
                                             </>
                                         ) : (
-                                            `Start Import (${importResult.data.length} rows)`
+                                            `Preview Import (${importResult.data.length} rows)`
                                         )}
                                     </Button>
                                 </div>
@@ -618,7 +673,136 @@ export default function BulkImportSidebar({
                         </section>
                     )}
 
-                    {/* Step 3: Results (Enhanced) */}
+                    {/* Step 3: Preview (NEW) */}
+                    {previewData && activeStep === 3 && (
+                        <section className="space-y-4 animate-in fade-in duration-300">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs border bg-primary text-primary-foreground border-primary">
+                                        3
+                                    </span>
+                                    Review Import Preview
+                                </h3>
+                            </div>
+
+                            <div className="ml-8 space-y-4">
+                                {/* Summary Cards */}
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                        <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                                            {previewData.validCount}
+                                        </p>
+                                        <p className="text-xs text-green-600 dark:text-green-400 font-medium">Valid</p>
+                                    </div>
+                                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                                        <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
+                                            {previewData.warningCount}
+                                        </p>
+                                        <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">Warnings</p>
+                                    </div>
+                                    <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                                        <p className="text-2xl font-bold text-red-700 dark:text-red-300">
+                                            {previewData.invalidCount}
+                                        </p>
+                                        <p className="text-xs text-red-600 dark:text-red-400 font-medium">Will Skip</p>
+                                    </div>
+                                </div>
+
+                                {/* Warnings (will import with issues) */}
+                                {previewData.warnings.length > 0 && (
+                                    <Accordion type="single" collapsible>
+                                        <AccordionItem value="warnings">
+                                            <AccordionTrigger className="text-sm py-2">
+                                                <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+                                                    <AlertTriangle className="w-4 h-4" />
+                                                    {previewData.warnings.length} Rows with Warnings
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                                <ScrollArea className="h-[150px] border rounded-md bg-yellow-50/50 dark:bg-yellow-950/10">
+                                                    <div className="divide-y">
+                                                        {previewData.warnings.slice(0, 20).map((w: any, idx: number) => (
+                                                            <div key={idx} className="p-2 text-xs">
+                                                                <Badge variant="outline" className="text-[10px] mr-2">Row {w.row}</Badge>
+                                                                <span className="text-yellow-700 dark:text-yellow-400">{w.error}</span>
+                                                            </div>
+                                                        ))}
+                                                        {previewData.warnings.length > 20 && (
+                                                            <p className="p-2 text-xs text-muted-foreground">...and {previewData.warnings.length - 20} more</p>
+                                                        )}
+                                                    </div>
+                                                </ScrollArea>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+                                )}
+
+                                {/* Invalid rows (will be skipped) */}
+                                {previewData.invalid.length > 0 && (
+                                    <Accordion type="single" collapsible>
+                                        <AccordionItem value="invalid">
+                                            <AccordionTrigger className="text-sm py-2">
+                                                <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                                                    <AlertCircle className="w-4 h-4" />
+                                                    {previewData.invalid.length} Rows Will Be Skipped
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                                <ScrollArea className="h-[150px] border rounded-md bg-red-50/50 dark:bg-red-950/10">
+                                                    <div className="divide-y">
+                                                        {previewData.invalid.slice(0, 20).map((e: any, idx: number) => (
+                                                            <div key={idx} className="p-2 text-xs">
+                                                                <Badge variant="outline" className="text-[10px] mr-2">Row {e.row}</Badge>
+                                                                <span className="font-medium">{e.field}:</span>{' '}
+                                                                <span className="text-red-600 dark:text-red-400">{e.error}</span>
+                                                            </div>
+                                                        ))}
+                                                        {previewData.invalid.length > 20 && (
+                                                            <p className="p-2 text-xs text-muted-foreground">...and {previewData.invalid.length - 20} more</p>
+                                                        )}
+                                                    </div>
+                                                </ScrollArea>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-2 pt-2">
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1"
+                                        onClick={() => {
+                                            setPreviewData(null);
+                                            setActiveStep(2);
+                                        }}
+                                    >
+                                        <X className="w-4 h-4 mr-2" />
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        className="flex-1"
+                                        onClick={() => importMutation.mutate()}
+                                        disabled={importMutation.isPending || previewData.validCount === 0}
+                                    >
+                                        {importMutation.isPending ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                Importing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                                Approve & Import ({previewData.validCount})
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Step 4: Results (Enhanced) */}
                     {importDetails && (
                         <section className="space-y-4 animate-in fade-in duration-300">
                             <div className="flex items-center justify-between">

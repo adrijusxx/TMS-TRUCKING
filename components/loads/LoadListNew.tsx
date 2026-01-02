@@ -309,8 +309,6 @@ export default function LoadListNew() {
           setSelectedIds(ids);
         }, [])}
         getRowClassName={getLoadRowClassName}
-        onDeleteSelected={handleDelete}
-        onExportSelected={handleExport}
       />
 
       {/* Bulk Action Bar */}

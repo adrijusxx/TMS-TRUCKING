@@ -1,7 +1,7 @@
 import React from 'react';
 import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
-import { LoadStatus } from '@prisma/client';
+import { LoadStatus, LoadDispatchStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -71,6 +71,7 @@ interface LoadData {
     id: string;
     rateConfNumber: string | null;
   }> | null;
+  dispatchStatus?: LoadDispatchStatus | null;
 }
 
 export function formatStatus(status: LoadStatus): string {
@@ -226,7 +227,11 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => (
-      <LoadStatusCell loadId={row.original.id} status={row.original.status} />
+      <LoadStatusCell
+        loadId={row.original.id}
+        status={row.original.status}
+        dispatchStatus={row.original.dispatchStatus}
+      />
     ),
     defaultVisible: true,
     enableColumnFilter: true,
@@ -328,6 +333,21 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'truckId',
+  },
+  {
+    id: 'dispatcher',
+    header: 'Dispatcher',
+    cell: ({ row }) =>
+      row.original.dispatcher ? (
+        <span className="text-sm">
+          {row.original.dispatcher.firstName} {row.original.dispatcher.lastName}
+        </span>
+      ) : (
+        <span className="text-sm text-muted-foreground">—</span>
+      ),
+    defaultVisible: true,
+    enableColumnFilter: true,
+    filterKey: 'dispatcherId',
   },
   {
     id: 'pickupDate',
@@ -631,6 +651,7 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
     'deliveryDate',
     'rpmLoaded',
     'miles',
+    'dispatcher',
     'mcNumber',
   ],
   requiredColumns: ['loadNumber'],
@@ -639,8 +660,8 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
   defaultPageSize: 20,
   enableRowSelection: true,
   enableColumnVisibility: true,
-  enableImport: true,
-  enableExport: true,
+  enableImport: false, // Handled by header buttons in LoadListNew
+  enableExport: false, // Handled by header buttons in LoadListNew
   enableBulkEdit: true,
   enableBulkDelete: true,
   filterDefinitions: [

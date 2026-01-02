@@ -285,10 +285,14 @@ export default function LoadDetail({
             </Link>
           )}
           <h1 className="text-lg font-bold">{load.loadNumber}</h1>
-          <Badge variant="outline" className={`text-xs ${statusColors[load.status as LoadStatus]}`}>
-            {formatStatus(load.status)}
-          </Badge>
-          <DispatchStatusBadge status={load.dispatchStatus} />
+          {/* Show DispatchStatus if set, otherwise show main LoadStatus */}
+          {load.dispatchStatus ? (
+            <DispatchStatusBadge status={load.dispatchStatus} />
+          ) : (
+            <Badge variant="outline" className={`text-xs ${statusColors[load.status as LoadStatus]}`}>
+              {formatStatus(load.status)}
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <DispatchStatusSelector

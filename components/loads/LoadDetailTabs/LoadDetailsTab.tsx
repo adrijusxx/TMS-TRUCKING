@@ -12,9 +12,10 @@ import DriverCombobox from '@/components/drivers/DriverCombobox';
 import TruckCombobox from '@/components/trucks/TruckCombobox';
 import TrailerCombobox from '@/components/trailers/TrailerCombobox';
 import CustomerCombobox from '@/components/customers/CustomerCombobox';
-import { 
-  Package, User, Truck, ChevronDown, ChevronUp, AlertTriangle, 
-  MessageSquare, FileText, Plus, DollarSign 
+import DispatcherCombobox from '@/components/users/DispatcherCombobox';
+import {
+  Package, User, Truck, ChevronDown, ChevronUp, AlertTriangle,
+  MessageSquare, FileText, Plus, DollarSign
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -139,6 +140,15 @@ export default function LoadDetailsTab({
                     className="h-7 text-xs"
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Dispatcher</Label>
+                  <DispatcherCombobox
+                    value={formData.dispatcherId || ''}
+                    onValueChange={(value) => updateField('dispatcherId', value)}
+                    placeholder="Search..."
+                    className="h-7 text-xs"
+                  />
+                </div>
               </>
             ) : (
               <>
@@ -167,6 +177,14 @@ export default function LoadDetailsTab({
                     <Label className="text-xs text-muted-foreground">Co-Driver</Label>
                     <p className="text-xs font-medium">
                       {load.coDriver.user.firstName} {load.coDriver.user.lastName}
+                    </p>
+                  </div>
+                )}
+                {load.dispatcher && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Dispatcher</Label>
+                    <p className="text-xs font-medium">
+                      {load.dispatcher.firstName} {load.dispatcher.lastName}
                     </p>
                   </div>
                 )}
@@ -487,51 +505,55 @@ export default function LoadDetailsTab({
       </Card>
 
       {/* Load Segments */}
-      {load.segments && load.segments.length > 0 && (
-        <Card className="shadow-sm">
-          <CardHeader className="py-2 px-3">
-            <div className="flex items-center gap-2">
-              <Truck className="h-3.5 w-3.5 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Segments ({load.segments.length})</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="py-2 px-3">
-            <LoadSegments
-              loadId={load.id}
-              segments={load.segments || []}
-              availableDrivers={availableDrivers}
-              availableTrucks={availableTrucks}
-              canEdit={canEdit}
-            />
-          </CardContent>
-        </Card>
-      )}
+      {
+        load.segments && load.segments.length > 0 && (
+          <Card className="shadow-sm">
+            <CardHeader className="py-2 px-3">
+              <div className="flex items-center gap-2">
+                <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Segments ({load.segments.length})</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="py-2 px-3">
+              <LoadSegments
+                loadId={load.id}
+                segments={load.segments || []}
+                availableDrivers={availableDrivers}
+                availableTrucks={availableTrucks}
+                canEdit={canEdit}
+              />
+            </CardContent>
+          </Card>
+        )
+      }
 
       {/* Dialogs */}
-      {canEdit && (
-        <>
-          <AccessorialChargeForm
-            open={showAccessorialForm}
-            onOpenChange={setShowAccessorialForm}
-            loadId={load.id}
-            onSuccess={() => {
-              setShowAccessorialForm(false);
-              window.location.reload();
-            }}
-          />
-          <RateConfirmationForm
-            open={showRateConForm}
-            onOpenChange={setShowRateConForm}
-            loadId={load.id}
-            confirmationId={load.rateConfirmation?.id}
-            onSuccess={() => {
-              setShowRateConForm(false);
-              window.location.reload();
-            }}
-          />
-        </>
-      )}
-    </div>
+      {
+        canEdit && (
+          <>
+            <AccessorialChargeForm
+              open={showAccessorialForm}
+              onOpenChange={setShowAccessorialForm}
+              loadId={load.id}
+              onSuccess={() => {
+                setShowAccessorialForm(false);
+                window.location.reload();
+              }}
+            />
+            <RateConfirmationForm
+              open={showRateConForm}
+              onOpenChange={setShowRateConForm}
+              loadId={load.id}
+              confirmationId={load.rateConfirmation?.id}
+              onSuccess={() => {
+                setShowRateConForm(false);
+                window.location.reload();
+              }}
+            />
+          </>
+        )
+      }
+    </div >
   );
 }
 

@@ -23,7 +23,7 @@ export default async function Layout({
 
   // Check if user is a driver - drivers should only access mobile app
   if (session.user.role === 'DRIVER') {
-    const driver = await prisma.driver.findUnique({
+    const driver = await prisma.driver.findFirst({
       where: {
         userId: session.user.id,
       },

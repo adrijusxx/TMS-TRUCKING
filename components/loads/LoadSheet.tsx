@@ -79,7 +79,7 @@ export default function LoadSheet({ open, onOpenChange, mode, loadId, initialDat
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent side="right" className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl overflow-y-auto">
+            <SheetContent side="right" className="w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl overflow-y-auto">
                 <SheetHeader className="mb-4">
                     <SheetTitle>{getTitle()}</SheetTitle>
                     <SheetDescription>{getDescription()}</SheetDescription>

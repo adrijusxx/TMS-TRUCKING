@@ -221,8 +221,6 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
         filterKey="lastName"
         onDeleteSelected={handleDeleteSelected}
         onExportSelected={handleExportSelected}
-        onImport={handleImport}
-        onExport={handleExport}
       />
       <DriverSheet
         open={sheetOpen}

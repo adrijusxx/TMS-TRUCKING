@@ -8,6 +8,8 @@
 import { prisma } from '@/lib/prisma';
 import { AccountingSyncManager } from './AccountingSyncManager';
 import { LoadCostingManager } from './LoadCostingManager';
+import { InvoiceManager } from './InvoiceManager';
+import { BillingHoldManager } from './BillingHoldManager';
 // import { notifyLoadCompleted } from '@/lib/notifications/triggers'; // TODO: Implement notification trigger
 
 interface LoadCompletionResult {
@@ -28,10 +30,14 @@ interface LoadValidationResult {
 export class LoadCompletionManager {
   private accountingSyncManager: AccountingSyncManager;
   private costingManager: LoadCostingManager;
+  private invoiceManager: InvoiceManager;
+  private billingHoldManager: BillingHoldManager;
 
   constructor() {
     this.accountingSyncManager = new AccountingSyncManager();
     this.costingManager = new LoadCostingManager();
+    this.invoiceManager = new InvoiceManager();
+    this.billingHoldManager = new BillingHoldManager();
   }
 
   /**
@@ -110,6 +116,28 @@ export class LoadCompletionManager {
         }
       } catch (error: any) {
         errors.push(`Accounting sync failed: ${error.message}`);
+      }
+
+      // 4b. Auto-Generate Invoice (if eligible)
+      try {
+        const eligibility = await this.billingHoldManager.checkInvoicingEligibility(loadId);
+        if (eligibility.eligible) {
+          const readyToBill = await this.invoiceManager.isReadyToBill(loadId, {
+            allowBrokerageSplit: load.customer?.type === 'BROKER'
+          });
+
+          if (readyToBill.ready) {
+            const invoiceResult = await this.invoiceManager.generateInvoice([loadId]);
+            if (!invoiceResult.success) {
+              errors.push(`Auto-invoice failed: ${invoiceResult.error}`);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('Auto-invoice error:', error);
+        // Don't fail the whole completion flow for invoicing error, just log it
+        // or push to errors if strictly required. 
+        // errors.push(`Auto-invoice error: ${error.message}`);
       }
 
       // 5. Update operations metrics
@@ -230,9 +258,9 @@ export class LoadCompletionManager {
             // Update on-time percentage if applicable
             onTimePercentage: load.onTimeDelivery
               ? ((driver.totalLoads * driver.onTimePercentage + 100) /
-                  (driver.totalLoads + 1))
+                (driver.totalLoads + 1))
               : ((driver.totalLoads * driver.onTimePercentage) /
-                  (driver.totalLoads + 1)),
+                (driver.totalLoads + 1)),
           },
         });
       }

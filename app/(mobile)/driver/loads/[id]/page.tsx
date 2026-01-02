@@ -17,9 +17,11 @@ export default async function DriverLoadDetailPage({
   // Await params as it's now a Promise in Next.js 15+
   const resolvedParams = await params;
 
-  const driver = await prisma.driver.findUnique({
+  const driver = await prisma.driver.findFirst({
     where: {
       userId: session.user.id,
+      deletedAt: null,
+      isActive: true,
     },
   });
 

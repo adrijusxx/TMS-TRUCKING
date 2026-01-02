@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const mcState = await McStateManager.getMcState(session, request);
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
     const mcAccess = McStateManager.getMcAccess(session);
-    
+
     // Debug logging
     console.log('[Users API] MC State:', {
       isAdmin,
@@ -165,21 +165,21 @@ export async function GET(request: NextRequest) {
 
     // Combine all conditions using AND
     const andConditions: any[] = [baseConditions];
-    
+
     if (roleFilterCondition) {
       andConditions.push(roleFilterCondition);
     }
-    
+
     if (mcFilter) {
       andConditions.push(mcFilter);
     }
-    
+
     if (searchFilter) {
       andConditions.push(searchFilter);
     }
 
     // Build final where clause
-    const where: any = andConditions.length > 1 
+    const where: any = andConditions.length > 1
       ? { AND: andConditions }
       : baseConditions;
 
@@ -233,7 +233,8 @@ export async function GET(request: NextRequest) {
             companyName: true,
           },
         },
-        driver: {
+        drivers: {
+          take: 1,
           select: {
             mcNumber: true,
           },
@@ -350,7 +351,7 @@ export async function POST(request: NextRequest) {
       tempPassword: plainPassword, // Store plaintext password temporarily for admin viewing
       companyId: session.user.companyId,
     };
-    
+
     // For CUSTOMER role, don't require MC number
     if (validated.role === 'CUSTOMER') {
       const { mcNumberId, ...userDataWithoutMc } = userData;

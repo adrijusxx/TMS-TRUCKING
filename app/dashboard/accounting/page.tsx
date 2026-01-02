@@ -7,6 +7,7 @@ import { SettlementApprovalQueue } from '@/components/accounting/SettlementAppro
 import { AdvanceApprovalQueue } from '@/components/accounting/AdvanceApprovalQueue';
 import { CashFlowProjection } from '@/components/accounting/CashFlowProjection';
 import { AccountingMetrics } from '@/components/accounting/AccountingMetrics';
+import { InvoicingKnowledgeBase } from '@/components/accounting/InvoicingKnowledgeBase';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function AccountingDashboardPage() {
@@ -116,6 +117,11 @@ export default function AccountingDashboardPage() {
               </CardContent>
             </Link>
           </Card>
+        </div>
+
+        {/* Knowledge Base */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <InvoicingKnowledgeBase />
         </div>
       </div>
     </>

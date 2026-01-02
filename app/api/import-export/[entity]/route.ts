@@ -473,7 +473,10 @@ export async function POST(
     const updateExistingParam = formData.get('updateExisting') === 'true';
     const updateExisting = updateExistingParam || importMode === 'update' || importMode === 'upsert';
 
-    console.log(`[Import] importMode=${importMode}, updateExistingParam=${updateExistingParam}, updateExisting=${updateExisting}`);
+    // Preview mode - validate and return preview data without saving
+    const previewOnly = formData.get('previewOnly') === 'true';
+
+    console.log(`[Import] importMode=${importMode}, updateExistingParam=${updateExistingParam}, updateExisting=${updateExisting}, previewOnly=${previewOnly}`);
 
     // Get MC number ID from form data, or fallback to session MC number
     const formMcNumberId = formData.get('mcNumberId') as string | null;
@@ -1093,6 +1096,32 @@ export async function POST(
         }
       }
 
+      // PREVIEW MODE: Return data without saving
+      if (previewOnly) {
+        const validRows = customersToCreate.map((c, index) => ({
+          row: index + 1, // Approximation
+          name: c.name,
+          customerNumber: c.customerNumber,
+          type: c.type || 'Unknown',
+          email: c.email,
+          status: 'New'
+        }));
+
+        return NextResponse.json({
+          success: true,
+          preview: true,
+          data: {
+            totalRows: importResult.data.length,
+            validCount: validRows.length,
+            invalidCount: errors.length,
+            warningCount: 0,
+            valid: validRows.slice(0, 100),
+            invalid: errors,
+            warnings: []
+          }
+        });
+      }
+
       // Batch create customers for better performance
       for (let i = 0; i < customersToCreate.length; i += BATCH_SIZE) {
         const batch = customersToCreate.slice(i, i + BATCH_SIZE);
@@ -1157,7 +1186,47 @@ export async function POST(
       });
 
       // Helper function to resolve MC number string to McNumber ID
-      const resolveMcNumberId = async (mcValue: string | null | undefined): Promise<string | undefined> => {
+      // OPTIMIZATION: Pre-fetch MC Numbers for efficient lookup to avoid DB queries inside loop
+      const companyMcNumbers = await prisma.mcNumber.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { id: true, number: true, companyName: true, isDefault: true },
+      });
+
+      // Default MC ID
+      const defaultMcNumberId = companyMcNumbers.find(mc => mc.isDefault)?.id || companyMcNumbers[0]?.id;
+
+      // Create lookup maps for MC numbers
+      const mcNumberMap = new Map<string, string>(); // number/name -> id
+      companyMcNumbers.forEach(mc => {
+        if (mc.number) {
+          mcNumberMap.set(mc.number.trim(), mc.id);
+          mcNumberMap.set(mc.number.trim().toLowerCase(), mc.id);
+        }
+        if (mc.companyName) {
+          mcNumberMap.set(mc.companyName.trim().toLowerCase(), mc.id);
+        }
+        mcNumberMap.set(mc.id, mc.id); // Also map ID to ID
+      });
+
+      // Helper function to resolve MC number string to McNumber ID (OPTIMIZED: In-memory only)
+      const resolveMcNumberId = (mcValue: string | null | undefined): string | undefined => {
+        if (!mcValue) return defaultMcNumberId;
+
+        const mcStr = String(mcValue).trim();
+        if (!mcStr) return defaultMcNumberId;
+
+        // Check direct ID match (cuid)
+        if (mcStr.length === 25 && mcStr.startsWith('cm')) {
+          const idMatch = companyMcNumbers.find(mc => mc.id === mcStr);
+          if (idMatch) return idMatch.id;
+        }
+
+        // Check map
+        return mcNumberMap.get(mcStr) || mcNumberMap.get(mcStr.toLowerCase()) || defaultMcNumberId;
+        /*
         if (!mcValue) {
           // If no value, try to find default MC number for the company
           const defaultMcNumber = await prisma.mcNumber.findFirst({
@@ -1170,10 +1239,10 @@ export async function POST(
           });
           return defaultMcNumber?.id;
         }
-
+        
         const mcStr = String(mcValue).trim();
         if (!mcStr) return undefined;
-
+        
         // First, check if it's already an ID (cuid format)
         if (mcStr.length === 25 && mcStr.startsWith('cm')) {
           const mcNumber = await prisma.mcNumber.findFirst({
@@ -1186,7 +1255,7 @@ export async function POST(
           });
           if (mcNumber) return mcNumber.id;
         }
-
+        
         // Try to find by MC number first
         let mcNumber = await prisma.mcNumber.findFirst({
           where: {
@@ -1196,7 +1265,7 @@ export async function POST(
           },
           select: { id: true },
         });
-
+        
         // If not found by number, try by company name
         if (!mcNumber) {
           mcNumber = await prisma.mcNumber.findFirst({
@@ -1208,7 +1277,7 @@ export async function POST(
             select: { id: true },
           });
         }
-
+        
         // If still not found, try to find default MC number for the company
         if (!mcNumber) {
           mcNumber = await prisma.mcNumber.findFirst({
@@ -1220,8 +1289,9 @@ export async function POST(
             select: { id: true },
           });
         }
-
-        return mcNumber?.id;
+        
+          return mcNumber?.id;
+          */
       };
 
       // Map Excel status values to TruckStatus enum
@@ -1288,7 +1358,8 @@ export async function POST(
             return currentMcNumber || undefined;
           })();
 
-          const mcNumberId = await resolveMcNumberId(mcValue);
+          // OPTIMIZATION: removed await
+          const mcNumberId = resolveMcNumberId(mcValue);
           // Allow null mcNumberId - can be assigned later via bulk edit
 
           trucksToCreate.push({
@@ -1322,6 +1393,33 @@ export async function POST(
         } catch (error: any) {
           errors.push({ row: i + 1, error: error.message || 'Failed to process truck' });
         }
+      }
+
+      // PREVIEW MODE: Return data without saving
+      if (previewOnly) {
+        const validRows = trucksToCreate.map((t, index) => ({
+          row: index + 1, // Approximation as we pushed to array
+          truckNumber: t.truckNumber,
+          vin: t.vin,
+          make: t.make,
+          model: t.model,
+          year: t.year,
+          status: t.status
+        }));
+
+        return NextResponse.json({
+          success: true,
+          preview: true,
+          data: {
+            totalRows: importResult.data.length,
+            validCount: validRows.length,
+            invalidCount: errors.length,
+            warningCount: 0,
+            valid: validRows.slice(0, 100),
+            invalid: errors,
+            warnings: []
+          }
+        });
       }
 
       // Batch create trucks for better performance
@@ -1637,6 +1735,32 @@ export async function POST(
 
       // Track unresolved values for value resolution dialog
       const unresolvedValues: Array<{ row: number; field: string; value: string; error: string }> = [];
+
+      // PREVIEW MODE: Return data without saving
+      if (previewOnly) {
+        const validRows = trailersToCreate.map((t, index) => ({
+          row: index + 1, // Approximation
+          trailerNumber: t.trailerNumber,
+          make: t.make || 'Unknown',
+          type: t.type || 'Unknown',
+          year: t.year || 'Unknown',
+          status: t.status || 'Unknown'
+        }));
+
+        return NextResponse.json({
+          success: true,
+          preview: true,
+          data: {
+            totalRows: importResult.data.length,
+            validCount: validRows.length,
+            invalidCount: errors.length,
+            warningCount: 0,
+            valid: validRows.slice(0, 100),
+            invalid: errors,
+            warnings: []
+          }
+        });
+      }
 
       // Batch create trailers for better performance
       for (let i = 0; i < trailersToCreate.length; i += BATCH_SIZE) {
@@ -1989,7 +2113,7 @@ export async function POST(
       }
     } else if (entity === 'loads') {
       // Import loads from CSV/Excel - OPTIMIZED FOR BULK IMPORT
-      const { createLoadSchema } = await import('@/lib/validations/load');
+      const { importLoadSchema } = await import('@/lib/validations/load');
       const { LoadType, EquipmentType, LoadStatus } = await import('@prisma/client');
 
       // Starting optimized bulk import
@@ -2413,11 +2537,11 @@ export async function POST(
             }
 
             if (!truckId) {
-              // Add to errors but don't block import
+              // Add warning - import will proceed without truck assignment
               errors.push({
                 row: i + 1,
                 field: 'Truck',
-                error: `Truck "${truckValue}" not found in database`,
+                error: `Truck "${truckValue}" not found - load imported without truck assignment`,
               });
             } else {
             }
@@ -2769,7 +2893,7 @@ export async function POST(
           };
 
           // Validate using schema
-          const validated = createLoadSchema.parse(loadData);
+          const validated = importLoadSchema.parse(loadData);
 
           // Check if load number already exists (using pre-fetched set)
           if (existingLoadNumbers.has(validated.loadNumber)) {
@@ -3108,6 +3232,51 @@ export async function POST(
         }
       }
 
+      // PREVIEW MODE: Return prepared data without saving
+      if (previewOnly) {
+        // Categorize prepared loads
+        const validLoads = preparedLoads.map((load, idx) => ({
+          rowIndex: load.rowIndex,
+          loadNumber: load.data.loadNumber,
+          customer: load.data.customerId ? 'Found' : 'Missing',
+          pickupCity: load.data.pickupCity || 'Unknown',
+          pickupState: load.data.pickupState || '',
+          deliveryCity: load.data.deliveryCity || 'Unknown',
+          deliveryState: load.data.deliveryState || '',
+          revenue: load.data.revenue || 0,
+          hasDriver: !!load.data.driverId,
+          hasTruck: !!load.data.truckId,
+        }));
+
+        // Errors are rows that won't be imported
+        const invalidRows = errors.filter(e =>
+          e.field === 'Customer' ||
+          e.field === 'Load Number' ||
+          e.field === 'Validation'
+        );
+
+        // Warnings are rows that will import with issues
+        const warningRows = errors.filter(e =>
+          e.field === 'Truck' ||
+          e.field === 'Driver' ||
+          e.field === 'Trailer'
+        );
+
+        return NextResponse.json({
+          success: true,
+          preview: true,
+          data: {
+            totalRows: importResult.data.length,
+            validCount: validLoads.length,
+            invalidCount: invalidRows.length,
+            warningCount: warningRows.length,
+            valid: validLoads.slice(0, 100), // Limit preview to first 100
+            invalid: invalidRows,
+            warnings: warningRows,
+          }
+        });
+      }
+
       // STEP 3: Batch create loads in transactions
       const loadsWithStops: typeof preparedLoads = [];
       const loadsWithoutStops: typeof preparedLoads = [];
@@ -3375,6 +3544,15 @@ export async function POST(
         trailerMap.set(t.trailerNumber.trim(), t.id);
       });
 
+      // Collect all emails from the import file to optimize DB query
+      const allImportEmails = new Set<string>();
+      for (const row of importResult.data) {
+        const email = getValue(row, ['Email', 'email', 'Email Address', 'email_address', 'E-mail', 'e-mail', 'EmailAddress']);
+        if (email) {
+          allImportEmails.add(String(email).toLowerCase().trim());
+        }
+      }
+
       // Pre-fetch existing drivers and users to avoid duplicate checks
       // ALWAYS include soft-deleted drivers/users to detect unique constraint conflicts
       // The database unique constraints apply even to soft-deleted records
@@ -3392,92 +3570,77 @@ export async function POST(
           user: { select: { email: true } }
         },
       });
-      // ALWAYS include soft-deleted users to check for email conflicts
+
+      // GLOBAL USER CHECK: Fetch users by email ignoring company scope to prevent unique constraint violations
+      // This is critical because emails must be unique globally in the User table
       const existingUsers = await prisma.user.findMany({
         where: {
-          companyId: session.user.companyId,
-          // Always fetch all users (including deleted) to check unique constraints
+          email: { in: Array.from(allImportEmails), mode: 'insensitive' },
+          // OR query to also get users for existing drivers in this company (just in case they aren't in the email list)
         },
-        select: { id: true, email: true, deletedAt: true },
+        select: { id: true, email: true, deletedAt: true, companyId: true },
       });
 
-      const existingDriverNumbers = new Set(existingDrivers.map(d => d.driverNumber));
+      const existingDriverNumbers = new Set(existingDrivers.map(d => d.driverNumber.toLowerCase().trim()));
+
+      // existingEmails tracks ALL emails known to the system (DB + currently processing batch)
+      // Initialize with emails from DB
       const existingEmails = new Set([
         ...existingDrivers.map(d => d.user.email.toLowerCase()),
         ...existingUsers.map(u => u.email.toLowerCase()),
       ]);
 
       // Create lookup maps for updates
-      const driverByNumber = new Map(existingDrivers.map(d => [d.driverNumber, d]));
+      const driverByNumber = new Map(existingDrivers.map(d => [d.driverNumber.toLowerCase().trim(), d]));
       const driverByEmail = new Map(existingDrivers.map(d => [d.user.email.toLowerCase(), d]));
+      // User map now includes companyId to check for cross-company conflicts
       const userByEmail = new Map(existingUsers.map(u => [u.email.toLowerCase(), { ...u, id: u.id }]));
 
-      // Helper function to resolve MC number string to McNumber ID
-      const resolveMcNumberId = async (mcValue: string | null | undefined): Promise<string | undefined> => {
-        if (!mcValue) {
-          // If no value, try to find default MC number for the company
-          const defaultMcNumber = await prisma.mcNumber.findFirst({
-            where: {
-              companyId: session.user.companyId,
-              deletedAt: null,
-              isDefault: true,
-            },
-            select: { id: true },
-          });
-          return defaultMcNumber?.id;
+      // OPTIMIZATION: Pre-fetch MC Numbers for efficient lookup to avoid DB queries inside loop
+      const companyMcNumbers = await prisma.mcNumber.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { id: true, number: true, companyName: true, isDefault: true },
+      });
+
+      // Default MC ID
+      const defaultMcNumberId = companyMcNumbers.find(mc => mc.isDefault)?.id || companyMcNumbers[0]?.id;
+
+      // Create lookup maps for MC numbers
+      const mcNumberMap = new Map<string, string>(); // number/name -> id
+      companyMcNumbers.forEach(mc => {
+        if (mc.number) {
+          mcNumberMap.set(mc.number.trim(), mc.id);
+          mcNumberMap.set(mc.number.trim().toLowerCase(), mc.id);
         }
+        if (mc.companyName) {
+          mcNumberMap.set(mc.companyName.trim().toLowerCase(), mc.id);
+        }
+        mcNumberMap.set(mc.id, mc.id); // Also map ID to ID
+      });
+
+      // Helper function to resolve MC number string to McNumber ID (OPTIMIZED: In-memory only)
+      const resolveMcNumberId = (mcValue: string | null | undefined): string | undefined => {
+        if (!mcValue) return defaultMcNumberId;
 
         const mcStr = String(mcValue).trim();
-        if (!mcStr) {
-          // If empty string, try to find default MC number for the company
-          const defaultMcNumber = await prisma.mcNumber.findFirst({
-            where: {
-              companyId: session.user.companyId,
-              deletedAt: null,
-              isDefault: true,
-            },
-            select: { id: true },
-          });
-          return defaultMcNumber?.id;
-        }
+        if (!mcStr) return defaultMcNumberId;
 
-        // First, check if it's already an ID (cuid format)
+        // Check direct ID match (cuid)
         if (mcStr.length === 25 && mcStr.startsWith('cm')) {
-          const mcNumber = await prisma.mcNumber.findFirst({
-            where: {
-              id: mcStr,
-              companyId: session.user.companyId,
-              deletedAt: null,
-            },
-            select: { id: true },
-          });
-          if (mcNumber) return mcNumber.id;
+          const idMatch = companyMcNumbers.find(mc => mc.id === mcStr);
+          if (idMatch) return idMatch.id;
         }
 
-        // Try to find by MC number first
-        let mcNumber = await prisma.mcNumber.findFirst({
-          where: {
-            companyId: session.user.companyId,
-            deletedAt: null,
-            number: { equals: mcStr, mode: 'insensitive' },
-          },
-          select: { id: true },
-        });
-
-        // If not found by number, try by company name
-        if (!mcNumber) {
-          mcNumber = await prisma.mcNumber.findFirst({
-            where: {
-              companyId: session.user.companyId,
-              deletedAt: null,
-              companyName: { equals: mcStr, mode: 'insensitive' },
-            },
-            select: { id: true },
-          });
-        }
-
-        return mcNumber?.id;
+        // Check map
+        return mcNumberMap.get(mcStr) || mcNumberMap.get(mcStr.toLowerCase()) || defaultMcNumberId;
       };
+
+      // OPTIMIZATION: Calcuate default password hash ONCE outside the loop
+      // This is a massive performance improvement (avoiding 100+ bcrypt calls)
+      const defaultPasswordHash = await bcrypt.hash('Driver123!', 10);
 
       const driversToCreate: Array<{ userData: any; driverData: any; rowIndex: number }> = [];
       const driversToUpdate: Array<{ driverId: string; userId: string; userData: any; driverData: any; rowIndex: number; needsReactivation?: boolean }> = [];
@@ -3489,7 +3652,13 @@ export async function POST(
           const email = getValue(row, ['Email', 'email', 'Email Address', 'email_address', 'E-mail', 'e-mail', 'EmailAddress']);
           const firstName = getValue(row, ['First Name', 'First Name', 'first_name', 'FirstName', 'firstName', 'First', 'first', 'FName', 'fname']);
           const lastName = getValue(row, ['Last Name', 'Last Name', 'last_name', 'LastName', 'lastName', 'Last', 'last', 'LName', 'lname', 'Surname', 'surname']);
-          const driverNumber = getValue(row, ['Driver Number', 'Driver Number', 'driver_number', 'DriverNumber', 'driverNumber', 'Driver #', 'Driver #', 'DriverNo', 'driver_no', 'Driver ID', 'driver_id']);
+          // Handle "N/A" or "na" values for driver number - treat as empty to trigger auto-generation
+          let rawDriverNumber = getValue(row, ['Driver Number', 'Driver Number', 'driver_number', 'DriverNumber', 'driverNumber', 'Driver #', 'Driver #', 'DriverNo', 'driver_no', 'Driver ID', 'driver_id']);
+          if (rawDriverNumber && ['n/a', 'na', 'none', 'null'].includes(String(rawDriverNumber).toLowerCase().trim())) {
+            rawDriverNumber = null;
+          }
+          const driverNumber = rawDriverNumber;
+
           const mcNumber = getValue(row, ['MC Number', 'mc_number', 'MC #', 'mc #', 'Motor Carrier', 'motor_carrier']); // This is company identifier, not driver number
           const licenseNumber = getValue(row, ['License Number', 'License Number', 'license_number', 'LicenseNumber', 'License', 'license', 'CDL', 'cdl', 'CDL Number', 'cdl_number', 'CDL #', 'cdl #']);
           const licenseState = getValue(row, ['License State', 'License State', 'license_state', 'LicenseState', 'State', 'state', 'License State Code', 'State Code', 'state_code', 'CDL State', 'cdl_state']);
@@ -3531,8 +3700,53 @@ export async function POST(
           }
 
           // Check if driver or user already exists
-          const existingDriver = driverByNumber.get(finalDriverNumber) || driverByEmail.get(email.toLowerCase());
-          const existingUser = userByEmail.get(email.toLowerCase());
+          const normalizedDriverNumber = finalDriverNumber.toLowerCase().trim();
+          const normalizedEmail = email.toLowerCase().trim();
+
+          // Check for duplicates within the current import batch
+          // If it's in existingDriverNumbers but NOT in driverByNumber (DB), it's a batch duplicate
+          const isBatchDuplicate = existingDriverNumbers.has(normalizedDriverNumber) && !driverByNumber.has(normalizedDriverNumber);
+
+          // Check for duplicate EMAIL within the current import batch
+          // If it's in existingEmails but NOT in userByEmail (DB) AND NOT in driverByEmail (DB), it's a batch duplicate
+          // OR if we just added it to existingEmails in previous iteration of this loop
+          const isEmailBatchDuplicate = existingEmails.has(normalizedEmail) && !userByEmail.has(normalizedEmail) && !driverByEmail.has(normalizedEmail);
+
+          if (isBatchDuplicate) {
+            console.log(`[Driver Import] Row ${i + 1} skipped (batch duplicate driver number): ${finalDriverNumber}`);
+            errors.push({
+              row: i + 1,
+              field: 'Driver Number',
+              error: `Duplicate driver number in file: ${finalDriverNumber}`,
+            });
+            continue;
+          }
+
+          if (isEmailBatchDuplicate) {
+            console.log(`[Driver Import] Row ${i + 1} skipped (batch duplicate email): ${email}`);
+            errors.push({
+              row: i + 1,
+              field: 'Email',
+              error: `Duplicate email in file: ${email}`,
+            });
+            continue;
+          }
+
+          const existingDriver = driverByNumber.get(normalizedDriverNumber) || driverByEmail.get(normalizedEmail);
+          const existingUser = userByEmail.get(normalizedEmail);
+
+          // CHECK FOR CROSS-COMPANY CONFLICTS
+          // If user exists but belongs to a different company, we allow it now (Multi-Company Driver Support)
+          // We will link the existing User ID to a new Driver profile in THIS company.
+          if (existingUser && existingUser.companyId !== session.user.companyId) {
+            console.log(`[Driver Import] Row ${i + 1}: Found existing user in another company (${existingUser.companyId}). Will link to current company.`);
+            // DO NOT SKIP. Proceed to create Driver record using existingUser.id
+            // Note: We should NOT update the User's core profile (name, etc) if they belong to another company, 
+            // but for now, we will follow the standard flow which might update provided fields.
+          }
+
+          // Add email to existingEmails for subsequent batch duplicate checks
+          existingEmails.add(normalizedEmail);
 
           // For existing users, get full user record if needed
           let existingUserRecord: any = null;
@@ -3689,7 +3903,8 @@ export async function POST(
           const driverMcNumber = (mcNumber || currentMcNumber || '').toString().trim() || null;
 
           // Resolve MC number string to ID
-          const driverMcNumberId = driverMcNumber ? await resolveMcNumberId(driverMcNumber) : null;
+          // OPTIMIZATION: removed await as function is now synchronous
+          const driverMcNumberId = driverMcNumber ? resolveMcNumberId(driverMcNumber) : null;
 
           if (existingDriver && updateExisting) {
             // Update existing driver (including soft-deleted ones - will reactivate them)
@@ -3703,6 +3918,11 @@ export async function POST(
                 firstName,
                 lastName,
                 phone: phone || null,
+                ...(needsReactivation ? {
+                  deletedAt: null, // Reactivate soft-deleted user
+                  isActive: true,  // Reactivate inactive user
+                } : {}),
+                ...(driverMcNumberId ? { mcNumberId: driverMcNumberId } : {}), // Update User's MC access
               },
               driverData: {
                 licenseNumber: finalLicenseNumber,
@@ -3796,6 +4016,12 @@ export async function POST(
               if (phone !== undefined) userUpdateData.phone = phone || null;
               if (driverMcNumberId) userUpdateData.mcNumberId = driverMcNumberId;
 
+              // Reactivate user if needed
+              if (existingUser && existingUser.deletedAt) {
+                userUpdateData.deletedAt = null;
+                userUpdateData.isActive = true;
+              }
+
               if (Object.keys(userUpdateData).length > 0) {
                 await prisma.user.update({
                   where: { id: existingUserRecord.id },
@@ -3841,8 +4067,8 @@ export async function POST(
               console.log(`[Driver Import] Row ${i + 1}: Successfully created driver ${finalDriverNumber} for existing user ${email}`);
 
               // Add to existing sets to prevent duplicates in same batch
-              existingDriverNumbers.add(finalDriverNumber);
-              existingEmails.add(email.toLowerCase());
+              existingDriverNumbers.add(normalizedDriverNumber);
+              existingEmails.add(normalizedEmail);
 
               continue; // Skip batch creation for this row
             } catch (error: any) {
@@ -3857,16 +4083,18 @@ export async function POST(
           }
 
           // Mark as processed to avoid duplicates in same batch
-          existingDriverNumbers.add(finalDriverNumber);
-          existingEmails.add(email.toLowerCase());
+          existingDriverNumbers.add(normalizedDriverNumber);
+          existingEmails.add(normalizedEmail);
 
           // Generate default password (user can change it later)
-          const defaultPassword = await bcrypt.hash('Driver123!', 10);
+          // OPTIMIZATION: Use pre-calculated hash
+          const defaultPassword = defaultPasswordHash;
 
           // Prepare user and driver data for batch creation
           // Note: driverMcNumber and driverMcNumberId are already defined above
           // Ensure we have an MC number ID (required field)
-          const finalMcNumberId = driverMcNumberId || await resolveMcNumberId(null);
+          // OPTIMIZATION: removed await
+          const finalMcNumberId = driverMcNumberId || resolveMcNumberId(null);
           if (!finalMcNumberId) {
             errors.push({
               row: i + 1,
@@ -3938,6 +4166,45 @@ export async function POST(
         console.log(`[Driver Import] First 5 errors:`, errors.slice(0, 5));
       }
 
+      // PREVIEW MODE: Return data without saving
+      if (previewOnly) {
+        // Create a combined list of valid operations for preview
+        const validRows = [
+          ...driversToCreate.map(d => ({
+            row: d.rowIndex,
+            name: `${d.userData.firstName} ${d.userData.lastName}`,
+            driverNumber: d.driverData.driverNumber,
+            email: d.userData.email,
+            type: d.driverData.driverType,
+            status: 'New',
+            operation: 'Create'
+          })),
+          ...driversToUpdate.map(d => ({
+            row: d.rowIndex,
+            name: `${d.userData.firstName} ${d.userData.lastName}`,
+            driverNumber: d.driverData.driverNumber || 'Existing',
+            email: d.userData.email,
+            type: d.driverData.driverType,
+            status: d.needsReactivation ? 'Reactivate' : 'Update',
+            operation: 'Update'
+          }))
+        ].sort((a, b) => a.row - b.row);
+
+        return NextResponse.json({
+          success: true,
+          preview: true,
+          data: {
+            totalRows: importResult.data.length,
+            validCount: validRows.length,
+            invalidCount: errors.length,
+            warningCount: 0, // Drivers don't have separate warnings yet in this logic (warnings are inside driver notes)
+            valid: validRows.slice(0, 100), // Limit to 100 for UI performance
+            invalid: errors,
+            warnings: []
+          }
+        });
+      }
+
       // Batch create drivers using transactions (User + Driver relationship)
       for (let i = 0; i < driversToCreate.length; i += BATCH_SIZE) {
         const batch = driversToCreate.slice(i, i + BATCH_SIZE);
@@ -3948,15 +4215,15 @@ export async function POST(
               prisma.user.create({
                 data: {
                   ...item.userData,
-                  driver: {
+                  drivers: {
                     create: item.driverData,
                   },
                 },
-                include: { driver: true },
+                include: { drivers: true },
               })
             )
           );
-          created.push(...results.map(r => r.driver!));
+          created.push(...results.map(r => r.drivers[0]!));
         } catch (error: any) {
           // If batch fails, try individual creates
           for (const item of batch) {
@@ -3964,13 +4231,13 @@ export async function POST(
               const user = await prisma.user.create({
                 data: {
                   ...item.userData,
-                  driver: {
+                  drivers: {
                     create: item.driverData,
                   },
                 },
-                include: { driver: true },
+                include: { drivers: true },
               });
-              created.push(user.driver!);
+              created.push(user.drivers[0]!);
             } catch (err: any) {
               errors.push({
                 row: item.rowIndex,

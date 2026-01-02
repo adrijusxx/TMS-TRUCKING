@@ -4,7 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Plus, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Plus, ExternalLink, FileWarning, BadgeDollarSign, Mail, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { useState } from 'react';
+import { sendPodReminder } from '@/app/actions/invoices/send-pod-reminder';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 import {
@@ -23,6 +26,28 @@ async function fetchWatchdogs() {
 }
 
 export default function WatchdogList() {
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const handleSendReminder = async (loadId: string, email: string) => {
+    if (!email) {
+      toast.error('No dispatcher email available');
+      return;
+    }
+    setSendingId(loadId);
+    try {
+      const result = await sendPodReminder(loadId, email);
+      if (result.success) {
+        toast.success('Reminder sent to dispatcher');
+      } else {
+        toast.error(result.error || 'Failed to send reminder');
+      }
+    } catch (error) {
+      toast.error('An error occurred');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
   const { data, isLoading } = useQuery({
     queryKey: ['watchdogs'],
     queryFn: fetchWatchdogs,
@@ -31,6 +56,10 @@ export default function WatchdogList() {
   const overdue = data?.data?.overdueInvoices || { count: 0, totalAmount: 0, invoices: [] };
   const unreconciled = data?.data?.unreconciledPayments || { count: 0, totalAmount: 0, payments: [] };
   const unposted = data?.data?.unpostedBatches || { count: 0, totalAmount: 0, batches: [] };
+  const missingDocs = data?.data?.missingDocuments || { count: 0, loads: [] };
+  const readyToBill = data?.data?.readyToBill || { count: 0, totalAmount: 0, loads: [] };
+
+  console.log('Watchdog Missing Docs Data:', missingDocs);
 
   return (
     <div className="space-y-6">
@@ -43,7 +72,38 @@ export default function WatchdogList() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <Card className={missingDocs.count > 0 ? 'border-red-500' : ''}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileWarning className="h-5 w-5 text-red-500" />
+              Missing Documents
+            </CardTitle>
+            <CardDescription>Delivered loads missing PODs</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{missingDocs.count}</div>
+            <p className="text-sm text-muted-foreground">
+              {missingDocs.count === 0 ? 'All documents up to date' : `${missingDocs.count} loads req. attention`}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className={readyToBill.count > 0 ? 'border-green-500' : ''}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BadgeDollarSign className="h-5 w-5 text-green-500" />
+              Ready to Bill
+            </CardTitle>
+            <CardDescription>Loads ready for invoicing</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{readyToBill.count}</div>
+            <p className="text-sm text-muted-foreground">
+              {readyToBill.count === 0 ? 'No pending invoices' : `${formatCurrency(readyToBill.totalAmount)} to bill`}
+            </p>
+          </CardContent>
+        </Card>
         <Card className={overdue.count > 0 ? 'border-orange-500' : ''}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -100,6 +160,103 @@ export default function WatchdogList() {
       </div>
 
       {/* Detailed Lists */}
+      {missingDocs.count > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Missing Documents (PODs)</CardTitle>
+            <CardDescription>Loads delivered but missing Proof of Delivery</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Load #</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Driver</TableHead>
+                    <TableHead>Delivered Date</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {missingDocs.loads.slice(0, 10).map((load: any) => (
+                    <TableRow key={load.id}>
+                      <TableCell className="font-medium">{load.loadNumber}</TableCell>
+                      <TableCell>{load.customer?.name}</TableCell>
+                      <TableCell>{load.driverName}</TableCell>
+                      <TableCell>{load.deliveredAt ? formatDate(load.deliveredAt) : '-'}</TableCell>
+                      <TableCell className="text-right">
+                        {load.dispatcherEmail ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={sendingId === load.id}
+                            onClick={() => handleSendReminder(load.id, load.dispatcherEmail)}
+                          >
+                            {sendingId === load.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            ) : (
+                              <Mail className="h-3 w-3 mr-1" />
+                            )}
+                            {sendingId === load.id ? 'Sending...' : 'Email Dispatcher'}
+                          </Button>
+                        ) : (
+                          <Link href={`/dashboard/loads/${load.id}`}>
+                            <Button variant="ghost" size="sm" className="text-muted-foreground">
+                              Upload Manually <ExternalLink className="h-3 w-3 ml-1" />
+                            </Button>
+                          </Link>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {readyToBill.count > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ready to Bill</CardTitle>
+            <CardDescription>Loads delivered and documented, ready for invoicing</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Load #</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Delivered Date</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {readyToBill.loads.slice(0, 10).map((load: any) => (
+                    <TableRow key={load.id}>
+                      <TableCell className="font-medium">{load.loadNumber}</TableCell>
+                      <TableCell>{load.customer?.name}</TableCell>
+                      <TableCell>{load.deliveredAt ? formatDate(load.deliveredAt) : '-'}</TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(load.revenue)}</TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/dashboard/invoices/generate?loadId=${load.id}`}>
+                          <Button variant="ghost" size="sm">
+                            Create Invoice <ExternalLink className="h-3 w-3 ml-1" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {overdue.count > 0 && (
         <Card>
           <CardHeader>
@@ -270,7 +427,7 @@ export default function WatchdogList() {
 
       {isLoading && <div className="text-center py-8">Loading watchdogs...</div>}
 
-      {!isLoading && overdue.count === 0 && unreconciled.count === 0 && unposted.count === 0 && (
+      {!isLoading && overdue.count === 0 && unreconciled.count === 0 && unposted.count === 0 && missingDocs.count === 0 && readyToBill.count === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <AlertTriangle className="h-12 w-12 text-green-500 mx-auto mb-4" />

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
       include: {
-        driver: {
+        drivers: {
           include: {
             company: true,
           },
@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is a driver
-    if (!user.driver) {
+    const driver = user.drivers[0];
+    if (!driver) {
       return NextResponse.json(
         {
           success: false,
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if driver is active
-    if (!user.driver.isActive) {
+    if (!driver.isActive) {
       return NextResponse.json(
         {
           success: false,
@@ -87,15 +88,15 @@ export async function POST(request: NextRequest) {
           lastName: user.lastName,
         },
         driver: {
-          id: user.driver.id,
-          driverNumber: user.driver.driverNumber,
-          status: user.driver.status,
-          licenseNumber: user.driver.licenseNumber,
-          licenseState: user.driver.licenseState,
+          id: driver.id,
+          driverNumber: driver.driverNumber,
+          status: driver.status,
+          licenseNumber: driver.licenseNumber,
+          licenseState: driver.licenseState,
         },
         company: {
-          id: user.driver.companyId,
-          name: user.driver.company.name,
+          id: driver.companyId,
+          name: driver.company.name,
         },
       },
     });

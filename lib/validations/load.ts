@@ -179,10 +179,10 @@ const baseLoadSchema = z.object({
   ),
   loadType: z.nativeEnum(LoadType),
   equipmentType: z.nativeEnum(EquipmentType),
-  
+
   // Multi-stop support (if provided, single pickup/delivery fields are optional)
   stops: z.array(loadStopSchema).optional(),
-  
+
   // Single pickup (optional if stops are provided)
   pickupLocation: z.string().optional(),
   pickupAddress: z.string().optional(),
@@ -196,7 +196,7 @@ const baseLoadSchema = z.object({
   pickupPhone: z.string().optional(),
   pickupNotes: z.string().optional(),
   pickupCompany: z.string().optional(),
-  
+
   // Single delivery (optional if stops are provided)
   deliveryLocation: z.string().optional(),
   deliveryAddress: z.string().optional(),
@@ -210,7 +210,7 @@ const baseLoadSchema = z.object({
   deliveryPhone: z.string().optional(),
   deliveryNotes: z.string().optional(),
   deliveryCompany: z.string().optional(),
-  
+
   // Load specs
   weight: z.preprocess(
     (val) => {
@@ -268,7 +268,7 @@ const baseLoadSchema = z.object({
     (val) => (val === null || val === undefined ? undefined : (typeof val === 'string' ? val.trim() : String(val))),
     z.string().optional()
   ),
-  
+
   // Financial
   revenue: z.number().nonnegative('Revenue cannot be negative'),
   driverPay: z.preprocess(
@@ -285,162 +285,162 @@ const baseLoadSchema = z.object({
     },
     z.number().nonnegative().optional()
   ),
-      fuelAdvance: z.number().nonnegative().default(0),
-      loadedMiles: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const num = parseFloat(val);
-            return isNaN(num) ? undefined : num;
-          }
-          if (typeof val === 'number') {
-            return isNaN(val) ? undefined : val;
-          }
-          return undefined;
-        },
-        z.number().nonnegative().optional()
-      ),
-      emptyMiles: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const num = parseFloat(val);
-            return isNaN(num) ? undefined : num;
-          }
-          if (typeof val === 'number') {
-            return isNaN(val) ? undefined : val;
-          }
-          return undefined;
-        },
-        z.number().nonnegative().optional()
-      ),
-      totalMiles: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const num = parseFloat(val);
-            return isNaN(num) ? undefined : num;
-          }
-          if (typeof val === 'number') {
-            return isNaN(val) ? undefined : val;
-          }
-          return undefined;
-        },
-        z.number().nonnegative().optional() // Allow 0 or positive, will be calculated if needed
-      ),
-      
-      // Optional
-      trailerNumber: z.string().optional(),
-      dispatchNotes: z.string().optional(),
-      // Additional fields from import
-      coDriverId: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const trimmed = val.trim();
-            return trimmed === '' ? undefined : trimmed;
-          }
-          return val;
-        },
-        z.string().cuid().optional()
-      ),
-      dispatcherId: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const trimmed = val.trim();
-            return trimmed === '' ? undefined : trimmed;
-          }
-          return val;
-        },
-        z.string().cuid().optional()
-      ),
-      createdById: z.string().optional(),
-      tripId: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const trimmed = val.trim();
-            return trimmed === '' ? undefined : trimmed;
-          }
-          return val;
-        },
-        z.string().optional()
-      ),
-      shipmentId: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const trimmed = val.trim();
-            return trimmed === '' ? undefined : trimmed;
-          }
-          return val;
-        },
-        z.string().optional()
-      ),
-      mcNumber: z.string().optional(),
-      // Driver and equipment assignment
-      driverId: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const trimmed = val.trim();
-            return trimmed === '' ? undefined : trimmed;
-          }
-          return val;
-        },
-        z.string().cuid().optional()
-      ),
-      truckId: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const trimmed = val.trim();
-            return trimmed === '' ? undefined : trimmed;
-          }
-          return val;
-        },
-        z.string().cuid().optional()
-      ),
-      trailerId: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const trimmed = val.trim();
-            return trimmed === '' ? undefined : trimmed;
-          }
-          return val;
-        },
-        z.string().cuid().optional()
-      ),
-      revenuePerMile: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const num = parseFloat(val);
-            return isNaN(num) ? undefined : num;
-          }
-          if (typeof val === 'number') {
-            return isNaN(val) ? undefined : val;
-          }
-          return undefined;
-        },
-        z.number().nonnegative().optional()
-      ),
-      serviceFee: z.preprocess(
-        (val) => {
-          if (val === undefined || val === null || val === '') return undefined;
-          if (typeof val === 'string') {
-            const num = parseFloat(val);
-            return isNaN(num) ? undefined : num;
-          }
-          if (typeof val === 'number') {
-            return isNaN(val) ? undefined : val;
-          }
-          return undefined;
-        },
-        z.number().nonnegative().optional()
-      ),
+  fuelAdvance: z.number().nonnegative().default(0),
+  loadedMiles: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().nonnegative().optional()
+  ),
+  emptyMiles: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().nonnegative().optional()
+  ),
+  totalMiles: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().nonnegative().optional() // Allow 0 or positive, will be calculated if needed
+  ),
+
+  // Optional
+  trailerNumber: z.string().optional(),
+  dispatchNotes: z.string().optional(),
+  // Additional fields from import
+  coDriverId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().cuid().optional()
+  ),
+  dispatcherId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().cuid().optional()
+  ),
+  createdById: z.string().optional(),
+  tripId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().optional()
+  ),
+  shipmentId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().optional()
+  ),
+  mcNumber: z.string().optional(),
+  // Driver and equipment assignment
+  driverId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().cuid().optional()
+  ),
+  truckId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().cuid().optional()
+  ),
+  trailerId: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed === '' ? undefined : trimmed;
+      }
+      return val;
+    },
+    z.string().cuid().optional()
+  ),
+  revenuePerMile: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().nonnegative().optional()
+  ),
+  serviceFee: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return undefined;
+      if (typeof val === 'string') {
+        const num = parseFloat(val);
+        return isNaN(num) ? undefined : num;
+      }
+      if (typeof val === 'number') {
+        return isNaN(val) ? undefined : val;
+      }
+      return undefined;
+    },
+    z.number().nonnegative().optional()
+  ),
 });
 
 // Create schema with superRefine validation for creation
@@ -451,7 +451,7 @@ export const createLoadSchema = baseLoadSchema.superRefine((data, ctx) => {
     // Clear any errors on single-stop fields
     return;
   }
-  
+
   // Single-stop load validation - all fields required
   if (!data.pickupLocation) {
     ctx.addIssue({
@@ -715,7 +715,7 @@ export type UpdateLoadInput = z.infer<typeof updateLoadSchema>;
  */
 export const INVOICE_REQUIRED_FIELDS = [
   'loadNumber',
-  'customerId', 
+  'customerId',
   'revenue',
   'weight',
 ] as const;
@@ -748,7 +748,7 @@ export function validateLoadForAccounting(data: Partial<CreateLoadInput> | any):
   const warnings: string[] = [];
   const missingForInvoice: string[] = [];
   const missingForSettlement: string[] = [];
-  
+
   // Check invoice-required fields
   if (!data.loadNumber) {
     missingForInvoice.push('loadNumber');
@@ -767,7 +767,7 @@ export function validateLoadForAccounting(data: Partial<CreateLoadInput> | any):
     missingForInvoice.push('weight');
     warnings.push('Weight is missing or zero - BOL validation may fail');
   }
-  
+
   // Check settlement-required fields
   if (!data.loadNumber) {
     missingForSettlement.push('loadNumber');
@@ -776,36 +776,36 @@ export function validateLoadForAccounting(data: Partial<CreateLoadInput> | any):
     missingForSettlement.push('driverId');
     // Not an error - driver may not be assigned yet
   }
-  
+
   // Check mileage for driver pay calculation
-  const hasMileage = (data.totalMiles && data.totalMiles > 0) || 
-                     (data.loadedMiles && data.loadedMiles > 0);
+  const hasMileage = (data.totalMiles && data.totalMiles > 0) ||
+    (data.loadedMiles && data.loadedMiles > 0);
   if (!hasMileage) {
     missingForSettlement.push('totalMiles');
     warnings.push('No mileage data - driver pay calculation may be inaccurate');
   }
-  
+
   // Check driver pay
   if (data.driverId && (!data.driverPay || data.driverPay <= 0)) {
     warnings.push('Driver is assigned but driver pay is $0 - verify pay calculation');
   }
-  
+
   // Check for data consistency
   if (data.revenue && data.driverPay && data.driverPay > data.revenue) {
     warnings.push('Driver pay exceeds revenue - this load will be unprofitable');
   }
-  
+
   // Check fuel advance
   if (data.fuelAdvance && data.fuelAdvance > 0) {
     if (data.driverPay && data.fuelAdvance > data.driverPay) {
       warnings.push('Fuel advance exceeds driver pay - driver will owe money');
     }
   }
-  
+
   const canInvoice = missingForInvoice.filter(f => f !== 'loadNumber').length === 0;
-  const canSettle = missingForSettlement.length === 0 || 
-                    (missingForSettlement.length === 1 && missingForSettlement[0] === 'driverId');
-  
+  const canSettle = missingForSettlement.length === 0 ||
+    (missingForSettlement.length === 1 && missingForSettlement[0] === 'driverId');
+
   return {
     isValid: errors.length === 0,
     canInvoice,
@@ -843,3 +843,29 @@ export const settlementReadyLoadSchema = z.object({
 export type InvoiceReadyLoad = z.infer<typeof invoiceReadyLoadSchema>;
 export type SettlementReadyLoad = z.infer<typeof settlementReadyLoadSchema>;
 
+/**
+ * Lenient import schema for bulk load imports
+ * - Doesn't require 2-character state codes (accepts any string)
+ * - Doesn't require all single-stop load fields
+ * - More forgiving with missing data
+ */
+export const importLoadSchema = baseLoadSchema
+  .extend({
+    // Override state fields to accept any string (will be normalized later)
+    pickupState: z.string().optional(),
+    deliveryState: z.string().optional(),
+    pickupZip: z.string().optional(),
+    deliveryZip: z.string().optional(),
+    // Make location fields truly optional for import
+    pickupLocation: z.string().optional(),
+    pickupAddress: z.string().optional(),
+    pickupCity: z.string().optional(),
+    deliveryLocation: z.string().optional(),
+    deliveryAddress: z.string().optional(),
+    deliveryCity: z.string().optional(),
+    pickupDate: z.string().or(z.date()).optional(),
+    deliveryDate: z.string().or(z.date()).optional(),
+  })
+  .passthrough(); // Allow any additional fields
+
+export type ImportLoadInput = z.infer<typeof importLoadSchema>;

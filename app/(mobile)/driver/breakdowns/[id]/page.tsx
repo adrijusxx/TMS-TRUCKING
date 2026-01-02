@@ -14,9 +14,11 @@ export default async function BreakdownDetailPage({
     redirect('/auth/login');
   }
 
-  const driver = await prisma.driver.findUnique({
+  const driver = await prisma.driver.findFirst({
     where: {
       userId: session.user.id,
+      deletedAt: null,
+      isActive: true,
     },
   });
 

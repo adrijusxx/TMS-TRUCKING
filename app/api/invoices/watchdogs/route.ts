@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     // Build MC filter for invoices
     const mcWhereWithId = await buildMcNumberWhereClause(session, request);
-    const mcWhere = await convertMcNumberIdToMcNumberString(mcWhereWithId);
+    // const mcWhere = await convertMcNumberIdToMcNumberString(mcWhereWithId);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -24,12 +24,11 @@ export async function GET(request: NextRequest) {
     // 1. Overdue Invoices (past due date with balance > 0)
     const overdueInvoices = await prisma.invoice.findMany({
       where: {
-        companyId: session.user.companyId,
         deletedAt: null,
         status: { in: ['SENT', 'PARTIAL'] },
         dueDate: { lt: today },
         balance: { gt: 0 },
-        ...(mcWhere.mcNumber && { mcNumber: mcWhere.mcNumber }),
+        ...(mcWhereWithId),
       },
       select: {
         id: true,
@@ -135,6 +134,55 @@ export async function GET(request: NextRequest) {
       createdAt: batch.createdAt.toISOString(),
     }));
 
+    // 4. Missing Documents (Delivered but NO POD)
+    const missingDocumentsLoads = await prisma.load.findMany({
+      where: {
+        deletedAt: null,
+        status: 'DELIVERED',
+        podUploadedAt: null, // Critical check
+        ...(mcWhereWithId),
+      },
+      select: {
+        id: true,
+        loadNumber: true,
+        deliveredAt: true,
+        customer: { select: { name: true } },
+        driver: {
+          select: {
+            user: { select: { firstName: true, lastName: true } }
+          }
+        },
+        dispatcher: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
+        }
+      },
+      orderBy: { deliveredAt: 'desc' },
+    });
+
+    // 5. Ready to Bill (Ready but NOT Invoiced)
+    const readyToBillLoads = await prisma.load.findMany({
+      where: {
+        deletedAt: null,
+        status: 'DELIVERED', // Must be delivered
+        // readyForSettlement: true, // Optional: if you trust this flag
+        podUploadedAt: { not: null }, // Must have POD
+        invoicedAt: null, // NOT invoiced yet
+        ...(mcWhereWithId),
+      },
+      select: {
+        id: true,
+        loadNumber: true,
+        deliveredAt: true,
+        revenue: true,
+        customer: { select: { name: true } },
+      },
+      orderBy: { deliveredAt: 'asc' }, // Oldest first
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -152,6 +200,24 @@ export async function GET(request: NextRequest) {
           count: batchesWithCounts.length,
           totalAmount: batchesWithCounts.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
           batches: batchesWithCounts,
+        },
+        missingDocuments: {
+          count: missingDocumentsLoads.length,
+          loads: missingDocumentsLoads.map(l => ({
+            ...l,
+            deliveredAt: l.deliveredAt?.toISOString(),
+            driverName: l.driver?.user ? `${l.driver.user.firstName} ${l.driver.user.lastName}` : 'Unassigned',
+            dispatcherEmail: l.dispatcher?.email,
+            dispatcherName: l.dispatcher ? `${l.dispatcher.firstName} ${l.dispatcher.lastName}` : 'Unassigned',
+          })),
+        },
+        readyToBill: {
+          count: readyToBillLoads.length,
+          totalAmount: readyToBillLoads.reduce((sum, l) => sum + (l.revenue || 0), 0),
+          loads: readyToBillLoads.map(l => ({
+            ...l,
+            deliveredAt: l.deliveredAt?.toISOString(),
+          })),
         },
       },
     });

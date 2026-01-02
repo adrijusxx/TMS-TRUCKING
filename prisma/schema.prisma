@@ -34,7 +34,7 @@ model User {
   deletedAt      DateTime?
 
   // Relations for driver-specific data
-  driver                     Driver?
+  drivers                    Driver[]
   activityLogs               ActivityLog[]
   notificationPreferences    NotificationPreferences?
   inventoryTransactions      InventoryTransaction[]
@@ -766,7 +766,7 @@ model Route {
 
 model Driver {
   id        String  @id @default(cuid())
-  userId    String  @unique
+  userId    String
   user      User    @relation(fields: [userId], references: [id])
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
@@ -937,6 +937,7 @@ model Driver {
   @@index([currentTrailerId])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
+  @@unique([userId, companyId])
   @@unique([companyId, driverNumber])
 }
 
@@ -1296,6 +1297,9 @@ model FuelEntry {
   fuelType      FuelType @default(DIESEL)
   receiptNumber String? // Vendor receipt number (external)
   notes         String?
+
+  vendor    String?
+  state     String? // State/Province where fuel was purchased
 
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?

@@ -91,7 +91,7 @@ export class InvoiceManager {
       if (isFactored && invoice.customer.factoringCompany) {
         // FACTORED: Use Factoring Company Address
         const factoringCompany = invoice.customer.factoringCompany;
-        
+
         // Fetch factoring company full details (address, etc.)
         // Note: FactoringCompany model may not have address fields
         // If not, we'll use contact info or company address as fallback
@@ -103,7 +103,7 @@ export class InvoiceManager {
         // For now, use company's address or contact info
         const remitToAddress = {
           name: factoringCompany.name,
-          address: factoringCompanyFull?.contactName 
+          address: factoringCompanyFull?.contactName
             ? `${factoringCompanyFull.contactName}\n${factoringCompany.name}`
             : factoringCompany.name,
           city: '', // FactoringCompany may not have address fields
@@ -226,7 +226,7 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
 
       // Check if brokerage split is allowed
       const isBrokerageSplit = options?.allowBrokerageSplit || load.customer.type === 'BROKER';
-      
+
       if (carrierRate !== customerRate && !isBrokerageSplit) {
         reasons.push(`Rate mismatch: Carrier Rate ($${carrierRate.toFixed(2)}) does not match Customer Rate ($${customerRate.toFixed(2)}). Brokerage split override required.`);
       }
@@ -438,6 +438,132 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
       allValid,
       results,
     };
+  }
+  /**
+   * Generate an invoice for a specific set of loads
+   * Centralizes the logic previously found in the API route
+   */
+  async generateInvoice(
+    loadIds: string[],
+    options?: {
+      invoiceNumber?: string;
+      dueDate?: Date;
+      notes?: string;
+    }
+  ): Promise<{ success: boolean; invoice?: any; error?: string }> {
+    try {
+      // 1. Fetch loads with all necessary relations
+      const loads = await prisma.load.findMany({
+        where: { id: { in: loadIds } },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              paymentTerms: true,
+            },
+          },
+          dispatcher: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+            },
+          },
+          driver: {
+            select: {
+              id: true,
+              driverNumber: true,
+              user: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+          truck: {
+            select: {
+              id: true,
+              truckNumber: true,
+            },
+          },
+        },
+      });
+
+      if (loads.length === 0) {
+        return { success: false, error: 'No loads found' };
+      }
+
+      // 2. Validate all loads belong to same company and customer
+      const companyIds = new Set(loads.map(l => l.companyId));
+      if (companyIds.size > 1) return { success: false, error: 'Loads must belong to the same company' };
+
+      const customerIds = new Set(loads.map(l => l.customerId));
+      if (customerIds.size > 1) return { success: false, error: 'Loads must belong to the same customer' };
+
+      const load = loads[0]; // Representative load for customer/company info
+
+      // 3. Calculate Totals
+      const subtotal = loads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+      const taxRate = 0.08; // TODO: make configurable
+      const tax = subtotal * taxRate;
+      const total = subtotal + tax;
+
+      // 4. Determine Invoice Number and Due Date
+      const invoiceNumber = options?.invoiceNumber || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+      const dueDate = options?.dueDate || new Date(Date.now() + (load.customer.paymentTerms || 30) * 24 * 60 * 60 * 1000);
+
+      // 5. Build Notes / Contact Info
+      const contactInfo: string[] = [];
+      const dispatchers = new Set(loads.filter(l => l.dispatcher).map(l => `${l.dispatcher!.firstName} ${l.dispatcher!.lastName} ${l.dispatcher!.phone ? `(${l.dispatcher!.phone})` : ''}`));
+      const drivers = new Set(loads.filter(l => l.driver?.user).map(l => `${l.driver!.user!.firstName} ${l.driver!.user!.lastName} ${l.driver!.user!.phone ? `(${l.driver!.user!.phone})` : ''}`));
+      const trucks = new Set(loads.filter(l => l.truck?.truckNumber).map(l => l.truck!.truckNumber));
+
+      if (dispatchers.size) contactInfo.push(`Dispatcher(s): ${Array.from(dispatchers).join(', ')}`);
+      if (drivers.size) contactInfo.push(`Driver(s): ${Array.from(drivers).join(', ')}`);
+      if (trucks.size) contactInfo.push(`Truck(s): ${Array.from(trucks).join(', ')}`);
+
+      const finalNotes = [
+        options?.notes,
+        contactInfo.length > 0 ? `\n\nContact Information:\n${contactInfo.join('\n')}` : ''
+      ].filter(Boolean).join('');
+
+      // 6. Create Invoice
+      // Import LoadStatus if needed, or use string literal 'INVOICED'
+      const invoice = await prisma.invoice.create({
+        data: {
+          companyId: load.companyId,
+          customerId: load.customerId,
+          invoiceNumber,
+          invoiceDate: new Date(),
+          dueDate,
+          subtotal,
+          tax,
+          total,
+          balance: total,
+          status: 'DRAFT',
+          notes: finalNotes || undefined,
+          loadIds: loads.map(l => l.id),
+        },
+      });
+
+      // 7. Update Loads
+      await prisma.load.updateMany({
+        where: { id: { in: loadIds } },
+        data: {
+          invoicedAt: new Date(),
+          status: 'INVOICED', // Using literal to avoid import issues if LoadStatus not imported
+        },
+      });
+
+      return { success: true, invoice };
+
+    } catch (error: any) {
+      console.error('Error generating invoice:', error);
+      return { success: false, error: error.message };
+    }
   }
 }
 

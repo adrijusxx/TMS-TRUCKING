@@ -68,7 +68,7 @@ const navigationSections = [
       },
       {
         name: 'Invoice Watchdogs',
-        href: '/dashboard/invoices/watchdogs',
+        href: '/dashboard/invoices?tab=watchdogs',
         icon: FileText,
         description: 'Monitor invoice watchdogs and alerts for payment issues, overdue invoices, and collection problems. Set up watchdogs for specific customers, invoice amounts, or payment terms. Receive alerts for payment delays, collection issues, and accounts requiring attention. Use watchdogs to proactively manage accounts receivable.',
       },

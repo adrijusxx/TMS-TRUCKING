@@ -155,6 +155,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createLoadSchema.parse(body);
 
+    // Auto-assign dispatcher to current user if not provided
+    if (!validated.dispatcherId && session.user.id) {
+      validated.dispatcherId = session.user.id;
+    }
+
     // 4. Perform accounting validation
     const accountingValidation = validateLoadForAccounting(validated);
 
@@ -251,11 +256,11 @@ export async function POST(request: NextRequest) {
     // Handle Prisma validation errors with detailed messages
     const errorMessage = error instanceof Error ? error.message : 'Something went wrong';
     const errorName = error instanceof Error ? error.name : 'UnknownError';
-    
+
     // Extract field information from Prisma errors
     let details: string | undefined;
     let code = 'INTERNAL_ERROR';
-    
+
     if (errorMessage.includes('Invalid value for argument')) {
       code = 'PRISMA_VALIDATION_ERROR';
       // Extract the field name from the error message

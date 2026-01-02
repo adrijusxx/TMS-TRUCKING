@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, Users, Hash, Activity } from 'lucide-react';
+import { Building2, Users, Hash, Activity, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default async function SuperAdminDashboard() {
@@ -131,8 +131,21 @@ export default async function SuperAdminDashboard() {
                             </div>
                         </div>
                     </Link>
+
+                    <Link
+                        href="/dashboard/super-admin/data-cleanup"
+                        className="p-4 border border-red-200 rounded-lg hover:bg-red-50 transition-colors group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <Trash2 className="h-5 w-5 text-status-error group-hover:scale-110 transition-transform" />
+                            <div>
+                                <div className="font-medium text-destructive">Data Cleanup</div>
+                                <div className="text-sm text-destructive/80">Hard delete system data (Danger)</div>
+                            </div>
+                        </div>
+                    </Link>
                 </CardContent>
             </Card>
-        </div>
+        </div >
     );
 }

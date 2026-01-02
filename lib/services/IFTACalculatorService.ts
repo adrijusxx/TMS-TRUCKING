@@ -356,16 +356,30 @@ export class IFTACalculatorService {
       }
     }
 
-    // Get fuel purchases for the period (if available)
-    const fuelPurchases = await prisma.fuelEntry.aggregate({
+    // Get fuel purchases grouped by state
+    const fuelByState = await prisma.fuelEntry.groupBy({
+      by: ['state'],
       where: {
         truck: { companyId },
         date: { gte: periodStart, lte: periodEnd },
+        state: { not: null },
       },
       _sum: { gallons: true, totalCost: true },
     });
 
-    const totalGallons = fuelPurchases._sum.gallons || 0;
+    // Create lookup map for fuel by state
+    const fuelMap = new Map<string, { gallons: number; cost: number }>();
+    let totalGallons = 0;
+
+    fuelByState.forEach((entry) => {
+      if (entry.state) {
+        const gallons = entry._sum.gallons || 0;
+        const cost = entry._sum.totalCost || 0;
+        fuelMap.set(entry.state, { gallons, cost });
+        totalGallons += gallons;
+      }
+    });
+
     const mpg = totalGallons > 0 ? totalMiles / totalGallons : 6; // Default 6 MPG if no data
 
     // Build state breakdown
@@ -373,10 +387,13 @@ export class IFTACalculatorService {
       const taxRate = IFTA_TAX_RATES[state] || 0;
       const gallonsInState = data.miles / mpg;
       const taxDue = gallonsInState * taxRate;
-      
+
       // Get fuel purchased in this state
-      // This would need additional fuel purchase data by state
-      const taxPaid = 0; // Placeholder - would come from fuel purchases
+      const stateFuel = fuelMap.get(state);
+      const gallonsPurchased = stateFuel?.gallons || 0;
+
+      // Tax Paid = Gallons Purchased * Tax Rate
+      const taxPaid = Math.round(gallonsPurchased * taxRate * 100) / 100;
 
       return {
         state,
