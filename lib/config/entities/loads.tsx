@@ -561,23 +561,27 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       const mcNumber = row.original.mcNumber;
       if (!mcNumber) return '—';
       // Handle both object format (from API) and string format
-      if (isMcNumberObject(mcNumber)) {
-        return (
-          <McBadge
-            mcNumber={mcNumber.number}
-            mcNumberId={mcNumber.id}
-            companyName={mcNumber.companyName}
-            size="sm"
-          />
-        );
-      }
-      return <McBadge mcNumber={mcNumber as string} size="sm" />;
+      return (
+        <div className="pl-1">
+          {isMcNumberObject(mcNumber) ? (
+            <McBadge
+              mcNumber={mcNumber.number}
+              mcNumberId={mcNumber.id}
+              companyName={mcNumber.companyName}
+              size="sm"
+            />
+          ) : (
+            <McBadge mcNumber={mcNumber as string} size="sm" />
+          )}
+        </div>
+      );
     },
     defaultVisible: true,
     permission: 'mc_numbers.view',
     enableColumnFilter: true,
     filterKey: 'mcNumberId',
     filterType: 'searchable-select',
+    className: 'min-w-[150px]',
   },
   {
     id: 'documents',

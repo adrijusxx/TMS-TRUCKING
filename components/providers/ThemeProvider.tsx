@@ -20,8 +20,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'amber'>('dark');
+  const [theme, setThemeState] = useState<Theme>('amber');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'amber'>('amber');
   const [fontSize, setFontSizeState] = useState<FontSize>('medium');
   const [compactMode, setCompactModeState] = useState(false);
   const [reduceMotion, setReduceMotionState] = useState(false);
@@ -151,7 +151,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('theme', newTheme);
           }
         },
-        resolvedTheme: mounted ? resolvedTheme : ('light' as 'light' | 'dark' | 'amber'),
+        resolvedTheme: mounted ? resolvedTheme : ('amber' as 'light' | 'dark' | 'amber'),
         fontSize: mounted ? fontSize : 'medium',
         setFontSize: (size: FontSize) => {
           if (mounted) {

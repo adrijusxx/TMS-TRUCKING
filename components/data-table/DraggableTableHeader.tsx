@@ -2,25 +2,13 @@
 
 import * as React from 'react';
 import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    DragEndEvent,
-} from '@dnd-kit/core';
-import {
-    arrayMove,
     SortableContext,
-    sortableKeyboardCoordinates,
     horizontalListSortingStrategy,
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { flexRender, Header } from '@tanstack/react-table';
 import { TableHead } from '@/components/ui/table';
-import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SortableHeaderProps<TData> {
@@ -81,52 +69,22 @@ function SortableHeader<TData>({ header, children }: SortableHeaderProps<TData>)
 
 interface DraggableTableHeaderProps<TData> {
     headers: Header<TData, unknown>[];
-    onColumnOrderChange: (newOrder: string[]) => void;
 }
 
 export function DraggableTableHeader<TData>({
     headers,
-    onColumnOrderChange,
 }: DraggableTableHeaderProps<TData>) {
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
-
     const headerIds = headers.map((h) => h.id);
 
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
-
-        if (over && active.id !== over.id) {
-            const oldIndex = headerIds.indexOf(active.id as string);
-            const newIndex = headerIds.indexOf(over.id as string);
-            const newOrder = arrayMove(headerIds, oldIndex, newIndex);
-            onColumnOrderChange(newOrder);
-        }
-    };
-
     return (
-        <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-        >
-            <SortableContext items={headerIds} strategy={horizontalListSortingStrategy}>
-                {headers.map((header) => (
-                    <SortableHeader key={header.id} header={header}>
-                        {header.isPlaceholder
-                            ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
-                    </SortableHeader>
-                ))}
-            </SortableContext>
-        </DndContext>
+        <SortableContext items={headerIds} strategy={horizontalListSortingStrategy}>
+            {headers.map((header) => (
+                <SortableHeader key={header.id} header={header}>
+                    {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                </SortableHeader>
+            ))}
+        </SortableContext>
     );
 }

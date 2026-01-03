@@ -14,38 +14,38 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
   // Determine which side nav to show based on pathname
   const getSideNav = () => {
     // Load Management pages - handled by header navigation
-    if (pathname.startsWith('/dashboard/loads') || 
-        pathname.startsWith('/dashboard/loadboard') ||
-        pathname.startsWith('/dashboard/dispatch') ||
-        pathname.startsWith('/dashboard/calendar') ||
-        pathname.startsWith('/dashboard/map')) {
+    if (pathname.startsWith('/dashboard/loads') ||
+      pathname.startsWith('/dashboard/loadboard') ||
+      pathname.startsWith('/dashboard/dispatch') ||
+      pathname.startsWith('/dashboard/calendar') ||
+      pathname.startsWith('/dashboard/map')) {
       return null;
     }
 
     // Accounting pages - handled by header navigation
     if (pathname.startsWith('/dashboard/invoices') ||
-        pathname.startsWith('/dashboard/settlements') ||
-        pathname.startsWith('/dashboard/salary') ||
-        pathname.startsWith('/dashboard/customers') ||
-        pathname.startsWith('/dashboard/vendors') ||
-        pathname.startsWith('/dashboard/locations') ||
-        pathname.startsWith('/dashboard/analytics') ||
-        pathname.startsWith('/dashboard/automation') ||
-        pathname.startsWith('/dashboard/accounting') ||
-        pathname.startsWith('/dashboard/batches')) {
+      pathname.startsWith('/dashboard/settlements') ||
+      pathname.startsWith('/dashboard/salary') ||
+      pathname.startsWith('/dashboard/customers') ||
+      pathname.startsWith('/dashboard/vendors') ||
+      pathname.startsWith('/dashboard/locations') ||
+      pathname.startsWith('/dashboard/analytics') ||
+      pathname.startsWith('/dashboard/automation') ||
+      pathname.startsWith('/dashboard/accounting') ||
+      pathname.startsWith('/dashboard/batches')) {
       return null;
     }
 
-    // Safety pages - handled by header navigation
+    // Safety pages
     if (pathname.startsWith('/dashboard/safety')) {
-      return null;
+      return <SafetyNav />;
     }
-    
+
     // Documents page (if not in safety section)
     if (pathname.startsWith('/dashboard/documents')) {
       return <SafetyNav />;
     }
-    
+
     // Reports pages
     if (pathname.startsWith('/dashboard/reports')) {
       return null; // Reports uses its own layout
@@ -53,23 +53,23 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
 
     // Settings pages
     if (pathname.startsWith('/dashboard/settings') ||
-        pathname.startsWith('/dashboard/edi') ||
-        pathname.startsWith('/dashboard/mc-numbers') ||
-        pathname.startsWith('/dashboard/apps')) {
+      pathname.startsWith('/dashboard/edi') ||
+      pathname.startsWith('/dashboard/mc-numbers') ||
+      pathname.startsWith('/dashboard/apps')) {
       return <SettingsNav />;
     }
 
     // Fleet Department pages - handled by header navigation
     if (pathname.startsWith('/dashboard/fleet') ||
-        pathname.startsWith('/dashboard/trucks') ||
-        pathname.startsWith('/dashboard/trailers') ||
-        pathname.startsWith('/dashboard/fleet-board')) {
+      pathname.startsWith('/dashboard/trucks') ||
+      pathname.startsWith('/dashboard/trailers') ||
+      pathname.startsWith('/dashboard/fleet-board')) {
       return null;
     }
 
     // HR Management pages - handled by header navigation
     if (pathname.startsWith('/dashboard/hr') ||
-        pathname.startsWith('/dashboard/drivers')) {
+      pathname.startsWith('/dashboard/drivers')) {
       return null;
     }
 

@@ -20,7 +20,7 @@ interface DocumentUploadProps {
   loadId?: string;
   driverId?: string;
   truckId?: string;
-  onSuccess?: () => void;
+  onSuccess?: (data?: any) => void;
   onFileSelected?: (file: File) => void; // For collecting files before load creation
   defaultType?: string; // Pre-select document type
 }
@@ -77,7 +77,7 @@ export default function DocumentUpload({
 
   const uploadMutation = useMutation({
     mutationFn: uploadDocument,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       if (loadId) {
         queryClient.invalidateQueries({ queryKey: ['loads', loadId] });
@@ -95,7 +95,7 @@ export default function DocumentUpload({
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      onSuccess?.();
+      onSuccess?.(data);
     },
     onError: (err: Error) => {
       setError(err.message);
@@ -182,6 +182,7 @@ export default function DocumentUpload({
               ref={fileInputRef}
               id="file"
               type="file"
+              accept=".pdf,image/png,image/jpeg,image/jpg"
               onChange={handleFileSelect}
               className="cursor-pointer"
             />

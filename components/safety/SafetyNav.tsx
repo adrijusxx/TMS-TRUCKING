@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Shield, ChevronRight, ChevronLeft, FileText, Wrench } from 'lucide-react';
+import { Shield, ChevronRight, ChevronLeft, FileText, Wrench, LayoutDashboard, UserCheck, Truck, AlertCircle, GraduationCap } from 'lucide-react';
 import { useSidebarToggle } from '@/hooks/useSidebarToggle';
 import {
   SIDEBAR_WIDTHS,
@@ -26,9 +26,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { name: 'Safety', href: '/dashboard/safety', icon: Shield },
-  { name: 'Documents', href: '/dashboard/safety/documents', icon: FileText },
-  { name: 'Work Orders', href: '/dashboard/safety/work-orders', icon: Wrench },
+  { name: 'Safety Hub', href: '/dashboard/safety', icon: LayoutDashboard },
+  { name: 'Compliance', href: '/dashboard/safety/compliance', icon: UserCheck },
+  { name: 'Fleet Safety', href: '/dashboard/safety/fleet', icon: Truck },
+  { name: 'Incidents', href: '/dashboard/safety/incidents', icon: AlertCircle },
+  { name: 'Training & Docs', href: '/dashboard/safety/training', icon: GraduationCap },
 ];
 
 export default function SafetyNav() {
@@ -81,7 +83,7 @@ export default function SafetyNav() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
-          
+
           return (
             <button
               key={item.name}

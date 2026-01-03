@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { ComplianceCalculatorService } from '@/lib/services/safety/ComplianceCalculatorService';
 import { AlertService } from '@/lib/services/safety/AlertService';
@@ -73,62 +73,77 @@ export async function GET(request: NextRequest) {
       openViolations = 0;
     }
 
+    // Get Key Metrics & Granular Alerts
     const [
       activeDrivers,
       activeVehicles,
       daysSinceAccident,
-      expiringDocuments,
       csascores,
-      activeAlerts
     ] = await Promise.all([
-      // Active drivers - count ALL active drivers (not just AVAILABLE status)
+      // Active drivers
       prisma.driver.count({
-        where: {
-          ...mcWhere,
-          isActive: true,
-          deletedAt: null
-        }
+        where: { ...mcWhere, isActive: true, deletedAt: null }
       }),
-
-      // Active vehicles - count ALL active vehicles (not just AVAILABLE status)
+      // Active vehicles
       prisma.truck.count({
-        where: {
-          ...mcWhere,
-          isActive: true,
-          deletedAt: null
-        }
+        where: { ...mcWhere, isActive: true, deletedAt: null }
       }),
-
       // Days since last accident
       calculator.calculateDaysSinceLastAccident(companyId),
-
-      // Expiring documents (next 30 days) - filter through related driver/truck/load MC
-      prisma.document.count({
-        where: {
-          ...documentMcFilter,
-          expiryDate: {
-            lte: new Date(new Date().setDate(new Date().getDate() + 30)),
-            gte: new Date()
-          },
-          deletedAt: null
-        }
-      }),
-
-      // CSA scores - use companyId only (CSA scores are company-level, not MC-specific)
+      // CSA scores
       prisma.cSAScore.findMany({
         where: {
           companyId: mcWhere.companyId,
-          scoreDate: {
-            gte: new Date(new Date().setMonth(new Date().getMonth() - 1))
-          }
+          scoreDate: { gte: new Date(new Date().setMonth(new Date().getMonth() - 1)) }
         },
         orderBy: { scoreDate: 'desc' },
         take: 7
       }),
-
-      // Active alerts
-      alertService.getActiveAlerts()
     ]);
+
+    // Fetch granular expiring documents with Driver names
+    const expiringDocsRaw = await prisma.document.findMany({
+      where: {
+        ...documentMcFilter,
+        expiryDate: {
+          lte: new Date(new Date().setDate(new Date().getDate() + 30)),
+          gte: new Date()
+        },
+        deletedAt: null
+      },
+      include: {
+        driver: {
+          select: {
+            id: true,
+            user: { select: { firstName: true, lastName: true } }
+          }
+        },
+        truck: { select: { truckNumber: true } }
+      }
+    });
+
+    const expiringDocuments = expiringDocsRaw.length;
+
+    // Generate Dynamic Alerts for Expirations
+    const dynamicAlerts = expiringDocsRaw.map(doc => {
+      const entityName = doc.driver ? `${doc.driver.user.firstName} ${doc.driver.user.lastName}`
+        : doc.truck ? `Truck ${doc.truck.truckNumber}`
+          : 'Unknown Asset';
+      return {
+        id: `expiry-${doc.id}`,
+        alertType: 'EXPIRY',
+        severity: 'HIGH', // High because it's expiring soon
+        title: `${doc.type} Expiring`,
+        message: `${entityName}'s ${doc.type} expires on ${doc.expiryDate?.toLocaleDateString()}`,
+        createdAt: new Date().toISOString()
+      };
+    });
+
+    // Get existing system alerts
+    const systemAlerts = await alertService.getActiveAlerts();
+
+    // Combine alerts (prioritizing hard expirations)
+    const activeAlerts = [...dynamicAlerts, ...systemAlerts];
 
     // Format CSA scores by BASIC category
     const csaByCategory = csascores.reduce((acc: any, score) => {
