@@ -26,6 +26,9 @@ async function buildDatabaseUrl(rdsSecretJson) {
     return `postgresql://${secret.username}:${encodedPassword}@${endpoint}:${port}/${dbname}?sslmode=require`;
 }
 
+const fs = require('fs');
+const path = require('path');
+
 async function main() {
     console.log(`[Migration] Initializing AWS Secrets Manager Client (${REGION})...`);
     const client = new SecretsManagerClient({ region: REGION });
@@ -45,11 +48,31 @@ async function main() {
         process.exit(1);
     }
 
-    console.log("[Migration] Running 'npx prisma migrate deploy' (Directly)...");
+    // Determine correct Prisma binary to avoid version mismatch (v7 vs v6)
+    let command = "npx";
+    let args = ["prisma", "migrate", "deploy"];
 
-    // We run prisma directly to avoid dependency on scripts/migrate-deploy.sh which might be missing
-    // or have version mismatches.
-    const migration = spawn("npx", ["prisma", "migrate", "deploy"], {
+    // Check for local binary (works on Linux/AWS)
+    const localBinUnix = path.join(process.cwd(), "node_modules", ".bin", "prisma");
+    // Check for local binary (works on Windows)
+    const localBinWin = path.join(process.cwd(), "node_modules", ".bin", "prisma.cmd");
+
+    if (fs.existsSync(localBinUnix)) {
+        console.log(`[Migration] Using local Prisma binary: ${localBinUnix}`);
+        command = localBinUnix;
+        args = ["migrate", "deploy"];
+    } else if (process.platform === "win32" && fs.existsSync(localBinWin)) {
+        console.log(`[Migration] Using local Prisma binary: ${localBinWin}`);
+        command = localBinWin;
+        args = ["migrate", "deploy"];
+    } else {
+        console.warn("[Migration] WARNING: Local Prisma binary not found. Falling back to global npx (risk of version mismatch).");
+        console.warn("[Migration] suggestion: Run 'npm install' to ensure dependencies are present.");
+    }
+
+    console.log(`[Migration] Executing: ${command} ${args.join(" ")}`);
+
+    const migration = spawn(command, args, {
         stdio: "inherit",
         env: env,
         shell: true
