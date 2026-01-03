@@ -10,9 +10,10 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, ArrowRight, Loader2, Save, FileStack, User, Truck, Package } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Save, FileStack, User, Truck, Package, Sparkles, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; // Add Tabs imports
 import Step1IntelligentIngestion from './Step1IntelligentIngestion';
 import Step3ReviewFinalization from './Step3ReviewFinalization';
 import DriverCombobox from '@/components/drivers/DriverCombobox';
@@ -113,12 +114,13 @@ interface CreateLoadWizardProps {
   isSheet?: boolean;
 }
 
-export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false }: CreateLoadWizardProps) {
+export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false, initialData: loadedInitialData }: CreateLoadWizardProps & { initialData?: any }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [currentStep, setCurrentStep] = useState(1);
-  const [loadData, setLoadData] = useState<Partial<CreateLoadInput>>({});
+  const [currentStep, setCurrentStep] = useState((loadedInitialData as any)?.skipIngestion ? 2 : 1);
+  const [currentTab, setCurrentTab] = useState<'import' | 'manual'>((loadedInitialData as any)?.skipIngestion ? 'manual' : 'import');
+  const [loadData, setLoadData] = useState<Partial<CreateLoadInput>>(loadedInitialData || {});
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
@@ -304,10 +306,12 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false 
     setLoadData((prev) => ({ ...prev, ...data }));
     if (pdfFile) setPendingFiles((prev) => [...prev, pdfFile]);
     setCurrentStep(2);
+    setCurrentTab('manual');
   }, []);
 
   const handleSkipToManual = useCallback(() => {
     setCurrentStep(2);
+    setCurrentTab('manual');
   }, []);
 
   const handleFieldChange = useCallback((field: keyof CreateLoadInput, value: any) => {
@@ -378,56 +382,34 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false 
   return (
     <div className="space-y-4 pb-4">
       {/* Header - Compact */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Create Load</h1>
-          <p className="text-xs text-muted-foreground">
-            Import from Rate Con or enter manually
-          </p>
-        </div>
-        <Link href={isSheet ? '#' : "/dashboard/loads"} onClick={(e) => {
-          if (isSheet && onCancel) {
-            e.preventDefault();
-            onCancel();
-          }
-        }}>
-          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-      </div>
+      {/* Header removed to avoid duplication with SheetHeader */}
 
-      {/* Compact Stepper - Inline */}
-      <div className="flex items-center gap-2 text-xs">
-        {STEPS.map((step, idx) => {
-          const stepNum = idx + 1;
-          const isActive = currentStep === stepNum;
-          const isComplete = currentStep > stepNum;
-          return (
-            <div key={step.label} className="flex items-center gap-1">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-medium ${isActive ? 'bg-primary text-primary-foreground' :
-                isComplete ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground'
-                }`}>
-                {isComplete ? '✓' : stepNum}
-              </div>
-              <span className={`${isActive ? 'font-medium' : 'text-muted-foreground'}`}>
-                {step.label}
-              </span>
-              {idx < STEPS.length - 1 && <div className="w-8 h-px bg-border mx-1" />}
-            </div>
-          );
-        })}
-      </div>
+      {/* Tabs Layout */}
+      <Tabs value={currentTab} onValueChange={(val) => {
+        // Prevent switching to manual if we are processing, OR just allow it
+        setCurrentTab(val as 'import' | 'manual');
+        if (val === 'manual') setCurrentStep(2);
+        else setCurrentStep(1);
+      }} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="import" className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            AI Rate Con Import
+          </TabsTrigger>
+          <TabsTrigger value="manual" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Manual Entry
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Step Content */}
-      <div className="min-h-[300px]">
-        {currentStep === 1 && (
+        <TabsContent value="import" className="mt-0">
           <Step1IntelligentIngestion
             onDataExtracted={handleDataExtracted}
             onSkipToManual={handleSkipToManual}
           />
-        )}
-        {currentStep === 2 && (
+        </TabsContent>
+
+        <TabsContent value="manual" className="mt-0">
           <form
             id="create-load-form"
             onSubmit={(e) => {
@@ -436,7 +418,7 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false 
             }}
           >
             {/* Resource Assignment - Inline in Step 2 */}
-            <Card className="mb-4 shadow-sm">
+            <Card className="mb-6 shadow-sm">
               <CardHeader className="py-2 px-3">
                 <div className="flex items-center gap-2">
                   <User className="h-3.5 w-3.5 text-muted-foreground" />
@@ -453,15 +435,12 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false 
                         handleFieldChange('driverId', value);
                         setLastDriverId(undefined);
                       }}
+                      selectedDriver={selectedDriver}
                       placeholder="Select driver..."
                       drivers={drivers}
                       className="h-8 text-xs"
                     />
-                    {selectedDriver && (
-                      <p className="text-[10px] text-muted-foreground">
-                        {selectedDriver.user.firstName} {selectedDriver.user.lastName}
-                      </p>
-                    )}
+                    {/* Removed redundant text below since combobox now shows it */}
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Truck</Label>
@@ -494,8 +473,8 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false 
               errors={validationErrors}
             />
           </form>
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Navigation - Compact */}
       <div className="flex justify-between items-center pt-3 border-t">
@@ -570,6 +549,6 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false 
           )}
         </div>
       </div>
-    </div>
+    </div >
   );
 }

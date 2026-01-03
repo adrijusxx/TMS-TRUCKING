@@ -33,12 +33,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DataTableProps, ExtendedColumnDef } from './types';
 import { ColumnFilter } from './ColumnFilter';
 import { DataTableBulkActions } from '@/components/ui/data-table-bulk-actions';
 import { DataTableToolbar } from '@/components/ui/data-table-toolbar';
+import { InlineFilterRow } from './InlineFilterRow';
+import { DraggableTableHeader } from './DraggableTableHeader';
 
 /**
  * Core DataTable component built on TanStack Table
@@ -74,6 +82,11 @@ export function DataTable<TData extends Record<string, any>>({
   filterKey,
   onImport,
   onExport,
+  enableInlineFilters = false,
+  columnOrder: controlledColumnOrder,
+  onColumnOrderChange,
+  enableColumnReorder = false,
+  savePreferences = true,
 }: DataTableProps<TData>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
@@ -98,20 +111,22 @@ export function DataTable<TData extends Record<string, any>>({
   });
   const [globalFilter, setGlobalFilter] = React.useState('');
 
+  const [internalColumnOrder, setInternalColumnOrder] = React.useState<string[]>([]);
+
   // Use controlled or internal state
   const rowSelection = controlledRowSelection ?? internalRowSelection;
-  
+
   // Use refs to avoid dependency issues
   const onRowSelectionChangeRef = React.useRef(onRowSelectionChange);
   React.useEffect(() => {
     onRowSelectionChangeRef.current = onRowSelectionChange;
   }, [onRowSelectionChange]);
-  
+
   const rowSelectionRef = React.useRef(rowSelection);
   React.useEffect(() => {
     rowSelectionRef.current = rowSelection;
   }, [rowSelection]);
-  
+
   const handleRowSelectionChangeInternal = React.useCallback((updater: any) => {
     const currentSelection = rowSelectionRef.current;
     const newSelection = typeof updater === 'function' ? updater(currentSelection) : updater;
@@ -122,7 +137,7 @@ export function DataTable<TData extends Record<string, any>>({
       setInternalRowSelection(newSelection);
     }
   }, []); // No dependencies - use refs instead
-  
+
   // Create a stable setter for useEffect
   const setRowSelectionStable = React.useCallback((selection: RowSelectionState) => {
     if (onRowSelectionChangeRef.current) {
@@ -134,45 +149,57 @@ export function DataTable<TData extends Record<string, any>>({
   const sorting = controlledSorting ?? internalSorting;
   const setSorting = onSortingChange
     ? (updater: any) => {
-        const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
-        onSortingChange(newSorting);
-      }
+      const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
+      onSortingChange(newSorting);
+    }
     : (updater: any) => {
-        const newSorting = typeof updater === 'function' ? updater(internalSorting) : updater;
-        setInternalSorting(newSorting);
-      };
+      const newSorting = typeof updater === 'function' ? updater(internalSorting) : updater;
+      setInternalSorting(newSorting);
+    };
   const columnFilters = controlledColumnFilters ?? internalColumnFilters;
   const setColumnFilters = onColumnFiltersChange
     ? (updater: any) => {
-        const newFilters = typeof updater === 'function' ? updater(columnFilters) : updater;
-        onColumnFiltersChange(newFilters);
-      }
+      const newFilters = typeof updater === 'function' ? updater(columnFilters) : updater;
+      onColumnFiltersChange(newFilters);
+    }
     : (updater: any) => {
-        const newFilters = typeof updater === 'function' ? updater(internalColumnFilters) : updater;
-        setInternalColumnFilters(newFilters);
-      };
+      const newFilters = typeof updater === 'function' ? updater(internalColumnFilters) : updater;
+      setInternalColumnFilters(newFilters);
+    };
   const columnVisibility = controlledColumnVisibility ?? internalColumnVisibility;
   const setColumnVisibility = onColumnVisibilityChange
     ? (updater: any) => {
-        const newVisibility = typeof updater === 'function' ? updater(columnVisibility) : updater;
-        onColumnVisibilityChange(newVisibility);
-      }
+      const newVisibility = typeof updater === 'function' ? updater(columnVisibility) : updater;
+      onColumnVisibilityChange(newVisibility);
+    }
     : (updater: any) => {
-        const newVisibility = typeof updater === 'function' ? updater(internalColumnVisibility) : updater;
-        setInternalColumnVisibility(newVisibility);
-      };
+      const newVisibility = typeof updater === 'function' ? updater(internalColumnVisibility) : updater;
+      setInternalColumnVisibility(newVisibility);
+    };
+
+  const columnOrder = controlledColumnOrder ?? internalColumnOrder;
+  const setColumnOrder = onColumnOrderChange
+    ? (updater: any) => {
+      const newOrder = typeof updater === 'function' ? updater(columnOrder) : updater;
+      onColumnOrderChange(newOrder);
+    }
+    : (updater: any) => {
+      const newOrder = typeof updater === 'function' ? updater(internalColumnOrder) : updater;
+      setInternalColumnOrder(newOrder);
+    };
+
   const pagination = controlledPagination
     ? {
-        pageIndex: controlledPagination.pageIndex,
-        pageSize: controlledPagination.pageSize,
-      }
+      pageIndex: controlledPagination.pageIndex,
+      pageSize: controlledPagination.pageSize,
+    }
     : internalPagination;
   const setPagination = onPaginationChange
     ? (updater: any) => {
-        const newPagination =
-          typeof updater === 'function' ? updater(pagination) : updater;
-        onPaginationChange(newPagination);
-      }
+      const newPagination =
+        typeof updater === 'function' ? updater(pagination) : updater;
+      onPaginationChange(newPagination);
+    }
     : setInternalPagination;
 
   // Add selection column if enabled
@@ -223,39 +250,40 @@ export function DataTable<TData extends Record<string, any>>({
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnOrderChange: setColumnOrder,
     enableRowSelection,
     enableGlobalFilter: !!filterKey,
     globalFilterFn: filterKey
       ? (row, columnId, filterValue) => {
-          // Search in the row's original data, not through column definitions
-          const rowData = row.original as any;
-          const searchValue = String(filterValue).toLowerCase();
-          
-          // Try to get value from the specified filterKey path
-          let value: any;
-          if (filterKey.includes('.')) {
-            // Handle nested paths like 'user.lastName'
-            const keys = filterKey.split('.');
-            value = keys.reduce((obj: any, key) => obj?.[key], rowData);
-          } else {
-            // Direct property access
-            value = rowData[filterKey];
-          }
-          
-          // If value is found, check if it matches
-          if (value !== undefined && value !== null) {
-            if (typeof value === 'string') {
-              return value.toLowerCase().includes(searchValue);
-            }
-            if (typeof value === 'number') {
-              return String(value).includes(searchValue);
-            }
-          }
-          
-          // If filterKey value not found or doesn't match, return false
-          // (Don't fallback to searching all values - be specific to the filterKey)
-          return false;
+        // Search in the row's original data, not through column definitions
+        const rowData = row.original as any;
+        const searchValue = String(filterValue).toLowerCase();
+
+        // Try to get value from the specified filterKey path
+        let value: any;
+        if (filterKey.includes('.')) {
+          // Handle nested paths like 'user.lastName'
+          const keys = filterKey.split('.');
+          value = keys.reduce((obj: any, key) => obj?.[key], rowData);
+        } else {
+          // Direct property access
+          value = rowData[filterKey];
         }
+
+        // If value is found, check if it matches
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'string') {
+            return value.toLowerCase().includes(searchValue);
+          }
+          if (typeof value === 'number') {
+            return String(value).includes(searchValue);
+          }
+        }
+
+        // If filterKey value not found or doesn't match, return false
+        // (Don't fallback to searching all values - be specific to the filterKey)
+        return false;
+      }
       : undefined,
     state: {
       rowSelection,
@@ -264,6 +292,7 @@ export function DataTable<TData extends Record<string, any>>({
       columnVisibility,
       pagination,
       globalFilter,
+      columnOrder,
     },
     manualPagination: !!controlledPagination,
     manualSorting: !!controlledSorting,
@@ -341,9 +370,12 @@ export function DataTable<TData extends Record<string, any>>({
           filterKey={filterKey}
           onImport={onImport}
           onExport={onExport}
+          entityType={entityType}
+          onColumnOrderChange={setColumnOrder}
+          savePreferences={savePreferences}
         />
       )}
-      
+
       <DataTableBulkActions
         selectedCount={table.getFilteredSelectedRowModel().rows.length}
         selectedIds={selectedRowIds}
@@ -357,82 +389,105 @@ export function DataTable<TData extends Record<string, any>>({
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const canSort = header.column.getCanSort();
-                    const isSorted = header.column.getIsSorted();
+                  {enableColumnReorder ? (
+                    <DraggableTableHeader
+                      headers={headerGroup.headers}
+                      onColumnOrderChange={setColumnOrder}
+                    />
+                  ) : (
+                    headerGroup.headers.map((header) => {
+                      const canSort = header.column.getCanSort();
+                      const isSorted = header.column.getIsSorted();
 
-                    return (
-                      <TableHead
-                        key={header.id}
-                        className={cn(
-                          'relative',
-                          header.column.getCanResize() && 'resizable'
-                        )}
-                        style={{
-                          width: header.getSize() !== 150 ? header.getSize() : undefined,
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <div className="flex items-center justify-between w-full">
-                            <div
-                              className={cn(
-                                'flex items-center gap-2 flex-1',
-                                canSort && 'cursor-pointer select-none hover:text-foreground'
-                              )}
-                              onClick={header.column.getToggleSortingHandler()}
-                            >
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                              {canSort && (
-                                <span className="text-muted-foreground">
-                                  {isSorted === 'asc' ? '↑' : isSorted === 'desc' ? '↓' : '⇅'}
-                                </span>
+                      return (
+                        <TableHead
+                          key={header.id}
+                          className={cn(
+                            'relative group',
+                            header.column.getCanResize() && 'resizable',
+                            (header.column.columnDef as ExtendedColumnDef<TData>).className
+                          )}
+                        >
+                          {header.isPlaceholder ? null : (
+                            <div className="flex items-center justify-between w-full">
+                              <div
+                                className={cn(
+                                  'flex items-center gap-1 flex-1',
+                                  canSort && 'cursor-pointer select-none hover:text-foreground'
+                                )}
+                                onClick={header.column.getToggleSortingHandler()}
+                              >
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                {canSort && (
+                                  <span className="text-muted-foreground">
+                                    {isSorted === 'asc' ? '↑' : isSorted === 'desc' ? '↓' : '⇅'}
+                                  </span>
+                                )}
+                                {/* Column tooltip/help icon */}
+                                {(header.column.columnDef as ExtendedColumnDef<TData>).tooltip && (
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Info className="h-3 w-3 text-muted-foreground/60 hover:text-muted-foreground cursor-help" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs text-xs">
+                                        {(header.column.columnDef as ExtendedColumnDef<TData>).tooltip}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                              {/* Classic column filter popup - only show if inline filters disabled */}
+                              {!enableInlineFilters && (header.column.columnDef as ExtendedColumnDef<TData>).enableColumnFilter && entityType && onColumnFilterChange && (
+                                <div className="ml-2" onClick={(e) => e.stopPropagation()}>
+                                  <ColumnFilter
+                                    columnId={header.column.id}
+                                    filterKey={(header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id}
+                                    entityType={entityType}
+                                    value={
+                                      columnFilters
+                                        .filter((f) => f.id === ((header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id))
+                                        .map((f) => {
+                                          try {
+                                            const parsed = JSON.parse(String(f.value));
+                                            return Array.isArray(parsed) ? parsed : [String(f.value)];
+                                          } catch {
+                                            return [String(f.value)];
+                                          }
+                                        })
+                                        .flat() || []
+                                    }
+                                    onChange={(values) => {
+                                      const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
+                                      const newFilters = columnFilters.filter((f) => f.id !== filterKey);
+                                      if (values.length > 0) {
+                                        newFilters.push({ id: filterKey, value: JSON.stringify(values) });
+                                      }
+                                      setColumnFilters(newFilters);
+                                      onColumnFilterChange(header.column.id, values);
+                                    }}
+                                    onClear={() => {
+                                      const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
+                                      const newFilters = columnFilters.filter((f) => f.id !== filterKey);
+                                      setColumnFilters(newFilters);
+                                      onColumnFilterChange(header.column.id, []);
+                                    }}
+                                  />
+                                </div>
                               )}
                             </div>
-                            {(header.column.columnDef as ExtendedColumnDef<TData>).enableColumnFilter && entityType && onColumnFilterChange && (
-                              <div className="ml-2" onClick={(e) => e.stopPropagation()}>
-                                <ColumnFilter
-                                  columnId={header.column.id}
-                                  filterKey={(header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id}
-                                  entityType={entityType}
-                                  value={
-                                    columnFilters
-                                      .filter((f) => f.id === ((header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id))
-                                      .map((f) => {
-                                        try {
-                                          const parsed = JSON.parse(String(f.value));
-                                          return Array.isArray(parsed) ? parsed : [String(f.value)];
-                                        } catch {
-                                          return [String(f.value)];
-                                        }
-                                      })
-                                      .flat() || []
-                                  }
-                                  onChange={(values) => {
-                                    const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
-                                    const newFilters = columnFilters.filter((f) => f.id !== filterKey);
-                                    if (values.length > 0) {
-                                      newFilters.push({ id: filterKey, value: JSON.stringify(values) });
-                                    }
-                                    setColumnFilters(newFilters);
-                                    onColumnFilterChange(header.column.id, values);
-                                  }}
-                                  onClear={() => {
-                                    const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
-                                    const newFilters = columnFilters.filter((f) => f.id !== filterKey);
-                                    setColumnFilters(newFilters);
-                                    onColumnFilterChange(header.column.id, []);
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </TableHead>
-                    );
-                  })}
-                  {(rowActions || InlineEditComponent) && <TableHead className="w-[70px]">Actions</TableHead>}
+                          )}
+                        </TableHead>
+                      );
+                    })
+                  )}
+                  {(rowActions || InlineEditComponent) && <TableHead className="w-[70px] text-right">Actions</TableHead>}
                 </TableRow>
               ))}
+              {/* Inline Filter Row */}
+              {enableInlineFilters && (
+                <InlineFilterRow table={table} entityType={entityType} hasRowActions={!!(rowActions || InlineEditComponent)} />
+              )}
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows?.length ? (
@@ -466,12 +521,12 @@ export function DataTable<TData extends Record<string, any>>({
                         }}
                       >
                         {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
+                          <TableCell key={cell.id} className={(cell.column.columnDef as ExtendedColumnDef<TData>).className}>
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </TableCell>
                         ))}
                         {(rowActions || hasInlineEdit) && (
-                          <TableCell className="text-right">
+                          <TableCell className="text-right w-[70px]">
                             <div className="flex items-center justify-end gap-1">
                               {rowActions && rowActions(row.original)}
                               {hasInlineEdit && (

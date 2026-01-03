@@ -171,6 +171,8 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
         rowActions={rowActions}
         emptyMessage="No trucks found"
         filterKey="truckNumber"
+        entityType="trucks"
+        enableColumnReorder={true}
       />
       <TruckSheet
         open={sheetOpen}

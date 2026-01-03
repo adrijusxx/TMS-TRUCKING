@@ -163,6 +163,8 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
         onExportSelected={handleExportSelected}
         onImport={handleImport}
         onExport={handleExport}
+        entityType="customers"
+        enableColumnReorder={true}
       />
 
       <CustomerSheet

@@ -206,6 +206,8 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     },
     defaultVisible: true,
     required: true,
+    filterType: 'text',
+    filterKey: 'loadNumber',
   },
   {
     id: 'rateConfNumber',
@@ -221,6 +223,8 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       );
     },
     defaultVisible: true,
+    filterType: 'text',
+    filterKey: 'rateConfNumber',
   },
   {
     id: 'status',
@@ -236,6 +240,11 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'status',
+    filterType: 'multiselect',
+    filterOptions: Object.keys(LoadStatus).map((status) => ({
+      value: status,
+      label: formatStatus(status as LoadStatus),
+    })),
   },
   {
     id: 'origin',
@@ -246,6 +255,8 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       </div>
     ),
     defaultVisible: true,
+    filterType: 'text',
+    filterKey: 'pickupCity', // Best effort for now
   },
   {
     id: 'destination',
@@ -256,6 +267,26 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       </div>
     ),
     defaultVisible: true,
+    filterType: 'text',
+    filterKey: 'deliveryCity', // Best effort
+  },
+  {
+    id: 'pickupState',
+    accessorKey: 'pickupState',
+    header: 'Pickup ST',
+    cell: ({ row }) => row.original.pickupState || '—',
+    defaultVisible: false,
+    enableSorting: true,
+    tooltip: 'Two-letter state code for pickup location. Enable to sort loads by origin state.',
+  },
+  {
+    id: 'deliveryState',
+    accessorKey: 'deliveryState',
+    header: 'Delivery ST',
+    cell: ({ row }) => row.original.deliveryState || '—',
+    defaultVisible: false,
+    enableSorting: true,
+    tooltip: 'Two-letter state code for delivery location. Enable to sort loads by destination state.',
   },
   {
     id: 'revenue',
@@ -264,10 +295,13 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     cell: ({ row }) => formatCurrency(row.original.revenue),
     defaultVisible: true,
     // Rate is NOT editable - financial safety
+    filterType: 'number',
+    tooltip: 'Total rate charged to the customer for this load (from Rate Confirmation).',
   },
   {
     id: 'customer',
     header: 'Customer',
+    className: 'w-full min-w-[200px]',
     cell: ({ row }) =>
       row.original.customer ? (
         <Link
@@ -282,10 +316,12 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'customerId',
+    filterType: 'searchable-select',
   },
   {
     id: 'route',
     header: 'Route',
+    className: 'w-full min-w-[300px]',
     cell: ({ row }) => (
       <div>
         <div className="font-medium">
@@ -296,7 +332,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
         </div>
       </div>
     ),
-    defaultVisible: true, // Show route by default
+    defaultVisible: true,
+    filterType: 'text',
+    filterKey: 'route',
   },
   {
     id: 'driver',
@@ -315,6 +353,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'driverId',
+    filterType: 'searchable-select',
   },
   {
     id: 'truck',
@@ -333,6 +372,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'truckId',
+    filterType: 'searchable-select',
   },
   {
     id: 'dispatcher',
@@ -348,6 +388,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'dispatcherId',
+    filterType: 'searchable-select',
   },
   {
     id: 'pickupDate',
@@ -355,6 +396,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'Pickup Date',
     cell: ({ row }) => (row.original.pickupDate ? formatDate(row.original.pickupDate) : '—'),
     defaultVisible: true,
+    filterType: 'date',
   },
   {
     id: 'deliveryDate',
@@ -362,6 +404,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'Delivery Date',
     cell: ({ row }) => (row.original.deliveryDate ? formatDate(row.original.deliveryDate) : '—'),
     defaultVisible: true,
+    filterType: 'date',
   },
   {
     id: 'miles',
@@ -372,6 +415,8 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       return miles ? miles.toLocaleString() : '—';
     },
     defaultVisible: true,
+    filterType: 'number',
+    tooltip: 'Total distance for this load (loaded + empty miles combined).',
   },
   {
     id: 'loadedMiles',
@@ -429,6 +474,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     },
     defaultVisible: true,
     enableHiding: true,
+    tooltip: 'Rate Per Mile (loaded miles only). Revenue divided by loaded miles.',
   },
   {
     id: 'rpmEmpty',
@@ -503,6 +549,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       return trailerNumber || '—';
     },
     defaultVisible: true,
+    enableColumnFilter: true,
+    filterKey: 'trailerId',
+    filterType: 'searchable-select',
   },
   {
     id: 'mcNumber',
@@ -526,6 +575,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     },
     defaultVisible: true,
     permission: 'mc_numbers.view',
+    enableColumnFilter: true,
+    filterKey: 'mcNumberId',
+    filterType: 'searchable-select',
   },
   {
     id: 'documents',
@@ -542,9 +594,12 @@ const columns: ExtendedColumnDef<LoadData>[] = [
 
       if (!hasMissingDocs) {
         return (
-          <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
-            <FileText className="h-3 w-3 mr-1" />
-            Complete
+          <Badge
+            variant="secondary"
+            className="bg-green-50 text-green-700 border-green-200 text-xs whitespace-nowrap px-1.5 py-0.5 inline-flex items-center gap-1"
+          >
+            <FileText className="h-3 w-3 shrink-0" />
+            <span>Complete</span>
           </Badge>
         );
       }
@@ -553,12 +608,13 @@ const columns: ExtendedColumnDef<LoadData>[] = [
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-1">
-                <Badge variant="destructive" className="text-xs">
-                  <AlertTriangle className="h-3 w-3 mr-1" />
-                  Missing {missingDocs.length}
-                </Badge>
-              </div>
+              <Badge
+                variant="destructive"
+                className="text-xs whitespace-nowrap px-1.5 py-0.5 inline-flex items-center gap-1"
+              >
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                <span>Missing {missingDocs.length}</span>
+              </Badge>
             </TooltipTrigger>
             <TooltipContent>
               <div className="space-y-1">
@@ -573,7 +629,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       );
     },
     defaultVisible: true,
-    enableColumnFilter: false,
+    enableColumnFilter: true,
+    filterKey: 'hasMissingDocuments',
+    filterType: 'boolean',
   },
   {
     id: 'createdAt',
@@ -612,7 +670,8 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     },
     defaultVisible: true,
     enableSorting: true,
-    enableColumnFilter: false, // Don't enable column filter for date columns
+    enableColumnFilter: true,
+    filterType: 'date',
   },
 ];
 
@@ -664,114 +723,6 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
   enableExport: false, // Handled by header buttons in LoadListNew
   enableBulkEdit: true,
   enableBulkDelete: true,
-  filterDefinitions: [
-    {
-      key: 'createdToday',
-      label: 'Created Today',
-      type: 'boolean',
-    },
-    {
-      key: 'pickupToday',
-      label: 'Pickup Today',
-      type: 'boolean',
-    },
-    {
-      key: 'createdLast24h',
-      label: 'Created Last 24h',
-      type: 'boolean',
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      type: 'multiselect',
-      options: Object.keys(LoadStatus).map((status) => ({
-        value: status,
-        label: formatStatus(status as LoadStatus),
-      })),
-    },
-    {
-      key: 'mcNumberId',
-      label: 'MC Number',
-      type: 'select',
-      options: [], // Will be populated dynamically
-      permission: 'mc_numbers.view',
-    },
-    {
-      key: 'customerId',
-      label: 'Customer',
-      type: 'searchable-select',
-      entityType: 'loads',
-      filterKey: 'customerId',
-    },
-    {
-      key: 'driverId',
-      label: 'Driver',
-      type: 'searchable-select',
-      entityType: 'loads',
-      filterKey: 'driverId',
-    },
-    {
-      key: 'pickupCity',
-      label: 'Pickup City',
-      type: 'text',
-    },
-    {
-      key: 'pickupState',
-      label: 'Pickup State',
-      type: 'text',
-    },
-    {
-      key: 'deliveryCity',
-      label: 'Delivery City',
-      type: 'text',
-    },
-    {
-      key: 'deliveryState',
-      label: 'Delivery State',
-      type: 'text',
-    },
-    {
-      key: 'truckNumber',
-      label: 'Truck Number',
-      type: 'text',
-    },
-    {
-      key: 'dispatcherId',
-      label: 'Dispatcher',
-      type: 'text',
-    },
-    {
-      key: 'pickupDate',
-      label: 'Pickup Date Range',
-      type: 'daterange',
-    },
-    {
-      key: 'deliveryDate',
-      label: 'Delivery Date Range',
-      type: 'daterange',
-    },
-    {
-      key: 'date',
-      label: 'Created Date Range',
-      type: 'daterange',
-    },
-    {
-      key: 'revenue',
-      label: 'Min Revenue',
-      type: 'number',
-    },
-    {
-      key: 'miles',
-      label: 'Min Miles',
-      type: 'number',
-    },
-    {
-      key: 'hasMissingDocuments',
-      label: 'Missing Documents',
-      type: 'boolean',
-      permission: 'documents.view', // Only show to users who can view documents
-      helpText: 'Show only loads with missing required documents (BOL, POD, Rate Confirmation)',
-    },
-  ],
+  filterDefinitions: [], // Removed as we use inline filters
 });
 

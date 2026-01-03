@@ -61,7 +61,7 @@ export function PdfDropZone({ onFileSelect, disabled }: PdfDropZoneProps) {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       className={cn(
-        'border-2 border-dashed rounded-lg p-12 text-center transition-colors',
+        'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
         isDragging
           ? 'border-primary bg-primary/5'
           : 'border-muted-foreground/25 hover:border-muted-foreground/50'

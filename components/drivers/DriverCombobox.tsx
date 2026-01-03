@@ -35,6 +35,7 @@ interface DriverComboboxProps {
   placeholder?: string;
   className?: string;
   drivers?: Driver[]; // Optional: pre-loaded drivers
+  selectedDriver?: Driver | { user: { firstName: string; lastName: string }; driverNumber: string }; // Optional: explicit selected driver object
   disabled?: boolean;
 }
 
@@ -53,6 +54,7 @@ export default function DriverCombobox({
   placeholder = 'Search driver...',
   className,
   drivers: preloadedDrivers,
+  selectedDriver: explicitSelectedDriver,
   disabled,
 }: DriverComboboxProps) {
   const [open, setOpen] = React.useState(false);
@@ -62,7 +64,7 @@ export default function DriverCombobox({
   // Check if preloaded drivers array has items, not just if it exists (empty array is truthy)
   const hasPreloadedDrivers = preloadedDrivers && preloadedDrivers.length > 0;
   const shouldUseApi = open && (searchQuery.length > 0 || !hasPreloadedDrivers);
-  
+
   const { data: driversData, isLoading } = useQuery({
     queryKey: ['drivers', searchQuery],
     queryFn: () => fetchDrivers(searchQuery),
@@ -84,7 +86,7 @@ export default function DriverCombobox({
   const drivers: Driver[] = shouldUseApi
     ? driversData?.data || []
     : filteredPreloaded;
-  const selectedDriver = drivers.find((d) => d.id === value);
+  const selectedDriver = drivers.find((d) => d.id === value) || (value && explicitSelectedDriver ? (explicitSelectedDriver as Driver) : undefined);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

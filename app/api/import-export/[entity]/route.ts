@@ -4334,6 +4334,23 @@ export async function POST(
         });
       }
 
+      // Pre-fetch existing users to avoid duplicate checks inside loop
+      const existingUsers = await prisma.user.findMany({
+        where: {
+          companyId: session.user.companyId,
+          deletedAt: null,
+        },
+        select: { email: true, employeeNumber: true },
+      });
+      const existingEmails = new Set(existingUsers.map(u => u.email.toLowerCase()));
+      const existingEmployeeNumbers = new Set(existingUsers.filter(u => u.employeeNumber).map(u => u.employeeNumber!));
+
+      // Collect users to create (for preview and batch creation)
+      const usersToCreate: Array<{
+        rowIndex: number;
+        userData: any;
+      }> = [];
+
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
         try {
@@ -4354,14 +4371,7 @@ export async function POST(
           }
 
           // Check if user already exists
-          const existingUser = await prisma.user.findFirst({
-            where: {
-              email: email.toLowerCase(),
-              companyId: session.user.companyId,
-            },
-          });
-
-          if (existingUser) {
+          if (existingEmails.has(email.toLowerCase())) {
             errors.push({
               row: i + 1,
               field: 'User',
@@ -4370,43 +4380,130 @@ export async function POST(
             continue;
           }
 
-          // Map role
+          // Map role - expanded to include HR, SAFETY, FLEET
           const normalizedRole = String(roleValue).trim().toUpperCase();
-          let role: 'ADMIN' | 'DISPATCHER' | 'DRIVER' | 'CUSTOMER' | 'ACCOUNTANT' = 'DISPATCHER';
+          let role: 'ADMIN' | 'DISPATCHER' | 'DRIVER' | 'CUSTOMER' | 'ACCOUNTANT' | 'HR' | 'SAFETY' | 'FLEET' = 'DISPATCHER';
 
           if (normalizedRole === 'ADMIN' || normalizedRole === 'ADMINISTRATOR') role = 'ADMIN';
           else if (normalizedRole === 'DISPATCHER' || normalizedRole === 'DISPATCH') role = 'DISPATCHER';
           else if (normalizedRole === 'DRIVER') role = 'DRIVER';
           else if (normalizedRole === 'CUSTOMER') role = 'CUSTOMER';
           else if (normalizedRole === 'ACCOUNTANT' || normalizedRole === 'ACCOUNTING') role = 'ACCOUNTANT';
+          else if (normalizedRole === 'HR' || normalizedRole === 'HUMAN RESOURCES') role = 'HR';
+          else if (normalizedRole === 'SAFETY') role = 'SAFETY';
+          else if (normalizedRole === 'FLEET' || normalizedRole === 'FLEET MANAGEMENT') role = 'FLEET';
 
-          // Generate default password (user can change it later)
-          const defaultPassword = await bcrypt.hash('User123!', 10);
+          // Get employee status (active/inactive)
+          const statusValue = getValue(row, ['Status', 'status', 'employee_status', 'Employee Status', 'Active', 'Is Active', 'isActive']);
+          const isActive = !statusValue || ['active', 'yes', 'true', '1', 'y'].includes(String(statusValue).trim().toLowerCase());
 
-          // Create user
-          const user = await prisma.user.create({
-            data: {
+          // Get employee number / login
+          const employeeNumber = getValue(row, ['Employee Number', 'employee_number', 'Emp Number', 'login', 'Login', 'Username', 'username']);
+
+          // Check for duplicate employee number
+          if (employeeNumber && existingEmployeeNumbers.has(employeeNumber)) {
+            errors.push({
+              row: i + 1,
+              field: 'Employee Number',
+              error: `Employee number ${employeeNumber} already exists`,
+            });
+            continue;
+          }
+
+          // Get nickname
+          const nickname = getValue(row, ['Nickname', 'nickname', 'Display Name', 'display_name', 'Preferred Name', 'preferred_name', 'Nick']);
+
+          // Get tags (comma-separated)
+          const tagsValue = getValue(row, ['Tags', 'tags', 'Labels', 'labels', 'Categories', 'categories']);
+          const tags: string[] = tagsValue
+            ? String(tagsValue).split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
+            : [];
+
+          // Get notes
+          const notes = getValue(row, ['Notes', 'notes', 'Comments', 'comments', 'Description', 'description']);
+
+          usersToCreate.push({
+            rowIndex: i + 1,
+            userData: {
               email: email.toLowerCase(),
-              password: defaultPassword,
               firstName,
               lastName,
               phone: getValue(row, ['Phone', 'phone', 'Phone Number', 'phone_number', 'PhoneNumber', 'Phone #', 'phone #', 'Mobile', 'mobile', 'Cell', 'cell', 'Cell Phone', 'cell_phone', 'Work Phone', 'work_phone']) || null,
               role,
+              isActive,
+              employeeNumber: employeeNumber || null,
+              nickname: nickname || null,
+              tags,
+              notes: notes || null,
               companyId: session.user.companyId,
               mcNumberId: mcNumber.id,
             },
           });
 
-          created.push(user);
+          // Track to avoid duplicates within same file
+          existingEmails.add(email.toLowerCase());
+          if (employeeNumber) existingEmployeeNumbers.add(employeeNumber);
+
         } catch (error: any) {
-          // Error creating user
           errors.push({
             row: i + 1,
             field: 'General',
-            error: error.message || 'Failed to create user',
+            error: error.message || 'Failed to process user',
           });
         }
       }
+
+      // PREVIEW MODE: Return data without saving
+      if (previewOnly) {
+        const validRows = usersToCreate.map(u => ({
+          row: u.rowIndex,
+          name: `${u.userData.firstName} ${u.userData.lastName}`,
+          email: u.userData.email,
+          role: u.userData.role,
+          status: u.userData.isActive ? 'Active' : 'Inactive',
+        }));
+
+        return NextResponse.json({
+          success: true,
+          preview: true,
+          data: {
+            totalRows: importResult.data.length,
+            validCount: validRows.length,
+            invalidCount: errors.length,
+            warningCount: 0,
+            valid: validRows.slice(0, 100),
+            invalid: errors,
+            warnings: []
+          }
+        });
+      }
+
+      // Create users with batch processing
+      const BATCH_SIZE = 50;
+      const defaultPassword = await bcrypt.hash('User123!', 10);
+
+      for (let i = 0; i < usersToCreate.length; i += BATCH_SIZE) {
+        const batch = usersToCreate.slice(i, i + BATCH_SIZE);
+
+        for (const item of batch) {
+          try {
+            const user = await prisma.user.create({
+              data: {
+                ...item.userData,
+                password: defaultPassword,
+              },
+            });
+            created.push(user);
+          } catch (error: any) {
+            errors.push({
+              row: item.rowIndex,
+              field: 'General',
+              error: error.message || 'Failed to create user',
+            });
+          }
+        }
+      }
+
 
     } else {
       // For other entity types, return parsed data for frontend processing

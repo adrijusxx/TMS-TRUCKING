@@ -65,3 +65,37 @@ export function visibilityStateToPreferences(
 
     return preferences;
 }
+
+/**
+ * Extract column order from preferences
+ */
+export function preferencesToColumnOrder(
+    preferences: UserColumnPreferences
+): string[] {
+    return Object.entries(preferences)
+        .filter(([_, pref]) => typeof pref.order === 'number')
+        .sort((a, b) => (a[1].order as number) - (b[1].order as number))
+        .map(([columnId]) => columnId);
+}
+
+/**
+ * Convert column order to preferences
+ */
+export function columnOrderToPreferences(
+    order: string[],
+    existingPreferences: UserColumnPreferences
+): UserColumnPreferences {
+    const preferences: UserColumnPreferences = { ...existingPreferences };
+
+    order.forEach((columnId, index) => {
+        if (!preferences[columnId]) {
+            preferences[columnId] = { visible: true };
+        }
+        preferences[columnId] = {
+            ...preferences[columnId],
+            order: index,
+        };
+    });
+
+    return preferences;
+}

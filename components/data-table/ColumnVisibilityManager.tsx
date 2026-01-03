@@ -9,44 +9,43 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { Settings2, RotateCcw } from 'lucide-react';
+import { Settings2, RotateCcw, Sparkles, Truck, DollarSign, Minimize2, Maximize2, Users, ShieldCheck, Wrench, Building2, Link, Headphones, Container } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import type { ExtendedColumnDef, UserColumnPreferences } from './types';
 import type { VisibilityState } from '@tanstack/react-table';
+import { getPresetsForEntity, type ColumnPreset } from '@/lib/config/column-presets';
+
+import { visibilityStateToPreferences, columnOrderToPreferences } from '@/lib/utils/column-preferences';
+
+// Icon mapping for presets
+const iconMap: Record<string, React.ReactNode> = {
+  Truck: <Truck className="h-4 w-4 mr-2" />,
+  DollarSign: <DollarSign className="h-4 w-4 mr-2" />,
+  Minimize2: <Minimize2 className="h-4 w-4 mr-2" />,
+  Maximize2: <Maximize2 className="h-4 w-4 mr-2" />,
+  Users: <Users className="h-4 w-4 mr-2" />,
+  ShieldCheck: <ShieldCheck className="h-4 w-4 mr-2" />,
+  Wrench: <Wrench className="h-4 w-4 mr-2" />,
+  Building2: <Building2 className="h-4 w-4 mr-2" />,
+  Link: <Link className="h-4 w-4 mr-2" />,
+  Headphones: <Headphones className="h-4 w-4 mr-2" />,
+  Container: <Container className="h-4 w-4 mr-2" />,
+};
 
 interface ColumnVisibilityManagerProps<TData extends Record<string, any>> {
-  /**
-   * Column definitions
-   */
   columns: ExtendedColumnDef<TData>[];
-  /**
-   * Current visibility state
-   */
   columnVisibility: VisibilityState;
-  /**
-   * Visibility change handler
-   */
   onColumnVisibilityChange: (visibility: VisibilityState) => void;
-  /**
-   * Entity type (for saving preferences)
-   */
   entityType: string;
-  /**
-   * Whether to save preferences to database
-   */
   savePreferences?: boolean;
-  /**
-   * Default visibility state
-   */
   defaultVisibility?: VisibilityState;
+  onColumnOrderChange?: (order: string[]) => void;
+  columnOrder?: string[];
 }
 
-/**
- * Column visibility manager component
- * Allows users to toggle column visibility and save preferences
- */
 export function ColumnVisibilityManager<TData extends Record<string, any>>({
   columns,
   columnVisibility,
@@ -54,8 +53,14 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
   entityType,
   savePreferences = true,
   defaultVisibility,
+  onColumnOrderChange,
+  columnOrder,
 }: ColumnVisibilityManagerProps<TData>) {
   const [isSaving, setIsSaving] = React.useState(false);
+  const [activePreset, setActivePreset] = React.useState<string | null>(null);
+
+  // Get presets for this entity
+  const presets = getPresetsForEntity(entityType);
 
   // Filter out columns that cannot be hidden
   const toggleableColumns = columns.filter(
@@ -63,42 +68,79 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
   );
 
   const handleToggleColumn = async (columnId: string, visible: boolean) => {
-    const newVisibility = {
-      ...columnVisibility,
-      [columnId]: visible,
-    };
+    const newVisibility = { ...columnVisibility, [columnId]: visible };
+    onColumnVisibilityChange(newVisibility);
+    setActivePreset(null); // Clear preset when manually toggling
+
+    if (savePreferences) {
+      await saveVisibilityPreferences(newVisibility);
+    }
+  };
+
+  const handleApplyPreset = async (preset: ColumnPreset) => {
+    // Build visibility state from preset
+    const newVisibility: VisibilityState = {};
+    const presetColumnsSet = new Set(preset.columns);
+
+    columns.forEach((col) => {
+      const columnId = col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : '');
+      if (columnId && col.required !== true) {
+        newVisibility[columnId] = presetColumnsSet.has(columnId);
+      }
+    });
+
     onColumnVisibilityChange(newVisibility);
 
-    // Save preferences if enabled
+    // Update column order if handler provided
+    if (onColumnOrderChange) {
+      const otherCols = columns
+        .map((col) => col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : ''))
+        .filter((id) => id && !presetColumnsSet.has(id));
+
+      onColumnOrderChange([...preset.columns, ...otherCols]);
+    }
+
+    setActivePreset(preset.id);
+    toast.success(`Applied "${preset.name}" preset`);
+
     if (savePreferences) {
-      try {
-        setIsSaving(true);
-        const preferences: UserColumnPreferences = {};
+      await saveVisibilityPreferences(newVisibility);
+    }
+  };
 
-        Object.keys(newVisibility).forEach((colId) => {
-          preferences[colId] = {
-            visible: newVisibility[colId] ?? true,
-          };
-        });
+  const saveVisibilityPreferences = async (visibility: VisibilityState) => {
+    try {
+      setIsSaving(true);
 
-        const response = await fetch(apiUrl('/api/user-preferences/column-visibility'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entityType,
-            preferences,
-          }),
-        });
+      // Convert visibility to preferences
+      let preferences = visibilityStateToPreferences(visibility);
 
-        if (!response.ok) {
-          throw new Error('Failed to save column preferences');
+      // If column order is provided, merge it
+      if (columnOrder && columnOrder.length > 0) {
+        preferences = columnOrderToPreferences(columnOrder, preferences);
+      } else {
+        // Fallback: simple visibility object if helpers fail or no order
+        // (Though visibilityStateToPreferences should work)
+        if (Object.keys(preferences).length === 0) {
+          const fallback: UserColumnPreferences = {};
+          Object.keys(visibility).forEach((colId) => {
+            fallback[colId] = { visible: visibility[colId] ?? true };
+          });
+          preferences = fallback;
         }
-      } catch (error: any) {
-        console.error('Error saving column preferences:', error);
-        toast.error('Failed to save column preferences');
-      } finally {
-        setIsSaving(false);
       }
+
+      const response = await fetch(apiUrl('/api/user-preferences/column-visibility'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType, preferences }),
+      });
+
+      if (!response.ok) throw new Error('Failed to save');
+    } catch (error) {
+      console.error('Error saving column preferences:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -109,25 +151,18 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
     }
 
     onColumnVisibilityChange(defaultVisibility);
+    setActivePreset(null);
 
     if (savePreferences) {
       try {
         setIsSaving(true);
-        const response = await fetch(
-          apiUrl(`/api/user-preferences/column-visibility?entityType=${entityType}`),
-          {
-            method: 'DELETE',
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error('Failed to reset column preferences');
-        }
-
+        await fetch(apiUrl(`/api/user-preferences/column-visibility?entityType=${entityType}`), {
+          method: 'DELETE',
+        });
         toast.success('Column preferences reset to defaults');
-      } catch (error: any) {
-        console.error('Error resetting column preferences:', error);
-        toast.error('Failed to reset column preferences');
+      } catch (error) {
+        console.error('Error resetting:', error);
+        toast.error('Failed to reset');
       } finally {
         setIsSaving(false);
       }
@@ -146,40 +181,66 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
+        {/* Presets Section */}
+        {presets.length > 0 && (
+          <>
+            <DropdownMenuLabel className="flex items-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Quick Presets
+            </DropdownMenuLabel>
+            {presets.map((preset) => (
+              <DropdownMenuItem
+                key={preset.id}
+                onClick={() => handleApplyPreset(preset)}
+                className={activePreset === preset.id ? 'bg-accent' : ''}
+              >
+                {preset.icon && iconMap[preset.icon]}
+                <div className="flex-1">
+                  <div className="font-medium">{preset.name}</div>
+                  {preset.description && (
+                    <div className="text-xs text-muted-foreground">{preset.description}</div>
+                  )}
+                </div>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+          </>
+        )}
+
+        {/* Column Toggles */}
         <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {toggleableColumns.map((column) => {
-          const columnId = column.id || (typeof column.accessorKey === 'string' ? column.accessorKey : '');
-          const isVisible = columnVisibility[columnId] ?? column.defaultVisible ?? true;
+        <div className="max-h-[300px] overflow-y-auto">
+          {toggleableColumns.map((column) => {
+            const columnId = column.id || (typeof column.accessorKey === 'string' ? column.accessorKey : '');
+            const isVisible = columnVisibility[columnId] ?? column.defaultVisible ?? true;
 
-          return (
-            <DropdownMenuCheckboxItem
-              key={columnId}
-              checked={isVisible}
-              onCheckedChange={(checked) => handleToggleColumn(columnId, checked)}
-              disabled={isSaving}
-            >
-              {typeof column.header === 'string'
-                ? column.header
-                : (column as any).meta?.header || columnId}
-            </DropdownMenuCheckboxItem>
-          );
-        })}
+            return (
+              <DropdownMenuCheckboxItem
+                key={columnId}
+                checked={isVisible}
+                onCheckedChange={(checked) => handleToggleColumn(columnId, checked)}
+                disabled={isSaving}
+              >
+                {typeof column.header === 'string'
+                  ? column.header
+                  : (column as any).meta?.header || columnId}
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+        </div>
+
+        {/* Reset */}
         {defaultVisibility && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
-              checked={false}
-              onCheckedChange={handleResetToDefaults}
-              disabled={isSaving}
-            >
+            <DropdownMenuItem onClick={handleResetToDefaults} disabled={isSaving}>
               <RotateCcw className="h-4 w-4 mr-2" />
               Reset to Defaults
-            </DropdownMenuCheckboxItem>
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
-

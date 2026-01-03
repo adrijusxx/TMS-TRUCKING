@@ -17,6 +17,7 @@ import {
   loadListSelect,
   calculateLoadStats,
   addDocumentStatus,
+  buildOrderByClause,
 } from '@/lib/managers/LoadQueryManager';
 import {
   extractLocationAndDateFields,
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
       prisma.load.findMany({
         where,
         select: loadListSelect,
-        orderBy: { [params.sortBy]: params.sortOrder === 'desc' ? 'desc' : 'asc' },
+        orderBy: buildOrderByClause(params),
         skip: params.skip,
         take: params.limit,
       }),

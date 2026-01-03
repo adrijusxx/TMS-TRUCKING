@@ -213,12 +213,17 @@ const entityConfigs: Record<string, EntityConfig> = {
   users: {
     label: 'Users',
     fields: [
-      { key: 'email', label: 'Email', required: true },
-      { key: 'firstName', label: 'First Name', required: true },
-      { key: 'lastName', label: 'Last Name', required: true },
-      { key: 'role', label: 'Role', required: true },
-      { key: 'phone', label: 'Phone' },
-      { key: 'password', label: 'Password' },
+      { key: 'email', label: 'Email', required: true, suggestedCsvHeaders: ['Email', 'email', 'Email Address', 'email_address', 'E-mail', 'e-mail'] },
+      { key: 'firstName', label: 'First Name', required: true, suggestedCsvHeaders: ['First Name', 'first_name', 'FirstName', 'firstName', 'First', 'FName', 'fname'] },
+      { key: 'lastName', label: 'Last Name', required: true, suggestedCsvHeaders: ['Last Name', 'last_name', 'LastName', 'lastName', 'Last', 'LName', 'lname', 'Surname'] },
+      { key: 'role', label: 'Role', required: true, suggestedCsvHeaders: ['Role', 'role', 'User Role', 'user_role', 'Position', 'Job Title', 'title'] },
+      { key: 'phone', label: 'Phone', suggestedCsvHeaders: ['Phone', 'phone', 'phone_number', 'Phone Number', 'PhoneNumber', 'Mobile', 'Cell', 'Contact'] },
+      { key: 'password', label: 'Password', suggestedCsvHeaders: ['Password', 'password', 'Pass', 'pass'] },
+      { key: 'isActive', label: 'Status', suggestedCsvHeaders: ['Status', 'status', 'employee_status', 'Employee Status', 'Active', 'Is Active', 'isActive'] },
+      { key: 'employeeNumber', label: 'Employee Number', suggestedCsvHeaders: ['Employee Number', 'employee_number', 'Emp Number', 'emp_number', 'login', 'Login', 'Username', 'username'] },
+      { key: 'nickname', label: 'Nickname', suggestedCsvHeaders: ['Nickname', 'nickname', 'Display Name', 'display_name', 'Preferred Name', 'preferred_name', 'Nick'] },
+      { key: 'tags', label: 'Tags', suggestedCsvHeaders: ['Tags', 'tags', 'Labels', 'labels', 'Categories', 'categories'] },
+      { key: 'notes', label: 'Notes', suggestedCsvHeaders: ['Notes', 'notes', 'Comments', 'comments', 'Description', 'description'] },
     ],
   },
 };

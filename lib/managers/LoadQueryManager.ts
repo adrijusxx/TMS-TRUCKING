@@ -17,6 +17,7 @@ export interface LoadQueryParams {
   skip: number;
   sortBy: string;
   sortOrder: string;
+  sortFields: Array<{ field: string; order: 'asc' | 'desc' }>;
   statusParams: string[];
   customerIdParams: string[];
   driverIdParams: string[];
@@ -27,6 +28,14 @@ export interface LoadQueryParams {
   deliveryCity: string | null;
   deliveryState: string | null;
   pickupDate: string | null;
+  pickupDateStart: string | null;
+  pickupDateEnd: string | null;
+  deliveryDate: string | null;
+  deliveryDateStart: string | null;
+  deliveryDateEnd: string | null;
+  createdAt: string | null;
+  createdAfter: string | null;
+  createdBefore: string | null;
   startDate: string | null;
   endDate: string | null;
   revenue: string | null;
@@ -47,13 +56,27 @@ export function parseQueryParams(request: NextRequest): LoadQueryParams {
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get('page') || '1');
   const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
-  
+
+  // Parse multi-column sorting
+  // Format: sortBy=pickupDate,deliveryDate&sortOrder=asc,desc
+  const sortByParam = searchParams.get('sortBy') || 'createdAt';
+  const sortOrderParam = searchParams.get('sortOrder') || 'desc';
+
+  const sortByFields = sortByParam.split(',').map(s => s.trim()).filter(Boolean);
+  const sortOrders = sortOrderParam.split(',').map(s => s.trim().toLowerCase() as 'asc' | 'desc');
+
+  const sortFields: Array<{ field: string; order: 'asc' | 'desc' }> = sortByFields.map((field, index) => ({
+    field,
+    order: sortOrders[index] === 'asc' ? 'asc' : 'desc',
+  }));
+
   return {
     page,
     limit,
     skip: (page - 1) * limit,
-    sortBy: searchParams.get('sortBy') || 'createdAt',
-    sortOrder: searchParams.get('sortOrder') || 'desc',
+    sortBy: sortByFields[0] || 'createdAt',
+    sortOrder: sortOrders[0] || 'desc',
+    sortFields,
     statusParams: searchParams.getAll('status'),
     customerIdParams: searchParams.getAll('customerId'),
     driverIdParams: searchParams.getAll('driverId'),
@@ -64,6 +87,14 @@ export function parseQueryParams(request: NextRequest): LoadQueryParams {
     deliveryCity: searchParams.get('deliveryCity'),
     deliveryState: searchParams.get('deliveryState'),
     pickupDate: searchParams.get('pickupDate'),
+    pickupDateStart: searchParams.get('pickupDateStart'),
+    pickupDateEnd: searchParams.get('pickupDateEnd'),
+    deliveryDate: searchParams.get('deliveryDate'),
+    deliveryDateStart: searchParams.get('deliveryDateStart'),
+    deliveryDateEnd: searchParams.get('deliveryDateEnd'),
+    createdAt: searchParams.get('createdAt'),
+    createdAfter: searchParams.get('createdAfter'),
+    createdBefore: searchParams.get('createdBefore'),
     startDate: searchParams.get('startDate'),
     endDate: searchParams.get('endDate'),
     revenue: searchParams.get('revenue'),
@@ -76,6 +107,16 @@ export function parseQueryParams(request: NextRequest): LoadQueryParams {
     createdLast24h: searchParams.get('createdLast24h') === 'true',
     hasMissingDocuments: searchParams.get('hasMissingDocuments'),
   };
+}
+
+/**
+ * Build orderBy clause for Prisma query (supports multi-column sorting)
+ */
+export function buildOrderByClause(params: LoadQueryParams): Array<Record<string, 'asc' | 'desc'>> {
+  if (params.sortFields.length === 0) {
+    return [{ createdAt: 'desc' }];
+  }
+  return params.sortFields.map(({ field, order }) => ({ [field]: order }));
 }
 
 /**
@@ -271,21 +312,118 @@ function applyDateFilters(
   where: Record<string, unknown>,
   params: LoadQueryParams
 ): void {
-  // Single pickup date
-  if (params.pickupDate) {
-    const date = new Date(params.pickupDate);
-    const nextDay = new Date(date);
-    nextDay.setDate(nextDay.getDate() + 1);
-    where.pickupDate = { gte: date, lt: nextDay };
+  // Pickup date range filter (from DateRangeFilter component)
+  if (params.pickupDateStart || params.pickupDateEnd) {
+    const pickupFilter: Record<string, Date> = {};
+    if (params.pickupDateStart) {
+      pickupFilter.gte = new Date(params.pickupDateStart);
+    }
+    if (params.pickupDateEnd) {
+      const endDate = new Date(params.pickupDateEnd);
+      endDate.setDate(endDate.getDate() + 1); // Include the end date
+      pickupFilter.lt = endDate;
+    }
+    where.pickupDate = pickupFilter;
+  } else if (params.pickupDate) {
+    // Handle colon-separated range format from DateRangeFilter: "2025-01-01:2025-01-07"
+    if (params.pickupDate.includes(':') && /^\d{4}-\d{2}-\d{2}/.test(params.pickupDate)) {
+      const [startStr, endStr] = params.pickupDate.split(':');
+      const pickupFilter: Record<string, Date> = {};
+      if (startStr) {
+        pickupFilter.gte = new Date(startStr);
+      }
+      if (endStr) {
+        const endDate = new Date(endStr);
+        endDate.setDate(endDate.getDate() + 1);
+        pickupFilter.lt = endDate;
+      }
+      where.pickupDate = pickupFilter;
+    } else {
+      // Single pickup date (legacy)
+      const date = new Date(params.pickupDate);
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      where.pickupDate = { gte: date, lt: nextDay };
+    }
   }
 
-  // Date range filter
-  if (params.startDate && params.endDate) {
+  // Delivery date range filter (from DateRangeFilter component)
+  if (params.deliveryDateStart || params.deliveryDateEnd) {
+    const deliveryFilter: Record<string, Date> = {};
+    if (params.deliveryDateStart) {
+      deliveryFilter.gte = new Date(params.deliveryDateStart);
+    }
+    if (params.deliveryDateEnd) {
+      const endDate = new Date(params.deliveryDateEnd);
+      endDate.setDate(endDate.getDate() + 1); // Include the end date
+      deliveryFilter.lt = endDate;
+    }
+    where.deliveryDate = deliveryFilter;
+  } else if (params.deliveryDate) {
+    // Handle colon-separated range format from DateRangeFilter: "2025-01-01:2025-01-07"
+    if (params.deliveryDate.includes(':') && /^\d{4}-\d{2}-\d{2}/.test(params.deliveryDate)) {
+      const [startStr, endStr] = params.deliveryDate.split(':');
+      const deliveryFilter: Record<string, Date> = {};
+      if (startStr) {
+        deliveryFilter.gte = new Date(startStr);
+      }
+      if (endStr) {
+        const endDate = new Date(endStr);
+        endDate.setDate(endDate.getDate() + 1);
+        deliveryFilter.lt = endDate;
+      }
+      where.deliveryDate = deliveryFilter;
+    } else {
+      // Single delivery date (legacy)
+      const date = new Date(params.deliveryDate);
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      where.deliveryDate = { gte: date, lt: nextDay };
+    }
+  }
+
+  // CreatedAt date range filter
+  if (params.createdAfter || params.createdBefore) {
+    const createdFilter: Record<string, Date> = {};
+    if (params.createdAfter) {
+      createdFilter.gte = new Date(params.createdAfter);
+    }
+    if (params.createdBefore) {
+      const endDate = new Date(params.createdBefore);
+      endDate.setDate(endDate.getDate() + 1);
+      createdFilter.lt = endDate;
+    }
+    where.createdAt = createdFilter;
+  } else if (params.createdAt) {
+    // Handle colon-separated range format from DateRangeFilter
+    if (params.createdAt.includes(':') && /^\d{4}-\d{2}-\d{2}/.test(params.createdAt)) {
+      const [startStr, endStr] = params.createdAt.split(':');
+      const createdFilter: Record<string, Date> = {};
+      if (startStr) {
+        createdFilter.gte = new Date(startStr);
+      }
+      if (endStr) {
+        const endDate = new Date(endStr);
+        endDate.setDate(endDate.getDate() + 1);
+        createdFilter.lt = endDate;
+      }
+      where.createdAt = createdFilter;
+    } else {
+      // Single created date (legacy)
+      const date = new Date(params.createdAt);
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+      where.createdAt = { gte: date, lt: nextDay };
+    }
+  }
+
+  // Generic date range filter (legacy - applies to both pickup and delivery)
+  if (params.startDate && params.endDate && !params.pickupDateStart && !params.deliveryDateStart) {
     const dateRangeOr = [
       { pickupDate: { gte: new Date(params.startDate), lte: new Date(params.endDate) } },
       { deliveryDate: { gte: new Date(params.startDate), lte: new Date(params.endDate) } },
     ];
-    
+
     if (where.OR) {
       where.AND = [{ OR: where.OR as unknown[] }, { OR: dateRangeOr }];
       delete where.OR;
@@ -463,13 +601,13 @@ export function addDocumentStatus<T extends { documents?: Array<{ type: string }
   loads: T[]
 ): Array<T & { missingDocuments: string[]; hasMissingDocuments: boolean }> {
   const REQUIRED_DOCUMENTS = ['BOL', 'POD', 'RATE_CONFIRMATION'] as const;
-  
+
   return loads.map((load) => {
     const documentTypes = load.documents?.map((doc) => doc.type) || [];
     const missingDocuments = REQUIRED_DOCUMENTS.filter(
       (type) => !documentTypes.includes(type)
     );
-    
+
     return {
       ...load,
       missingDocuments,

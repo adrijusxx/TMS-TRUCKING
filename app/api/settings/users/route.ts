@@ -68,18 +68,20 @@ export async function GET(request: NextRequest) {
     // Exclude drivers if requested (but not if we're specifically filtering for drivers)
     if (excludeDrivers && roleFilter !== 'DRIVER') {
       baseConditions.role = { not: 'DRIVER' };
-      baseConditions.driver = null; // Also exclude users who have a driver record
+      baseConditions.drivers = { none: {} }; // Also exclude users who have a driver record
     }
 
     // When showing drivers, exclude users whose associated Driver record is soft-deleted
     // This ensures that when a driver is deleted from HR management, they don't appear in Team & Users
     // Also apply the same filtering as HR Management for consistency
     if (roleFilter === 'DRIVER') {
-      baseConditions.driver = {
-        deletedAt: null, // Only show users whose driver record is not soft-deleted
-        // Apply same filtering as HR Management - only show active drivers by default
-        employeeStatus: 'ACTIVE',
-        isActive: true,
+      baseConditions.drivers = {
+        some: {
+          deletedAt: null, // Only show users whose driver record is not soft-deleted
+          // Apply same filtering as HR Management - only show active drivers by default
+          employeeStatus: 'ACTIVE',
+          isActive: true,
+        }
       };
     }
 
@@ -125,7 +127,7 @@ export async function GET(request: NextRequest) {
         mcFilter = {
           OR: [
             { mcNumberId: { in: mcState.mcNumberIds } },
-            { driver: { mcNumberId: { in: mcState.mcNumberIds } } },
+            { drivers: { some: { mcNumberId: { in: mcState.mcNumberIds } } } },
           ],
         };
       } else if (mcNumberId) {
@@ -133,7 +135,7 @@ export async function GET(request: NextRequest) {
         mcFilter = {
           OR: [
             { mcNumberId: mcNumberId },
-            { driver: { mcNumberId: mcNumberId } },
+            { drivers: { some: { mcNumberId: mcNumberId } } },
           ],
         };
       } else if (mcAccess && mcAccess.length > 0) {
@@ -141,7 +143,7 @@ export async function GET(request: NextRequest) {
         mcFilter = {
           OR: [
             { mcNumberId: { in: mcAccess } },
-            { driver: { mcNumberId: { in: mcAccess } } },
+            { drivers: { some: { mcNumberId: { in: mcAccess } } } },
           ],
         };
       }

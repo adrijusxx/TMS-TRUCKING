@@ -221,6 +221,8 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
         filterKey="lastName"
         onDeleteSelected={handleDeleteSelected}
         onExportSelected={handleExportSelected}
+        entityType="drivers"
+        enableColumnReorder={true}
       />
       <DriverSheet
         open={sheetOpen}

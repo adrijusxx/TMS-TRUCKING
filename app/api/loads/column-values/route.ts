@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // 3. Get column name from query params
     const { searchParams } = new URL(request.url);
     const column = searchParams.get('column');
-    
+
     if (!column) {
       return NextResponse.json(
         { success: false, error: { code: 'BAD_REQUEST', message: 'Column parameter is required' } },
@@ -174,6 +174,41 @@ export async function GET(request: NextRequest) {
         break;
       }
 
+      case 'trailerId': {
+        const loads = await prisma.load.findMany({
+          where,
+          select: {
+            trailerId: true,
+            trailer: {
+              select: {
+                id: true,
+                trailerNumber: true,
+              },
+            },
+          },
+        });
+
+        const trailerMap = new Map<string, { label: string; count: number }>();
+        loads.forEach((load) => {
+          if (load.trailerId && load.trailer) {
+            const key = load.trailerId;
+            const label = load.trailer.trailerNumber;
+            if (trailerMap.has(key)) {
+              trailerMap.get(key)!.count++;
+            } else {
+              trailerMap.set(key, { label, count: 1 });
+            }
+          }
+        });
+
+        values = Array.from(trailerMap.entries()).map(([value, data]) => ({
+          value,
+          label: data.label,
+          count: data.count,
+        }));
+        break;
+      }
+
       case 'status': {
         const loads = await prisma.load.findMany({
           where,
@@ -225,6 +260,42 @@ export async function GET(request: NextRequest) {
         });
 
         values = Array.from(dispatcherMap.entries()).map(([value, data]) => ({
+          value,
+          label: data.label,
+          count: data.count,
+        }));
+        break;
+      }
+
+      case 'mcNumberId': {
+        const loads = await prisma.load.findMany({
+          where,
+          select: {
+            mcNumberId: true,
+            mcNumber: {
+              select: {
+                id: true,
+                number: true,
+                companyName: true,
+              },
+            },
+          },
+        });
+
+        const mcMap = new Map<string, { label: string; count: number }>();
+        loads.forEach((load) => {
+          if (load.mcNumberId && load.mcNumber) {
+            const key = load.mcNumberId;
+            const label = `MC# ${load.mcNumber.number}${load.mcNumber.companyName ? ` - ${load.mcNumber.companyName}` : ''}`;
+            if (mcMap.has(key)) {
+              mcMap.get(key)!.count++;
+            } else {
+              mcMap.set(key, { label, count: 1 });
+            }
+          }
+        });
+
+        values = Array.from(mcMap.entries()).map(([value, data]) => ({
           value,
           label: data.label,
           count: data.count,

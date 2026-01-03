@@ -1,16 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { Search, Columns, Download, Upload, X } from 'lucide-react';
+import { Search, Download, Upload, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ColumnVisibilityManager } from '@/components/data-table/ColumnVisibilityManager';
 import type { Table as TanStackTable } from '@tanstack/react-table';
+import type { ExtendedColumnDef } from '@/components/data-table/types';
 
 interface DataTableToolbarProps<TData> {
   /**
@@ -29,17 +25,29 @@ interface DataTableToolbarProps<TData> {
    * Export handler
    */
   onExport?: () => void;
+  /**
+   * Entity type for column presets
+   */
+  entityType?: string;
+  /**
+   * Column order change handler
+   */
+  onColumnOrderChange?: (order: string[]) => void;
+  savePreferences?: boolean;
 }
 
 /**
  * DataTableToolbar component
  * Provides search, column visibility, import, and export controls
  */
-export function DataTableToolbar<TData>({
+export function DataTableToolbar<TData extends Record<string, any>>({
   table,
   filterKey,
   onImport,
   onExport,
+  entityType,
+  onColumnOrderChange,
+  savePreferences,
 }: DataTableToolbarProps<TData>) {
   const globalFilter = table.getState().globalFilter as string;
   const [searchValue, setSearchValue] = React.useState(globalFilter || '');
@@ -68,6 +76,10 @@ export function DataTableToolbar<TData>({
       table.setGlobalFilter('');
     }
   };
+
+  const columns = React.useMemo(() => {
+    return table.getAllColumns().map(col => col.columnDef as ExtendedColumnDef<TData>);
+  }, [table]);
 
   return (
     <div className="flex items-center justify-between gap-2">
@@ -110,33 +122,16 @@ export function DataTableToolbar<TData>({
         )}
 
         {/* Column Visibility */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Columns className="mr-2 h-4 w-4" />
-              Columns
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ColumnVisibilityManager
+          columns={columns}
+          columnVisibility={table.getState().columnVisibility}
+          onColumnVisibilityChange={table.setColumnVisibility}
+          entityType={entityType || ''}
+          savePreferences={savePreferences ?? !!entityType}
+          onColumnOrderChange={onColumnOrderChange}
+          columnOrder={table.getState().columnOrder}
+        />
       </div>
     </div>
   );
 }
-

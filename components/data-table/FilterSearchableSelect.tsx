@@ -80,16 +80,16 @@ export function FilterSearchableSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn('w-full justify-between h-8', className)}
+          className={cn('w-full justify-between h-7 text-xs px-2', className)}
         >
-          {selectedValue ? selectedValue.label : placeholder}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="truncate">{selectedValue ? selectedValue.label : placeholder}</span>
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" align="start">
-        <Command>
-          <CommandInput 
-            placeholder="Search..." 
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -99,7 +99,7 @@ export function FilterSearchableSelect({
             </CommandEmpty>
             <CommandGroup>
               <CommandItem
-                value=""
+                value="__all__"
                 onSelect={() => {
                   onValueChange('');
                   setOpen(false);
@@ -116,7 +116,7 @@ export function FilterSearchableSelect({
               {filteredValues.map((item) => (
                 <CommandItem
                   key={item.value || 'null'}
-                  value={item.value || ''}
+                  value={item.label || item.value || ''}
                   onSelect={() => {
                     onValueChange(item.value || '');
                     setOpen(false);

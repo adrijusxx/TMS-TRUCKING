@@ -21,7 +21,7 @@ import type {
 } from './types';
 import type { RowSelectionState, SortingState, ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
 import { apiUrl } from '@/lib/utils';
-import { mergePreferences, preferencesToVisibilityState } from '@/lib/utils/column-preferences';
+import { mergePreferences, preferencesToVisibilityState, visibilityStateToPreferences, preferencesToColumnOrder, columnOrderToPreferences } from '@/lib/utils/column-preferences';
 
 interface DataTableWrapperProps<TData extends Record<string, any>> {
   /**
@@ -110,6 +110,14 @@ interface DataTableWrapperProps<TData extends Record<string, any>> {
    * Handler for bulk export action
    */
   onExportSelected?: (selectedIds: string[]) => void;
+  /**
+   * Enable inline filter row below headers
+   */
+  enableInlineFilters?: boolean;
+  /**
+   * Enable draggable column reordering
+   */
+  enableColumnReorder?: boolean;
 }
 
 /**
@@ -134,7 +142,10 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   getRowClassName,
   onDeleteSelected,
   onExportSelected,
+  enableInlineFilters,
+  enableColumnReorder = false,
 }: DataTableWrapperProps<TData>) {
+
   const { can } = usePermissions();
   const isAdmin = useIsAdmin();
   const searchParams = useSearchParams();
@@ -154,6 +165,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   const [userPreferences, setUserPreferences] = React.useState<UserColumnPreferences | null>(null);
   const [isSelectingAll, setIsSelectingAll] = React.useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
+  const [columnOrder, setColumnOrder] = React.useState<string[]>([]);
 
   // Filter columns based on permissions
   const visibleColumns = React.useMemo(() => {
@@ -258,6 +270,11 @@ export function DataTableWrapper<TData extends Record<string, any>>({
             );
             const visibility = preferencesToVisibilityState(merged);
             setColumnVisibility(visibility);
+
+            const order = preferencesToColumnOrder(merged);
+            if (order.length > 0) {
+              setColumnOrder(order);
+            }
           } else {
             setColumnVisibility(defaultVisibility);
           }
@@ -331,6 +348,62 @@ export function DataTableWrapper<TData extends Record<string, any>>({
 
   const handleColumnVisibilityChange = (visibility: VisibilityState) => {
     setColumnVisibility(visibility);
+
+    // Save to server
+    if (config.entityType) {
+      try {
+        const currentPrefs = visibilityStateToPreferences(visibility, userPreferences || {});
+
+        const mergedToSave = {
+          ...currentPrefs,
+        };
+
+        // Optimistic update
+        setUserPreferences(mergedToSave);
+
+        fetch(apiUrl('/api/user-preferences/column-visibility'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entityType: config.entityType,
+            preferences: mergedToSave,
+          }),
+        }).catch(console.error);
+      } catch (err) {
+        console.error('Error saving column visibility:', err);
+      }
+    }
+  };
+
+  const handleColumnOrderChange = (newOrder: string[]) => {
+    setColumnOrder(newOrder);
+
+    // Save to server
+    if (config.entityType) {
+      try {
+        const currentPrefs = visibilityStateToPreferences(columnVisibility, userPreferences || {});
+        const newPrefs = columnOrderToPreferences(newOrder, userPreferences || {});
+
+        const mergedToSave = {
+          ...currentPrefs, // contains visibility
+          ...newPrefs,     // contains new orders
+        };
+
+        // Optimistic update
+        setUserPreferences(mergedToSave);
+
+        fetch(apiUrl('/api/user-preferences/column-visibility'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            entityType: config.entityType,
+            preferences: mergedToSave,
+          }),
+        }).catch(console.error);
+      } catch (err) {
+        console.error('Error saving column order:', err);
+      }
+    }
   };
 
   const selectedRowIds = React.useMemo(() => {
@@ -588,6 +661,11 @@ export function DataTableWrapper<TData extends Record<string, any>>({
         }}
         onDeleteSelected={onDeleteSelected}
         onExportSelected={onExportSelected}
+        enableInlineFilters={enableInlineFilters}
+        columnOrder={columnOrder}
+        onColumnOrderChange={handleColumnOrderChange}
+        enableColumnReorder={enableColumnReorder}
+        savePreferences={false}
       />
 
       {/* Import Modal */}
@@ -603,4 +681,3 @@ export function DataTableWrapper<TData extends Record<string, any>>({
     </div>
   );
 }
-

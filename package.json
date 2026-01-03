@@ -129,10 +129,10 @@
     "stripe": "^20.1.0",
     "tailwind-merge": "^3.4.0",
     "telegram": "^2.26.22",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "xlsx": "^0.18.5",
-    "zod": "^4.1.12",
-    "tsx": "^4.20.6"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.1.5",

@@ -25,12 +25,12 @@ export function convertFiltersToQueryParams(
 
     const id = filter.id;
     let value = filter.value;
-    
+
     // Handle boolean values - convert to string 'true' or 'false'
     if (typeof value === 'boolean') {
       value = value ? 'true' : 'false';
     }
-    
+
     // Handle date range filters (key_start, key_end)
     if (id.endsWith('_start')) {
       const baseKey = id.replace('_start', '');
@@ -69,6 +69,31 @@ export function convertFiltersToQueryParams(
       return;
     }
 
+    // Handle colon-separated date range format (e.g., "2025-01-01:2025-01-07" from DateRangeFilter)
+    if (typeof value === 'string' && value.includes(':') && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      const [start, end] = value.split(':');
+      if (start) {
+        if (!filterGroups.has(id)) {
+          filterGroups.set(id, { type: 'daterange', start: null, end: null });
+        }
+        filterGroups.get(id)!.start = start;
+        if (end) {
+          filterGroups.get(id)!.end = end;
+        }
+      }
+      return;
+    }
+
+    // Handle single date format from DateRangeFilter (e.g., "2025-01-01")
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      if (!filterGroups.has(id)) {
+        filterGroups.set(id, { type: 'daterange', start: null, end: null });
+      }
+      filterGroups.get(id)!.start = value;
+      filterGroups.get(id)!.end = value; // Same day
+      return;
+    }
+
     // Handle regular filters (including multiselect JSON arrays)
     try {
       const parsed = JSON.parse(String(value));
@@ -93,21 +118,24 @@ export function convertFiltersToQueryParams(
   // Process grouped filters
   filterGroups.forEach((filterData, key) => {
     if (filterData.type === 'daterange') {
-      // Date ranges: use startDate/endDate for loads API, or keyStart/keyEnd for others
+      // Date ranges: use column-specific parameter names
+      // For pickupDate -> pickupDateStart/pickupDateEnd
+      // For deliveryDate -> deliveryDateStart/deliveryDateEnd
+      // For generic date or createdAt -> startDate/endDate
+      const startParam = key === 'createdAt' ? 'createdAfter'
+        : key === 'pickupDate' ? 'pickupDateStart'
+          : key === 'deliveryDate' ? 'deliveryDateStart'
+            : 'startDate';
+      const endParam = key === 'createdAt' ? 'createdBefore'
+        : key === 'pickupDate' ? 'pickupDateEnd'
+          : key === 'deliveryDate' ? 'deliveryDateEnd'
+            : 'endDate';
+
       if (filterData.start) {
-        // For loads API, always use startDate/endDate
-        if (key === 'date' || key === 'pickupDate' || key === 'deliveryDate') {
-          queryParams.set('startDate', String(filterData.start));
-        } else {
-          queryParams.set('startDate', String(filterData.start));
-        }
+        queryParams.set(startParam, String(filterData.start));
       }
       if (filterData.end) {
-        if (key === 'date' || key === 'pickupDate' || key === 'deliveryDate') {
-          queryParams.set('endDate', String(filterData.end));
-        } else {
-          queryParams.set('endDate', String(filterData.end));
-        }
+        queryParams.set(endParam, String(filterData.end));
       }
     } else if (filterData.type === 'numberrange') {
       // Number ranges: send as keyMin/keyMax or revenue (for loads)
@@ -142,6 +170,6 @@ function getApiParamName(filterKey: string): string {
   const mappings: Record<string, string> = {
     // Add mappings here only when filter key differs from API param name
   };
-  
+
   return mappings[filterKey] || filterKey;
 }

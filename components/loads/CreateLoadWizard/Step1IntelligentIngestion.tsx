@@ -212,28 +212,28 @@ export default function Step1IntelligentIngestion({
       stops:
         extractedData.stops && Array.isArray(extractedData.stops)
           ? extractedData.stops.map((stop: Record<string, unknown>) => ({
-              stopType: stop.stopType as 'PICKUP' | 'DELIVERY',
-              sequence: Number(stop.sequence) || 1,
-              company: stop.company as string,
-              address: stop.address as string,
-              city: stop.city as string,
-              state: (stop.state as string)?.toUpperCase().slice(0, 2),
-              zip: stop.zip as string,
-              phone: stop.phone as string,
-              earliestArrival: stop.earliestArrival as string,
-              latestArrival: stop.latestArrival as string,
-              contactName: stop.contactName as string,
-              contactPhone: stop.contactPhone as string,
-              items: Array.isArray(stop.items) ? stop.items : [],
-              totalPieces: stop.totalPieces
-                ? Number(stop.totalPieces)
-                : undefined,
-              totalWeight: stop.totalWeight
-                ? Number(stop.totalWeight)
-                : undefined,
-              notes: stop.notes as string,
-              specialInstructions: stop.specialInstructions as string,
-            }))
+            stopType: stop.stopType as 'PICKUP' | 'DELIVERY',
+            sequence: Number(stop.sequence) || 1,
+            company: stop.company as string,
+            address: stop.address as string,
+            city: stop.city as string,
+            state: (stop.state as string)?.toUpperCase().slice(0, 2),
+            zip: stop.zip as string,
+            phone: stop.phone as string,
+            earliestArrival: stop.earliestArrival as string,
+            latestArrival: stop.latestArrival as string,
+            contactName: stop.contactName as string,
+            contactPhone: stop.contactPhone as string,
+            items: Array.isArray(stop.items) ? stop.items : [],
+            totalPieces: stop.totalPieces
+              ? Number(stop.totalPieces)
+              : undefined,
+            totalWeight: stop.totalWeight
+              ? Number(stop.totalWeight)
+              : undefined,
+            notes: stop.notes as string,
+            specialInstructions: stop.specialInstructions as string,
+          }))
           : undefined,
     };
 
@@ -242,53 +242,57 @@ export default function Step1IntelligentIngestion({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Intelligent Ingestion
-          </CardTitle>
-          <CardDescription>
-            Upload a Rate Confirmation PDF to automatically extract load details
-            using AI
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Drag and Drop Zone */}
-          <PdfDropZone
-            onFileSelect={handleFileSelect}
-            disabled={importMutation.isPending}
-          />
+      <div className="text-center space-y-2 mb-8">
+        <h3 className="text-lg font-medium flex items-center justify-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          Intelligent Ingestion
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          Upload a Rate Confirmation PDF to automatically extract load details using AI.
+        </p>
+      </div>
 
-          {/* Selected File Display */}
-          {selectedFile && (
+      <div className="max-w-2xl mx-auto">
+        {/* Drag and Drop Zone */}
+        <PdfDropZone
+          onFileSelect={handleFileSelect}
+          disabled={importMutation.isPending}
+        />
+
+        {/* Selected File Display */}
+        {selectedFile && (
+          <div className="mt-4">
             <SelectedFileDisplay file={selectedFile} onRemove={handleRemoveFile} />
-          )}
+          </div>
+        )}
 
-          {/* Processing Skeleton */}
-          {importMutation.isPending && (
+        {/* Processing Skeleton */}
+        {importMutation.isPending && (
+          <div className="mt-4">
             <RateConProcessingSkeleton
               progress={progress}
               statusMessage={importStatus}
               fileName={selectedFile?.name}
             />
-          )}
+          </div>
+        )}
 
-          {/* Import Button */}
-          {selectedFile && !extractedData && !importMutation.isPending && (
-            <Button
-              type="button"
-              onClick={handleImport}
-              className="w-full"
-              size="lg"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Extract Load Data with AI
-            </Button>
-          )}
+        {/* Import Button */}
+        {selectedFile && !extractedData && !importMutation.isPending && (
+          <Button
+            type="button"
+            onClick={handleImport}
+            className="w-full mt-4"
+            size="lg"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Extract Load Data with AI
+          </Button>
+        )}
 
-          {/* Extraction Results Preview */}
-          {extractedData && extractionMeta && (
+        {/* Extraction Results Preview */}
+        {extractedData && extractionMeta && (
+          <div className="mt-6">
             <ExtractionResultsPreview
               extractedData={extractedData}
               extractionMeta={extractionMeta}
@@ -296,32 +300,31 @@ export default function Step1IntelligentIngestion({
               onUseData={handleUseData}
               isReExtracting={importMutation.isPending}
             />
-          )}
+          </div>
+        )}
 
-          {/* Error Display */}
-          {importMutation.isError && (
+        {/* Error Display */}
+        {importMutation.isError && (
+          <div className="mt-4">
             <ImportErrorDisplay
               error={importMutation.error}
               onRetry={handleImport}
             />
-          )}
-
-          {/* Manual Entry Option */}
-          <div className="pt-4 border-t">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onSkipToManual}
-              className="w-full"
-            >
-              I don't have a Rate Confirmation right now
-            </Button>
-            <p className="text-xs text-center text-muted-foreground mt-2">
-              Skip to manual entry
-            </p>
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        {/* Manual Skip - Redundant with Tabs, but keeping as a shortcut */}
+        <div className="pt-6 mt-6 border-t text-center">
+          <Button
+            type="button"
+            variant="link"
+            onClick={onSkipToManual}
+            className="text-muted-foreground hover:text-primary"
+          >
+            Skip to manual entry &rarr;
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

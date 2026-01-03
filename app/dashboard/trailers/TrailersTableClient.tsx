@@ -186,6 +186,8 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
         rowActions={rowActions}
         emptyMessage="No trailers found"
         filterKey="trailerNumber"
+        entityType="trailers"
+        enableColumnReorder={true}
       />
       <TrailerSheet
         open={sheetOpen}

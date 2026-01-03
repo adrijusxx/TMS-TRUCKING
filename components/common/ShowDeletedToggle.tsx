@@ -1,10 +1,8 @@
 'use client';
 
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ShowDeletedToggleProps {
   className?: string;
@@ -37,46 +35,22 @@ export function ShowDeletedToggle({
   };
 
   const toggle = (
-    <div className={`flex items-center gap-2 ${className}`}>
-      {showIcon && (
-        <div className="text-muted-foreground">
-          {includeDeleted ? (
-            <Eye className="h-4 w-4" />
-          ) : (
-            <EyeOff className="h-4 w-4" />
-          )}
-        </div>
-      )}
-      <Switch
-        id="show-deleted-toggle"
-        checked={includeDeleted}
-        onCheckedChange={handleToggle}
-      />
-      <Label
-        htmlFor="show-deleted-toggle"
-        className="text-sm font-normal cursor-pointer"
+    <div className={className}>
+      <Button
+        variant={includeDeleted ? "default" : "outline"}
+        size="sm"
+        onClick={() => handleToggle(!includeDeleted)}
+        className="gap-2 h-8"
       >
+        {showIcon && (
+          includeDeleted ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />
+        )}
         {label}
-      </Label>
+      </Button>
     </div>
   );
 
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div>{toggle}</div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p className="text-sm">
-            {includeDeleted
-              ? 'Showing all records including soft-deleted ones'
-              : 'Only showing active (non-deleted) records'}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
+  return toggle;
 }
 
 

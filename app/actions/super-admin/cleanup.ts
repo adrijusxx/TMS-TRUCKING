@@ -221,15 +221,10 @@ export async function hardDeleteItems(entityType: DeletableEntity, ids: string[]
 
             switch (entityType) {
                 case 'loads':
-                    // Cascade dependency: Stops, Financials, etc. (Foreign Keys usually cascade or we let DB handle it)
-                    // BUT: Invoices linked to Loads might restrict delete.
-                    // Strategy: Disconnect Invoices first (set loadId = null or delete invoices if that's the rule?)
-                    // "Nuke" implies aggressive delete. But Invoice preservation is usually critical.
-                    // Let's TRY to delete. If it fails due to FK, we'll error out.
-                    // Better: Unlink invoices first to be safe?
-                    // For a "Clean Up", we probably want to delete the Load and let the Invoice stay as "orphaned" or manual cleanup?
-                    // Actually, invoices without loads are broken.
-                    // Let's delete the Load. If it fails, the User sees the error.
+                    // 1. Delete LoadStatusHistory records that reference these loads (FK constraint)
+                    await tx.loadStatusHistory.deleteMany({ where: { loadId: { in: ids } } });
+
+                    // 2. Delete the loads
                     const deletedLoads = await tx.load.deleteMany({ where: { id: { in: ids } } });
                     count = deletedLoads.count;
                     break;

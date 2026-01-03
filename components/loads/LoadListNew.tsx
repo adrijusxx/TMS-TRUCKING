@@ -9,6 +9,15 @@ import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import LoadSheet from '@/components/loads/LoadSheet';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import { ChevronDown, FileText } from 'lucide-react';
 import LoadStatisticsCard from '@/components/loads/LoadStatisticsCard';
 import { usePermissions } from '@/hooks/usePermissions';
 import { loadsTableConfig, getLoadRowClassName } from '@/lib/config/entities/loads';
@@ -83,9 +92,6 @@ export default function LoadListNew() {
     setSheetOpen(true);
   };
 
-  const [createdToday, setCreatedToday] = React.useState(false);
-  const [pickupToday, setPickupToday] = React.useState(false);
-  const [createdLast24h, setCreatedLast24h] = React.useState(false);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -123,15 +129,38 @@ export default function LoadListNew() {
     if (params.pageSize) queryParams.set('limit', params.pageSize.toString());
 
     if (params.sorting && params.sorting.length > 0) {
-      const sort = params.sorting[0];
-      const sortField = sort.id === 'createdAt' ? 'createdAt' :
-        sort.id === 'loadNumber' ? 'loadNumber' :
-          sort.id === 'pickupDate' ? 'pickupDate' :
-            sort.id === 'deliveryDate' ? 'deliveryDate' :
-              sort.id === 'revenue' ? 'revenue' :
-                'createdAt';
-      queryParams.set('sortBy', sortField);
-      queryParams.set('sortOrder', sort.desc ? 'desc' : 'asc');
+      // Build sort fields array
+      const sortFields: string[] = [];
+      const sortOrders: string[] = [];
+
+      params.sorting.forEach((sort) => {
+        const sortField = sort.id === 'createdAt' ? 'createdAt' :
+          sort.id === 'loadNumber' ? 'loadNumber' :
+            sort.id === 'pickupDate' ? 'pickupDate' :
+              sort.id === 'deliveryDate' ? 'deliveryDate' :
+                sort.id === 'revenue' ? 'revenue' :
+                  sort.id === 'customer' ? 'customerId' :
+                    sort.id === 'driver' ? 'driverId' :
+                      sort.id === 'truck' ? 'truckId' :
+                        sort.id === 'status' ? 'status' :
+                          sort.id;
+        sortFields.push(sortField);
+        sortOrders.push(sort.desc ? 'desc' : 'asc');
+      });
+
+      // If only pickupDate, add deliveryDate as secondary sort
+      if (sortFields.length === 1 && sortFields[0] === 'pickupDate') {
+        sortFields.push('deliveryDate');
+        sortOrders.push(sortOrders[0]); // Same order as primary
+      }
+      // If only deliveryDate, add pickupDate as secondary sort
+      if (sortFields.length === 1 && sortFields[0] === 'deliveryDate') {
+        sortFields.push('pickupDate');
+        sortOrders.push(sortOrders[0]);
+      }
+
+      queryParams.set('sortBy', sortFields.join(','));
+      queryParams.set('sortOrder', sortOrders.join(','));
     } else {
       queryParams.set('sortBy', 'createdAt');
       queryParams.set('sortOrder', 'desc');
@@ -172,75 +201,13 @@ export default function LoadListNew() {
     };
   };
 
-  const rowActions = (row: LoadData) => (
-    <div className="flex items-center gap-1">
-      {can('loads.edit') ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs px-2"
-          onClick={() => openSheet('edit', row.id)}
-        >
-          Edit
-        </Button>
-      ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => openSheet('view', row.id)}
-          className="h-7 text-xs px-2"
-        >
-          View
-        </Button>
-      )}
-    </div>
-  );
 
   return (
     <div className="space-y-2">
       {/* Header - Compact */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-xs text-muted-foreground mr-1">Quick:</span>
-          <Button
-            variant={createdToday ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setCreatedToday(!createdToday)}
-            className="h-6 text-xs px-2"
-          >
-            <Sparkles className="h-3 w-3 mr-1" />
-            Today
-          </Button>
-          <Button
-            variant={pickupToday ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setPickupToday(!pickupToday)}
-            className="h-6 text-xs px-2"
-          >
-            Pickup Today
-          </Button>
-          <Button
-            variant={createdLast24h ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setCreatedLast24h(!createdLast24h)}
-            className="h-6 text-xs px-2"
-          >
-            Last 24h
-          </Button>
-          {(createdToday || pickupToday || createdLast24h) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setCreatedToday(false);
-                setPickupToday(false);
-                setCreatedLast24h(false);
-              }}
-              className="h-6 text-xs px-2"
-            >
-              Clear
-            </Button>
-          )}
+          {/* Quick filters removed as requested */}
         </div>
         <div className="flex items-center gap-1">
           {can('data.import') && (
@@ -294,12 +261,6 @@ export default function LoadListNew() {
       <DataTableWrapper
         config={loadsTableConfig}
         fetchData={fetchLoads}
-        queryParams={{
-          createdToday,
-          pickupToday,
-          createdLast24h,
-        }}
-        rowActions={rowActions}
         onRowClick={(row) => openSheet(can('loads.edit') ? 'edit' : 'view', row.id)}
         emptyMessage="No loads found. Create your first load."
         enableColumnVisibility={can('data.column_visibility')}
@@ -309,6 +270,8 @@ export default function LoadListNew() {
           setSelectedIds(ids);
         }, [])}
         getRowClassName={getLoadRowClassName}
+        enableInlineFilters={true}
+        enableColumnReorder={true}
       />
 
       {/* Bulk Action Bar */}

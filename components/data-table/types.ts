@@ -46,6 +46,26 @@ export interface ExtendedColumnDef<TData extends TableData> extends Omit<ColumnD
    * Filter key to use for column filtering (defaults to column id)
    */
   filterKey?: string;
+  /**
+   * Type of filter to display for inline filtering
+   */
+  filterType?: 'text' | 'select' | 'multiselect' | 'date' | 'daterange' | 'number' | 'numberrange' | 'boolean' | 'searchable-select';
+  /**
+   * Options for select/multiselect filters
+   */
+  filterOptions?: Array<{ value: string; label: string }>;
+  /**
+   * Entity type for searchable-select filters
+   */
+  entityType?: string;
+  /**
+   * Tooltip text to display on column header hover (explains what the column shows)
+   */
+  tooltip?: string;
+  /**
+   * Custom class name to apply to both header and cell
+   */
+  className?: string;
 }
 
 /**
@@ -371,6 +391,27 @@ export interface DataTableProps<TData extends TableData = TableData> {
    * Export handler - exports all filtered data
    */
   onExport?: () => void;
+  /**
+   * Enable inline filter row below headers
+   */
+  enableInlineFilters?: boolean;
+  /**
+   * Column order state (array of column IDs in display order)
+   */
+  columnOrder?: string[];
+  /**
+   * Column order change handler
+   */
+  onColumnOrderChange?: (order: string[]) => void;
+  /**
+   * Enable draggable column headers
+   */
+  enableColumnReorder?: boolean;
+  /**
+   * Whether to save column preferences (visibility/order) to server automatically.
+   * Default: true
+   */
+  savePreferences?: boolean;
 }
 
 /**
