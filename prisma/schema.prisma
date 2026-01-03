@@ -2017,6 +2017,8 @@ model Invoice {
 
   // Enhanced fields
   mcNumber             String?
+  mcNumberId           String?
+  mcNumberEntity       McNumber?            @relation(fields: [mcNumberId], references: [id])
   subStatus            InvoiceSubStatus?
   reconciliationStatus ReconciliationStatus @default(NOT_RECONCILED)
   invoiceNote          String?
@@ -2093,6 +2095,7 @@ model Invoice {
   @@index([status])
   @@index([invoiceNumber])
   @@index([mcNumber])
+  @@index([mcNumberId])
   @@index([reconciliationStatus])
   @@index([factoringStatus])
   @@index([factoringCompanyId])
@@ -5492,6 +5495,7 @@ model McNumber {
   fuelEntries           FuelEntry[]
   breakdowns            Breakdown[]
   payments              Payment[]
+  invoices              Invoice[]
   apiKeys               ApiKeyConfig[]
 
   @@unique([companyId, number]) // MC number must be unique per company
