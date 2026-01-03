@@ -45,11 +45,14 @@ async function main() {
         process.exit(1);
     }
 
-    console.log("[Migration] Running 'npm run db:migrate:deploy'...");
+    console.log("[Migration] Running 'npx prisma migrate deploy' (Directly)...");
 
-    const migration = spawn("npm", ["run", "db:migrate:deploy"], {
+    // We run prisma directly to avoid dependency on scripts/migrate-deploy.sh which might be missing
+    // or have version mismatches.
+    const migration = spawn("npx", ["prisma", "migrate", "deploy"], {
         stdio: "inherit",
         env: env,
+        shell: true
     });
 
     migration.on("close", (code) => {
