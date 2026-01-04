@@ -46,7 +46,6 @@ jobs:
             package.json \
             package-lock.json \
             prisma/schema.prisma \
-            prisma.config.ts \
             ecosystem.config.js \
             scripts/start-app-with-secrets.sh \
             scripts/run-migration-with-secrets.sh \
