@@ -114,15 +114,15 @@ jobs:
             npm ci --production --ignore-scripts --legacy-peer-deps
             
             echo "Installing Prisma CLI for client generation..."
-            # Install the exact Prisma version from package.json
-            npm install prisma --legacy-peer-deps --save-dev
+            # Pin Prisma version to 6.19.0 to prevent version mismatch issues
+            npm install prisma@6.19.0 --legacy-peer-deps --save-dev
             
             echo "Verifying Prisma version..."
-            npx prisma --version | head -1
+            npx prisma@6.19.0 --version | head -1
             
             echo "Generating Prisma Client..."
             # Note: In production, DATABASE_URL comes from AWS Secrets Manager
-            npx prisma generate
+            npx prisma@6.19.0 generate
             
             echo "Running database migrations..."
             node scripts/run-migration-with-secrets.js || echo "Migration skipped or failed"

@@ -48,12 +48,10 @@ async function main() {
         process.exit(1);
     }
 
-    // Prisma 7 Upgrade: We now rely on the project's installed Prisma version (v7)
-    // which is installed via npm install/ci in the deployment pipeline.
-    // The previous fallback logic for local vs global binaries is simplified.
-
+    // Prisma 6.19.0: Use explicit version pinning to avoid version mismatch errors
+    // This ensures the migration uses the same version as the project dependencies
     const command = "npx";
-    const args = ["prisma", "migrate", "deploy"];
+    const args = ["prisma@6.19.0", "migrate", "deploy"];
 
     console.log(`[Migration] Executing: ${command} ${args.join(" ")}`);
 

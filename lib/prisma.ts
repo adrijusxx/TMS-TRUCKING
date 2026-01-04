@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /**
- * Prisma Client
+ * Prisma Client (Prisma 6)
  * 
  * Note: DATABASE_URL should be initialized from AWS Secrets Manager
  * via the initialization function before this module is imported.
@@ -21,9 +21,12 @@ export const prisma =
   new PrismaClient({
     // Only log errors and warnings - reduce console noise
     log: ['error', 'warn'],
-    // Add connection pool configuration to prevent connection errors
-    // Note: In Prisma 7, connection URL is handled automatically via env or prisma.config.ts
+    // Connection URL is handled via DATABASE_URL environment variable
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-
