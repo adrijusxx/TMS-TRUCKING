@@ -82,7 +82,7 @@ const LOAD_ROUTE_COLORS: Record<string, string> = {
 // ============================================
 
 export default function UnifiedWarRoom() {
-  const { loads, trucks, trailers, isLoading, isSamsaraConfigured } = useLiveMap();
+  const { loads, trucks, trailers, isLoading, isSamsaraConfigured, error, refetch } = useLiveMap();
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [clusterer, setClusterer] = useState<MarkerClusterer | null>(null);
@@ -104,7 +104,7 @@ export default function UnifiedWarRoom() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch data
-  const { loads, trucks, isLoading, error, refetch } = useLiveMap();
+
 
   // Transform data into map assets
   const mapAssets = useMemo(() => {
@@ -560,22 +560,23 @@ export default function UnifiedWarRoom() {
           </div>
         </div>
       </div>
-      );
+    </>
+  );
 }
 
-      // ============================================
-      // HELPER FUNCTIONS
-      // ============================================
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
 
-      function createAssetMarkerIcon(asset: MapAsset): google.maps.Icon {
+function createAssetMarkerIcon(asset: MapAsset): google.maps.Icon {
   const color = STATUS_COLORS[asset.status] || STATUS_COLORS.IDLE;
-      const size = 30;
-      const letter = asset.type === 'TRUCK' ? 'T' : 'L';
+  const size = 30;
+  const letter = asset.type === 'TRUCK' ? 'T' : 'L';
 
-      // Rotate icon based on heading
-      const rotation = asset.heading || 0;
+  // Rotate icon based on heading
+  const rotation = asset.heading || 0;
 
-      const svg = `
+  const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2" />
         <text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold">
@@ -584,27 +585,27 @@ export default function UnifiedWarRoom() {
       </svg>
       `;
 
-      return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-      scaledSize: new google.maps.Size(size, size),
-      anchor: new google.maps.Point(size / 2, size / 2),
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(size, size),
+    anchor: new google.maps.Point(size / 2, size / 2),
   };
 }
 
-      function createClusterIcon(count: number): google.maps.Icon {
+function createClusterIcon(count: number): google.maps.Icon {
   const size = Math.min(48, 32 + Math.log10(count) * 8);
   const color = count > 50 ? '#ef4444' : count > 20 ? '#f59e0b' : '#3b82f6';
 
-      const svg = `
+  const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 50 50">
         <circle cx="25" cy="25" r="22" fill="${color}" stroke="white" stroke-width="3" />
       </svg>
       `;
 
-      return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-      scaledSize: new google.maps.Size(size, size),
-      anchor: new google.maps.Point(size / 2, size / 2),
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(size, size),
+    anchor: new google.maps.Point(size / 2, size / 2),
   };
 }
 

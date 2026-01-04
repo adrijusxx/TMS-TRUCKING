@@ -89,5 +89,6 @@ export function useLiveMap() {
     error,
     refetch,
   };
+}
 
 
