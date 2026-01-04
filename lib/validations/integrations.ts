@@ -77,6 +77,7 @@ export type QuickBooksSettingsInput = z.infer<typeof quickBooksSettingsSchema>;
 export const testConnectionSchema = z.object({
     provider: z.enum(['SAMSARA', 'TELEGRAM', 'QUICKBOOKS']),
     mcNumberId: z.string().optional(),
+    apiToken: z.string().optional(), // Allow testing unsaved tokens
 });
 
 export type TestConnectionInput = z.infer<typeof testConnectionSchema>;

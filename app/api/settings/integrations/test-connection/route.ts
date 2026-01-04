@@ -31,13 +31,13 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { provider, mcNumberId } = testConnectionSchema.parse(body);
+        const { provider, mcNumberId, apiToken } = testConnectionSchema.parse(body);
         const companyId = session.user.companyId;
 
         // Test connection based on provider
         switch (provider) {
             case 'SAMSARA':
-                return await testSamsaraConnection(companyId, mcNumberId);
+                return await testSamsaraConnection(companyId, mcNumberId, apiToken);
             case 'TELEGRAM':
                 return await testTelegramConnection(companyId);
             case 'QUICKBOOKS':
@@ -63,13 +63,13 @@ export async function POST(request: NextRequest) {
     }
 }
 
-async function testSamsaraConnection(companyId: string, mcNumberId?: string) {
+async function testSamsaraConnection(companyId: string, mcNumberId?: string, tokenOverride?: string) {
     try {
         // Get API token using hierarchical lookup
         const apiToken = await ApiKeyService.getCredential('SAMSARA', 'API_TOKEN', { companyId, mcNumberId });
 
         // Fallback to legacy SamsaraSettings
-        let token: string | null = apiToken;
+        let token: string | null = tokenOverride || apiToken; // Use override if provided
         if (!token) {
             const settings = await prisma.samsaraSettings.findUnique({
                 where: { companyId },

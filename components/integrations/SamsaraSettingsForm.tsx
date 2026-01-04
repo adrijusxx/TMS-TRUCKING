@@ -16,6 +16,7 @@ export function SamsaraSettingsForm() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
 
     const form = useForm<SamsaraSettingsInput>({
         resolver: zodResolver(samsaraSettingsSchema) as any,
@@ -68,6 +69,7 @@ export function SamsaraSettingsForm() {
             const result = await response.json();
 
             if (!result.success) {
+                console.error('Save failed:', result.error);
                 throw new Error(result.error?.message || 'Failed to save settings');
             }
 
@@ -80,17 +82,66 @@ export function SamsaraSettingsForm() {
             const freshStart = await fetch('/api/settings/integrations/samsara');
             const freshData = await freshStart.json();
             if (freshData.success) {
-                form.reset(freshData.data);
+                form.reset({
+                    apiToken: freshData.data.apiToken || '',
+                    autoSyncDrivers: freshData.data.autoSyncDrivers,
+                    autoSyncVehicles: freshData.data.autoSyncVehicles,
+                    syncIntervalMinutes: freshData.data.syncIntervalMinutes,
+                });
             }
 
         } catch (error: any) {
+            console.error('Submit error:', error);
             toast({
-                title: 'Error',
+                title: 'Error saving settings',
                 description: error.message,
                 variant: 'destructive',
             });
         } finally {
             setIsSaving(false);
+        }
+    }
+
+    async function handleTestConnection() {
+        setIsTesting(true);
+        try {
+            // Use current form values
+            const values = form.getValues();
+
+            // If token is masked, we can't test unless it's already saved (handled by backend fallback)
+            // But checking here helps UX
+            const isMasked = values.apiToken && /^[•]+$/.test(values.apiToken);
+
+            const response = await fetch('/api/settings/integrations/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: 'SAMSARA',
+                    // Pass token if not masked, allowing test before save
+                    apiToken: !isMasked ? values.apiToken : undefined,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!result.success || !result.connected) {
+                throw new Error(result.message || 'Connection test failed');
+            }
+
+            toast({
+                title: 'Connection Successful',
+                description: `Successfully connected to Samsara. Found ${result.details?.vehiclesFound || 0} vehicles.`,
+                variant: 'default',
+                className: 'bg-green-50 border-green-200',
+            });
+        } catch (error: any) {
+            toast({
+                title: 'Connection Failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        } finally {
+            setIsTesting(false);
         }
     }
 
@@ -202,8 +253,20 @@ export function SamsaraSettingsForm() {
                 </Card>
 
                 <div className="flex justify-end gap-4">
-                    <Button type="button" variant="outline">
-                        Test Connection
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleTestConnection}
+                        disabled={isTesting || isLoading}
+                    >
+                        {isTesting ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Testing...
+                            </>
+                        ) : (
+                            'Test Connection'
+                        )}
                     </Button>
                     <Button type="submit" disabled={isSaving}>
                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
