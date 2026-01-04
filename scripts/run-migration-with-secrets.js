@@ -48,27 +48,12 @@ async function main() {
         process.exit(1);
     }
 
-    // Determine correct Prisma binary to avoid version mismatch (v7 vs v6)
-    let command = "npx";
-    let args = ["prisma", "migrate", "deploy"];
+    // Prisma 7 Upgrade: We now rely on the project's installed Prisma version (v7)
+    // which is installed via npm install/ci in the deployment pipeline.
+    // The previous fallback logic for local vs global binaries is simplified.
 
-    // Check for local binary (works on Linux/AWS)
-    const localBinUnix = path.join(process.cwd(), "node_modules", ".bin", "prisma");
-    // Check for local binary (works on Windows)
-    const localBinWin = path.join(process.cwd(), "node_modules", ".bin", "prisma.cmd");
-
-    if (fs.existsSync(localBinUnix)) {
-        console.log(`[Migration] Using local Prisma binary: ${localBinUnix}`);
-        command = localBinUnix;
-        args = ["migrate", "deploy"];
-    } else if (process.platform === "win32" && fs.existsSync(localBinWin)) {
-        console.log(`[Migration] Using local Prisma binary: ${localBinWin}`);
-        command = localBinWin;
-        args = ["migrate", "deploy"];
-    } else {
-        console.warn("[Migration] WARNING: Local Prisma binary not found. Falling back to global npx (risk of version mismatch).");
-        console.warn("[Migration] suggestion: Run 'npm install' to ensure dependencies are present.");
-    }
+    const command = "npx";
+    const args = ["prisma", "migrate", "deploy"];
 
     console.log(`[Migration] Executing: ${command} ${args.join(" ")}`);
 

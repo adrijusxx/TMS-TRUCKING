@@ -46,6 +46,7 @@ jobs:
             package.json \
             package-lock.json \
             prisma/schema.prisma \
+            prisma.config.ts \
             ecosystem.config.js \
             scripts/start-app-with-secrets.sh \
             scripts/run-migration-with-secrets.sh \
@@ -93,10 +94,6 @@ jobs:
             echo "Making startup script executable..."
             chmod +x scripts/start-app-with-secrets.sh scripts/run-migration-with-secrets.sh || true
             
-            echo "Cleaning up old Prisma config file (if exists)..."
-            # Remove prisma.config.ts if it exists (incompatible with Prisma 6)
-            rm -f prisma.config.ts || true
-            
             echo "Checking memory and swap..."
             free -h
             # Check if swap exists and create if not (prevent OOM on small instances)
@@ -117,19 +114,15 @@ jobs:
             npm ci --production --ignore-scripts --legacy-peer-deps
             
             echo "Installing Prisma CLI for client generation..."
-            # Remove any existing Prisma installation to avoid version conflicts
-            npm uninstall prisma 2>/dev/null || true
-            # Install the exact Prisma version from package.json (6.19.0) as dev dependency
-            npm install prisma@6.19.0 --legacy-peer-deps --save-dev --force
+            # Install the exact Prisma version from package.json
+            npm install prisma --legacy-peer-deps --save-dev
             
             echo "Verifying Prisma version..."
             npx prisma --version | head -1
             
             echo "Generating Prisma Client..."
             # Note: In production, DATABASE_URL comes from AWS Secrets Manager
-            # This is just for Prisma Client generation
-            # Use explicit version to ensure we're using 6.19.0
-            npx prisma@6.19.0 generate
+            npx prisma generate
             
             echo "Running database migrations..."
             node scripts/run-migration-with-secrets.js || echo "Migration skipped or failed"
