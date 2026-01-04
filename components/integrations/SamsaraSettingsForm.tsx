@@ -132,7 +132,6 @@ export function SamsaraSettingsForm() {
                 title: 'Connection Successful',
                 description: `Successfully connected to Samsara. Found ${result.details?.vehiclesFound || 0} vehicles.`,
                 variant: 'default',
-                className: 'bg-green-50 border-green-200',
             });
         } catch (error: any) {
             toast({

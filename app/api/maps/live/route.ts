@@ -27,9 +27,19 @@ export async function GET(request: NextRequest) {
       trailersWithLocations: data.trailers?.filter(t => t.location).length || 0,
     });
 
+    // Check if Samsara key is actually configured for this company
+    // (We do this check separately to avoid full config load overhead if possible, 
+    // but getSamsaraConfig is safe)
+    const { getSamsaraConfig } = await import('@/lib/integrations/samsara');
+    const config = await getSamsaraConfig(session.user.companyId);
+
     return NextResponse.json({
       success: true,
       data,
+      meta: {
+        samsaraConfigured: !!config?.apiKey,
+        samsaraVehiclesFound: data.trucks?.some(t => t.matchSource?.includes('samsara')) || false,
+      },
     });
   } catch (error) {
     const duration = Date.now() - startTime;

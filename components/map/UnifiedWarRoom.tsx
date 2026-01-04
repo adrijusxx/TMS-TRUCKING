@@ -26,6 +26,7 @@ import AssetDetailCard from './AssetDetailCard';
 import LayerControls from './LayerControls';
 import GeofenceLayer, { SAMPLE_GEOFENCES, type Geofence } from './GeofenceLayer';
 import { PathTrailManager } from '@/lib/maps/path-trail-manager';
+import { SamsaraTokenPrompt } from '@/components/settings/integrations/SamsaraTokenPrompt';
 
 // ============================================
 // TYPES
@@ -81,6 +82,7 @@ const LOAD_ROUTE_COLORS: Record<string, string> = {
 // ============================================
 
 export default function UnifiedWarRoom() {
+  const { loads, trucks, trailers, isLoading, isSamsaraConfigured } = useLiveMap();
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [clusterer, setClusterer] = useState<MarkerClusterer | null>(null);
@@ -409,198 +411,200 @@ export default function UnifiedWarRoom() {
   }, [trucks, loads, mapAssets]);
 
   return (
-    <div className="h-full flex flex-col bg-background rounded border overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-        <div className="flex items-center gap-2 flex-1 max-w-sm">
-          <Badge variant="secondary" className="text-[10px] h-5 px-1.5 min-w-fit">
-            {filteredMapAssets.length} / {mapAssets.length}
-          </Badge>
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-            <Input
-              placeholder="Search trucks, loads..."
-              className="h-7 text-xs pl-7 bg-background"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+    <>
+      <SamsaraTokenPrompt isOpen={!isSamsaraConfigured} />
+      <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-slate-950">
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+          <div className="flex items-center gap-2 flex-1 max-w-sm">
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 min-w-fit">
+              {filteredMapAssets.length} / {mapAssets.length}
+            </Badge>
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input
+                placeholder="Search trucks, loads..."
+                className="h-7 text-xs pl-7 bg-background"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => refetch()}
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={handleFitAll}>
+              <Maximize2 className="h-3 w-3" />
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs px-2"
-            onClick={() => refetch()}
-            disabled={isLoading}
-          >
-            <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={handleFitAll}>
-            <Maximize2 className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
 
-      {/* Stats Bar */}
-      <div className="flex items-center gap-3 px-3 py-1.5 border-b text-xs bg-background">
-        <span className="flex items-center gap-1">
-          <Truck className="h-3 w-3 text-blue-600" />
-          <span className="font-medium">{stats.trucks}</span> trucks
-        </span>
-        <span className="flex items-center gap-1">
-          <Package className="h-3 w-3 text-purple-600" />
-          <span className="font-medium">{stats.loads}</span> loads
-        </span>
-        <div className="h-3 w-px bg-border" />
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="font-medium">{stats.moving}</span> moving
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-amber-500" />
-          <span className="font-medium">{stats.stopped}</span> stopped
-        </span>
-        {stats.delayed > 0 && (
-          <span className="flex items-center gap-1 text-red-600">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="font-medium">{stats.delayed}</span> delayed
+        {/* Stats Bar */}
+        <div className="flex items-center gap-3 px-3 py-1.5 border-b text-xs bg-background">
+          <span className="flex items-center gap-1">
+            <Truck className="h-3 w-3 text-blue-600" />
+            <span className="font-medium">{stats.trucks}</span> trucks
           </span>
-        )}
-        {stats.lowFuel > 0 && (
-          <>
-            <div className="h-3 w-px bg-border" />
-            <span className="flex items-center gap-1 text-amber-600">
-              <Fuel className="h-3 w-3" />
-              <span className="font-medium">{stats.lowFuel}</span> low fuel
+          <span className="flex items-center gap-1">
+            <Package className="h-3 w-3 text-purple-600" />
+            <span className="font-medium">{stats.loads}</span> loads
+          </span>
+          <div className="h-3 w-px bg-border" />
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="font-medium">{stats.moving}</span> moving
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="font-medium">{stats.stopped}</span> stopped
+          </span>
+          {stats.delayed > 0 && (
+            <span className="flex items-center gap-1 text-red-600">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="font-medium">{stats.delayed}</span> delayed
             </span>
-          </>
-        )}
-      </div>
+          )}
+          {stats.lowFuel > 0 && (
+            <>
+              <div className="h-3 w-px bg-border" />
+              <span className="flex items-center gap-1 text-amber-600">
+                <Fuel className="h-3 w-3" />
+                <span className="font-medium">{stats.lowFuel}</span> low fuel
+              </span>
+            </>
+          )}
+        </div>
 
-      {/* Layer Controls */}
-      <LayerControls layers={layers} onToggle={handleLayerToggle} />
+        {/* Layer Controls */}
+        <LayerControls layers={layers} onToggle={handleLayerToggle} />
 
-      {/* Map Container */}
-      <div className="flex-1 relative">
-        <div ref={mapRef} className="absolute inset-0" />
+        {/* Map Container */}
+        <div className="flex-1 relative">
+          <div ref={mapRef} className="absolute inset-0" />
 
-        {/* Loading state */}
-        {isLoading && mapAssets.length === 0 && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
-            <div className="text-center">
-              <Skeleton className="h-6 w-24 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">Loading fleet data...</p>
+          {/* Loading state */}
+          {isLoading && mapAssets.length === 0 && (
+            <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+              <div className="text-center">
+                <Skeleton className="h-6 w-24 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Loading fleet data...</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Error state */}
-        {error && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
-            <div className="text-center">
-              <AlertTriangle className="h-6 w-6 text-destructive mx-auto mb-2" />
-              <p className="text-xs text-destructive">Failed to load map data</p>
-              <Button variant="outline" size="sm" className="mt-2 h-6 text-xs" onClick={() => refetch()}>
-                Retry
-              </Button>
+          {/* Error state */}
+          {error && (
+            <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+              <div className="text-center">
+                <AlertTriangle className="h-6 w-6 text-destructive mx-auto mb-2" />
+                <p className="text-xs text-destructive">Failed to load map data</p>
+                <Button variant="outline" size="sm" className="mt-2 h-6 text-xs" onClick={() => refetch()}>
+                  Retry
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* No data state */}
-        {!isLoading && !error && mapAssets.length === 0 && mapReady && (
-          <div className="absolute inset-0 bg-background/60 flex items-center justify-center z-10">
-            <div className="text-center p-4">
-              <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground font-medium">No assets with GPS data</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Samsara integration provides real-time location data
-              </p>
+          {/* No data state */}
+          {!isLoading && !error && mapAssets.length === 0 && mapReady && (
+            <div className="absolute inset-0 bg-background/60 flex items-center justify-center z-10">
+              <div className="text-center p-4">
+                <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground font-medium">No assets with GPS data</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Samsara integration provides real-time location data
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Geofence Layer */}
-        <GeofenceLayer
-          map={map}
-          geofences={geofences}
-          enabled={layers.geofences}
-        />
-
-        {/* Asset Detail Card */}
-        {selectedAsset && cardPosition && (
-          <AssetDetailCard
-            asset={selectedAsset}
-            position={cardPosition}
-            onClose={handleCloseCard}
+          {/* Geofence Layer */}
+          <GeofenceLayer
+            map={map}
+            geofences={geofences}
+            enabled={layers.geofences}
           />
-        )}
 
-        {/* Legend */}
-        <div className="absolute bottom-3 left-3 bg-background/95 backdrop-blur-sm rounded-lg p-2 text-[10px] border shadow-sm z-20">
-          <div className="flex gap-3">
-            <span className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-green-500" /> Moving
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Stopped
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500" /> Delayed
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5 rounded-full bg-gray-400" /> Idle
-            </span>
+          {/* Asset Detail Card */}
+          {selectedAsset && cardPosition && (
+            <AssetDetailCard
+              asset={selectedAsset}
+              position={cardPosition}
+              onClose={handleCloseCard}
+            />
+          )}
+
+          {/* Legend */}
+          <div className="absolute bottom-3 left-3 bg-background/95 backdrop-blur-sm rounded-lg p-2 text-[10px] border shadow-sm z-20">
+            <div className="flex gap-3">
+              <span className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500" /> Moving
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Stopped
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500" /> Delayed
+              </span>
+              <span className="flex items-center gap-1">
+                <div className="w-2.5 h-2.5 rounded-full bg-gray-400" /> Idle
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+      );
 }
 
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
+      // ============================================
+      // HELPER FUNCTIONS
+      // ============================================
 
-function createAssetMarkerIcon(asset: MapAsset): google.maps.Icon {
+      function createAssetMarkerIcon(asset: MapAsset): google.maps.Icon {
   const color = STATUS_COLORS[asset.status] || STATUS_COLORS.IDLE;
-  const size = 30;
-  const letter = asset.type === 'TRUCK' ? 'T' : 'L';
+      const size = 30;
+      const letter = asset.type === 'TRUCK' ? 'T' : 'L';
 
-  // Rotate icon based on heading
-  const rotation = asset.heading || 0;
+      // Rotate icon based on heading
+      const rotation = asset.heading || 0;
 
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2"/>
-      <text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold">
-        ${letter}
-      </text>
-    </svg>
-  `;
+      const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" fill="${color}" stroke="white" stroke-width="2" />
+        <text x="12" y="16" text-anchor="middle" fill="white" font-size="9" font-weight="bold">
+          ${letter}
+        </text>
+      </svg>
+      `;
 
-  return {
-    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-    scaledSize: new google.maps.Size(size, size),
-    anchor: new google.maps.Point(size / 2, size / 2),
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(size, size),
+      anchor: new google.maps.Point(size / 2, size / 2),
   };
 }
 
-function createClusterIcon(count: number): google.maps.Icon {
+      function createClusterIcon(count: number): google.maps.Icon {
   const size = Math.min(48, 32 + Math.log10(count) * 8);
   const color = count > 50 ? '#ef4444' : count > 20 ? '#f59e0b' : '#3b82f6';
 
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 50 50">
-      <circle cx="25" cy="25" r="22" fill="${color}" stroke="white" stroke-width="3"/>
-    </svg>
-  `;
+      const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 50 50">
+        <circle cx="25" cy="25" r="22" fill="${color}" stroke="white" stroke-width="3" />
+      </svg>
+      `;
 
-  return {
-    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-    scaledSize: new google.maps.Size(size, size),
-    anchor: new google.maps.Point(size / 2, size / 2),
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(size, size),
+      anchor: new google.maps.Point(size / 2, size / 2),
   };
 }
 
