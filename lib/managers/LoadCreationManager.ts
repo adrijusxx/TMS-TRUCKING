@@ -15,21 +15,21 @@ import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
  */
 export function safeParseDate(value: Date | string | null | undefined): Date | null {
   if (!value) return null;
-  
+
   // If already a valid Date
   if (value instanceof Date) {
     return isNaN(value.getTime()) ? null : value;
   }
-  
+
   // If string, try to parse
   if (typeof value === 'string') {
     // Empty string check
     if (value.trim() === '') return null;
-    
+
     const parsed = new Date(value);
     return isNaN(parsed.getTime()) ? null : parsed;
   }
-  
+
   return null;
 }
 
@@ -227,7 +227,8 @@ export async function determineMcNumberAssignment(
  * Validate driver and calculate driver pay
  */
 export async function validateDriverAndCalculatePay(
-  driverId: string
+  driverId: string,
+  fallbackMcNumberId?: string | null
 ): Promise<{ driverPay: number | null; error?: LoadCreationResult; driver?: unknown }> {
   const driver = await prisma.driver.findUnique({
     where: { id: driverId },
@@ -252,16 +253,19 @@ export async function validateDriverAndCalculatePay(
   }
 
   if (!driver.mcNumberId) {
-    return {
-      driverPay: null,
-      error: {
-        success: false,
+    if (!fallbackMcNumberId) {
+      return {
+        driverPay: null,
         error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Selected driver must have an MC number assigned. Please assign an MC number to the driver first.',
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Selected driver must have an MC number assigned. Please assign an MC number to the driver first.',
+          },
         },
-      },
-    };
+      };
+    }
+    // If fallbackMcNumberId provided, we allow it (driver assumes Load's MC context)
   }
 
   return { driverPay: null, driver };

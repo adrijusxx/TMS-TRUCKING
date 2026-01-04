@@ -86,14 +86,14 @@ export default function DriverMobileDashboard({ driver }: DriverMobileDashboardP
   });
 
   const loads: Load[] = data?.data?.loads || data?.data || [];
-  const activeLoads = loads.filter((load) => 
+  const activeLoads = loads.filter((load) =>
     ['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'].includes(load.status)
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 pb-20">
       {/* Header */}
-      <div className="bg-white shadow-sm sticky top-0 z-10">
+      <div className="bg-white dark:bg-zinc-900 dark:border-b shadow-sm sticky top-0 z-10">
         <div className="flex items-center justify-between p-4">
           <div>
             <h1 className="text-xl font-bold">
@@ -189,22 +189,22 @@ export default function DriverMobileDashboard({ driver }: DriverMobileDashboardP
                           <Badge variant="outline">{load.status}</Badge>
                         </div>
                         <div className="space-y-2 mt-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {load.pickup?.city || load.pickupCity}, {load.pickup?.state || load.pickupState}
-                      </span>
-                      <Clock className="h-4 w-4 text-muted-foreground ml-2" />
-                      <span>{formatDate(load.pickup?.date || load.pickupDate!)}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {load.delivery?.city || load.deliveryCity}, {load.delivery?.state || load.deliveryState}
-                      </span>
-                      <Clock className="h-4 w-4 text-muted-foreground ml-2" />
-                      <span>{formatDate(load.delivery?.date || load.deliveryDate!)}</span>
-                    </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span>
+                              {load.pickup?.city || load.pickupCity}, {load.pickup?.state || load.pickupState}
+                            </span>
+                            <Clock className="h-4 w-4 text-muted-foreground ml-2" />
+                            <span>{formatDate(load.pickup?.date || load.pickupDate!)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span>
+                              {load.delivery?.city || load.deliveryCity}, {load.delivery?.state || load.deliveryState}
+                            </span>
+                            <Clock className="h-4 w-4 text-muted-foreground ml-2" />
+                            <span>{formatDate(load.delivery?.date || load.deliveryDate!)}</span>
+                          </div>
                           <div className="flex items-center gap-2 text-sm mt-2 pt-2 border-t">
                             <DollarSign className="h-4 w-4 text-green-600" />
                             <span className="font-semibold text-green-600">

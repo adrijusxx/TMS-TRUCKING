@@ -142,7 +142,7 @@ export default function LoadDocumentWarnings({ loadId, loadNumber }: LoadDocumen
             const hasDocument = documentTypes.includes(type);
             const document = documents.find((doc: Document) => doc.type === type);
             const canDelete = hasDocument && canDeleteDocument(type);
-            
+
             return (
               <div
                 key={type}
@@ -150,6 +150,7 @@ export default function LoadDocumentWarnings({ loadId, loadNumber }: LoadDocumen
                 style={{
                   backgroundColor: hasDocument ? 'rgb(240 253 244)' : 'rgb(254 242 242)',
                   borderColor: hasDocument ? 'rgb(187 247 208)' : 'rgb(254 202 202)',
+                  color: '#111827', // Force dark text on light background
                 }}
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">

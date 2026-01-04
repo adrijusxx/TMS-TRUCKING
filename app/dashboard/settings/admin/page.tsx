@@ -17,8 +17,11 @@ import DataManagementCategory from '@/components/settings/categories/DataManagem
 import DeletedItemsCategory from '@/components/settings/categories/DeletedItemsCategory';
 import AuditHistoryCategory from '@/components/settings/categories/AuditHistoryCategory';
 
+import MyProfileCategory from '@/components/settings/categories/MyProfileCategory';
+
 // Map old tab names to new category names for backward compatibility
 const tabMapping: Record<string, string> = {
+  'profile': 'profile',
   'company': 'company',
   'general': 'system',
   'users': 'team',
@@ -83,6 +86,8 @@ export default function AdminSettingsPage() {
 
   const renderCategoryContent = () => {
     switch (activeTab) {
+      case 'profile':
+        return <MyProfileCategory />;
       case 'company':
         return <CompanyOrganizationCategory />;
       case 'team':

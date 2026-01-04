@@ -29,7 +29,7 @@ async function search(query: string) {
       },
     };
   }
-  
+
   try {
     const response = await fetch(apiUrl(`/api/search?q=${encodeURIComponent(query)}`));
     if (!response.ok) {
@@ -75,8 +75,18 @@ export default function GlobalSearch() {
     queryKey: ['global-search', debouncedQuery],
     queryFn: () => search(debouncedQuery),
     enabled: debouncedQuery.length >= 2,
-    staleTime: 30000, // Cache results for 30 seconds
+    staleTime: 0, // Disable caching to force fresh searches during debug
   });
+
+  // Debug: Log API response
+  useEffect(() => {
+    if (data) {
+      console.log('[GlobalSearch] API Response:', data);
+    }
+    if (error) {
+      console.error('[GlobalSearch] API Error:', error);
+    }
+  }, [data, error]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -114,7 +124,13 @@ export default function GlobalSearch() {
         customers: [],
       };
     }
-    return data.data;
+    // Ensure all arrays exist even if API returns partial data
+    return {
+      loads: Array.isArray(data.data.loads) ? data.data.loads : [],
+      drivers: Array.isArray(data.data.drivers) ? data.data.drivers : [],
+      trucks: Array.isArray(data.data.trucks) ? data.data.trucks : [],
+      customers: Array.isArray(data.data.customers) ? data.data.customers : [],
+    };
   }, [data]);
 
   const hasResults = useMemo(() => {
@@ -164,15 +180,15 @@ export default function GlobalSearch() {
           <span className="text-xs">⌘</span>K
         </kbd>
       </Button>
-      <CommandDialog 
-        open={open} 
+      <CommandDialog
+        open={open}
         onOpenChange={setOpen}
         shouldFilter={false}
-        value={query}
-        onValueChange={setQuery}
       >
         <CommandInput
           placeholder="Search loads, drivers, trucks, customers..."
+          value={query}
+          onValueChange={setQuery}
         />
         <CommandList>
           {query.length < 2 && (
@@ -241,8 +257,8 @@ export default function GlobalSearch() {
                           {load.pickupCity && load.pickupState && load.deliveryCity && load.deliveryState
                             ? `${load.pickupCity}, ${load.pickupState} → ${load.deliveryCity}, ${load.deliveryState}`
                             : load.commodity
-                            ? `Commodity: ${load.commodity}`
-                            : 'No details'}
+                              ? `Commodity: ${load.commodity}`
+                              : 'No details'}
                         </span>
                       </div>
                     </CommandItem>
@@ -315,8 +331,8 @@ export default function GlobalSearch() {
                           {customer.customerNumber
                             ? `Customer #${customer.customerNumber}${customer.city && customer.state ? ` • ${customer.city}, ${customer.state}` : ''}`
                             : customer.city && customer.state
-                            ? `${customer.city}, ${customer.state}`
-                            : 'No details'}
+                              ? `${customer.city}, ${customer.state}`
+                              : 'No details'}
                         </span>
                       </div>
                     </CommandItem>

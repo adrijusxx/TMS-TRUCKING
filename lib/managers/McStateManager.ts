@@ -43,11 +43,11 @@ export class McStateManager {
         where: { id: userId },
         select: { mcAccess: true, role: true },
       });
-      
+
       if (!user) {
         return [];
       }
-      
+
       // Return mcAccess array (empty for admins = access to all)
       return user.mcAccess || [];
     } catch (error) {
@@ -69,19 +69,19 @@ export class McStateManager {
   static async canAccessMc(session: any, mcId: string): Promise<boolean> {
     const userId = session?.user?.id;
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
-    
+
     if (!userId) {
       return false;
     }
-    
+
     // Always read from database for fresh data
     const mcAccess = await this.getMcAccessFromDb(userId);
-    
+
     // Admins with empty mcAccess array have access to all MCs
     if (isAdmin && mcAccess.length === 0) {
       return true;
     }
-    
+
     // All users (including admins with restricted access) can only access MCs in their mcAccess array
     return mcAccess.includes(mcId);
   }
@@ -102,7 +102,7 @@ export class McStateManager {
     const userId = session?.user?.id;
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
     const companyId = session?.user?.companyId || session?.user?.currentCompanyId;
-    
+
     // Always read mcAccess from database to ensure we have the latest data
     // This prevents issues where session is stale after admin updates user's mcAccess
     let mcAccess: string[] = [];
@@ -113,7 +113,7 @@ export class McStateManager {
       console.warn('[McStateManager] No userId in session, falling back to session mcAccess');
       mcAccess = this.getMcAccess(session);
     }
-    
+
     // Debug logging (only in development)
     if (process.env.NODE_ENV === 'development') {
       console.log('[McStateManager] User MC Access:', {
@@ -288,7 +288,7 @@ export class McStateManager {
     request?: any
   ): Promise<{ companyId: string; mcNumberId?: { in: string[] } }> {
     const result = await this.buildMcNumberWhereClause(session, request);
-    
+
     // Ensure we always return { in: [...] } format for this method
     if (result.mcNumberId && typeof result.mcNumberId === 'string') {
       return {
@@ -296,7 +296,7 @@ export class McStateManager {
         mcNumberId: { in: [result.mcNumberId] },
       };
     }
-    
+
     return result as { companyId: string; mcNumberId?: { in: string[] } };
   }
 
@@ -394,6 +394,77 @@ export class McStateManager {
     response.cookies.delete('currentMcNumber');
     response.cookies.delete('selectedMcNumberIds');
     response.cookies.delete('mcViewMode');
+  }
+  /**
+   * Finds the company's default MC number (or the first created one if no default set)
+   */
+  static async getCompanyDefaultMc(companyId: string): Promise<string | null> {
+    try {
+      // 1. Try to find explicit default
+      const defaultMc = await prisma.mcNumber.findFirst({
+        where: {
+          companyId,
+          isDefault: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+
+      if (defaultMc) return defaultMc.id;
+
+      // 2. Fallback to first created MC
+      const firstMc = await prisma.mcNumber.findFirst({
+        where: {
+          companyId,
+          deletedAt: null,
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+
+      return firstMc ? firstMc.id : null;
+    } catch (error) {
+      console.error('[McStateManager] Error fetching company default MC:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Determines the effective MC ID for CREATING new records (Drivers, Trucks, etc.)
+   * "The Waterfall":
+   * 1. Session/Request Context (Active View)
+   * 2. User's Assigned Default
+   * 3. Company's Default
+   */
+  static async determineActiveCreationMc(session: any, request?: any): Promise<string | null> {
+    try {
+      if (!session?.user?.companyId) return null;
+
+      // 1. Check active context (what is the user "viewing"?)
+      const state = await this.getMcState(session, request);
+      // If viewing exactly one MC, that's the context
+      if (state.mcNumberId) return state.mcNumberId;
+      if (state.mcNumberIds && state.mcNumberIds.length === 1) return state.mcNumberIds[0];
+
+      // 2. Check User's Default (from Profile)
+      // Note: accessing raw session property as it might not be typed in all contexts
+      const userDefault = (session.user as any)?.mcNumberId;
+      if (userDefault && (await this.canAccessMc(session, userDefault))) {
+        return userDefault;
+      }
+
+      // 3. Check Company Default (Ultimate Fallback)
+      const companyDefault = await this.getCompanyDefaultMc(session.user.companyId);
+      if (companyDefault) {
+        // We use the company default as the ultimate fallback
+        return companyDefault;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[McStateManager] Error determining active creation MC:', error);
+      return null;
+    }
   }
 }
 

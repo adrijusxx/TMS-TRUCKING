@@ -51,6 +51,7 @@ jobs:
             scripts/run-migration-with-secrets.sh \
             scripts/start-with-secrets.js \
             scripts/run-migration-with-secrets.js \
+            scripts/resolve-migration.js \
             scripts/assign-super-admin.js
       
       - name: Deploy to AWS EC2 via SCP

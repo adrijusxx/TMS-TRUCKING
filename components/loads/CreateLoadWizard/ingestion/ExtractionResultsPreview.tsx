@@ -62,7 +62,7 @@ export function ExtractionResultsPreview({
       {/* Confidence Header */}
       <div
         className={cn(
-          'p-4 rounded-lg border',
+          'p-4 rounded-lg border text-gray-900',
           confidence === 'high'
             ? 'bg-green-50 border-green-200'
             : confidence === 'medium'
@@ -99,7 +99,7 @@ export function ExtractionResultsPreview({
         </div>
 
         <div className="flex flex-wrap gap-2 mb-3">
-          <Badge variant="outline" className="bg-white">
+          <Badge variant="outline" className="bg-white text-gray-900">
             {extractionMeta.extractedFields || 0} fields extracted
           </Badge>
           {extractionMeta.customerMatched && (
@@ -154,7 +154,7 @@ export function ExtractionResultsPreview({
                 {CRITICAL_FIELDS.map((field) => (
                   <div
                     key={field}
-                    className="flex items-center justify-between p-2 bg-white rounded border"
+                    className="flex items-center justify-between p-2 bg-white rounded border text-gray-900"
                   >
                     <span className="text-sm">{getFieldDisplayName(field)}</span>
                     <FieldStatusBadge status={getFieldStatus(field)} />
@@ -170,7 +170,7 @@ export function ExtractionResultsPreview({
                 {IMPORTANT_FIELDS.map((field) => (
                   <div
                     key={field}
-                    className="flex items-center justify-between p-2 bg-white rounded border"
+                    className="flex items-center justify-between p-2 bg-white rounded border text-gray-900"
                   >
                     <span className="text-sm">{getFieldDisplayName(field)}</span>
                     <FieldStatusBadge status={getFieldStatus(field)} />
@@ -186,7 +186,7 @@ export function ExtractionResultsPreview({
                 {DETAIL_FIELDS.map((field) => (
                   <div
                     key={field}
-                    className="flex items-center justify-between p-2 bg-white rounded border"
+                    className="flex items-center justify-between p-2 bg-white rounded border text-gray-900"
                   >
                     <span className="text-sm">{getFieldDisplayName(field)}</span>
                     <FieldStatusBadge status={getFieldStatus(field)} />

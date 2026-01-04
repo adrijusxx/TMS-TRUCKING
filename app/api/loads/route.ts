@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
     // 8. Validate driver and calculate driver pay
     let calculatedDriverPay: number | null = null;
     if (validated.driverId) {
-      const driverResult = await validateDriverAndCalculatePay(validated.driverId);
+      const driverResult = await validateDriverAndCalculatePay(validated.driverId, mcResult.mcNumberId);
       if (driverResult.error) {
         return NextResponse.json(driverResult.error, { status: 400 });
       }

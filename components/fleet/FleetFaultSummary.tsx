@@ -110,20 +110,20 @@ export default function FleetFaultSummary() {
           <>
             {/* Summary stats */}
             <div className="grid grid-cols-3 gap-2">
-              <div className="p-2 rounded bg-red-50 text-center">
-                <AlertTriangle className="h-4 w-4 mx-auto mb-1 text-red-600" />
-                <p className="text-lg font-bold text-red-700">{summary.criticalFaults}</p>
-                <p className="text-[10px] text-red-600">Critical</p>
+              <div className="p-2 rounded bg-red-50 dark:bg-red-950/30 text-center">
+                <AlertTriangle className="h-4 w-4 mx-auto mb-1 text-red-600 dark:text-red-400" />
+                <p className="text-lg font-bold text-red-700 dark:text-red-300">{summary.criticalFaults}</p>
+                <p className="text-[10px] text-red-600 dark:text-red-400">Critical</p>
               </div>
-              <div className="p-2 rounded bg-amber-50 text-center">
-                <AlertCircle className="h-4 w-4 mx-auto mb-1 text-amber-600" />
-                <p className="text-lg font-bold text-amber-700">{summary.warningFaults}</p>
-                <p className="text-[10px] text-amber-600">Warning</p>
+              <div className="p-2 rounded bg-amber-50 dark:bg-amber-950/30 text-center">
+                <AlertCircle className="h-4 w-4 mx-auto mb-1 text-amber-600 dark:text-amber-400" />
+                <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{summary.warningFaults}</p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">Warning</p>
               </div>
-              <div className="p-2 rounded bg-blue-50 text-center">
-                <Info className="h-4 w-4 mx-auto mb-1 text-blue-600" />
-                <p className="text-lg font-bold text-blue-700">{summary.infoFaults}</p>
-                <p className="text-[10px] text-blue-600">Info</p>
+              <div className="p-2 rounded bg-blue-50 dark:bg-blue-950/30 text-center">
+                <Info className="h-4 w-4 mx-auto mb-1 text-blue-600 dark:text-blue-400" />
+                <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{summary.infoFaults}</p>
+                <p className="text-[10px] text-blue-600 dark:text-blue-400">Info</p>
               </div>
             </div>
 

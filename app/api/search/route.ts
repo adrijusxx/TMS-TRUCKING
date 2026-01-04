@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,12 +32,63 @@ export async function GET(request: NextRequest) {
 
     const searchTerm = `%${query}%`;
 
-    // Build MC filters - Load uses mcNumberId, Customer uses mcNumber string
-    const loadMcWhere = await buildMcNumberWhereClause(session, request);
-    const driverTruckFilter = await buildMcNumberIdWhereClause(session, request);
-    
+    // Build Broad Access Filters (Ignore "Current View")
+    const { McStateManager } = await import('@/lib/managers/McStateManager');
+
+    // Get fresh access list
+    const userId = session.user.id;
+    const isAdmin = session.user.role === 'ADMIN';
+    const mcAccess = await McStateManager.getMcAccessFromDb(userId);
+    const companyId = session.user.companyId;
+
+    // Determine the "Broadest Possible" filter for this user
+    let broadFilter: any = { companyId };
+
+    // If not a full admin, restrict to assigned MCs
+    // Full Admin (isAdmin && mcAccess.length === 0) -> No extra filter (sees all)
+    if (!(isAdmin && mcAccess.length === 0)) {
+      if (mcAccess.length > 0) {
+        broadFilter.OR = [
+          { mcNumberId: { in: mcAccess } },
+          { mcNumberId: null } // Include items with no MC assigned
+        ];
+      } else {
+        // User has NO access? (Shouldn't happen for active users usually, but handle it)
+        // If they have no MC access and aren't full admin, they likely shouldn't see anything sensitive.
+        // But let's assume they can see things with mcNumberId=null at least?
+        // Or maybe they should see nothing?
+        // Let's stick to the pattern:
+        broadFilter.mcNumberId = { in: [] }; // No results
+      }
+    }
+
+    // Use this broad filter for queries
+    const loadMcWhere = broadFilter;
+    const driverTruckFilter = broadFilter;
+
     // Convert for Customer (uses mcNumber string)
-    const customerMcWhere = await convertMcNumberIdToMcNumberString(loadMcWhere);
+    // We need to fetch the actual numbers for the IDs in mcAccess
+    let customerMcWhere: any = { companyId };
+    if (!(isAdmin && mcAccess.length === 0)) {
+      if (mcAccess.length > 0) {
+        const mcNumbers = await McStateManager.getMcNumberValues(mcAccess);
+        if (mcNumbers.length > 0) {
+          customerMcWhere.OR = [
+            { mcNumber: { in: mcNumbers } },
+            { mcNumber: null }
+          ];
+        } else {
+          customerMcWhere.mcNumber = { in: [] };
+        }
+      } else {
+        customerMcWhere.mcNumber = { in: [] };
+      }
+    }
+
+    console.log(`[GlobalSearch] Query: "${query}" | User: ${session.user.email} (${session.user.role}) | Company: ${companyId}`);
+    console.log(`[GlobalSearch] Broad Filter:`, JSON.stringify(broadFilter, null, 2));
+    console.log(`[GlobalSearch] Customer Filter:`, JSON.stringify(customerMcWhere, null, 2));
+    console.log('[GlobalSearch] Broad Filters Applied:', { role: session.user.role, mcAccessLen: mcAccess.length });
 
     // Search loads (Load uses mcNumberId)
     const loads = await prisma.load.findMany({
@@ -69,6 +120,7 @@ export async function GET(request: NextRequest) {
         createdAt: 'desc',
       },
     });
+    console.log(`[GlobalSearch] Found ${loads.length} loads`);
 
     // Search drivers
     const drivers = await prisma.driver.findMany({
@@ -95,6 +147,7 @@ export async function GET(request: NextRequest) {
       },
       take: 5,
     });
+    console.log(`[GlobalSearch] Found ${drivers.length} drivers`);
 
     // Search trucks
     const trucks = await prisma.truck.findMany({
@@ -121,6 +174,7 @@ export async function GET(request: NextRequest) {
         truckNumber: 'asc',
       },
     });
+    console.log(`[GlobalSearch] Found ${trucks.length} trucks`);
 
     // Search customers (Customer uses mcNumber string)
     const customers = await prisma.customer.findMany({
@@ -146,6 +200,7 @@ export async function GET(request: NextRequest) {
         name: 'asc',
       },
     });
+    console.log(`[GlobalSearch] Found ${customers.length} customers`);
 
     return NextResponse.json({
       success: true,
@@ -153,6 +208,7 @@ export async function GET(request: NextRequest) {
         loads,
         drivers,
         trucks,
+        trailers: [], // Trailers not implemented in search yet?
         customers,
       },
     });

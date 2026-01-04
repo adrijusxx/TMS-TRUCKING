@@ -55,10 +55,10 @@ export async function GET(request: NextRequest) {
     );
     // Parse includeDeleted parameter (admins only)
     const includeDeleted = parseIncludeDeleted(request);
-    
+
     // Build deleted records filter (admins can include deleted records if requested)
     const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
-    
+
     // Merge MC filter with role filter and deleted filter
     const where: any = {
       ...mcWhere,
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         { licensePlate: { contains: search, mode: 'insensitive' } },
         { vin: { contains: search, mode: 'insensitive' } },
       ];
-      
+
       // Add search OR conditions
       if (where.OR) {
         // If there are existing OR conditions, combine them with AND
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     // Note: Loads might be linked by trailerId (relation) or trailerNumber (string)
     const trailerNumbers = trailers.map((t) => t.trailerNumber);
     const trailerIds = trailers.map((t) => t.id);
-    
+
     // Initialize maps
     const loadCountMapById = new Map<string, number>();
     const activeLoadCountMapById = new Map<string, number>();
@@ -273,7 +273,7 @@ export async function GET(request: NextRequest) {
       // Get last used date from both sources (or null if stats skipped)
       const lastUsedById = skipStats ? null : lastUsedMapById.get(trailer.id);
       const lastUsedByNumber = skipStats ? null : lastUsedMapByNumber.get(trailer.trailerNumber);
-      
+
       // Get the most recent date
       const dates = [lastUsedById, lastUsedByNumber].filter((d) => d !== null && d !== undefined) as Date[];
       const lastUsed = dates.length > 0 ? new Date(Math.max(...dates.map((d) => d.getTime()))) : null;
@@ -300,16 +300,16 @@ export async function GET(request: NextRequest) {
         fleetStatus: trailer.fleetStatus,
         assignedTruck: trailer.assignedTruck
           ? {
-              id: trailer.assignedTruck.id,
-              truckNumber: trailer.assignedTruck.truckNumber,
-            }
+            id: trailer.assignedTruck.id,
+            truckNumber: trailer.assignedTruck.truckNumber,
+          }
           : null,
         operatorDriver: trailer.operatorDriver
           ? {
-              id: trailer.operatorDriver.id,
-              driverNumber: trailer.operatorDriver.driverNumber,
-              name: `${trailer.operatorDriver.user.firstName} ${trailer.operatorDriver.user.lastName}`,
-            }
+            id: trailer.operatorDriver.id,
+            driverNumber: trailer.operatorDriver.driverNumber,
+            name: `${trailer.operatorDriver.user.firstName} ${trailer.operatorDriver.user.lastName}`,
+          }
           : null,
         loadCount,
         activeLoads,
@@ -430,100 +430,58 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine MC number assignment
-    // Rule: Admins and users with multiple MC access can choose MC; others use their default MC
-    const isAdmin = session.user.role === 'ADMIN';
-    const userMcAccess = McStateManager.getMcAccess(session);
+    // Rule: Explicit -> Context -> User Default -> Company Default
+    const { McStateManager } = await import('@/lib/managers/McStateManager');
     let assignedMcNumberId: string | null = null;
 
     if (validated.mcNumberId) {
-      // User provided mcNumberId - validate they have access
       if (await McStateManager.canAccessMc(session, validated.mcNumberId)) {
-        // Also validate MC number exists and belongs to company
-        const mcNumber = await prisma.mcNumber.findFirst({
-          where: {
-            id: validated.mcNumberId,
-            companyId: session.user.companyId,
-            deletedAt: null,
-          },
+        // Validate MC number exists and belongs to company
+        const isValid = await prisma.mcNumber.count({
+          where: { id: validated.mcNumberId, companyId: session.user.companyId, deletedAt: null }
         });
-
-        if (!mcNumber) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'INVALID_MC_NUMBER',
-                message: 'MC number not found or does not belong to your company',
-              },
-            },
-            { status: 400 }
-          );
+        if (!isValid) {
+          return NextResponse.json({
+            success: false,
+            error: { code: 'INVALID_MC_NUMBER', message: 'MC number not found or does not belong to your company' }
+          }, { status: 400 });
         }
         assignedMcNumberId = validated.mcNumberId;
       } else {
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: 'FORBIDDEN',
-              message: 'You do not have access to the selected MC number',
-            },
-          },
-          { status: 403 }
-        );
+        return NextResponse.json({
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'You do not have access to the selected MC number' }
+        }, { status: 403 });
       }
     } else {
-      // No mcNumberId provided - use user's default MC
-      assignedMcNumberId = (session.user as any).mcNumberId || null;
-      
-      // Validate default MC is accessible
-      if (assignedMcNumberId && !(await McStateManager.canAccessMc(session, assignedMcNumberId))) {
-        // If default MC is not accessible, try to use first accessible MC
-        if (userMcAccess.length > 0) {
-          assignedMcNumberId = userMcAccess[0];
-        } else {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'VALIDATION_ERROR',
-                message: 'MC number is required. Please select an MC number or ensure your account has an MC number assigned.',
-              },
-            },
-            { status: 400 }
-          );
-        }
-      }
-      
+      // Fallback Logic
+      assignedMcNumberId = await McStateManager.determineActiveCreationMc(session, request);
       if (!assignedMcNumberId) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: 'MC number is required',
-            },
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'MC number is required and no default (Company or User) could be determined. Please assign an MC number explicitly.',
           },
-          { status: 400 }
-        );
+        }, { status: 400 });
       }
     }
 
     // Convert dates
     const registrationExpiry = validated.registrationExpiry
       ? (validated.registrationExpiry instanceof Date
-          ? validated.registrationExpiry
-          : new Date(validated.registrationExpiry))
+        ? validated.registrationExpiry
+        : new Date(validated.registrationExpiry))
       : null;
     const insuranceExpiry = validated.insuranceExpiry
       ? (validated.insuranceExpiry instanceof Date
-          ? validated.insuranceExpiry
-          : new Date(validated.insuranceExpiry))
+        ? validated.insuranceExpiry
+        : new Date(validated.insuranceExpiry))
       : null;
     const inspectionExpiry = validated.inspectionExpiry
       ? (validated.inspectionExpiry instanceof Date
-          ? validated.inspectionExpiry
-          : new Date(validated.inspectionExpiry))
+        ? validated.inspectionExpiry
+        : new Date(validated.inspectionExpiry))
       : null;
 
     // Only set VIN if it's provided and not empty

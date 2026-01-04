@@ -49,9 +49,9 @@ export default function DriverLoadList() {
   const loads: Load[] = data?.data?.loads || data?.data || [];
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 pb-20">
       {/* Header */}
-      <div className="bg-white shadow-sm sticky top-0 z-10">
+      <div className="bg-white dark:bg-zinc-900 dark:border-b shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-4 p-4">
           <Link href="/mobile/driver">
             <Button variant="ghost" size="icon">

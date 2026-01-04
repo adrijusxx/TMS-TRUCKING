@@ -313,48 +313,40 @@ export async function POST(request: NextRequest) {
       : new Date(validated.inspectionExpiry);
 
     // Determine MC number assignment
-    // Rule: Admins and users with multiple MC access can choose MC; others use their default MC
-    const isAdmin = session.user.role === 'ADMIN';
-    const userMcAccess = McStateManager.getMcAccess(session);
+    // Rule: Explicit -> Context -> User Default -> Company Default
+    const { McStateManager } = await import('@/lib/managers/McStateManager');
     let assignedMcNumberId: string | null = null;
 
     if (validated.mcNumberId) {
-      // User provided mcNumberId - validate they have access
       if (await McStateManager.canAccessMc(session, validated.mcNumberId)) {
+        // Validate MC number exists and belongs to company
+        const isValid = await prisma.mcNumber.count({
+          where: { id: validated.mcNumberId, companyId: session.user.companyId, deletedAt: null }
+        });
+        if (!isValid) {
+          return NextResponse.json({
+            success: false,
+            error: { code: 'INVALID_MC_NUMBER', message: 'MC number not found or does not belong to your company' }
+          }, { status: 400 });
+        }
         assignedMcNumberId = validated.mcNumberId;
       } else {
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: 'FORBIDDEN',
-              message: 'You do not have access to the selected MC number',
-            },
-          },
-          { status: 403 }
-        );
+        return NextResponse.json({
+          success: false,
+          error: { code: 'FORBIDDEN', message: 'You do not have access to the selected MC number' }
+        }, { status: 403 });
       }
     } else {
-      // No mcNumberId provided - use user's default MC
-      assignedMcNumberId = (session.user as any).mcNumberId || null;
-
-      // Validate default MC is accessible
-      if (assignedMcNumberId && !(await McStateManager.canAccessMc(session, assignedMcNumberId))) {
-        // If default MC is not accessible, try to use first accessible MC
-        if (userMcAccess.length > 0) {
-          assignedMcNumberId = userMcAccess[0];
-        } else {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'FORBIDDEN',
-                message: 'No accessible MC number found. Please contact an administrator.',
-              },
-            },
-            { status: 403 }
-          );
-        }
+      // Fallback Logic
+      assignedMcNumberId = await McStateManager.determineActiveCreationMc(session, request);
+      if (!assignedMcNumberId) {
+        return NextResponse.json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'MC number is required and no default (Company or User) could be determined. Please assign an MC number explicitly.',
+          },
+        }, { status: 400 });
       }
     }
 

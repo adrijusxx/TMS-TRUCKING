@@ -93,14 +93,14 @@ export const NAV_CLASSES = {
 
 // Sidebar container classes - standardized backgrounds for all submenus
 const SIDEBAR_CLASSES = {
-  expanded: `${SIDEBAR_WIDTHS.expanded} border-r bg-slate-50 dark:bg-secondary overflow-y-auto p-4 ${NAV_SPACING.sections}`,
-  collapsed: `${SIDEBAR_WIDTHS.collapsed} border-r bg-slate-50 dark:bg-secondary p-2 flex flex-col items-center`,
+  expanded: `${SIDEBAR_WIDTHS.expanded} border-r bg-secondary overflow-y-auto p-4 ${NAV_SPACING.sections}`,
+  collapsed: `${SIDEBAR_WIDTHS.collapsed} border-r bg-secondary p-2 flex flex-col items-center`,
 } as const;
 
 // Standardized background classes - all sections must use these
 export const NAV_BACKGROUNDS = {
   // Main sidebar background
-  sidebar: 'bg-slate-50 dark:bg-secondary',
+  sidebar: 'bg-secondary',
   // Section/item hover background
   hover: 'hover:bg-accent',
   // Active item background (standardized - no color variations)
