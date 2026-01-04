@@ -184,6 +184,26 @@ export async function getSamsaraConfig(
     console.debug('[Samsara] Hierarchical API key lookup failed:', error);
   }
 
+  // 1.5. NEW: Check SamsaraSettings table (The new standard)
+  if (companyId) {
+    try {
+      const { prisma } = await import('@/lib/prisma');
+      const settings = await prisma.samsaraSettings.findUnique({
+        where: { companyId }
+      });
+
+      if (settings?.apiToken) {
+        return {
+          apiKey: settings.apiToken,
+          baseUrl: 'https://api.samsara.com',
+          webhookSecret: process.env.SAMSARA_WEBHOOK_SECRET,
+        };
+      }
+    } catch (error) {
+      console.debug('[Samsara] Could not fetch settings from SamsaraSettings table:', error);
+    }
+  }
+
   // 2. Legacy: Check old Integration table
   if (companyId) {
     try {
@@ -210,18 +230,21 @@ export async function getSamsaraConfig(
   }
 
   // 3. Fall back to environment variable
-  const apiKey = process.env.SAMSARA_API_KEY;
+  // const apiKey = process.env.SAMSARA_API_KEY;
 
-  if (!apiKey) {
-    console.warn('Samsara API key not configured (checked hierarchy, legacy db, and env)');
-    return null;
-  }
+  // if (!apiKey) {
+  //   console.warn('Samsara API key not configured (checked hierarchy, legacy db, and env)');
+  //   return null;
+  // }
 
-  return {
-    apiKey,
-    baseUrl: 'https://api.samsara.com',
-    webhookSecret: process.env.SAMSARA_WEBHOOK_SECRET,
-  };
+  console.warn('Samsara API key not configured for company', companyId);
+  return null;
+
+  // return {
+  //   apiKey,
+  //   baseUrl: 'https://api.samsara.com',
+  //   webhookSecret: process.env.SAMSARA_WEBHOOK_SECRET,
+  // };
 }
 
 /**
