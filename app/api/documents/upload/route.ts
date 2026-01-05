@@ -23,6 +23,10 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const breakdownId = formData.get('breakdownId') as string;
+    const loadId = formData.get('loadId') as string;
+    const driverId = formData.get('driverId') as string;
+    const truckId = formData.get('truckId') as string;
+    const title = formData.get('title') as string;
     const documentTypeRaw = formData.get('type') as string || 'OTHER';
     // Validate and cast to DocumentType enum
     const documentType = Object.values(DocumentType).includes(documentTypeRaw as DocumentType)
@@ -73,13 +77,16 @@ export async function POST(request: NextRequest) {
     // Create document record
     const document = await prisma.document.create({
       data: {
-        title: file.name,
+        title: title || file.name,
         fileName: uniqueFilename,
         fileUrl,
         fileSize: file.size,
         mimeType: file.type,
         type: documentType,
         breakdownId: breakdownId || undefined,
+        loadId: loadId || undefined,
+        driverId: driverId || undefined,
+        truckId: truckId || undefined,
         companyId: session.user.companyId,
         uploadedBy: session.user.id,
       },

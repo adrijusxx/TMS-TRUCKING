@@ -14,6 +14,8 @@ import {
   getFactoringConfig,
 } from '@/lib/utils/factoring';
 
+import { convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
+
 export class FactoringManager {
   /**
    * Submit invoice(s) to factoring company
@@ -25,6 +27,7 @@ export class FactoringManager {
     submittedById: string;
     notes?: string;
   }) {
+    // ... existing implementation remains unchanged ...
     const { invoiceIds, factoringCompanyId, companyId, submittedById, notes } = data;
 
     // Verify factoring company
@@ -240,12 +243,17 @@ export class FactoringManager {
   /**
    * Get factoring statistics for a company
    */
-  static async getFactoringStats(companyId: string, dateRange?: { start: Date; end: Date }) {
+  static async getFactoringStats(mcWhere: { companyId: string; mcNumberId?: any }, dateRange?: { start: Date; end: Date }) {
+    // Convert mcNumberId to mcNumber string if present, as Invoice model might not have mcNumberId yet
+    const effectiveMcWhere = await convertMcNumberIdToMcNumberString(mcWhere);
+
     const where: any = {
       customer: {
-        companyId,
+        companyId: effectiveMcWhere.companyId,
       },
-      factoringStatus: { not: 'NOT_FACTORED' },
+      // Use the converted filter (mcNumber or nothing)
+      ...(effectiveMcWhere.mcNumber ? { mcNumber: effectiveMcWhere.mcNumber } : {}),
+      factoringStatus: { not: FactoringStatus.NOT_FACTORED },
     };
 
     if (dateRange) {
@@ -299,7 +307,7 @@ export class FactoringManager {
         prisma.invoice.aggregate({
           where: {
             ...where,
-            factoringStatus: { not: 'NOT_FACTORED' },
+            factoringStatus: { not: FactoringStatus.NOT_FACTORED },
           },
           _sum: {
             factoringFee: true,
@@ -326,16 +334,30 @@ export class FactoringManager {
   /**
    * Get invoices due for reserve release
    */
-  static async getInvoicesDueForReserveRelease(companyId: string) {
+  static async getInvoicesDueForReserveRelease(mcWhere: { companyId: string; mcNumberId?: any }) {
+    // Convert mcNumberId to mcNumber string if present
+    const effectiveMcWhere = await convertMcNumberIdToMcNumberString(mcWhere);
+
     const fundedInvoices = await prisma.invoice.findMany({
       where: {
         customer: {
-          companyId,
+          companyId: effectiveMcWhere.companyId,
         },
+        // Use the converted filter (mcNumber or nothing)
+        ...(effectiveMcWhere.mcNumber ? { mcNumber: effectiveMcWhere.mcNumber } : {}),
         factoringStatus: FactoringStatus.FUNDED,
         fundedAt: { not: null },
       },
-      include: {
+      // Use explicit select to avoid fetching mcNumberId which may not exist in DB
+      select: {
+        id: true,
+        invoiceNumber: true,
+        total: true,
+        reserveAmount: true,
+        advanceAmount: true,
+        fundedAt: true,
+        reserveReleaseDate: true,
+        mcNumber: true,
         factoringCompany: {
           select: {
             id: true,

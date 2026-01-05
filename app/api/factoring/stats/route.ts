@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { FactoringStatus } from '@prisma/client';
 import { FactoringManager } from '@/lib/managers/FactoringManager';
 
+import { buildMcNumberWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -27,12 +29,19 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Build MC Number filter
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // Convert to string filter for Invoice model compatibility
+    const effectiveMcWhere = await convertMcNumberIdToMcNumberString(mcWhere);
+    const mcFilter = effectiveMcWhere.mcNumber ? { mcNumber: effectiveMcWhere.mcNumber } : {};
+
     // Get factoring stats
-    const stats = await FactoringManager.getFactoringStats(session.user.companyId, dateRange);
+    const stats = await FactoringManager.getFactoringStats(mcWhere, dateRange);
 
     // Get invoices due for reserve release
     const invoicesDueForRelease = await FactoringManager.getInvoicesDueForReserveRelease(
-      session.user.companyId
+      mcWhere
     );
 
     // Get invoices by factoring status
@@ -42,6 +51,7 @@ export async function GET(request: NextRequest) {
           customer: {
             companyId: session.user.companyId,
           },
+          ...mcFilter,
           factoringStatus: FactoringStatus.SUBMITTED_TO_FACTOR,
         },
         select: {
@@ -69,6 +79,7 @@ export async function GET(request: NextRequest) {
           customer: {
             companyId: session.user.companyId,
           },
+          ...mcFilter,
           factoringStatus: FactoringStatus.FUNDED,
         },
         select: {
@@ -98,6 +109,7 @@ export async function GET(request: NextRequest) {
           customer: {
             companyId: session.user.companyId,
           },
+          ...mcFilter,
           factoringStatus: FactoringStatus.RESERVE_RELEASED,
         },
         select: {
@@ -144,7 +156,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          details: error
+        },
       },
       { status: 500 }
     );

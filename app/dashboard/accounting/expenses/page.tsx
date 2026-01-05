@@ -1,4 +1,5 @@
 import ExpenseCategories from '@/components/settings/customizations/ExpenseCategories';
+import ExpensesWorkflowInfo from '@/components/accounting/ExpensesWorkflowInfo';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
 export default function ExpensesPage() {
@@ -12,6 +13,7 @@ export default function ExpensesPage() {
         <div>
           <h1 className="text-3xl font-bold">Accounting Expenses</h1>
         </div>
+        <ExpensesWorkflowInfo />
         <ExpenseCategories />
       </div>
     </>

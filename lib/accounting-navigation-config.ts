@@ -10,6 +10,7 @@ import {
   Receipt,
   Calculator,
   Sliders,
+  BookOpen,
 } from 'lucide-react';
 
 // Navigation sections configuration
@@ -85,6 +86,12 @@ export const accountingNavigationSections = [
         href: '/dashboard/accounting/accessorial-charges',
         icon: DollarSign,
         description: 'Manage accessorial charges and additional fees for loads including detention, layover, fuel surcharges, and special services. Configure charge types, set rates, and apply charges to invoices.',
+      },
+      {
+        name: 'Settlement Workflow',
+        href: '/dashboard/settlements?view=workflow',
+        icon: BookOpen,
+        description: 'Comprehensive guide to the settlement generation process, including driver pay setup, load qualification, and payroll processing.',
       },
     ],
   },

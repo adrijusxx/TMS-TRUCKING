@@ -1967,6 +1967,8 @@ enum DocumentType {
   POD // Proof of Delivery
   INVOICE
   RATE_CONFIRMATION
+  DETENTION // Detention receipt/document
+  LUMPER // Lumper receipt
   DRIVER_LICENSE
   MEDICAL_CARD
   INSURANCE

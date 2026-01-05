@@ -361,7 +361,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'documents.view', 'documents.upload', 'documents.delete', // Allow deletion for BOL/POD/rate confirmations
     'settings.view',
     // Basic fleet operations (Specific access instead of full department)
-    'breakdowns.view', 'breakdowns.create',
+    'breakdowns.view',
     'calendar.view', 'calendar.edit',
     'loadboard.view', 'loadboard.post',
     // Data Management

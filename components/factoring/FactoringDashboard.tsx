@@ -76,7 +76,10 @@ interface FactoringStats {
 
 async function fetchFactoringStats() {
   const response = await fetch(apiUrl('/api/factoring/stats'));
-  if (!response.ok) throw new Error('Failed to fetch factoring stats');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || 'Failed to fetch factoring stats');
+  }
   return response.json();
 }
 
@@ -108,7 +111,7 @@ export default function FactoringDashboard() {
       <Card>
         <CardContent className="p-6">
           <div className="text-center text-destructive">
-            Failed to load factoring statistics
+            {error instanceof Error ? error.message : 'Failed to load factoring statistics'}
           </div>
         </CardContent>
       </Card>

@@ -1,4 +1,5 @@
 import { auth } from '@/app/api/auth/[...nextauth]/route';
+import FactoringWorkflowInfo from '@/components/factoring/FactoringWorkflowInfo';
 import FactoringDashboard from '@/components/factoring/FactoringDashboard';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 
@@ -23,6 +24,7 @@ export default async function FactoringPage() {
       <div>
         <h1 className="text-3xl font-bold">Factoring Dashboard</h1>
       </div>
+      <FactoringWorkflowInfo />
       <FactoringDashboard />
     </div>
   );

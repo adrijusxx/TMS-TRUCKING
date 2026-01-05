@@ -89,7 +89,7 @@ const mainNavigation: NavigationItem[] = [
   // Fleet sub-items (visible if user has permission but NOT fleet department view)
   { name: 'Trucks', href: '/dashboard/trucks', icon: Truck, permission: 'trucks.view' },
   { name: 'Trailers', href: '/dashboard/trailers', icon: Container, permission: 'trailers.view' },
-  { name: 'Breakdowns', href: '/dashboard/fleet?tab=breakdowns', icon: AlertTriangle, permission: 'breakdowns.view' },
+  { name: 'Breakdowns', href: '/dashboard/fleet/breakdowns', icon: AlertTriangle, permission: 'breakdowns.view' },
   { name: 'Accounting Department', href: '/dashboard/accounting', icon: DollarSign, permission: 'departments.accounting.view' },
   { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
   { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },

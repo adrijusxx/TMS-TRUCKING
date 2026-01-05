@@ -11,6 +11,8 @@ import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { FileText, Clock, AlertTriangle, BarChart3, CheckCircle2 } from 'lucide-react';
 
+import InvoiceWorkflowInfo from '@/components/invoices/InvoiceWorkflowInfo';
+
 export default function InvoicesPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,7 +34,9 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-3xl font-bold">Invoices</h1>
         </div>
-        
+
+        <InvoiceWorkflowInfo />
+
         <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-5 lg:grid-cols-5">
             <TabsTrigger value="all" className="flex items-center gap-2">
@@ -58,23 +62,23 @@ export default function InvoicesPage() {
               <span className="hidden sm:inline">Reports</span>
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="all" className="mt-4">
             <InvoiceListNew />
           </TabsContent>
-          
+
           <TabsContent value="aging" className="mt-4">
             <AgingReport />
           </TabsContent>
-          
+
           <TabsContent value="reconciliation" className="mt-4">
             <ReconciliationPage />
           </TabsContent>
-          
+
           <TabsContent value="watchdogs" className="mt-4">
             <WatchdogList />
           </TabsContent>
-          
+
           <TabsContent value="reports" className="mt-4">
             <InvoiceReports />
           </TabsContent>

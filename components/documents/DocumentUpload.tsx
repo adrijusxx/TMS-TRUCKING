@@ -25,10 +25,23 @@ interface DocumentUploadProps {
   defaultType?: string; // Pre-select document type
 }
 
-const documentTypes = [
+// Document types for load-related uploads (POD, BOL, Rate Con, Detention, Lumper, Other)
+const loadDocumentTypes = [
   { value: 'RATE_CONFIRMATION', label: 'Rate Confirmation' },
   { value: 'BOL', label: 'Bill of Lading' },
   { value: 'POD', label: 'Proof of Delivery' },
+  { value: 'DETENTION', label: 'Detention' },
+  { value: 'LUMPER', label: 'Lumper' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+// All document types for driver/truck uploads
+const allDocumentTypes = [
+  { value: 'RATE_CONFIRMATION', label: 'Rate Confirmation' },
+  { value: 'BOL', label: 'Bill of Lading' },
+  { value: 'POD', label: 'Proof of Delivery' },
+  { value: 'DETENTION', label: 'Detention' },
+  { value: 'LUMPER', label: 'Lumper' },
   { value: 'INVOICE', label: 'Invoice' },
   { value: 'DRIVER_LICENSE', label: 'Driver License' },
   { value: 'MEDICAL_CARD', label: 'Medical Card' },
@@ -218,7 +231,7 @@ export default function DocumentUpload({
               <SelectValue placeholder="Select document type" />
             </SelectTrigger>
             <SelectContent>
-              {documentTypes.map((type) => (
+              {(loadId ? loadDocumentTypes : allDocumentTypes).map((type) => (
                 <SelectItem key={type.value} value={type.value}>
                   {type.label}
                 </SelectItem>

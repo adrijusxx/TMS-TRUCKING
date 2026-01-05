@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, LayoutDashboard, AlertTriangle, BarChart3, Users, History } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,16 +29,7 @@ export default function FleetDepartmentDashboard() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Redirect restricted users (e.g. Dispatchers) who land on Overview to their allowed tab
-  useEffect(() => {
-    // If user is on overview tab (default) but lacks full fleet access...
-    if (tab === 'overview' && !can('departments.fleet.view')) {
-      // ...and has breakdown access, redirect there
-      if (can('breakdowns.view')) {
-        router.replace('/dashboard/fleet?tab=breakdowns');
-      }
-    }
-  }, [tab, can, router]);
+
 
   const handleTabChange = (value: string) => {
     if (value === 'overview') {
