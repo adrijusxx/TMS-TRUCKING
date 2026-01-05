@@ -217,6 +217,7 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
         onRowSelectionChange={setRowSelection}
         enableRowSelection={true}
         rowActions={rowActions}
+        onRowClick={(row) => openSheet(can('drivers.edit') ? 'edit' : 'view', row.id)}
         emptyMessage="No drivers found"
         filterKey="lastName"
         onDeleteSelected={handleDeleteSelected}

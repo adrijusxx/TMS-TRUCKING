@@ -3,12 +3,9 @@
 import React from 'react';
 import { createColumnHelper } from '@tanstack/react-table';
 import type { ExtendedColumnDef } from '@/components/data-table/types';
-import { EditableCell } from '@/components/ui/editable-cell';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
-import { updateEntityField } from '@/lib/utils/updateEntityField';
-import { useQueryClient } from '@tanstack/react-query';
 import { DriverStatus } from '@prisma/client';
 
 export interface DriverData {
@@ -68,13 +65,8 @@ function formatStatus(status: DriverStatus): string {
 }
 
 export function createDriverColumns(
-  onUpdate?: () => void
+  _onUpdate?: () => void
 ): ExtendedColumnDef<DriverData>[] {
-  const handleSave = async (rowId: string, columnId: string, value: string | number) => {
-    await updateEntityField('driver', rowId, columnId, value);
-    onUpdate?.();
-  };
-
   return [
     {
       id: 'id',
@@ -115,14 +107,9 @@ export function createDriverColumns(
       accessorKey: 'phone',
       header: 'Phone',
       cell: ({ row }) => (
-        <EditableCell
-          value={row.original.user.phone || row.original.phone}
-          rowId={row.original.id}
-          columnId="phone"
-          onSave={handleSave}
-          type="text"
-          placeholder="Enter phone number"
-        />
+        <span className="text-sm truncate max-w-[120px] block">
+          {row.original.user.phone || row.original.phone || '-'}
+        </span>
       ),
       defaultVisible: true,
     },
@@ -131,14 +118,9 @@ export function createDriverColumns(
       accessorKey: 'email',
       header: 'Email',
       cell: ({ row }) => (
-        <EditableCell
-          value={row.original.user.email || row.original.email}
-          rowId={row.original.id}
-          columnId="email"
-          onSave={handleSave}
-          type="text"
-          placeholder="Enter email"
-        />
+        <span className="text-sm truncate max-w-[180px] block text-muted-foreground">
+          {row.original.user.email || row.original.email || '-'}
+        </span>
       ),
       defaultVisible: true,
     },
@@ -146,14 +128,9 @@ export function createDriverColumns(
       id: 'address',
       header: 'Address',
       cell: ({ row }) => (
-        <EditableCell
-          value={row.original.address1 || ''}
-          rowId={row.original.id}
-          columnId="address1"
-          onSave={handleSave}
-          type="text"
-          placeholder="Enter address"
-        />
+        <span className="text-sm truncate max-w-[150px] block">
+          {row.original.address1 || '-'}
+        </span>
       ),
       defaultVisible: false,
     },
@@ -162,14 +139,7 @@ export function createDriverColumns(
       accessorKey: 'city',
       header: 'City',
       cell: ({ row }) => (
-        <EditableCell
-          value={row.original.city || ''}
-          rowId={row.original.id}
-          columnId="city"
-          onSave={handleSave}
-          type="text"
-          placeholder="Enter city"
-        />
+        <span className="text-sm">{row.original.city || '-'}</span>
       ),
       defaultVisible: false,
     },
@@ -178,14 +148,7 @@ export function createDriverColumns(
       accessorKey: 'state',
       header: 'State',
       cell: ({ row }) => (
-        <EditableCell
-          value={row.original.state || ''}
-          rowId={row.original.id}
-          columnId="state"
-          onSave={handleSave}
-          type="text"
-          placeholder="Enter state"
-        />
+        <span className="text-sm">{row.original.state || '-'}</span>
       ),
       defaultVisible: false,
     },
@@ -194,14 +157,7 @@ export function createDriverColumns(
       accessorKey: 'zipCode',
       header: 'Zip',
       cell: ({ row }) => (
-        <EditableCell
-          value={row.original.zipCode || ''}
-          rowId={row.original.id}
-          columnId="zipCode"
-          onSave={handleSave}
-          type="text"
-          placeholder="Enter zip code"
-        />
+        <span className="text-sm">{row.original.zipCode || '-'}</span>
       ),
       defaultVisible: false,
     },
@@ -359,14 +315,9 @@ export function createDriverColumns(
       accessorKey: 'notes',
       header: 'Notes',
       cell: ({ row }) => (
-        <EditableCell
-          value={row.original.notes || ''}
-          rowId={row.original.id}
-          columnId="notes"
-          onSave={handleSave}
-          type="text"
-          placeholder="Enter notes"
-        />
+        <span className="text-sm truncate max-w-[200px] block text-muted-foreground" title={row.original.notes || ''}>
+          {row.original.notes || '-'}
+        </span>
       ),
       defaultVisible: false,
     },
