@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Package, LayoutGrid, Navigation, Menu, ChevronDown } from 'lucide-react';
+import { Package, LayoutGrid, Navigation, Menu, ChevronDown, UserCircle } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +20,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'All Loads', href: '/dashboard/loads', icon: Package },
+  { name: 'My Dispatch', href: '/dashboard/dispatch-view', icon: UserCircle },
   { name: 'Driver Week Board', href: '/dashboard/loads/board', icon: LayoutGrid },
   { name: 'Operations Center', href: '/dashboard/operations', icon: Navigation },
 ];

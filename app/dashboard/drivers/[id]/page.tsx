@@ -147,7 +147,7 @@ export default async function DriverPage({
     prisma.user.findMany({
       where: {
         companyId: session.user.companyId,
-        role: 'DISPATCHER',
+        role: { in: ['DISPATCHER', 'ADMIN'] },
         isActive: true,
         deletedAt: null,
       },

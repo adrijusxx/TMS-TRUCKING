@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Package, Navigation, ChevronRight, ChevronLeft, LayoutGrid } from 'lucide-react';
+import { Package, Navigation, ChevronRight, ChevronLeft, LayoutGrid, UserCircle } from 'lucide-react';
 import { useSidebarToggle } from '@/hooks/useSidebarToggle';
 import {
   SIDEBAR_WIDTHS,
@@ -24,6 +24,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'All Loads', href: '/dashboard/loads', icon: Package },
+  { name: 'My Dispatch', href: '/dashboard/dispatch-view', icon: UserCircle },
   { name: 'Driver Week Board', href: '/dashboard/loads/board', icon: LayoutGrid },
   { name: 'Operations Center', href: '/dashboard/operations', icon: Navigation },
 ];
@@ -83,7 +84,7 @@ export default function LoadManagementNav() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
-          
+
           return (
             <button
               key={item.name}
