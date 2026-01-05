@@ -24,8 +24,12 @@ export function SamsaraTokenPrompt({ isOpen, onDismiss }: SamsaraTokenPromptProp
     const [show, setShow] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
+        // Check if previously dismissed in this session
+        const isDismissed = sessionStorage.getItem('samsara_prompt_dismissed');
+        if (isOpen && !isDismissed) {
             setShow(true);
+        } else {
+            setShow(false);
         }
     }, [isOpen]);
 
@@ -35,6 +39,7 @@ export function SamsaraTokenPrompt({ isOpen, onDismiss }: SamsaraTokenPromptProp
     };
 
     const handleClose = () => {
+        sessionStorage.setItem('samsara_prompt_dismissed', 'true');
         setShow(false);
         if (onDismiss) onDismiss();
     };

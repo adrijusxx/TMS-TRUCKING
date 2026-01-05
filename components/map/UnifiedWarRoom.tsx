@@ -413,7 +413,7 @@ export default function UnifiedWarRoom() {
   return (
     <>
       <SamsaraTokenPrompt isOpen={!isSamsaraConfigured} />
-      <div className="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-slate-950">
+      <div className="h-full flex flex-col bg-background rounded border overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
           <div className="flex items-center gap-2 flex-1 max-w-sm">

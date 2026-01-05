@@ -33,6 +33,12 @@ export async function GET(request: NextRequest) {
     const { getSamsaraConfig } = await import('@/lib/integrations/samsara');
     const config = await getSamsaraConfig(session.user.companyId);
 
+    console.log('[API] Samsara Config Check:', {
+      hasConfig: !!config,
+      hasApiKey: !!config?.apiKey,
+      companyId: session.user.companyId
+    });
+
     return NextResponse.json({
       success: true,
       data,
