@@ -124,11 +124,7 @@ export default function DispatchStatusSelector({
   const queryClient = useQueryClient();
   const { isDispatcher, isAdmin } = usePermissions();
 
-  // Only show for dispatchers and admins
-  if (!isDispatcher && !isAdmin) {
-    return null;
-  }
-
+  // IMPORTANT: All hooks must be called before any early returns (React Rules of Hooks)
   const updateMutation = useMutation({
     mutationFn: (status: LoadDispatchStatus | null) => updateDispatchStatus(loadId, status),
     onSuccess: () => {
@@ -144,6 +140,11 @@ export default function DispatchStatusSelector({
   const currentOption = currentDispatchStatus
     ? dispatchStatusOptions.find((opt) => opt.value === currentDispatchStatus)
     : null;
+
+  // Only show for dispatchers and admins (after all hooks)
+  if (!isDispatcher && !isAdmin) {
+    return null;
+  }
 
   return (
     <div className={className}>

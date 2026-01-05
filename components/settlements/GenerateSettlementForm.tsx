@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,12 +36,16 @@ async function fetchDrivers() {
   return response.json();
 }
 
-async function fetchDriverLoads(driverId: string) {
+async function fetchAllSettlementEligibleLoads() {
+  // Query for all settlement-eligible statuses: DELIVERED, INVOICED, PAID
+  // Don't filter by driver - we'll do that locally for better debugging
   const response = await fetch(
-    apiUrl(`/api/loads?driverId=${driverId}&status=DELIVERED&limit=100`)
+    apiUrl(`/api/loads?status=DELIVERED&status=INVOICED&status=PAID&limit=200`)
   );
   if (!response.ok) throw new Error('Failed to fetch loads');
-  return response.json();
+  const data = await response.json();
+  console.log('[Settlement] Fetched eligible loads:', data.data?.length || 0);
+  return data;
 }
 
 async function generateSettlement(data: {
@@ -82,10 +86,12 @@ export default function GenerateSettlementForm() {
     queryFn: fetchDrivers,
   });
 
+  // Fetch ALL settlement-eligible loads (not filtered by driver)
+  // This allows us to debug and see what's available
   const { data: loadsData, isLoading: loadsLoading } = useQuery({
-    queryKey: ['driver-loads', selectedDriverId],
-    queryFn: () => fetchDriverLoads(selectedDriverId),
-    enabled: !!selectedDriverId,
+    queryKey: ['settlement-eligible-loads'],
+    queryFn: fetchAllSettlementEligibleLoads,
+    staleTime: 30000, // Cache for 30 seconds
   });
 
   const generateMutation = useMutation({
@@ -107,12 +113,29 @@ export default function GenerateSettlementForm() {
   });
 
   const drivers = driversData?.data || [];
-  const loads = loadsData?.data || [];
-  const availableLoads = loads.filter((load: any) => {
-    // Filter out loads that are already in a settlement
-    // Note: This would require checking if load is already settled
-    return true; // For now, show all delivered loads
+  const allLoads = loadsData?.data || [];
+
+  // Filter loads by selected driver (client-side filtering)
+  const availableLoads = allLoads.filter((load: any) => {
+    // Must match selected driver
+    if (!selectedDriverId) return false;
+    if (load.driverId !== selectedDriverId) return false;
+    // TODO: Filter out loads already in a settlement
+    return true;
   });
+
+  // Debug: Log when driver is selected
+  useEffect(() => {
+    if (selectedDriverId && allLoads.length > 0) {
+      const matchingLoads = allLoads.filter((l: any) => l.driverId === selectedDriverId);
+      console.log(`[Settlement] Driver ${selectedDriverId} selected. All loads: ${allLoads.length}, Matching loads: ${matchingLoads.length}`);
+      if (matchingLoads.length === 0) {
+        console.log('[Settlement] No matching loads. Available driver IDs in loads:',
+          [...new Set(allLoads.map((l: any) => l.driverId))].filter(Boolean)
+        );
+      }
+    }
+  }, [selectedDriverId, allLoads]);
 
   const handleToggleLoad = (loadId: string) => {
     const newSelected = new Set(selectedLoads);
@@ -161,20 +184,20 @@ export default function GenerateSettlementForm() {
   // Calculate driver pay for a load based on driver's pay settings
   const calculateLoadDriverPay = (load: any): number => {
     if (!selectedDriver) return load.driverPay || 0;
-    
+
     // If load already has driver pay stored, use it
     if (load.driverPay && load.driverPay > 0) {
       return load.driverPay;
     }
-    
+
     // Calculate based on driver's pay type
     if (!selectedDriver.payType || !selectedDriver.payRate) {
       return 0;
     }
-    
+
     const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
     const revenue = load.revenue || 0;
-    
+
     switch (selectedDriver.payType) {
       case 'PER_MILE':
         return miles * selectedDriver.payRate;
@@ -261,10 +284,10 @@ export default function GenerateSettlementForm() {
                           ? selectedDriver.payType === 'PER_MILE'
                             ? `${formatCurrency(selectedDriver.payRate)}/mile`
                             : selectedDriver.payType === 'PERCENTAGE'
-                            ? `${selectedDriver.payRate}%`
-                            : selectedDriver.payType === 'PER_LOAD'
-                            ? `${formatCurrency(selectedDriver.payRate)}/load`
-                            : `${formatCurrency(selectedDriver.payRate)}/hour`
+                              ? `${selectedDriver.payRate}%`
+                              : selectedDriver.payType === 'PER_LOAD'
+                                ? `${formatCurrency(selectedDriver.payRate)}/load`
+                                : `${formatCurrency(selectedDriver.payRate)}/hour`
                           : <span className="text-destructive">Not set</span>}
                       </p>
                     </div>
@@ -275,7 +298,7 @@ export default function GenerateSettlementForm() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Pay Configuration Required</AlertTitle>
                     <AlertDescription>
-                      This driver does not have pay type and rate configured. Settlement calculations will be $0. 
+                      This driver does not have pay type and rate configured. Settlement calculations will be $0.
                       Please configure the driver's pay settings first.
                     </AlertDescription>
                   </Alert>

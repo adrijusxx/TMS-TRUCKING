@@ -157,11 +157,14 @@ export class LoadCompletionManager {
       }
 
       // 7. Mark load as ready for settlement if driver assigned
-      if (load.driverId && syncedToAccounting) {
+      // NOTE: Set readyForSettlement even if accounting sync has issues - driver should be paid
+      if (load.driverId) {
         await prisma.load.update({
           where: { id: loadId },
           data: {
             readyForSettlement: true,
+            // Also set deliveredAt if not already set
+            deliveredAt: load.deliveredAt || new Date(),
           },
         });
       }

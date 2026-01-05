@@ -8,6 +8,7 @@ import { hasPermission } from '@/lib/permissions';
 import { LoadStatus } from '@prisma/client';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 import { emitLoadStatusChanged, emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
+import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
 
 export async function GET(
   request: NextRequest,
@@ -422,7 +423,7 @@ export async function PATCH(
     const oldDispatchStatus = existingLoad.dispatchStatus;
 
     // Determine the driver ID we'll be working with
-    const effectiveDriverId = validated.driverId !== undefined 
+    const effectiveDriverId = validated.driverId !== undefined
       ? (validated.driverId || null)  // Use the new value if provided
       : existingLoad.driverId;  // Otherwise keep existing
 
@@ -433,7 +434,7 @@ export async function PATCH(
     // 4. driverPay is explicitly set to null (triggering auto-recalculation)
     const currentDriverPay = validated.driverPay ?? existingLoad.driverPay ?? 0;
     const driverPayExplicitlyProvided = validated.driverPay !== undefined && validated.driverPay !== null && validated.driverPay > 0;
-    
+
     const shouldRecalculatePay = effectiveDriverId && !driverPayExplicitlyProvided && (
       // New driver assigned or driver changed
       wasDriverAssigned || wasDriverChanged ||
@@ -546,6 +547,19 @@ export async function PATCH(
       // Emit real-time event
       emitLoadStatusChanged(load.id, validated.status, load);
       emitDispatchUpdated({ type: 'load_status_changed', loadId: load.id, status: validated.status });
+
+      // CRITICAL: Trigger load completion workflow when status changes to DELIVERED
+      // This sets readyForSettlement=true and syncs to accounting
+      if (validated.status === 'DELIVERED') {
+        try {
+          const completionManager = new LoadCompletionManager();
+          const completionResult = await completionManager.handleLoadCompletion(load.id);
+          console.log(`[Load Update] Completion workflow triggered for load ${load.loadNumber}:`, completionResult);
+        } catch (completionError: any) {
+          // Log but don't fail the request - load is already updated
+          console.error(`[Load Update] Completion workflow failed for load ${load.loadNumber}:`, completionError.message);
+        }
+      }
     }
 
     return NextResponse.json({
