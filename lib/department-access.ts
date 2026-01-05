@@ -9,7 +9,10 @@ const departmentRoutes: Record<string, Permission> = {
   '/dashboard/invoices': 'departments.accounting.view',
   '/dashboard/batches': 'departments.accounting.view',
   '/dashboard/settlements': 'departments.accounting.view',
-  '/dashboard/fleet': 'departments.fleet.view',
+  // Removed blanket fleet restriction to allow sub-feature access (e.g. breakdowns)
+  // Specific fleet sub-routes still protected:
+  '/dashboard/fleet/reports': 'departments.fleet.view',
+  '/dashboard/fleet/settings': 'departments.fleet.view',
   '/dashboard/trucks': 'departments.fleet.view',
   '/dashboard/trailers': 'departments.fleet.view',
   '/dashboard/maintenance': 'departments.fleet.view',
