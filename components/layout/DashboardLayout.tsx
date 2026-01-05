@@ -9,6 +9,7 @@ import {
   Package,
   Users,
   Truck,
+  Container,
   Calendar,
   Building2,
   BarChart3,
@@ -85,6 +86,10 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: undefined },
   { name: 'Load Management', href: '/dashboard/loads', icon: Package, permission: 'loads.view' },
   { name: 'Fleet Department', href: '/dashboard/fleet', icon: Truck, permission: 'departments.fleet.view' },
+  // Fleet sub-items (visible if user has permission but NOT fleet department view)
+  { name: 'Trucks', href: '/dashboard/trucks', icon: Truck, permission: 'trucks.view' },
+  { name: 'Trailers', href: '/dashboard/trailers', icon: Container, permission: 'trailers.view' },
+  { name: 'Breakdowns', href: '/dashboard/fleet?tab=breakdowns', icon: AlertTriangle, permission: 'breakdowns.view' },
   { name: 'Accounting Department', href: '/dashboard/accounting', icon: DollarSign, permission: 'departments.accounting.view' },
   { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
   { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },
@@ -294,6 +299,13 @@ export default function DashboardLayout({
   const visibleNavigation = mainNavigation.filter((item) => {
     // Dashboard is always visible
     if (!item.permission) return true;
+
+    // Special handling for Fleet sub-items
+    // If user has access to full Fleet Department, hide individual Truck/Trailer links to avoid clutter
+    if (['Trucks', 'Trailers', 'Breakdowns'].includes(item.name)) {
+      const hasFleetDeptAccess = can('departments.fleet.view');
+      if (hasFleetDeptAccess) return false;
+    }
 
     // Check both the permission and department access
     const hasPermission = can(item.permission);

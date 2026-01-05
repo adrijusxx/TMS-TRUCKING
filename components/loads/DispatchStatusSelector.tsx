@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { LoadDispatchStatus } from '@prisma/client';
 import { toast } from 'sonner';
-import { apiUrl } from '@/lib/utils';
+import { apiUrl, cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
   CheckCircle,
@@ -48,67 +48,67 @@ const dispatchStatusOptions: Array<{
   icon: typeof CheckCircle;
   color: string;
 }> = [
-  {
-    value: 'BOOKED',
-    label: 'Booked',
-    icon: Package,
-    color: 'bg-blue-100 text-blue-800 border-blue-200',
-  },
-  {
-    value: 'PENDING_DISPATCH',
-    label: 'Pending Dispatch',
-    icon: Clock,
-    color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  },
-  {
-    value: 'DISPATCHED',
-    label: 'Dispatched',
-    icon: Truck,
-    color: 'bg-purple-100 text-purple-800 border-purple-200',
-  },
-  {
-    value: 'ON_ROUTE_TO_PICKUP',
-    label: 'On Route to Pickup',
-    icon: MapPin,
-    color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  },
-  {
-    value: 'AT_PICKUP',
-    label: 'At Pickup',
-    icon: MapPin,
-    color: 'bg-orange-100 text-orange-800 border-orange-200',
-  },
-  {
-    value: 'LOADED',
-    label: 'Loaded',
-    icon: CheckCircle,
-    color: 'bg-green-100 text-green-800 border-green-200',
-  },
-  {
-    value: 'ON_ROUTE_TO_DELIVERY',
-    label: 'On Route to Delivery',
-    icon: MapPin,
-    color: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-  },
-  {
-    value: 'AT_DELIVERY',
-    label: 'At Delivery',
-    icon: MapPin,
-    color: 'bg-pink-100 text-pink-800 border-pink-200',
-  },
-  {
-    value: 'DELIVERED',
-    label: 'Delivered',
-    icon: CheckCircle,
-    color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  },
-  {
-    value: 'CANCELLED',
-    label: 'Cancelled',
-    icon: XCircle,
-    color: 'bg-red-100 text-red-800 border-red-200',
-  },
-];
+    {
+      value: 'BOOKED',
+      label: 'Booked',
+      icon: Package,
+      color: 'bg-blue-100 text-blue-800 border-blue-200',
+    },
+    {
+      value: 'PENDING_DISPATCH',
+      label: 'Pending Dispatch',
+      icon: Clock,
+      color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    },
+    {
+      value: 'DISPATCHED',
+      label: 'Dispatched',
+      icon: Truck,
+      color: 'bg-purple-100 text-purple-800 border-purple-200',
+    },
+    {
+      value: 'ON_ROUTE_TO_PICKUP',
+      label: 'On Route to Pickup',
+      icon: MapPin,
+      color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    },
+    {
+      value: 'AT_PICKUP',
+      label: 'At Pickup',
+      icon: MapPin,
+      color: 'bg-orange-100 text-orange-800 border-orange-200',
+    },
+    {
+      value: 'LOADED',
+      label: 'Loaded',
+      icon: CheckCircle,
+      color: 'bg-green-100 text-green-800 border-green-200',
+    },
+    {
+      value: 'ON_ROUTE_TO_DELIVERY',
+      label: 'On Route to Delivery',
+      icon: MapPin,
+      color: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    },
+    {
+      value: 'AT_DELIVERY',
+      label: 'At Delivery',
+      icon: MapPin,
+      color: 'bg-pink-100 text-pink-800 border-pink-200',
+    },
+    {
+      value: 'DELIVERED',
+      label: 'Delivered',
+      icon: CheckCircle,
+      color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    },
+    {
+      value: 'CANCELLED',
+      label: 'Cancelled',
+      icon: XCircle,
+      color: 'bg-red-100 text-red-800 border-red-200',
+    },
+  ];
 
 function formatDispatchStatus(status: LoadDispatchStatus | null): string {
   if (!status) return 'Not Set';
@@ -204,9 +204,9 @@ export function DispatchStatusBadge({ status }: { status: LoadDispatchStatus | n
   const Icon = option.icon;
 
   return (
-    <Badge variant="outline" className={option.color}>
-      <Icon className="h-3 w-3 mr-1" />
-      {option.label}
+    <Badge variant="outline" className={cn("whitespace-nowrap flex items-center gap-1", option.color)}>
+      <Icon className="h-3 w-3" />
+      <span>{option.label}</span>
     </Badge>
   );
 }

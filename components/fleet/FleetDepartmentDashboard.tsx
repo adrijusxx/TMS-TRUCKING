@@ -18,8 +18,10 @@ import PreventiveMaintenance from './PreventiveMaintenance';
 import MaintenanceList from '@/components/maintenance/MaintenanceList';
 import TelegramFullWidget from '@/components/telegram/TelegramFullWidget';
 import { Search, Wrench } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export default function FleetDepartmentDashboard() {
+  const { can } = usePermissions();
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = searchParams.get('tab') || 'overview';
@@ -67,14 +69,18 @@ export default function FleetDepartmentDashboard() {
             <LayoutDashboard className="h-4 w-4" />
             <span className="hidden sm:inline">Overview</span>
           </TabsTrigger>
-          <TabsTrigger value="maintenance" className="flex items-center gap-2">
-            <Wrench className="h-4 w-4" />
-            <span className="hidden sm:inline">Maintenance</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Analytics</span>
-          </TabsTrigger>
+          {can('maintenance.view') && (
+            <TabsTrigger value="maintenance" className="flex items-center gap-2">
+              <Wrench className="h-4 w-4" />
+              <span className="hidden sm:inline">Maintenance</span>
+            </TabsTrigger>
+          )}
+          {can('analytics.view') && (
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             <span className="hidden sm:inline">Team</span>
@@ -98,30 +104,34 @@ export default function FleetDepartmentDashboard() {
             />
           </div>
 
-          {/* Telegram Messages - Full Width */}
-          <div className="space-y-2">
-            <TelegramFullWidget />
-          </div>
-
-          {/* Communication Hub - Collapsible */}
-          <details className="group" open>
-            <summary className="cursor-pointer list-none">
-              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
-                <h3 className="text-lg font-semibold">Communication Hub</h3>
-                <svg
-                  className="w-5 h-5 transition-transform group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </summary>
-            <div className="mt-2">
-              <CommunicationHub />
+          {/* Telegram Messages - Full Width - Only if has permission */}
+          {can('fleet.communications') && (
+            <div className="space-y-2">
+              <TelegramFullWidget />
             </div>
-          </details>
+          )}
+
+          {/* Communication Hub - Collapsible - Only if has permission */}
+          {can('fleet.communications') && (
+            <details className="group" open>
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
+                  <h3 className="text-lg font-semibold">Communication Hub</h3>
+                  <svg
+                    className="w-5 h-5 transition-transform group-open:rotate-180"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </summary>
+              <div className="mt-2">
+                <CommunicationHub />
+              </div>
+            </details>
+          )}
         </TabsContent>
 
         {/* Tab 5: Maintenance */}

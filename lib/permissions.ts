@@ -359,17 +359,16 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'invoices.view', 'invoices.generate',
     'settlements.view',
     'documents.view', 'documents.upload', 'documents.delete', // Allow deletion for BOL/POD/rate confirmations
-    'analytics.view', 'reports.view',
     'settings.view',
-    // Basic fleet operations
+    // Basic fleet operations (Specific access instead of full department)
     'breakdowns.view', 'breakdowns.create',
     'calendar.view', 'calendar.edit',
     'loadboard.view', 'loadboard.post',
     // Data Management
     'data.column_visibility',
-    // Department Access
-    'departments.fleet.view',
-    'departments.reports.view',
+    // Department Access - RESTRICTED
+    // 'departments.fleet.view', // REMOVED: No full fleet dashboard
+    // 'departments.reports.view', // REMOVED: No reports access
     'departments.settings.view', // Allow access to settings (profile)
   ],
   ACCOUNTANT: [
