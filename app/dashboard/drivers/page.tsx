@@ -14,7 +14,7 @@ export default async function DriversPage() {
   // Check HR permissions
   const user = session.user as any;
   const canViewHR = session.user.role === 'ADMIN' || session.user.role === 'ACCOUNTANT' ||
-    (user.permissions && user.permissions.includes('hr.view'));
+    (Array.isArray(user.permissions) && user.permissions.includes('hr.view'));
 
   const drivers = await prisma.driver.findMany({
     where: {
