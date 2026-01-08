@@ -81,7 +81,7 @@ export function createDriverColumns(
       defaultVisible: true,
       enableSorting: true,
       // Create a custom accessor for sorting by name
-      accessorKey: (row: DriverData) => `${row.user.firstName} ${row.user.lastName}`,
+      accessorFn: (row: DriverData) => `${row.user.firstName} ${row.user.lastName}`,
     },
     {
       id: 'phone',

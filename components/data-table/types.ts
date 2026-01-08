@@ -21,7 +21,7 @@ export interface ExtendedColumnDef<TData extends TableData> extends Omit<ColumnD
   /**
    * Accessor key for the column (from ColumnDef)
    */
-  accessorKey?: string | ((row: TData) => any);
+  accessorKey?: string;
   /**
    * Whether column can be toggled (default: true)
    */
