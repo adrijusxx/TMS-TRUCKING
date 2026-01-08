@@ -19,7 +19,7 @@ export const createDriverSchema = z.object({
   homeTerminal: z.string().optional(),
   emergencyContact: z.string().optional(),
   emergencyPhone: z.string().optional(),
-  mcNumberId: z.string().min(1, 'MC number is required'),
+  mcNumberId: z.string().optional(),
 });
 
 export const updateDriverSchema = createDriverSchema.partial().extend({
@@ -79,7 +79,7 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
   emergencyContactPhone: z.string().optional(),
   emergencyContactEmail: z.string().optional(),
   // Pay
-  driverTariff: z.string().optional(),
+
   payTo: z.string().optional(),
   // Escrow/Holdings
   escrowTargetAmount: z.number().min(0).optional(),
@@ -90,8 +90,11 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
   recurringTransactions: z.array(z.object({
     id: z.string(),
     type: z.string(),
+    category: z.enum(['addition', 'deduction']).optional(),
     amount: z.number(),
     frequency: z.string(),
+    stopLimit: z.number().optional(),
+    currentBalance: z.number().optional(),
     note: z.string().optional(),
   })).optional(),
 });

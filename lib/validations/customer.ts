@@ -18,6 +18,7 @@ export const createCustomerSchema = z.object({
   billingEmail: z.string().email().optional().or(z.literal('')),
   paymentTerms: z.number().int().positive().default(30),
   creditLimit: z.number().nonnegative().optional(),
+  mcNumber: z.string().optional(),
 });
 
 // Simplified schema for quick customer creation (from load form)

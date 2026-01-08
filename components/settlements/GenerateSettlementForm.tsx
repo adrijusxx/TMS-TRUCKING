@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,21 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
-import { ArrowLeft, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Check, ChevronsUpDown, ArrowLeft, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -36,15 +50,21 @@ async function fetchDrivers() {
   return response.json();
 }
 
-async function fetchAllSettlementEligibleLoads() {
-  // Query for all settlement-eligible statuses: DELIVERED, INVOICED, PAID
-  // Don't filter by driver - we'll do that locally for better debugging
+async function fetchDriverSettlementEligibleLoads(driverId: string) {
+  if (!driverId) return { data: [] };
+
+  // Query specific logic:
+  // 1. Filter by specific driver
+  // 2. Statuses: DELIVERED, INVOICED, PAID
+  // 3. REMOVED: readyForSettlement=true constraint. We want to show ALL delivered loads
+  //    and let the user decide. We will warn if not ready.
+  // 4. limit: 500
   const response = await fetch(
-    apiUrl(`/api/loads?status=DELIVERED&status=INVOICED&status=PAID&limit=200`)
+    apiUrl(`/api/loads?driverId=${driverId}&status=DELIVERED&status=INVOICED&status=PAID&limit=500`)
   );
   if (!response.ok) throw new Error('Failed to fetch loads');
   const data = await response.json();
-  console.log('[Settlement] Fetched eligible loads:', data.data?.length || 0);
+  console.log(`[Settlement] Fetched eligible loads for driver ${driverId}:`, data.data?.length || 0);
   return data;
 }
 
@@ -73,8 +93,10 @@ async function generateSettlement(data: {
 
 export default function GenerateSettlementForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const [selectedDriverId, setSelectedDriverId] = useState<string>('');
+  const [openDriverSelect, setOpenDriverSelect] = useState(false);
+  const [selectedDriverId, setSelectedDriverId] = useState<string>(searchParams.get('driverId') || '');
   const [selectedLoads, setSelectedLoads] = useState<Set<string>>(new Set());
   const [settlementNumber, setSettlementNumber] = useState('');
   const [deductions, setDeductions] = useState('0');
@@ -86,22 +108,27 @@ export default function GenerateSettlementForm() {
     queryFn: fetchDrivers,
   });
 
-  // Fetch ALL settlement-eligible loads (not filtered by driver)
-  // This allows us to debug and see what's available
+  // Fetch loads filtered by driver (Server-Side Filtering)
   const { data: loadsData, isLoading: loadsLoading } = useQuery({
-    queryKey: ['settlement-eligible-loads'],
-    queryFn: fetchAllSettlementEligibleLoads,
-    staleTime: 30000, // Cache for 30 seconds
+    queryKey: ['settlement-eligible-loads', selectedDriverId],
+    queryFn: () => fetchDriverSettlementEligibleLoads(selectedDriverId),
+    enabled: !!selectedDriverId, // Only fetch when driver is selected
+    staleTime: 30000,
   });
+
 
   const generateMutation = useMutation({
     mutationFn: generateSettlement,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] });
       queryClient.invalidateQueries({ queryKey: ['loads'] });
+      // Invalidate the specific driver load query
+      queryClient.invalidateQueries({ queryKey: ['settlement-eligible-loads', selectedDriverId] });
+
       toast.success('Settlement generated successfully');
       if (data.data?.id) {
-        router.push(`/dashboard/settlements/${data.data.id}`);
+        // Redirect to settlement list with sheet open
+        router.push(`/dashboard/settlements?settlementId=${data.data.id}`);
       }
     },
     onError: (error: any) => {
@@ -113,29 +140,15 @@ export default function GenerateSettlementForm() {
   });
 
   const drivers = driversData?.data || [];
-  const allLoads = loadsData?.data || [];
+  const availableLoads = loadsData?.data || [];
 
-  // Filter loads by selected driver (client-side filtering)
-  const availableLoads = allLoads.filter((load: any) => {
-    // Must match selected driver
-    if (!selectedDriverId) return false;
-    if (load.driverId !== selectedDriverId) return false;
-    // TODO: Filter out loads already in a settlement
-    return true;
-  });
-
-  // Debug: Log when driver is selected
+  // Logic for debugging is now simplified as we trust server filtering
   useEffect(() => {
-    if (selectedDriverId && allLoads.length > 0) {
-      const matchingLoads = allLoads.filter((l: any) => l.driverId === selectedDriverId);
-      console.log(`[Settlement] Driver ${selectedDriverId} selected. All loads: ${allLoads.length}, Matching loads: ${matchingLoads.length}`);
-      if (matchingLoads.length === 0) {
-        console.log('[Settlement] No matching loads. Available driver IDs in loads:',
-          [...new Set(allLoads.map((l: any) => l.driverId))].filter(Boolean)
-        );
-      }
+    if (selectedDriverId) {
+      // Create a fresh set when changing drivers
+      setSelectedLoads(new Set());
     }
-  }, [selectedDriverId, allLoads]);
+  }, [selectedDriverId]);
 
   const handleToggleLoad = (loadId: string) => {
     const newSelected = new Set(selectedLoads);
@@ -186,7 +199,15 @@ export default function GenerateSettlementForm() {
     if (!selectedDriver) return load.driverPay || 0;
 
     // If load already has driver pay stored, use it
-    if (load.driverPay && load.driverPay > 0) {
+    let shouldUseStored = load.driverPay && load.driverPay > 0;
+
+    // Heuristic: If stored pay equals revenue exactly, and driver is PER_MILE or HOURLY, 
+    // it's likely an import default, so we should recalculate.
+    if (shouldUseStored && load.driverPay === load.revenue && ['PER_MILE', 'HOURLY'].includes(selectedDriver.payType || '')) {
+      shouldUseStored = false;
+    }
+
+    if (shouldUseStored) {
       return load.driverPay;
     }
 
@@ -244,29 +265,56 @@ export default function GenerateSettlementForm() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="driver">Driver *</Label>
-              <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-                <SelectTrigger id="driver">
-                  <SelectValue placeholder="Select a driver" />
-                </SelectTrigger>
-                <SelectContent>
-                  {driversLoading ? (
-                    <SelectItem value="loading" disabled>
-                      Loading drivers...
-                    </SelectItem>
-                  ) : drivers.length === 0 ? (
-                    <SelectItem value="none" disabled>
-                      No drivers found
-                    </SelectItem>
-                  ) : (
-                    drivers.map((driver: any) => (
-                      <SelectItem key={driver.id} value={driver.id}>
-                        {driver.user?.firstName} {driver.user?.lastName} ({driver.driverNumber})
-                        {driver.payType && ` - ${driver.payType === 'PER_MILE' ? `${formatCurrency(driver.payRate)}/mile` : driver.payType === 'PERCENTAGE' ? `${driver.payRate}%` : driver.payType === 'PER_LOAD' ? `${formatCurrency(driver.payRate)}/load` : `${formatCurrency(driver.payRate)}/hour`}`}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Popover open={openDriverSelect} onOpenChange={setOpenDriverSelect}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openDriverSelect}
+                    className="w-full justify-between"
+                  >
+                    {selectedDriverId
+                      ? (() => {
+                        const d = drivers.find((driver: any) => driver.id === selectedDriverId);
+                        if (!d) return "Select a driver";
+                        return `${d.user?.firstName} ${d.user?.lastName}${d.payType ? ` - ${d.payType === 'PER_MILE' ? `${formatCurrency(d.payRate)}/mile` : d.payType === 'PERCENTAGE' ? `${d.payRate}%` : d.payType === 'PER_LOAD' ? `${formatCurrency(d.payRate)}/load` : `${formatCurrency(d.payRate)}/hour`}` : ''}`;
+                      })()
+                      : "Select a driver"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search driver..." />
+                    <CommandList>
+                      <CommandEmpty>No driver found.</CommandEmpty>
+                      <CommandGroup>
+                        {drivers.map((driver: any) => (
+                          <CommandItem
+                            key={driver.id}
+                            value={`${driver.user?.firstName} ${driver.user?.lastName}`}
+                            onSelect={() => {
+                              setSelectedDriverId(driver.id);
+                              setOpenDriverSelect(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedDriverId === driver.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {driver.user?.firstName} {driver.user?.lastName}
+                            <span className="ml-2 text-muted-foreground text-xs">
+                              {driver.payType && ` - ${driver.payType === 'PER_MILE' ? `${formatCurrency(driver.payRate)}/mile` : driver.payType === 'PERCENTAGE' ? `${driver.payRate}%` : driver.payType === 'PER_LOAD' ? `${formatCurrency(driver.payRate)}/load` : `${formatCurrency(driver.payRate)}/hour`}`}
+                            </span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             {selectedDriver && (
               <>
@@ -342,8 +390,17 @@ export default function GenerateSettlementForm() {
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>No Loads Available</AlertTitle>
                   <AlertDescription>
-                    No delivered loads found for this driver. Loads must be marked as DELIVERED to
-                    be included in a settlement.
+                    <div className="space-y-2">
+                      <p>No delivered loads found for this driver in the selected period.</p>
+                      <div className="bg-muted/50 p-2 rounded text-xs">
+                        <p className="font-semibold mb-1">Troubleshooting Checklist:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Is the load status <strong>DELIVERED</strong>, <strong>INVOICED</strong>, or <strong>PAID</strong>?</li>
+                          <li>Is the correct <strong>Driver</strong> assigned to the load?</li>
+                          <li>Has the <strong>POD</strong> been uploaded? (Required for "Ready for Settlement" flag)</li>
+                        </ul>
+                      </div>
+                    </div>
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -367,7 +424,7 @@ export default function GenerateSettlementForm() {
                     </TableHeader>
                     <TableBody>
                       {availableLoads.map((load: any) => (
-                        <TableRow key={load.id}>
+                        <TableRow key={load.id} className={!load.readyForSettlement ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}>
                           <TableCell>
                             <Checkbox
                               checked={selectedLoads.has(load.id)}
@@ -375,12 +432,19 @@ export default function GenerateSettlementForm() {
                             />
                           </TableCell>
                           <TableCell className="font-medium">
-                            <Link
-                              href={`/dashboard/loads/${load.id}`}
-                              className="text-primary hover:underline"
-                            >
-                              {load.loadNumber}
-                            </Link>
+                            <div className="flex flex-col">
+                              <Link
+                                href={`/dashboard/loads/${load.id}`}
+                                className="text-primary hover:underline"
+                              >
+                                {load.loadNumber}
+                              </Link>
+                              {!load.readyForSettlement && (
+                                <span className="text-[10px] text-yellow-600 dark:text-yellow-500 font-semibold flex items-center gap-1">
+                                  <AlertCircle className="h-3 w-3" /> Not Ready
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             {load.pickupCity}, {load.pickupState} → {load.deliveryCity},{' '}
@@ -393,16 +457,24 @@ export default function GenerateSettlementForm() {
                             {formatCurrency(load.revenue || 0)}
                           </TableCell>
                           <TableCell className="text-right">
-                            {load.driverPay && load.driverPay > 0 ? (
-                              formatCurrency(load.driverPay)
-                            ) : selectedDriver?.payType ? (
-                              <span className="text-muted-foreground">
-                                {formatCurrency(calculateLoadDriverPay(load))}
-                                <span className="text-xs ml-1">(est)</span>
-                              </span>
-                            ) : (
-                              <span className="text-destructive">$0.00</span>
-                            )}
+                            {(() => {
+                              const pay = calculateLoadDriverPay(load);
+                              // Show (est) if we are calculating it and expecting a stored value,
+                              // OR if we ignored the stored value (which means we are estimating/recalc).
+                              // Actually, just showing the value is fine, but keeping (est) if no stored value existed is good.
+                              // If we ignored stored value, we are treating it as 'calculated', so (est) is appropriate.
+                              const isStoredIgnored = load.driverPay === load.revenue && ['PER_MILE', 'HOURLY'].includes(selectedDriver?.payType || '');
+                              const isEstimate = (!load.driverPay || load.driverPay <= 0) || isStoredIgnored;
+
+                              return pay > 0 ? (
+                                <span>
+                                  {formatCurrency(pay)}
+                                  {isEstimate && selectedDriver?.payType && <span className="text-xs ml-1 text-muted-foreground">(est)</span>}
+                                </span>
+                              ) : (
+                                <span className="text-destructive">$0.00</span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-right">
                             {load.totalMiles || load.loadedMiles || load.emptyMiles || 0} mi
@@ -518,6 +590,3 @@ export default function GenerateSettlementForm() {
     </div>
   );
 }
-
-
-

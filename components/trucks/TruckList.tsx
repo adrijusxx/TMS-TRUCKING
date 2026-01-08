@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
 import { trucksTableConfig } from '@/lib/config/entities/trucks';
 import TruckInlineEdit from './TruckInlineEdit';
+import TruckSheet from './TruckSheet';
 import { apiUrl } from '@/lib/utils';
 import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
@@ -46,6 +47,17 @@ export default function TruckList() {
   const { can } = usePermissions();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const queryClient = useQueryClient();
+
+  // Sheet State
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+  const [selectedTruckId, setSelectedTruckId] = React.useState<string | null>(null);
+
+  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
+    setSheetMode(mode);
+    if (id) setSelectedTruckId(id);
+    setSheetOpen(true);
+  };
 
   const fetchTrucks = async (params: {
     page?: number;
@@ -101,11 +113,13 @@ export default function TruckList() {
 
   const rowActions = (row: TruckData) => (
     <div className="flex items-center gap-2">
-      <Link href={`/dashboard/trucks/${row.id}`}>
-        <Button variant="ghost" size="sm">
-          View
-        </Button>
-      </Link>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => openSheet(can('trucks.edit') ? 'edit' : 'view', row.id)}
+      >
+        {can('trucks.edit') ? 'Edit' : 'View'}
+      </Button>
     </div>
   );
 
@@ -136,12 +150,10 @@ export default function TruckList() {
             </ExportDialog>
           )}
           {can('trucks.create') && (
-            <Link href="/dashboard/trucks/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                New Truck
-              </Button>
-            </Link>
+            <Button size="sm" onClick={() => openSheet('create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Truck
+            </Button>
           )}
         </div>
       </div>
@@ -151,6 +163,7 @@ export default function TruckList() {
         config={trucksTableConfig}
         fetchData={fetchTrucks}
         rowActions={rowActions}
+        onRowClick={(row) => openSheet(can('trucks.edit') ? 'edit' : 'view', row.id)}
         inlineEditComponent={can('trucks.edit') ? TruckInlineEdit : undefined}
         emptyMessage="No trucks found. Get started by adding your first truck."
         enableColumnVisibility={can('data.column_visibility')}
@@ -185,6 +198,17 @@ export default function TruckList() {
           }}
         />
       )}
+
+      {/* Truck Sheet */}
+      <TruckSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        mode={sheetMode}
+        truckId={selectedTruckId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['trucks'] });
+        }}
+      />
     </div>
   );
 }

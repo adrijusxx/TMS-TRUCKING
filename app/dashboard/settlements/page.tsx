@@ -5,11 +5,12 @@ import SettlementWorkflowInfo from '@/components/settlements/SettlementWorkflowI
 import { SubscriptionGate } from '@/components/saas/SubscriptionGate';
 
 interface SettlementsPageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default function SettlementsPage({ searchParams }: SettlementsPageProps) {
-  const showWorkflow = searchParams.view === 'workflow' || searchParams.guide === 'true';
+export default async function SettlementsPage({ searchParams }: SettlementsPageProps) {
+  const params = await searchParams;
+  const showWorkflow = params.view === 'workflow' || params.guide === 'true';
 
   return (
     <SubscriptionGate module="ACCOUNTING">

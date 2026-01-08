@@ -2,6 +2,7 @@
 
 import { UseFormRegister, UseFormSetValue, UseFormWatch, FieldErrors } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -162,6 +163,30 @@ export function PayStructureSection({
               {payType === 'HOURLY' && 'e.g., 25 = $25 per hour'}
               {payType === 'WEEKLY' && 'e.g., 1500 = $1,500 per week'}
             </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="payTo">Pay To Company</Label>
+            <Input
+              id="payTo"
+              {...register('payTo')}
+              placeholder="e.g. LLC Name"
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Financial Notes</Label>
+            <Textarea
+              id="notes"
+              {...register('notes')}
+              placeholder="Private notes about compensation..."
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
+              className="min-h-[80px]"
+            />
           </div>
         </div>
 

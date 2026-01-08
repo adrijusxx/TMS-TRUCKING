@@ -18,7 +18,7 @@ export const createTruckSchema = z.object({
   eldInstalled: z.boolean().default(false),
   eldProvider: z.string().optional(),
   gpsInstalled: z.boolean().default(false),
-  mcNumberId: z.string().min(1, 'MC number is required'),
+  mcNumberId: z.string().optional(),
 });
 
 export const updateTruckSchema = createTruckSchema.partial().extend({

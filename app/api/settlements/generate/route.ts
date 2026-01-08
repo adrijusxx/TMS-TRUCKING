@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         driverType: true,
         payType: true,
         payRate: true,
-        driverTariff: true,
+
         escrowBalance: true,
         escrowTargetAmount: true,
         escrowDeductionPerWeek: true,
@@ -139,10 +139,19 @@ export async function POST(request: NextRequest) {
     for (const load of loads) {
       let loadDriverPay = 0;
       let paySource = 'calculated';
-      
+
       // Check if load has stored driverPay
-      if (load.driverPay && load.driverPay > 0) {
-        loadDriverPay = load.driverPay;
+      let shouldUseStored = load.driverPay && load.driverPay > 0;
+
+      // Heuristic: If stored pay equals revenue exactly, and driver is PER_MILE or HOURLY, 
+      // it's likely an import default, so we should recalculate.
+      if (shouldUseStored && load.driverPay === load.revenue && ['PER_MILE', 'HOURLY'].includes(driver.payType || '')) {
+        console.log(`[Settlement Generate] Ignoring stored pay ($${load.driverPay}) because it matches revenue and driver is ${driver.payType}`);
+        shouldUseStored = false;
+      }
+
+      if (shouldUseStored) {
+        loadDriverPay = load.driverPay!;
         paySource = 'stored';
       } else if (driver.payType && driver.payRate !== null) {
         // Calculate from current driver pay rate
@@ -161,7 +170,7 @@ export async function POST(request: NextRequest) {
           loadDriverPay = estimatedHours * driver.payRate;
         }
       }
-      
+
       grossPay += loadDriverPay;
       loadBreakdown.push({
         loadNumber: load.loadNumber,
@@ -169,7 +178,7 @@ export async function POST(request: NextRequest) {
         driverPay: loadDriverPay,
         source: paySource,
       });
-      
+
       // Track total miles for all loads
       const loadMiles = load.totalMiles || load.loadedMiles || (load.emptyMiles || 0);
       if (loadMiles > 0) {
@@ -183,7 +192,7 @@ export async function POST(request: NextRequest) {
     let perDiemAmount = 0;
     // Note: perDiem field has been removed from Driver model
     // Use recurring transactions with type REIMBURSEMENT for per diem payments
-    
+
     console.log('[Settlement Generate] Load breakdown:', loadBreakdown);
     console.log('[Settlement Generate] Total gross pay (with per diem):', grossPay);
 
@@ -199,7 +208,7 @@ export async function POST(request: NextRequest) {
     const startOfWeek = new Date(now);
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Start of week (Sunday)
     startOfWeek.setHours(0, 0, 0, 0);
-    
+
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     startOfMonth.setHours(0, 0, 0, 0);
 
@@ -211,6 +220,7 @@ export async function POST(request: NextRequest) {
       },
       select: {
         id: true,
+        settlementNumber: true,
         createdAt: true,
         deductionItems: {
           select: {
@@ -224,13 +234,16 @@ export async function POST(request: NextRequest) {
     // Helper to check if a deduction was already applied this period
     const wasDeductionApplied = (ruleName: string, frequency: string | null): boolean => {
       if (!frequency) return false;
-      
+
       const periodStart = frequency === 'WEEKLY' ? startOfWeek : startOfMonth;
       const settlementsInPeriod = recentSettlements.filter(s => s.createdAt >= periodStart);
-      
+
       for (const settlement of settlementsInPeriod) {
         const found = settlement.deductionItems.some(d => d.description === ruleName);
-        if (found) return true;
+        if (found) {
+          console.log(`[Settlement Generate] Deduction "${ruleName}" found in existing settlement ${settlement.settlementNumber} (${settlement.id}) from ${settlement.createdAt.toISOString()}`);
+          return true;
+        }
       }
       return false;
     };
@@ -252,7 +265,7 @@ export async function POST(request: NextRequest) {
 
       // Calculate deduction amount based on calculation type
       let deductionAmount = 0;
-      
+
       if (rule.calculationType === 'FIXED' && rule.amount) {
         deductionAmount = rule.amount;
       } else if (rule.calculationType === 'PERCENTAGE' && rule.percentage) {
@@ -269,18 +282,26 @@ export async function POST(request: NextRequest) {
       if (deductionAmount > 0) {
         // Check if this is an addition or deduction
         const isAddition = rule.isAddition === true;
-        
+
+        // If it's an addition, we must ensure the type is one of the allowed addition types
+        // otherwise it will be categorized as a deduction in the UI/API.
+        // We default to 'REIMBURSEMENT' for rule-based additions that use deduction types like 'INSURANCE'.
+        let finalType = rule.deductionType;
+        if (isAddition && !['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'].includes(finalType)) {
+          finalType = 'REIMBURSEMENT';
+        }
+
         autoAppliedDeductions.push({
-          deductionType: rule.deductionType,
-          description: rule.name,
-          amount: isAddition ? -deductionAmount : deductionAmount, // Negative amount for additions (will be subtracted from deductions)
+          deductionType: finalType,
+          description: rule.name, // Keep original name e.g. "Insurance"
+          amount: deductionAmount, // Additions should be positive in the DB (TotalAdditions is summed)
           source: 'rule',
           ruleId: rule.id,
         });
-        
+
         if (isAddition) {
           autoAdditionsTotal += deductionAmount;
-          console.log(`[Settlement Generate] Applied addition "${rule.name}": +$${deductionAmount.toFixed(2)}`);
+          console.log(`[Settlement Generate] Applied addition "${rule.name}" as ${finalType}: +$${deductionAmount.toFixed(2)}`);
         } else {
           autoDeductionsTotal += deductionAmount;
           console.log(`[Settlement Generate] Applied deduction "${rule.name}": -$${deductionAmount.toFixed(2)}`);
@@ -293,14 +314,14 @@ export async function POST(request: NextRequest) {
     // ============================================
     let escrowDeduction = 0;
     if (
-      driver.escrowTargetAmount && 
-      driver.escrowDeductionPerWeek && 
+      driver.escrowTargetAmount &&
+      driver.escrowDeductionPerWeek &&
       (driver.escrowBalance || 0) < driver.escrowTargetAmount
     ) {
       // Apply escrow deduction (limited by remaining target)
       const remainingToTarget = driver.escrowTargetAmount - (driver.escrowBalance || 0);
       escrowDeduction = Math.min(driver.escrowDeductionPerWeek, remainingToTarget);
-      
+
       if (escrowDeduction > 0) {
         autoAppliedDeductions.push({
           deductionType: 'ESCROW',
@@ -318,14 +339,14 @@ export async function POST(request: NextRequest) {
     // ============================================
     const totalDeductions = validated.deductions + autoDeductionsTotal;
     const netPay = grossPay + autoAdditionsTotal - totalDeductions - validated.advances;
-    
+
     console.log(`[Settlement Generate] Gross Pay: $${grossPay.toFixed(2)}`);
     console.log(`[Settlement Generate] Auto Additions: +$${autoAdditionsTotal.toFixed(2)}`);
     console.log(`[Settlement Generate] Auto Deductions: -$${autoDeductionsTotal.toFixed(2)}`);
     console.log(`[Settlement Generate] Manual Deductions: -$${validated.deductions.toFixed(2)}`);
     console.log(`[Settlement Generate] Advances: -$${validated.advances.toFixed(2)}`);
     console.log(`[Settlement Generate] Net Pay: $${netPay.toFixed(2)}`);
-    
+
     // Warn if gross pay is 0
     if (grossPay === 0) {
       console.warn('[Settlement Generate] Warning: Gross pay is $0. Driver may be missing payType/payRate or loads have no revenue/miles.');

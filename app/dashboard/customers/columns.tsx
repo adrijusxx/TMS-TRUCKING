@@ -28,11 +28,11 @@ function formatCustomerType(type: CustomerType): string {
 }
 
 export function createCustomerColumns(
-  onUpdate?: () => void
+  onEdit?: (id?: string) => void
 ): ExtendedColumnDef<CustomerData>[] {
   const handleSave = async (rowId: string, columnId: string, value: string | number) => {
     await updateEntityField('customer', rowId, columnId, value);
-    onUpdate?.();
+    onEdit?.();
   };
 
   return [
@@ -48,12 +48,12 @@ export function createCustomerColumns(
       accessorKey: 'customerNumber',
       header: 'Customer #',
       cell: ({ row }) => (
-        <Link
-          href={`/dashboard/customers/${row.original.id}`}
-          className="text-primary hover:underline font-medium"
+        <span
+          className="text-primary hover:underline font-medium cursor-pointer"
+          onClick={() => onEdit?.(row.original.id)}
         >
           {row.original.customerNumber}
-        </Link>
+        </span>
       ),
       defaultVisible: true,
       required: true,

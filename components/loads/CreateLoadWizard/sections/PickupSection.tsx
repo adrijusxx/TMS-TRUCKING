@@ -138,7 +138,7 @@ export default function PickupSection({
           <Input
             id="pickupDate"
             type="datetime-local"
-            value={formatDateTimeLocal(loadData.pickupDate)}
+            value={formatDateTimeLocal(loadData.pickupDate ?? undefined)}
             onChange={(e) => onFieldChange('pickupDate', e.target.value)}
             className={`h-9 ${errors.pickupDate ? 'border-destructive' : ''}`}
           />
@@ -153,7 +153,7 @@ export default function PickupSection({
           <Input
             id="pickupTimeStart"
             type="datetime-local"
-            value={formatDateTimeLocal(loadData.pickupTimeStart)}
+            value={formatDateTimeLocal(loadData.pickupTimeStart ?? undefined)}
             onChange={(e) => onFieldChange('pickupTimeStart', e.target.value || null)}
             className="h-9"
           />
@@ -165,7 +165,7 @@ export default function PickupSection({
           <Input
             id="pickupTimeEnd"
             type="datetime-local"
-            value={formatDateTimeLocal(loadData.pickupTimeEnd)}
+            value={formatDateTimeLocal(loadData.pickupTimeEnd ?? undefined)}
             onChange={(e) => onFieldChange('pickupTimeEnd', e.target.value || null)}
             className="h-9"
           />

@@ -152,7 +152,7 @@ export function DriverSettlementHistory({ driverId }: { driverId: string }) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Link href={`/api/settlements/${settlement.id}/breakdown`}>
+                      <Link href={`/dashboard/settlements?settlementId=${settlement.id}`}>
                         <Button variant="ghost" size="sm">
                           <Eye className="h-4 w-4" />
                         </Button>

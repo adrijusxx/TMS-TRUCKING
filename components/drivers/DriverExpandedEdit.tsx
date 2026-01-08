@@ -69,9 +69,9 @@ async function updateDriver(driverId: string, data: any) {
 
 export default function DriverExpandedEdit({ driverId, onSave, onCancel }: DriverExpandedEditProps) {
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, isAdmin, isAccountant } = usePermissions();
   // Check permissions - assume HR or ADMIN can see financial/payroll
-  const hasFinancialAccess = can('hr.view' as any) || can('hr.manage' as any) || can('financial.view' as any);
+  const hasFinancialAccess = isAdmin || isAccountant || can('hr.view' as any) || can('hr.manage' as any) || can('financial.view' as any);
 
   const [activeTab, setActiveTab] = useState('personal');
   const [formDataRef, setFormDataRef] = useState<any>(null);
@@ -203,29 +203,29 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="w-full justify-start gap-1 bg-muted/50 p-1 h-auto">
+        <TabsList className="w-full flex bg-muted/50 p-1 h-auto">
           <TabsTrigger
             value="personal"
-            className="text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
           >
             Personal
           </TabsTrigger>
           <TabsTrigger
             value="work"
-            className="text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
           >
             Work
           </TabsTrigger>
           <TabsTrigger
             value="compliance"
-            className="text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
           >
             Compliance
           </TabsTrigger>
           {hasFinancialAccess && (
             <TabsTrigger
               value="financial"
-              className="text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
             >
               Financial
             </TabsTrigger>

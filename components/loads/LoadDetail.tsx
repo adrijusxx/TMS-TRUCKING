@@ -193,10 +193,49 @@ export default function LoadDetail({
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => updateLoad(load.id, data),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['load', load.id] });
       queryClient.invalidateQueries({ queryKey: ['loads'] });
-      toast.success('Load updated successfully');
+
+      // Check for completion warnings from API
+      const completionWarnings = data?.meta?.warnings;
+      const completionResult = data?.meta?.completionResult;
+
+      if (completionWarnings && completionWarnings.length > 0) {
+        // Status updated but with issues
+        toast.warning('Load Updated (Action Required)', {
+          description: (
+            <div className="flex flex-col gap-1">
+              <span>Load updated but issues prevented completion workflow:</span>
+              <ul className="list-disc list-inside text-xs mt-1">
+                {completionWarnings.map((w: string, i: number) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          ),
+          duration: 8000,
+        });
+      } else if (completionResult?.success) {
+        toast.success('Load Delivered & Ready', {
+          description: 'Load is validated, synced to accounting, and ready for settlement.',
+          action: {
+            label: 'Create Settlement',
+            onClick: () => {
+              const driverId = data?.data?.driverId || load.driverId;
+              if (driverId) {
+                window.location.href = `/dashboard/settlements/generate?driverId=${driverId}`;
+              } else {
+                window.location.href = '/dashboard/settlements/generate';
+              }
+            }
+          },
+          duration: 8000,
+        });
+      } else {
+        toast.success('Load updated successfully');
+      }
+
       if (onSuccess) {
         onSuccess();
       } else {

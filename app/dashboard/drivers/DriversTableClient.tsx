@@ -16,7 +16,7 @@ import type { BulkEditField } from '@/components/data-table/types';
 import { DriverStatus, EmployeeStatus, AssignmentStatus } from '@prisma/client';
 import { Plus, Upload, Download } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import DriverSheet from '@/components/drivers/DriverSheet';
 
 
@@ -29,12 +29,23 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
 
   // Sheet State
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
   const [selectedDriverId, setSelectedDriverId] = React.useState<string | null>(null);
+
+  // Deep linking support
+  React.useEffect(() => {
+    const driverIdFromUrl = searchParams.get('driverId');
+    if (driverIdFromUrl) {
+      setSelectedDriverId(driverIdFromUrl);
+      setSheetMode(can('drivers.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
 
   const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
     setSheetMode(mode);
@@ -81,8 +92,8 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
   }, []);
 
   const columns = React.useMemo(
-    () => createDriverColumns(handleUpdate),
-    [handleUpdate]
+    () => createDriverColumns((id) => openSheet(can('drivers.edit') ? 'edit' : 'view', id)),
+    [can]
   );
 
   const rowActions = React.useCallback((row: DriverData) => {

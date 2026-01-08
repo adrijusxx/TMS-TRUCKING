@@ -156,7 +156,7 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
       if (selectedDriver.currentTrailer?.trailerNumber && !loadData.trailerNumber) {
         setLoadData((prev) => ({ ...prev, trailerNumber: selectedDriver.currentTrailer!.trailerNumber }));
       }
-      setLastDriverId(loadData.driverId);
+      setLastDriverId(loadData.driverId ?? undefined);
     }
   }, [selectedDriver, loadData.driverId, lastDriverId, loadData.truckId, loadData.trailerNumber]);
 
@@ -335,6 +335,7 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
   };
 
   const onSubmit = async (data: CreateLoadInput) => {
+    console.log('[CreateLoadWizard] onSubmit called with data:', data);
     try {
       const submissionData: CreateLoadInput = { ...loadData, ...data } as CreateLoadInput;
 
@@ -372,8 +373,11 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
           errors[path] = issue.message;
         });
         setValidationErrors(errors);
-        toast.error('Please fix validation errors');
+        console.error('[CreateLoadWizard] Validation errors:', errors);
+        const errorFields = Object.keys(errors).join(', ');
+        toast.error(`Validation failed: Please check ${errorFields}`);
       } else {
+        console.error('[CreateLoadWizard] Submission error:', error);
         toast.error(error instanceof Error ? error.message : 'An error occurred');
       }
     }

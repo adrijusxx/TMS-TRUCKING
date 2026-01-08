@@ -330,16 +330,25 @@ export async function POST(request: NextRequest) {
         );
       }
     } else if (validated.role !== 'CUSTOMER' && !validated.mcNumberId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'MC number is required for this role',
+      // Fallback: Try to determine from context
+      const fallbackMcId = await McStateManager.determineActiveCreationMc(session, request);
+
+      if (!fallbackMcId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'MC number is required for this role',
+            },
           },
-        },
-        { status: 400 }
-      );
+          { status: 400 }
+        );
+      }
+
+      // Update the validated object (handled by updating the variable or using a new one)
+      // Since validated is a const, we'll store the ID in a variable to use later
+      validated.mcNumberId = fallbackMcId;
     }
 
     // Hash password and store plaintext temporarily for admin viewing

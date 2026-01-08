@@ -138,7 +138,7 @@ export default function DeliverySection({
           <Input
             id="deliveryDate"
             type="datetime-local"
-            value={formatDateTimeLocal(loadData.deliveryDate)}
+            value={formatDateTimeLocal(loadData.deliveryDate ?? undefined)}
             onChange={(e) => onFieldChange('deliveryDate', e.target.value)}
             className={`h-9 ${errors.deliveryDate ? 'border-destructive' : ''}`}
           />
@@ -153,7 +153,7 @@ export default function DeliverySection({
           <Input
             id="deliveryTimeStart"
             type="datetime-local"
-            value={formatDateTimeLocal(loadData.deliveryTimeStart)}
+            value={formatDateTimeLocal(loadData.deliveryTimeStart ?? undefined)}
             onChange={(e) => onFieldChange('deliveryTimeStart', e.target.value || null)}
             className="h-9"
           />
@@ -165,7 +165,7 @@ export default function DeliverySection({
           <Input
             id="deliveryTimeEnd"
             type="datetime-local"
-            value={formatDateTimeLocal(loadData.deliveryTimeEnd)}
+            value={formatDateTimeLocal(loadData.deliveryTimeEnd ?? undefined)}
             onChange={(e) => onFieldChange('deliveryTimeEnd', e.target.value || null)}
             className="h-9"
           />

@@ -20,12 +20,12 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Only allow ADMIN or ACCOUNTANT
-        if (session.user.role !== 'ADMIN' && session.user.role !== 'ACCOUNTANT') {
+        // Only allow ADMIN, SUPER_ADMIN, or ACCOUNTANT
+        if (session.user.role !== 'ADMIN' && session.user.role !== 'SUPER_ADMIN' && session.user.role !== 'ACCOUNTANT') {
             return NextResponse.json(
                 {
                     success: false,
-                    error: { code: 'FORBIDDEN', message: 'Only ADMIN or ACCOUNTANT can run this fix' },
+                    error: { code: 'FORBIDDEN', message: 'Only ADMIN, SUPER_ADMIN, or ACCOUNTANT can run this fix' },
                 },
                 { status: 403 }
             );

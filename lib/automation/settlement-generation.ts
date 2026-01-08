@@ -303,18 +303,18 @@ async function logCronExecution(result: SettlementGenerationResult): Promise<voi
     if (result.totalCompanies === 0) {
       return;
     }
-    
+
     // Get first company ID (we need at least one company to log)
     const firstCompany = await prisma.company.findFirst({
       where: { isActive: true },
       select: { id: true },
     });
-    
+
     if (!firstCompany) {
       console.warn('[Settlement Cron] No active company found for activity log');
       return;
     }
-    
+
     await prisma.activityLog.create({
       data: {
         companyId: firstCompany.id,
@@ -354,8 +354,193 @@ export async function triggerManualSettlementGeneration(
     return runSettlementGenerationForCompany(companyId, periodStart, periodEnd);
   }
 
-  // Generate for all companies
-  return runWeeklySettlementGeneration();
+  // Generate for all companies WITH the provided dates
+  return runSettlementGenerationForAllCompanies(periodStart, periodEnd);
+}
+
+/**
+ * Run settlement generation for ALL companies with custom dates
+ */
+async function runSettlementGenerationForAllCompanies(
+  periodStart?: Date,
+  periodEnd?: Date
+): Promise<SettlementGenerationResult> {
+  const startTime = new Date();
+  console.log(`[Settlement Cron] Starting weekly settlement generation at ${startTime.toISOString()}`);
+
+  // Use provided dates or default to previous week
+  if (!periodStart || !periodEnd) {
+    periodEnd = new Date();
+    periodEnd.setHours(0, 0, 0, 0);
+    periodEnd.setDate(periodEnd.getDate() - periodEnd.getDay());
+
+    periodStart = new Date(periodEnd);
+    periodStart.setDate(periodStart.getDate() - 6);
+  }
+
+  console.log(`[Settlement Cron] Period: ${periodStart.toISOString()} to ${periodEnd.toISOString()}`);
+
+  const errors: Array<{ companyId: string; driverId?: string; error: string }> = [];
+  let settlementsGenerated = 0;
+  let totalDrivers = 0;
+
+  try {
+    // Get all active companies
+    const companies = await prisma.company.findMany({
+      where: {
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    console.log(`[Settlement Cron] Found ${companies.length} companies`);
+
+    // Process each company
+    for (const company of companies) {
+      try {
+        console.log(`[Settlement Cron] Processing company: ${company.name} (${company.id})`);
+
+        // Get all active drivers for the company
+        const drivers = await prisma.driver.findMany({
+          where: {
+            companyId: company.id,
+            status: 'AVAILABLE',
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            driverNumber: true,
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        });
+
+        console.log(`[Settlement Cron] Found ${drivers.length} active drivers for ${company.name}`);
+        totalDrivers += drivers.length;
+
+        // Generate settlement for each driver
+        const settlementManager = new SettlementManager();
+
+        for (const driver of drivers) {
+          try {
+            // Check if driver has any completed loads in the period
+            const loadsInPeriod = await prisma.load.findMany({
+              where: {
+                driverId: driver.id,
+                status: { in: ['DELIVERED', 'INVOICED', 'PAID'] },
+                deliveredAt: {
+                  gte: periodStart,
+                  lte: periodEnd,
+                },
+                deletedAt: null,
+              },
+              select: { id: true },
+            });
+
+            if (loadsInPeriod.length === 0) {
+              console.log(
+                `[Settlement Cron] Skipping driver ${driver.driverNumber} - no completed loads in period`
+              );
+              continue;
+            }
+
+            // Check if settlement already exists for this period
+            const existingSettlement = await prisma.settlement.findFirst({
+              where: {
+                driverId: driver.id,
+                periodStart,
+                periodEnd,
+              },
+            });
+
+            if (existingSettlement) {
+              console.log(
+                `[Settlement Cron] Skipping driver ${driver.driverNumber} - settlement already exists`
+              );
+              continue;
+            }
+
+            // Generate settlement
+            const settlement = await settlementManager.generateSettlement({
+              driverId: driver.id,
+              periodStart,
+              periodEnd,
+            });
+
+            settlementsGenerated++;
+            console.log(
+              `[Settlement Cron] Generated settlement ${settlement.settlementNumber} for driver ${driver.driverNumber}`
+            );
+
+            // Send notification to driver
+            await sendDriverNotification(driver.id, settlement.id);
+
+            // Send notification to accounting
+            await sendAccountingNotification(company.id, settlement.id);
+          } catch (error: any) {
+            console.error(
+              `[Settlement Cron] Error generating settlement for driver ${driver.driverNumber}:`,
+              error
+            );
+            errors.push({
+              companyId: company.id,
+              driverId: driver.id,
+              error: error.message || 'Unknown error',
+            });
+          }
+        }
+      } catch (error: any) {
+        console.error(`[Settlement Cron] Error processing company ${company.name}:`, error);
+        errors.push({
+          companyId: company.id,
+          error: error.message || 'Unknown error',
+        });
+      }
+    }
+
+    const endTime = new Date();
+    const duration = endTime.getTime() - startTime.getTime();
+
+    const result: SettlementGenerationResult = {
+      success: errors.length === 0,
+      totalCompanies: companies.length,
+      totalDrivers,
+      settlementsGenerated,
+      errors,
+      startTime,
+      endTime,
+      duration,
+    };
+
+    console.log(`[Settlement Cron] Completed in ${duration}ms`);
+    console.log(`[Settlement Cron] Generated ${settlementsGenerated} settlements`);
+    console.log(`[Settlement Cron] Errors: ${errors.length}`);
+
+    // Log to activity log
+    await logCronExecution(result);
+
+    return result;
+  } catch (error: any) {
+    console.error('[Settlement Cron] Fatal error:', error);
+    const endTime = new Date();
+    return {
+      success: false,
+      totalCompanies: 0,
+      totalDrivers: 0,
+      settlementsGenerated: 0,
+      errors: [{ companyId: 'SYSTEM', error: error.message || 'Fatal error' }],
+      startTime,
+      endTime,
+      duration: endTime.getTime() - startTime.getTime(),
+    };
+  }
 }
 
 /**

@@ -113,8 +113,8 @@ export async function POST(request: NextRequest) {
         accountingErrors.push({
           loadId: load.id,
           loadNumber: load.loadNumber,
-          errors: accountingResult.errors.length > 0 
-            ? accountingResult.errors 
+          errors: accountingResult.errors.length > 0
+            ? accountingResult.errors
             : [`Missing fields: ${accountingResult.missingForInvoice.join(', ')}`],
         });
       }
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     for (const load of loads) {
       // Check 1: Billing hold eligibility
       const eligibility = await billingHoldManager.checkInvoicingEligibility(load.id);
-      
+
       if (!eligibility.eligible) {
         ineligibleLoads.push({
           loadId: load.id,
@@ -241,154 +241,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Group loads by customer
-    const loadsByCustomer = loads.reduce((acc, load) => {
-      const customerId = load.customerId;
-      if (!acc[customerId]) {
-        acc[customerId] = {
+    // Group loads by customer AND MC Number (Strict Isolation)
+    const loadsGrouped = loads.reduce((acc, load) => {
+      // Create a unique key for grouping
+      const groupKey = `${load.customerId}_${load.mcNumberId || 'null'}`;
+
+      if (!acc[groupKey]) {
+        acc[groupKey] = {
+          customerId: load.customerId,
+          mcNumberId: load.mcNumberId,
           customer: load.customer,
           loads: [],
           totalRevenue: 0,
         };
       }
-      acc[customerId].loads.push(load);
-      acc[customerId].totalRevenue += load.revenue;
+      acc[groupKey].loads.push(load);
+      acc[groupKey].totalRevenue += load.revenue;
       return acc;
     }, {} as Record<string, any>);
 
-    // Generate invoice for each customer
+    // Generate invoice for each group
     const invoices = [];
 
-    for (const [customerId, data] of Object.entries(loadsByCustomer)) {
+    for (const [groupKey, data] of Object.entries(loadsGrouped)) {
       const customer = data.customer;
-      const totalAmount = data.totalRevenue;
-      const taxAmount = totalAmount * 0.08; // 8% tax (configurable)
-      const totalWithTax = totalAmount + taxAmount;
 
       // Generate invoice number if not provided
-      const invoiceNumber =
-        validated.invoiceNumber ||
-        `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+      // If generating multiple invoices, append suffix or generate unique numbers
+      const baseInvoiceNumber = validated.invoiceNumber || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+      const invoiceNumber = Object.keys(loadsGrouped).length > 1
+        ? `${baseInvoiceNumber}-${invoices.length + 1}`
+        : baseInvoiceNumber;
 
       // Calculate due date (default to customer payment terms)
       const dueDate = validated.dueDate
         ? new Date(validated.dueDate)
         : new Date(
-            Date.now() + (customer.paymentTerms || 30) * 24 * 60 * 60 * 1000
-          );
+          Date.now() + (customer.paymentTerms || 30) * 24 * 60 * 60 * 1000
+        );
 
-      // Build contact information for invoice notes
-      const contactInfo: string[] = [];
-      
-      // Collect unique dispatchers, drivers, trucks, and trailers from all loads
-      const dispatchers = new Map<string, { name: string; phone: string | null }>();
-      const drivers = new Map<string, { name: string; driverNumber: string | null; phone: string | null }>();
-      const trucks = new Set<string>();
-      const trailers = new Set<string>();
-
-      for (const load of data.loads) {
-        // Dispatcher info
-        if (load.dispatcher) {
-          const dispatcherName = `${load.dispatcher.firstName} ${load.dispatcher.lastName}`.trim();
-          if (dispatcherName && !dispatchers.has(load.dispatcher.id)) {
-            dispatchers.set(load.dispatcher.id, {
-              name: dispatcherName,
-              phone: load.dispatcher.phone || null,
-            });
-          }
-        }
-
-        // Driver info
-        if (load.driver) {
-          const driverName = load.driver.user
-            ? `${load.driver.user.firstName} ${load.driver.user.lastName}`.trim()
-            : null;
-          if (driverName && !drivers.has(load.driver.id)) {
-            drivers.set(load.driver.id, {
-              name: driverName,
-              driverNumber: load.driver.driverNumber || null,
-              phone: load.driver.user?.phone || null,
-            });
-          }
-        }
-
-        // Truck info
-        if (load.truck?.truckNumber) {
-          trucks.add(load.truck.truckNumber);
-        }
-
-        // Trailer info
-        if (load.trailerNumber) {
-          trailers.add(load.trailerNumber);
-        }
-      }
-
-      // Format contact information
-      if (dispatchers.size > 0) {
-        const dispatcherList = Array.from(dispatchers.values())
-          .map((d) => `${d.name}${d.phone ? ` (${d.phone})` : ''}`)
-          .join(', ');
-        contactInfo.push(`Dispatcher(s): ${dispatcherList}`);
-      }
-
-      if (drivers.size > 0) {
-        const driverList = Array.from(drivers.values())
-          .map((d) => {
-            const namePart = d.driverNumber ? `${d.name} (#${d.driverNumber})` : d.name;
-            return `${namePart}${d.phone ? ` (${d.phone})` : ''}`;
-          })
-          .join(', ');
-        contactInfo.push(`Driver(s): ${driverList}`);
-      }
-
-      if (trucks.size > 0) {
-        contactInfo.push(`Truck(s): ${Array.from(trucks).join(', ')}`);
-      }
-
-      if (trailers.size > 0) {
-        contactInfo.push(`Trailer(s): ${Array.from(trailers).join(', ')}`);
-      }
-
-      // Combine user notes with contact information
-      const invoiceNotes = [
-        validated.notes,
-        contactInfo.length > 0 ? `\n\nContact Information:\n${contactInfo.join('\n')}` : '',
-      ]
-        .filter(Boolean)
-        .join('');
-
-      const invoice = await prisma.invoice.create({
-        data: {
-          companyId: session.user.companyId,
+      // Delegate to InvoiceManager
+      const result = await invoiceManager.generateInvoice(
+        data.loads.map((l: any) => l.id),
+        {
           invoiceNumber,
-          customerId,
-          invoiceDate: new Date(),
           dueDate,
-          subtotal: totalAmount,
-          tax: taxAmount,
-          total: totalWithTax,
-          balance: totalWithTax,
-          status: 'DRAFT',
-          notes: invoiceNotes || undefined,
-          loadIds: data.loads.map((l: any) => l.id),
-        },
-      });
+          notes: validated.notes,
+        }
+      );
 
-      // Link loads to invoice
-      await prisma.load.updateMany({
-        where: {
-          id: { in: data.loads.map((l: any) => l.id) },
-        },
-        data: {
-          invoicedAt: new Date(),
-          status: LoadStatus.INVOICED,
-        },
-      });
-
-      // Note: InvoiceLineItem model doesn't exist in schema
-      // Line items are stored in the loadIds array and can be retrieved via loads relation
-
-      invoices.push(invoice);
+      if (result.success && result.invoice) {
+        invoices.push(result.invoice);
+      } else {
+        console.error(`Failed to generate invoice for group ${groupKey}:`, result.error);
+        // Continue with other groups or throw? 
+        // For now, logged error, maybe add to warnings response
+      }
     }
 
     return NextResponse.json(

@@ -99,8 +99,8 @@ export function saveDraft(
     previewInfo: {
       loadNumber: data.loadNumber,
       customerName: (data as any).customerName || undefined,
-      pickupCity: data.pickupCity,
-      deliveryCity: data.deliveryCity,
+      pickupCity: data.pickupCity || undefined,
+      deliveryCity: data.deliveryCity || undefined,
     },
   };
 

@@ -35,7 +35,7 @@ interface TrailerComboboxProps {
   className?: string;
   trailers?: Trailer[]; // Optional: pre-loaded trailers
   disabled?: boolean;
-  // MC filtering handled server-side via cookies
+  selectedTrailer?: Trailer; // Optional: explicit selected trailer object
 }
 
 async function fetchTrailers(search?: string) {
@@ -58,13 +58,14 @@ export default function TrailerCombobox({
   className,
   trailers: preloadedTrailers,
   disabled,
+  selectedTrailer: explicitSelectedTrailer,
 }: TrailerComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
 
   // Always use API search when there's a query, otherwise use preloaded trailers if available
   const shouldUseApi = open && (searchQuery.length > 0 || !preloadedTrailers);
-  
+
   const { data: trailersData, isLoading } = useQuery({
     queryKey: ['trailers', searchQuery],
     queryFn: () => fetchTrailers(searchQuery),
@@ -87,7 +88,7 @@ export default function TrailerCombobox({
   const trailers: Trailer[] = shouldUseApi
     ? (trailersData?.success ? trailersData?.data || [] : [])
     : filteredPreloaded;
-  const selectedTrailer = trailers.find((t) => t.trailerNumber === value || t.id === value);
+  const selectedTrailer = trailers.find((t) => t.id === value) || (value && explicitSelectedTrailer?.id === value ? explicitSelectedTrailer : undefined);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -154,7 +155,7 @@ export default function TrailerCombobox({
                       key={trailer.id}
                       value={trailer.trailerNumber}
                       onSelect={() => {
-                        onValueChange(trailer.trailerNumber);
+                        onValueChange(trailer.id);
                         setOpen(false);
                         setSearchQuery('');
                       }}

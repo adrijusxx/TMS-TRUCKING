@@ -39,18 +39,27 @@ const statusColors: Record<SettlementStatus, string> = {
   DISPUTED: 'bg-red-100 text-red-800 border-red-200',
 };
 
-const columns: ExtendedColumnDef<SettlementData>[] = [
+export const createSettlementColumns = (onView?: (id: string) => void): ExtendedColumnDef<SettlementData>[] => [
   {
     id: 'settlementNumber',
     accessorKey: 'settlementNumber',
     header: 'Settlement #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/settlements/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
-        {row.original.settlementNumber}
-      </Link>
+      onView ? (
+        <span
+          className="text-primary hover:underline font-medium cursor-pointer"
+          onClick={() => onView(row.original.id)}
+        >
+          {row.original.settlementNumber}
+        </span>
+      ) : (
+        <Link
+          href={`/dashboard/settlements/${row.original.id}`}
+          className="text-primary hover:underline font-medium"
+        >
+          {row.original.settlementNumber}
+        </Link>
+      )
     ),
     defaultVisible: true,
     required: true,
@@ -132,101 +141,13 @@ const bulkEditFields: BulkEditField[] = [
     })),
     permission: 'settlements.edit',
   },
-  {
-    key: 'mcNumberId',
-    label: 'MC Number',
-    type: 'select',
-    options: [], // Will be populated dynamically by BulkEditDialog
-    permission: 'mc_numbers.edit',
-    placeholder: 'Select MC number',
-  },
 ];
 
-// Custom bulk actions for HR/Accounting operations
-const customBulkActions: CustomBulkAction[] = [
-  {
-    id: 'approve',
-    label: 'Approve Settlements',
-    icon: <CheckCircle2 className="h-4 w-4" />,
-    variant: 'default',
-    permission: 'settlements.edit',
-    requiresConfirmation: true,
-    confirmationMessage: 'Are you sure you want to approve the selected settlements?',
-    handler: async (selectedIds: string[]) => {
-      const response = await fetch(apiUrl('/api/bulk-actions'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entityType: 'settlements',
-          action: 'update',
-          ids: selectedIds,
-          updates: { status: 'APPROVED' },
-        }),
-      });
+const customBulkActions: CustomBulkAction[] = [];
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to approve settlements');
-      }
-    },
-  },
-  {
-    id: 'mark-paid',
-    label: 'Mark as Paid',
-    icon: <DollarSign className="h-4 w-4" />,
-    variant: 'default',
-    permission: 'settlements.edit',
-    requiresConfirmation: true,
-    confirmationMessage: 'Are you sure you want to mark the selected settlements as paid?',
-    handler: async (selectedIds: string[]) => {
-      const response = await fetch(apiUrl('/api/bulk-actions'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entityType: 'settlements',
-          action: 'update',
-          ids: selectedIds,
-          updates: { status: 'PAID' },
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to mark settlements as paid');
-      }
-    },
-  },
-  {
-    id: 'dispute',
-    label: 'Mark as Disputed',
-    icon: <XCircle className="h-4 w-4" />,
-    variant: 'outline',
-    permission: 'settlements.edit',
-    requiresConfirmation: true,
-    confirmationMessage: 'Are you sure you want to mark the selected settlements as disputed?',
-    handler: async (selectedIds: string[]) => {
-      const response = await fetch(apiUrl('/api/bulk-actions'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entityType: 'settlements',
-          action: 'update',
-          ids: selectedIds,
-          updates: { status: 'DISPUTED' },
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to mark settlements as disputed');
-      }
-    },
-  },
-];
-
-export const settlementsTableConfig = createEntityTableConfig<SettlementData>({
+export const getSettlementsTableConfig = (onView?: (id: string) => void) => createEntityTableConfig<SettlementData>({
   entityType: 'settlements',
-  columns,
+  columns: createSettlementColumns(onView),
   defaultVisibleColumns: [
     'settlementNumber',
     'driver',
@@ -264,4 +185,6 @@ export const settlementsTableConfig = createEntityTableConfig<SettlementData>({
     },
   ],
 });
+
+export const settlementsTableConfig = getSettlementsTableConfig();
 

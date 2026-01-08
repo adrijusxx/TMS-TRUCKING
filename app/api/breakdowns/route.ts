@@ -3,6 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
 import { generateBreakdownCaseNumber } from '@/lib/utils/breakdown-numbering';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const createBreakdownSchema = z.object({
@@ -66,10 +67,18 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
+    // Build MC filter
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
     const where: any = {
       companyId: session.user.companyId,
       deletedAt: null,
     };
+
+    // Add MC number filter if applicable (not in "all" mode)
+    if (mcWhere.mcNumberId) {
+      where.mcNumberId = mcWhere.mcNumberId;
+    }
 
     if (status) {
       where.status = status;
@@ -237,16 +246,27 @@ export async function POST(request: NextRequest) {
     // Generate breakdown case number in BD-YYYY-XXXX format
     const breakdownNumber = await generateBreakdownCaseNumber(session.user.companyId);
 
+    // Determine MC number assignment
+    const { McStateManager } = await import('@/lib/managers/McStateManager');
+    let assignedMcNumberId = validatedData.mcNumberId;
+
+    if (!assignedMcNumberId) {
+      const fallbackMc = await McStateManager.determineActiveCreationMc(session, request);
+      if (fallbackMc) {
+        assignedMcNumberId = fallbackMc;
+      }
+    }
+
     const breakdownData: any = {
       truckId: validatedData.truckId,
       location: validatedData.location,
-      odometerReading: validatedData.odometerReading ?? 0, // Required field, default to 0 if somehow missing
+      odometerReading: validatedData.odometerReading ?? 0,
       breakdownType: validatedData.breakdownType,
       description: validatedData.description,
       priority: validatedData.priority ?? 'MEDIUM',
       loadId: validatedData.loadId ?? undefined,
       driverId: validatedData.driverId ?? undefined,
-      mcNumberId: validatedData.mcNumberId ?? undefined,
+      mcNumberId: assignedMcNumberId ?? undefined,
       address: validatedData.address ?? undefined,
       city: validatedData.city ?? undefined,
       state: validatedData.state ?? undefined,

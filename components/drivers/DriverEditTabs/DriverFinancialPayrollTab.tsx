@@ -17,11 +17,6 @@ import {
   RecurringTransactionsSection,
   RecurringTransaction,
 } from './PayrollSubComponents/RecurringTransactionsSection';
-import { EscrowSection } from './PayrollSubComponents/EscrowSection';
-import {
-  DriverBalancesSection,
-  BalanceRow,
-} from './PayrollSubComponents/DriverBalancesSection';
 
 interface DriverFinancialPayrollTabProps {
   driver: any;
@@ -31,8 +26,11 @@ interface DriverFinancialPayrollTabProps {
 const financialsSchema = z.object({
   payType: z.nativeEnum(PayType),
   payRate: z.number().min(0, 'Rate cannot be negative'),
-  escrowTargetAmount: z.number().min(0, 'Target amount cannot be negative').optional(),
-  escrowDeductionPerWeek: z.number().min(0, 'Deduction per week cannot be negative').optional(),
+  payTo: z.string().optional(),
+  notes: z.string().optional(),
+  // Legacy escrow fields removed from UI
+  escrowTargetAmount: z.number().min(0).optional(),
+  escrowDeductionPerWeek: z.number().min(0).optional(),
 });
 
 type FinancialsFormData = z.infer<typeof financialsSchema>;
@@ -46,29 +44,18 @@ export default function DriverFinancialPayrollTab({
   const isReadOnly = role === 'DISPATCHER';
 
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
-  const [balanceRows, setBalanceRows] = useState<BalanceRow[]>([
-    {
-      id: '1',
-      type: 'ESCROW',
-      note: '',
-      numberOfTransactions: 0,
-      debit: 0,
-      credit: 0,
-      balance: 0,
-    },
-  ]);
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FinancialsFormData>({
     resolver: zodResolver(financialsSchema),
     defaultValues: {
       payType: driver.payType || 'PER_MILE',
       payRate: driver.payRate || 0,
+      payTo: driver.payTo || '',
+      notes: driver.notes || '',
       escrowTargetAmount: driver.escrowTargetAmount || undefined,
       escrowDeductionPerWeek: driver.escrowDeductionPerWeek || undefined,
     },
   });
-
-  const escrowBalance = driver.escrowBalance || 0;
 
   const onSubmit = useCallback(
     (data: FinancialsFormData) => {
@@ -77,7 +64,7 @@ export default function DriverFinancialPayrollTab({
 
       // Filter out incomplete transactions (missing type, amount, or frequency)
       const validTransactions = recurringTransactions.filter(
-        (t) => t.type && t.type.trim() !== '' && t.amount > 0 && t.frequency && t.frequency.trim() !== ''
+        (t) => t.type && t.type.trim() !== '' && t.amount > 0 && t.frequency && t.frequency.trim() !== '' && t.category
       );
 
       console.log(
@@ -103,8 +90,10 @@ export default function DriverFinancialPayrollTab({
         validTransactions.forEach((t, idx) => {
           console.log(`[Driver Financial Tab] Valid Transaction ${idx + 1}:`, {
             type: t.type,
+            category: t.category,
             amount: t.amount,
             frequency: t.frequency,
+            stopLimit: t.stopLimit,
             note: t.note,
             id: t.id,
           });
@@ -116,6 +105,8 @@ export default function DriverFinancialPayrollTab({
       const formData = {
         payType: data.payType,
         payRate: parseFloat(data.payRate.toString()),
+        payTo: data.payTo,
+        notes: data.notes,
         escrowTargetAmount: data.escrowTargetAmount
           ? parseFloat(data.escrowTargetAmount.toString())
           : undefined,
@@ -143,7 +134,8 @@ export default function DriverFinancialPayrollTab({
         const driverIdentifier = driver.driverNumber || driver.id.slice(0, 8);
         // Fetch all active deduction rules for this driver type
         const response = await fetch(
-          apiUrl(`/api/deduction-rules?driverType=${driver.driverType || ''}&isActive=true`)
+          apiUrl(`/api/deduction-rules?driverType=${driver.driverType || ''}&isActive=true&t=${Date.now()}`),
+          { cache: 'no-store' }
         );
         if (response.ok) {
           const result = await response.json();
@@ -155,13 +147,37 @@ export default function DriverFinancialPayrollTab({
             );
 
             // Convert to form format
-            const loadedTransactions: RecurringTransaction[] = driverRules.map((rule: any) => ({
-              id: rule.id,
-              type: rule.deductionType,
-              amount: rule.amount || 0,
-              frequency: rule.frequency || rule.deductionFrequency || 'WEEKLY',
-              note: rule.notes || '',
-            }));
+            const loadedTransactions: RecurringTransaction[] = driverRules.map((rule: any) => {
+              let type = rule.deductionType;
+
+              // If type is OTHER, try to extract original custom type from name
+              if (type === 'OTHER' && rule.name) {
+                // Name format: "Driver identifier - Type (Note)" or "Driver identifier - Type"
+                const parts = rule.name.split(' - ');
+                if (parts.length >= 2) {
+                  // Join rest parts in case type itself has dashes
+                  let extracted = parts.slice(1).join(' - ');
+
+                  // Remove note from name if present (it was added in the backend)
+                  if (rule.notes && extracted.endsWith(` (${rule.notes})`)) {
+                    extracted = extracted.slice(0, -(rule.notes.length + 3));
+                  }
+
+                  type = extracted.trim();
+                }
+              }
+
+              return {
+                id: rule.id,
+                type: type,
+                category: rule.isAddition ? 'addition' : 'deduction',
+                amount: rule.amount || 0,
+                frequency: rule.frequency || rule.deductionFrequency || 'WEEKLY',
+                stopLimit: rule.goalAmount || undefined,
+                currentBalance: rule.currentAmount || 0,
+                note: rule.notes || '',
+              };
+            });
 
             if (loadedTransactions.length > 0) {
               console.log('[Driver Financial Tab] Loaded', loadedTransactions.length, 'deduction rules');
@@ -224,22 +240,6 @@ export default function DriverFinancialPayrollTab({
       <RecurringTransactionsSection
         transactions={recurringTransactions}
         onTransactionsChange={setRecurringTransactions}
-        isReadOnly={isReadOnly}
-      />
-
-      {/* Escrow / Holdings Section */}
-      <EscrowSection
-        register={register}
-        watch={watch}
-        errors={errors}
-        escrowBalance={escrowBalance}
-        isReadOnly={isReadOnly}
-      />
-
-      {/* Driver Balances Section */}
-      <DriverBalancesSection
-        balances={balanceRows}
-        onBalancesChange={setBalanceRows}
         isReadOnly={isReadOnly}
       />
     </form>

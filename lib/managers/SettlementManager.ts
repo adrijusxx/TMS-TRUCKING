@@ -26,6 +26,7 @@ interface DeductionItem {
   description: string;
   amount: number;
   reference?: string;
+  metadata?: Record<string, any>;
 }
 
 interface AdditionItem {
@@ -33,6 +34,7 @@ interface AdditionItem {
   description: string;
   amount: number;
   reference?: string;
+  metadata?: Record<string, any>;
 }
 
 export class SettlementManager {
@@ -214,7 +216,7 @@ export class SettlementManager {
         console.warn(`[SettlementManager] Skipping addition type "${deduction.type}" from deductions - this should not happen!`);
         continue;
       }
-      
+
       await prisma.settlementDeduction.create({
         data: {
           settlementId: settlement.id,
@@ -230,6 +232,7 @@ export class SettlementManager {
           loadExpenseId: deduction.reference?.startsWith('expense_')
             ? deduction.reference.replace('expense_', '')
             : undefined,
+          metadata: deduction.metadata,
         },
       });
     }
@@ -312,7 +315,7 @@ export class SettlementManager {
             }
             break;
           }
-          
+
           case 'PERCENTAGE': {
             // STRICT: Percentage = (TotalInvoice - FuelSurcharge) * Percentage
             // Get invoice total for this load
@@ -342,17 +345,17 @@ export class SettlementManager {
             if (invoices.length > 0) {
               // Sum all invoice totals
               invoiceTotal = invoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
-              
+
               // Sum all fuel surcharge accessorials from invoices
               fuelSurcharge = invoices.reduce((sum: number, inv: any) => {
-                const fsc = inv.accessorialCharges?.reduce((fscSum: number, charge: any) => 
+                const fsc = inv.accessorialCharges?.reduce((fscSum: number, charge: any) =>
                   fscSum + (charge.amount || 0), 0) || 0;
                 return sum + fsc;
               }, 0);
             } else {
               // Fallback: Use load revenue if no invoice
               invoiceTotal = load.revenue || 0;
-              
+
               // Check accessorial charges on load for FSC
               const fscCharges = load.accessorialCharges?.filter((c: any) => c.chargeType === 'FUEL_SURCHARGE') || [];
               fuelSurcharge = fscCharges.reduce((sum: number, charge: any) => sum + (charge.amount || 0), 0);
@@ -363,19 +366,19 @@ export class SettlementManager {
             grossPay += baseAmount * (driver.payRate / 100);
             break;
           }
-          
+
           case 'PER_LOAD': {
             grossPay += driver.payRate;
             break;
           }
-          
+
           case 'HOURLY': {
             const totalMiles = (load.loadedMiles || 0) + (load.emptyMiles || 0) || load.totalMiles || 0;
             const estimatedHours = totalMiles > 0 ? totalMiles / 50 : 10;
             grossPay += estimatedHours * driver.payRate;
             break;
           }
-          
+
           case 'WEEKLY': {
             // WEEKLY: Flat weekly rate - pay once regardless of loads
             // This is handled outside the loop, so we'll just track it
@@ -410,7 +413,7 @@ export class SettlementManager {
       const stopCharges = load.accessorialCharges?.filter(
         (c: any) => c.chargeType === 'ADDITIONAL_STOP'
       ) || [];
-      
+
       for (const charge of stopCharges) {
         additions.push({
           type: 'STOP_PAY',
@@ -424,7 +427,7 @@ export class SettlementManager {
       const detentionCharges = load.accessorialCharges?.filter(
         (c: any) => c.chargeType === 'DETENTION'
       ) || [];
-      
+
       for (const charge of detentionCharges) {
         additions.push({
           type: 'DETENTION_PAY',
@@ -438,7 +441,7 @@ export class SettlementManager {
       const reimbursements = load.loadExpenses?.filter(
         (e: any) => e.expenseType === 'TOLL' || e.expenseType === 'SCALE'
       ) || [];
-      
+
       for (const expense of reimbursements) {
         additions.push({
           type: 'REIMBURSEMENT',
@@ -515,6 +518,7 @@ export class SettlementManager {
             description: rule.name,
             amount: additionAmount,
             reference: `deduction_rule_${rule.id}`,
+            metadata: { deductionRuleId: rule.id },
           });
         }
       }
@@ -601,11 +605,27 @@ export class SettlementManager {
         deductionAmount = rule.maxAmount;
       }
 
+      // Stop Limit Logic
+      if (typeof rule.goalAmount === 'number' && rule.goalAmount > 0) {
+        const currentBalance = rule.currentAmount || 0;
+
+        // If goal met, skip
+        if (currentBalance >= rule.goalAmount) {
+          continue;
+        }
+
+        // Cap amount
+        if (currentBalance + deductionAmount > rule.goalAmount) {
+          deductionAmount = rule.goalAmount - currentBalance;
+        }
+      }
+
       if (deductionAmount > 0) {
         deductions.push({
           type: rule.deductionType,
           description: rule.name,
           amount: deductionAmount,
+          metadata: { deductionRuleId: rule.id },
         });
       }
     }
@@ -659,11 +679,27 @@ export class SettlementManager {
         deductionAmount = rule.maxAmount;
       }
 
+      // Stop Limit Logic
+      if (typeof rule.goalAmount === 'number' && rule.goalAmount > 0) {
+        const currentBalance = rule.currentAmount || 0;
+
+        // If goal met, skip
+        if (currentBalance >= rule.goalAmount) {
+          continue;
+        }
+
+        // Cap amount
+        if (currentBalance + deductionAmount > rule.goalAmount) {
+          deductionAmount = rule.goalAmount - currentBalance;
+        }
+      }
+
       if (deductionAmount > 0) {
         deductions.push({
           type: rule.deductionType,
           description: rule.name,
           amount: deductionAmount,
+          metadata: { deductionRuleId: rule.id },
         });
       }
     }
@@ -732,6 +768,26 @@ export class SettlementManager {
         notes,
       },
     });
+
+    // UPDATE STOP LIMIT BALANCES
+    // ------------------------------------------------------------------
+    const deductionItems = await prisma.settlementDeduction.findMany({
+      where: { settlementId },
+    });
+
+    for (const item of deductionItems) {
+      const meta = item.metadata as Record<string, any> | null;
+      if (meta?.deductionRuleId) {
+        // Increment currentAmount on the rule
+        await prisma.deductionRule.update({
+          where: { id: meta.deductionRuleId },
+          data: {
+            currentAmount: { increment: item.amount },
+          },
+        });
+      }
+    }
+    // ------------------------------------------------------------------
 
     return settlement;
   }

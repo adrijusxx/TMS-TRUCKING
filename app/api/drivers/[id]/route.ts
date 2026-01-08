@@ -5,11 +5,11 @@ import { updateDriverSchema } from '@/lib/validations/driver';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { hasPermission } from '@/lib/permissions';
-import { 
-  canWriteFinancialFields, 
-  containsFinancialFields, 
+import {
+  canWriteFinancialFields,
+  containsFinancialFields,
   extractFinancialFields,
-  removeFinancialFields 
+  removeFinancialFields
 } from '@/lib/utils/financial-access';
 
 export async function GET(
@@ -240,7 +240,7 @@ export async function PATCH(
     console.log('[Driver Update API] recurringTransactions in body:', body.recurringTransactions);
     console.log('[Driver Update API] Type of recurringTransactions:', typeof body.recurringTransactions);
     console.log('[Driver Update API] Is array?', Array.isArray(body.recurringTransactions));
-    
+
     const validated = updateDriverSchema.parse(body);
     console.log('[Driver Update API] Validated data - recurringTransactions:', validated.recurringTransactions);
 
@@ -248,7 +248,7 @@ export async function PATCH(
 
     // Check if update contains financial fields
     const hasFinancialFields = containsFinancialFields(validated);
-    
+
     if (hasFinancialFields && !canWriteFinancialFields(role)) {
       // Extract financial fields to show which ones are restricted
       const financialFields = extractFinancialFields(validated);
@@ -266,7 +266,7 @@ export async function PATCH(
     }
 
     const updateData: any = {};
-    
+
     // Driver-specific fields
     const driverFields = [
       'status', 'employeeStatus', 'assignmentStatus', 'dispatchStatus',
@@ -281,7 +281,7 @@ export async function PATCH(
       'emergencyContactRelation', 'emergencyContactAddress1', 'emergencyContactAddress2',
       'emergencyContactCity', 'emergencyContactState', 'emergencyContactZip',
       'emergencyContactCountry', 'emergencyContactPhone', 'emergencyContactEmail',
-      'driverTariff', 'payTo', 'escrowTargetAmount', 'escrowDeductionPerWeek',
+      'payTo', 'escrowTargetAmount', 'escrowDeductionPerWeek',
       'escrowBalance', 'warnings', 'licenseNumber', 'licenseState',
       'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
       'payType', 'payRate', 'homeTerminal', 'emergencyContact', 'emergencyPhone',
@@ -302,11 +302,11 @@ export async function PATCH(
     // Handle unified recurring transactions (both additions and deductions) - save as DeductionRule records
     if (validated.recurringTransactions !== undefined) {
       console.log('[Driver Update] Processing recurring transactions:', validated.recurringTransactions);
-      
+
       // Get driver number for naming pattern
       const driverIdentifier = existingDriver.driverNumber || id.slice(0, 8);
       console.log('[Driver Update] Driver identifier:', driverIdentifier);
-      
+
       // Get existing deduction rules created for this driver (identified by name pattern)
       const existingRules = await prisma.deductionRule.findMany({
         where: {
@@ -332,25 +332,46 @@ export async function PATCH(
       // Create new deduction rules for each recurring transaction
       if (Array.isArray(validated.recurringTransactions) && validated.recurringTransactions.length > 0) {
         console.log('[Driver Update] Creating', validated.recurringTransactions.length, 'new transaction rules');
-        
+
         // Transaction types that are additions (payments to driver)
         const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
-        
+
         // Map frontend transaction types to valid DeductionType enum values
         const mapTransactionTypeToDeductionType = (type: string): string => {
           const typeMap: Record<string, string> = {
             'LEASE': 'TRUCK_LEASE',
             'ELD': 'EQUIPMENT_RENTAL', // ELD not in DeductionType, map to EQUIPMENT_RENTAL
           };
-          return typeMap[type] || type;
+
+          // Check if it's a known valid type or mapped type
+          const mapped = typeMap[type];
+          if (mapped) return mapped;
+
+          // Valid deduction types from Prisma schema
+          const validTypes = new Set([
+            'FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'OCCUPATIONAL_ACCIDENT',
+            'TRUCK_PAYMENT', 'TRUCK_LEASE', 'ESCROW', 'EQUIPMENT_RENTAL',
+            'MAINTENANCE', 'TOLLS', 'PERMITS', 'FUEL_CARD', 'FUEL_CARD_FEE',
+            'TRAILER_RENTAL', 'OTHER', 'BONUS', 'OVERTIME', 'INCENTIVE'
+          ]);
+
+          if (validTypes.has(type)) return type;
+
+          // Default to OTHER for custom types
+          return 'OTHER';
         };
-        
+
         for (const transaction of validated.recurringTransactions) {
           if (transaction.type && transaction.amount > 0 && transaction.frequency) {
             const frequencyValue = transaction.frequency === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY';
-            const isAddition = additionTypes.includes(transaction.type);
+
+            // Determine if addition based on explicit category or fallback to type match
+            const isAddition = transaction.category
+              ? transaction.category === 'addition'
+              : additionTypes.includes(transaction.type);
+
             const deductionType = mapTransactionTypeToDeductionType(transaction.type);
-            
+
             try {
               const newRule = await prisma.deductionRule.create({
                 data: {
@@ -361,6 +382,8 @@ export async function PATCH(
                   isAddition: isAddition, // Set based on transaction type
                   calculationType: 'FIXED',
                   amount: transaction.amount,
+                  goalAmount: transaction.stopLimit, // Save the "Stop Limit"
+                  currentAmount: transaction.currentBalance || 0, // Restore balance or default 0
                   frequency: frequencyValue as any, // DeductionRuleFrequency (WEEKLY or MONTHLY)
                   deductionFrequency: frequencyValue as any, // DeductionFrequency (WEEKLY or MONTHLY) - for settlement generation
                   notes: transaction.note || null,
@@ -387,7 +410,7 @@ export async function PATCH(
       'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
       'birthDate', 'hireDate', 'terminationDate', 'licenseIssueDate',
     ];
-    
+
     dateFields.forEach((field) => {
       if (updateData[field] && typeof updateData[field] === 'string') {
         updateData[field] = new Date(updateData[field]);
@@ -403,7 +426,7 @@ export async function PATCH(
     // Create truck history if truck changed
     if (updateData.currentTruckId !== undefined && oldTruckId !== newTruckId) {
       const now = new Date();
-      
+
       // Close old truck assignment if it existed
       if (oldTruckId) {
         await prisma.driverTruckHistory.updateMany({
@@ -451,7 +474,7 @@ export async function PATCH(
     // Create trailer history if trailer changed
     if (updateData.currentTrailerId !== undefined && oldTrailerId !== newTrailerId) {
       const now = new Date();
-      
+
       // Close old trailer assignment if it existed
       if (oldTrailerId) {
         await prisma.driverTrailerHistory.updateMany({
@@ -478,36 +501,7 @@ export async function PATCH(
       }
     }
 
-    // Recalculate driver tariff if payType or payRate changed
-    if (updateData.payType !== undefined || updateData.payRate !== undefined) {
-      const { calculateDriverTariff } = await import('@/lib/utils/driverTariff');
-      const finalPayType = updateData.payType || existingDriver.payType;
-      const finalPayRate = updateData.payRate || existingDriver.payRate;
-      
-      // Get driver's loads for tariff calculation
-      const driverLoads = await prisma.load.findMany({
-        where: {
-          driverId: id,
-          deletedAt: null,
-        },
-        select: {
-          revenue: true,
-          driverPay: true,
-          totalMiles: true,
-          loadedMiles: true,
-          emptyMiles: true,
-          serviceFee: true,
-        },
-        take: 100,
-      });
 
-      const tariff = calculateDriverTariff({
-        payType: finalPayType,
-        payRate: finalPayRate,
-        loads: driverLoads,
-      });
-      updateData.driverTariff = tariff;
-    }
 
     // Update user if needed
     if (validated.firstName || validated.lastName || validated.phone) {

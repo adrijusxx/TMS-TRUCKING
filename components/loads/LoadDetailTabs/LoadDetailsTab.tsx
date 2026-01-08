@@ -118,6 +118,7 @@ export default function LoadDetailsTab({
                     onValueChange={(value) => updateField('trailerId', value)}
                     placeholder="Search..."
                     className="h-7 text-xs"
+                    selectedTrailer={load.trailer}
                   />
                 </div>
                 <div className="space-y-1">

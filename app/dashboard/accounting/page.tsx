@@ -8,6 +8,7 @@ import { AdvanceApprovalQueue } from '@/components/accounting/AdvanceApprovalQue
 import { CashFlowProjection } from '@/components/accounting/CashFlowProjection';
 import { AccountingMetrics } from '@/components/accounting/AccountingMetrics';
 import { InvoicingKnowledgeBase } from '@/components/accounting/InvoicingKnowledgeBase';
+import { BatchSettlementTrigger } from '@/components/accounting/BatchSettlementTrigger';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function AccountingDashboardPage() {
@@ -20,6 +21,7 @@ export default function AccountingDashboardPage() {
             <h1 className="text-3xl font-bold">Accounting Department</h1>
           </div>
           <div className="flex gap-2">
+            <BatchSettlementTrigger />
             <Link href="/dashboard/accounting/deduction-rules">
               <Button variant="outline">
                 <FileText className="h-4 w-4 mr-2" />

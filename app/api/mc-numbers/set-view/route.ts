@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Set cookies for MC state
     const cookieStore = await cookies();
-    
+
     if (validated.mcNumberId) {
       // Single MC view
       cookieStore.set('currentMcNumberId', validated.mcNumberId, {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         path: '/',
         maxAge: 60 * 60 * 24 * 30,
       });
-      cookieStore.set('mcViewMode', 'multi', {
+      cookieStore.set('mcViewMode', 'filtered', {
         path: '/',
         maxAge: 60 * 60 * 24 * 30,
       });

@@ -19,7 +19,7 @@ export const createTrailerSchema = z.object({
   registrationExpiry: z.string().or(z.date()).optional(),
   insuranceExpiry: z.string().or(z.date()).optional(),
   inspectionExpiry: z.string().or(z.date()).optional(),
-  mcNumberId: z.string().min(1, 'MC number is required'),
+  mcNumberId: z.string().optional(),
 });
 
 const updateTrailerSchema = createTrailerSchema.partial().extend({

@@ -204,57 +204,7 @@ export default function LoadListNew() {
 
   return (
     <div className="space-y-2">
-      {/* Header - Compact */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1 flex-wrap">
-          {/* Quick filters removed as requested */}
-        </div>
-        <div className="flex items-center gap-1">
-          {can('data.import') && (
-            <ImportSheet
-              entityType="loads"
-              onImportComplete={() => {
-                queryClient.invalidateQueries({ queryKey: ['loads'] });
-                toast.success('Import completed successfully');
-              }}
-              onAIImport={(data, file) => {
-                setInitialCreateData(data);
-                setSheetMode('create');
-                setSheetOpen(true);
-                // Note: File handling would need extra logic to attach 'file' to the form or state
-                if (file) {
-                  toast.success('Data extracted. Please review and save.');
-                }
-              }}
-            >
-              <Button variant="outline" size="sm" className="h-6 text-xs px-2">
-                <Upload className="h-3 w-3 mr-1" />
-                Import
-              </Button>
-            </ImportSheet>
-          )}
-          {can('data.export') && (
-            <ExportDialog entityType="loads">
-              <Button variant="outline" size="sm" className="h-6 text-xs px-2">
-                <Download className="h-3 w-3 mr-1" />
-                Export
-              </Button>
-            </ExportDialog>
-          )}
-          {can('loads.create') && (
-            <Button
-              size="sm"
-              className="h-6 text-xs px-2"
-              onClick={() => openSheet('create')}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              New Load
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Statistics Card - Collapsible Header */}
+      {/* Statistics Card - Moved to top */}
       <LoadStatisticsCard />
 
       {/* Data Table */}
@@ -272,6 +222,50 @@ export default function LoadListNew() {
         getRowClassName={getLoadRowClassName}
         enableInlineFilters={true}
         enableColumnReorder={true}
+        toolbarActions={
+          <>
+            {can('data.import') && (
+              <ImportSheet
+                entityType="loads"
+                onImportComplete={() => {
+                  queryClient.invalidateQueries({ queryKey: ['loads'] });
+                  toast.success('Import completed successfully');
+                }}
+                onAIImport={(data, file) => {
+                  setInitialCreateData(data);
+                  setSheetMode('create');
+                  setSheetOpen(true);
+                  if (file) {
+                    toast.success('Data extracted. Please review and save.');
+                  }
+                }}
+              >
+                <Button variant="outline" size="sm" className="h-8 text-xs">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+              </ImportSheet>
+            )}
+            {can('data.export') && (
+              <ExportDialog entityType="loads">
+                <Button variant="outline" size="sm" className="h-8 text-xs">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </ExportDialog>
+            )}
+            {can('loads.create') && (
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => openSheet('create')}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Load
+              </Button>
+            )}
+          </>
+        }
       />
 
       {/* Bulk Action Bar */}

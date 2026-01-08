@@ -1985,11 +1985,9 @@ export async function POST(
                   driverNameMap.get(driverValueStr) || null;
               }
 
-              // Resolve MC number value to ID (REQUIRED for trailers)
-              const mcNumberId = resolveMcNumberId(mcNumberValue);
-              if (!mcNumberId) {
-                throw new Error(`MC number "${mcNumberValue || 'N/A'}" could not be resolved to an ID. Please ensure the MC number exists in the system.`);
-              }
+              // Resolve MC number value to ID (optional - can be assigned later via bulk edit)
+              const mcNumberId = resolveMcNumberId(mcNumberValue) || null;
+              // Strict check removed: Allow null mcNumberId to match schema and batch logic
 
               // Prepare tags as JSON
               const legacyTags = tags && Array.isArray(tags) && tags.length > 0 ? tags : null;
@@ -3779,10 +3777,12 @@ export async function POST(
           // Parse pay type and rate
           const payTypeValue = getValue(row, ['Pay Type', 'Pay Type', 'pay_type', 'PayType', 'Payment Type', 'payment_type', 'Compensation Type', 'compensation_type']);
           const payType = payTypeValue ? (payTypeValue.toString().toUpperCase().replace(/[_\s-]/g, '_') as any) : 'PER_MILE';
-          const payRate = parseFloat(String(getValue(row, ['Pay Rate', 'Pay Rate', 'pay_rate', 'PayRate', 'Rate', 'rate', 'Pay Per Mile', 'pay_per_mile', 'Mile Rate', 'mile_rate', 'Hourly Rate', 'hourly_rate']) || '0')) || 0;
+          // Defaults to 0.60 if not provided or 0
+          const payRateRaw = parseFloat(String(getValue(row, ['Pay Rate', 'Pay Rate', 'pay_rate', 'PayRate', 'Rate', 'rate', 'Pay Per Mile', 'pay_per_mile', 'Mile Rate', 'mile_rate', 'Hourly Rate', 'hourly_rate']) || '0'));
+          // If payRate is 0 or NaN, default to 0.60
+          const payRate = (!isNaN(payRateRaw) && payRateRaw > 0) ? payRateRaw : 0.60;
 
-          // Get driver tariff
-          const driverTariff = getValue(row, ['Driver Tariff', 'Driver tariff', 'driver_tariff', 'DriverTariff', 'Tariff', 'tariff', 'Pay Structure', 'pay_structure', 'Compensation', 'compensation']) || null;
+
 
           // Get pay to
           const payTo = getValue(row, ['Pay to', 'Pay To', 'pay_to', 'PayTo', 'Pay To', 'Pay To Company', 'pay_to_company', 'Payee', 'payee']) || null;
@@ -3933,7 +3933,7 @@ export async function POST(
                 backgroundCheck: backgroundCheck || null,
                 payType: payType === 'PER_MILE' || payType === 'PER_LOAD' || payType === 'PERCENTAGE' || payType === 'HOURLY' ? payType : 'PER_MILE',
                 payRate: payRate || 0,
-                driverTariff: driverTariff || null,
+
                 payTo: payTo || null,
                 driverType,
                 status: driverStatus,
@@ -4043,7 +4043,7 @@ export async function POST(
                   backgroundCheck: backgroundCheck || null,
                   payType: payType === 'PER_MILE' || payType === 'PER_LOAD' || payType === 'PERCENTAGE' || payType === 'HOURLY' ? payType : 'PER_MILE',
                   payRate: payRate || 0,
-                  driverTariff: driverTariff || null,
+
                   payTo: payTo || null,
                   driverType,
                   status: driverStatus,
@@ -4132,7 +4132,7 @@ export async function POST(
               backgroundCheck: backgroundCheck || null,
               payType: payType === 'PER_MILE' || payType === 'PER_LOAD' || payType === 'PERCENTAGE' || payType === 'HOURLY' ? payType : 'PER_MILE',
               payRate: payRate || 0,
-              driverTariff: driverTariff || null,
+
               payTo: payTo || null,
               driverType,
               status: driverStatus,

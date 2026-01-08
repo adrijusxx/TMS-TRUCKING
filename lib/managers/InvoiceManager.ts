@@ -489,6 +489,11 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
               truckNumber: true,
             },
           },
+          mcNumber: {
+            select: {
+              number: true,
+            },
+          },
         },
       });
 
@@ -496,12 +501,16 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
         return { success: false, error: 'No loads found' };
       }
 
-      // 2. Validate all loads belong to same company and customer
+      // 2. Validate all loads belong to same company, customer, and MC Number
       const companyIds = new Set(loads.map(l => l.companyId));
       if (companyIds.size > 1) return { success: false, error: 'Loads must belong to the same company' };
 
       const customerIds = new Set(loads.map(l => l.customerId));
       if (customerIds.size > 1) return { success: false, error: 'Loads must belong to the same customer' };
+
+      // Strict MC Number Check - All loads must be under the same MC
+      const mcNumberIds = new Set(loads.map(l => l.mcNumberId).filter(Boolean)); // filter Boolean handles nulls/undefined if strict mode not fully enforced yet
+      if (mcNumberIds.size > 1) return { success: false, error: 'Loads must belong to the same MC Number' };
 
       const load = loads[0]; // Representative load for customer/company info
 
@@ -531,7 +540,6 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
       ].filter(Boolean).join('');
 
       // 6. Create Invoice
-      // Import LoadStatus if needed, or use string literal 'INVOICED'
       const invoice = await prisma.invoice.create({
         data: {
           companyId: load.companyId,
@@ -546,6 +554,8 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
           status: 'DRAFT',
           notes: finalNotes || undefined,
           loadIds: loads.map(l => l.id),
+          mcNumber: load.mcNumber?.number, // Legacy string field
+          mcNumberId: load.mcNumberId,     // Foreign Key for Relation
         },
       });
 

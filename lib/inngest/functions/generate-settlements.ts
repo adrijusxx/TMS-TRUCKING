@@ -16,7 +16,7 @@ import { SettlementManager } from '@/lib/managers/SettlementManager';
  * Cron: Every Friday at 12:00 PM (0 12 * * FRI)
  */
 export const generateAllSettlements = inngest.createFunction(
-  { 
+  {
     id: 'generate-all-settlements',
     name: 'Generate All Settlements (Weekly)',
     concurrency: {
@@ -37,9 +37,9 @@ export const generateAllSettlements = inngest.createFunction(
       const start = new Date(end);
       start.setDate(start.getDate() - 6); // Previous Monday
 
-      return { 
-        periodStart: start.toISOString(), 
-        periodEnd: end.toISOString() 
+      return {
+        periodStart: start.toISOString(),
+        periodEnd: end.toISOString()
       };
     });
 
@@ -230,7 +230,7 @@ interface ProcessResult {
   errors: Array<{ driverId: string; error: string }>;
 }
 
-async function processCompanySettlements(
+export async function processCompanySettlements(
   companyId: string,
   periodStart: Date,
   periodEnd: Date,

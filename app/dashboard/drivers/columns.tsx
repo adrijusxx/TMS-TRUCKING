@@ -4,9 +4,9 @@ import React from 'react';
 import { createColumnHelper } from '@tanstack/react-table';
 import type { ExtendedColumnDef } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
 import { DriverStatus } from '@prisma/client';
+import { Button } from '@/components/ui/button'; // Import Button if needed, or use span/link style
 
 export interface DriverData {
   id: string;
@@ -41,7 +41,6 @@ export interface DriverData {
   payRate?: number | null;
   payType?: string | null;
   payTo?: string | null;
-  driverTariff?: string | null;
   licenseExpiry?: Date | null;
   medicalCardExpiry?: Date | null;
   mcNumberId: string;
@@ -65,42 +64,24 @@ function formatStatus(status: DriverStatus): string {
 }
 
 export function createDriverColumns(
-  _onUpdate?: () => void
+  onEdit: (id: string) => void
 ): ExtendedColumnDef<DriverData>[] {
   return [
-    {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
-      id: 'driverNumber',
-      accessorKey: 'driverNumber',
-      header: 'Driver #',
-      cell: ({ row }) => (
-        <Link
-          href={`/dashboard/drivers/${row.original.id}`}
-          className="text-primary hover:underline font-medium"
-        >
-          {row.original.driverNumber}
-        </Link>
-      ),
-      defaultVisible: true,
-      required: true,
-    },
     {
       id: 'name',
       header: 'Name',
       cell: ({ row }) => (
-        <div>
-          <div className="font-medium">
-            {row.original.user.firstName} {row.original.user.lastName}
-          </div>
+        <div
+          className="font-medium text-primary hover:underline cursor-pointer"
+          onClick={() => onEdit(row.original.id)}
+        >
+          {row.original.user.firstName} {row.original.user.lastName}
         </div>
       ),
       defaultVisible: true,
+      enableSorting: true,
+      // Create a custom accessor for sorting by name
+      accessorKey: (row: DriverData) => `${row.user.firstName} ${row.user.lastName}`,
     },
     {
       id: 'phone',
@@ -271,14 +252,6 @@ export function createDriverColumns(
       permission: 'hr.view',
     },
     {
-      id: 'driverTariff',
-      accessorKey: 'driverTariff',
-      header: 'Tariff',
-      cell: ({ row }) => row.original.driverTariff || '-',
-      defaultVisible: false,
-      permission: 'hr.view',
-    },
-    {
       id: 'license',
       header: 'License',
       cell: ({ row }) => row.original.licenseExpiry ? formatDate(row.original.licenseExpiry) : '-',
@@ -298,12 +271,9 @@ export function createDriverColumns(
       cell: ({ row }) => {
         const mcNumber = row.original.mcNumber;
         return mcNumber ? (
-          <Link
-            href={`/dashboard/mc-numbers/${mcNumber.id}`}
-            className="text-primary hover:underline"
-          >
+          <span className="text-primary font-medium">
             {mcNumber.number}
-          </Link>
+          </span>
         ) : (
           <span className="text-muted-foreground">N/A</span>
         );

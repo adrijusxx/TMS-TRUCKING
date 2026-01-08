@@ -11,7 +11,7 @@ import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
-import { invoicesTableConfig } from '@/lib/config/entities/invoices';
+import { invoicesTableConfig, getInvoicesTableConfig } from '@/lib/config/entities/invoices';
 import InvoiceInlineEdit from './InvoiceInlineEdit';
 import InvoiceSheet from './InvoiceSheet';
 import { InvoiceDateRangeFilter } from './InvoiceDateRangeFilter';
@@ -71,6 +71,8 @@ export default function InvoiceListNew() {
     setSelectedInvoiceId(id);
     setIsSheetOpen(true);
   };
+
+  const config = React.useMemo(() => getInvoicesTableConfig(handleViewInvoice), []);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -258,13 +260,14 @@ export default function InvoiceListNew() {
 
       {/* Data Table */}
       <DataTableWrapper
-        config={invoicesTableConfig}
+        config={config}
         fetchData={fetchInvoices}
         queryParams={{
           ...(fromDate && { startDate: fromDate }),
           ...(toDate && { endDate: toDate }),
         }}
         rowActions={rowActions}
+        onRowClick={(row) => handleViewInvoice(row.id)}
         inlineEditComponent={can('invoices.edit') ? InvoiceInlineEdit : undefined}
         emptyMessage="No invoices found. Get started by creating your first invoice."
         enableColumnVisibility={can('data.column_visibility')}

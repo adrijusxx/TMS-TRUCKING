@@ -53,18 +53,27 @@ const statusColors: Record<InvoiceStatus, string> = {
   POSTED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
-const columns: ExtendedColumnDef<InvoiceData>[] = [
+export const createInvoiceColumns = (onView?: (id: string) => void): ExtendedColumnDef<InvoiceData>[] => [
   {
     id: 'invoiceNumber',
     accessorKey: 'invoiceNumber',
     header: 'Invoice #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/invoices/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
-        {row.original.invoiceNumber}
-      </Link>
+      onView ? (
+        <span
+          className="text-primary hover:underline font-medium cursor-pointer"
+          onClick={() => onView(row.original.id)}
+        >
+          {row.original.invoiceNumber}
+        </span>
+      ) : (
+        <Link
+          href={`/dashboard/invoices/${row.original.id}`}
+          className="text-primary hover:underline font-medium"
+        >
+          {row.original.invoiceNumber}
+        </Link>
+      )
     ),
     defaultVisible: true,
     required: true,
@@ -254,29 +263,11 @@ const bulkEditFields: BulkEditField[] = [
     })),
     permission: 'invoices.edit',
   },
-  {
-    key: 'subStatus',
-    label: 'Sub Status',
-    type: 'select',
-    options: Object.keys(InvoiceSubStatus).map((status) => ({
-      value: status,
-      label: status,
-    })),
-    permission: 'invoices.edit',
-  },
-  {
-    key: 'mcNumberId',
-    label: 'MC Number',
-    type: 'select',
-    options: [], // Will be populated dynamically by BulkEditDialog
-    permission: 'mc_numbers.edit',
-    placeholder: 'Select MC number',
-  },
 ];
 
-export const invoicesTableConfig = createEntityTableConfig<InvoiceData>({
+export const getInvoicesTableConfig = (onView?: (id: string) => void) => createEntityTableConfig<InvoiceData>({
   entityType: 'invoices',
-  columns,
+  columns: createInvoiceColumns(onView),
   defaultVisibleColumns: [
     'customer',
     'invoiceNumber',
@@ -326,4 +317,6 @@ export const invoicesTableConfig = createEntityTableConfig<InvoiceData>({
     },
   ],
 });
+
+export const invoicesTableConfig = getInvoicesTableConfig();
 

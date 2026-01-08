@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
 
 const createPaymentSchema = z.object({
@@ -42,7 +43,10 @@ export async function GET(request: NextRequest) {
     const fuelEntryId = searchParams.get('fuelEntryId');
     const breakdownId = searchParams.get('breakdownId');
     const type = searchParams.get('type');
-    const mcNumberId = searchParams.get('mcNumberId');
+    const mcNumberIdParam = searchParams.get('mcNumberId');
+
+    // Build MC filter from dropdown selection
+    const mcWhere = await buildMcNumberWhereClause(session, request);
 
     const where: any = {
       OR: [
@@ -71,6 +75,12 @@ export async function GET(request: NextRequest) {
         },
       ],
     };
+
+    // Add MC number filter if applicable (not in "all" mode)
+    // Filter payments by their mcNumberId field
+    if (mcWhere.mcNumberId) {
+      where.mcNumberId = mcWhere.mcNumberId;
+    }
 
     if (invoiceId) {
       where.invoiceId = invoiceId;
@@ -108,8 +118,8 @@ export async function GET(request: NextRequest) {
       where.type = type;
     }
 
-    if (mcNumberId) {
-      where.mcNumberId = mcNumberId;
+    if (mcNumberIdParam) {
+      where.mcNumberId = mcNumberIdParam;
     }
 
     if (search) {
@@ -321,11 +331,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify MC number belongs to company if provided
-    if (validated.mcNumberId) {
+
+
+    // Determine MC number assignment
+    // 1. If explicitly provided, use it (and validate)
+    // 2. If not provided, try to inherit from linked entities (Breakdown)
+    // 3. Fallback to active session/context
+
+    let assignedMcNumberId: string | null | undefined = validated.mcNumberId;
+
+    if (assignedMcNumberId) {
+      // Validate provided ID
       const mcNumber = await prisma.mcNumber.findFirst({
         where: {
-          id: validated.mcNumberId,
+          id: assignedMcNumberId,
           companyId: session.user.companyId,
           deletedAt: null,
         },
@@ -340,6 +359,23 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
+    } else {
+      // Logic to inherit from linked entities
+      if (validated.breakdownId) {
+        const breakdown = await prisma.breakdown.findUnique({
+          where: { id: validated.breakdownId },
+          select: { mcNumberId: true }
+        });
+        if (breakdown?.mcNumberId) {
+          assignedMcNumberId = breakdown.mcNumberId;
+        }
+      }
+
+      // If still no ID (or not breakdown), use fallback from context
+      if (!assignedMcNumberId) {
+        const { McStateManager } = await import('@/lib/managers/McStateManager');
+        assignedMcNumberId = await McStateManager.determineActiveCreationMc(session, request);
+      }
     }
 
     // Generate payment number
@@ -352,7 +388,7 @@ export async function POST(request: NextRequest) {
         fuelEntryId: validated.fuelEntryId || null,
         breakdownId: validated.breakdownId || null,
         type: validated.type,
-        mcNumberId: validated.mcNumberId || null,
+        mcNumberId: assignedMcNumberId || null,
         paymentNumber,
         amount: validated.amount,
         paymentDate: typeof validated.paymentDate === 'string'

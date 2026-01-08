@@ -38,11 +38,11 @@ function formatStatus(status: TruckStatus): string {
 }
 
 export function createTruckColumns(
-  onUpdate?: () => void
+  onEdit?: (id?: string) => void
 ): ExtendedColumnDef<TruckData>[] {
   const handleSave = async (rowId: string, columnId: string, value: string | number) => {
     await updateEntityField('truck', rowId, columnId, value);
-    onUpdate?.();
+    onEdit?.(); // This might just refresh
   };
 
   return [
@@ -58,12 +58,12 @@ export function createTruckColumns(
       accessorKey: 'truckNumber',
       header: 'Truck #',
       cell: ({ row }) => (
-        <Link
-          href={`/dashboard/trucks/${row.original.id}`}
-          className="text-primary hover:underline font-medium"
+        <span
+          className="text-primary hover:underline font-medium cursor-pointer"
+          onClick={() => onEdit?.(row.original.id)}
         >
           {row.original.truckNumber}
-        </Link>
+        </span>
       ),
       defaultVisible: true,
       required: true,

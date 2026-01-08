@@ -220,6 +220,9 @@ export async function GET(request: NextRequest) {
           notes: true,
           createdAt: true,
           updatedAt: true,
+          goalAmount: true,
+          currentAmount: true,
+          isAddition: true,
         },
       });
 
@@ -234,7 +237,7 @@ export async function GET(request: NextRequest) {
         // Remove driverId from where clause if it was added
         const safeWhere = { ...where };
         delete (safeWhere as any).driverId;
-        
+
         const rules = await (prisma as any).deductionRule.findMany({
           where: safeWhere,
           orderBy: {

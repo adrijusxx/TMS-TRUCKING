@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Upload, Download, FileText } from 'lucide-react';
 import { GenerateSettlementsButton } from './GenerateSettlementsButton';
@@ -10,7 +11,8 @@ import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportSheet from '@/components/import-export/ImportSheet';
 import ExportDialog from '@/components/import-export/ExportDialog';
 import { usePermissions } from '@/hooks/usePermissions';
-import { settlementsTableConfig } from '@/lib/config/entities/settlements';
+import SettlementSheet from './SettlementSheet';
+import { settlementsTableConfig, getSettlementsTableConfig } from '@/lib/config/entities/settlements';
 import { apiUrl } from '@/lib/utils';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
@@ -42,6 +44,28 @@ export default function SettlementListNew() {
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  const searchParams = useSearchParams();
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [selectedSettlementId, setSelectedSettlementId] = React.useState<string | null>(null);
+
+  // Deep linking support
+  React.useEffect(() => {
+    const settlementIdFromUrl = searchParams.get('settlementId');
+    if (settlementIdFromUrl) {
+      setSelectedSettlementId(settlementIdFromUrl);
+      setSheetOpen(true);
+    }
+  }, [searchParams]);
+
+  const openSheet = (id: string) => {
+    setSelectedSettlementId(id);
+    setSheetOpen(true);
+    // Optional: Update URL for consistency? Maybe avoid for now to keep it simple
+    // window.history.replaceState(null, '', `/dashboard/settlements?settlementId=${id}`);
+  };
+
+  const tableConfig = React.useMemo(() => getSettlementsTableConfig(openSheet), []);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {
@@ -112,11 +136,13 @@ export default function SettlementListNew() {
 
   const rowActions = (row: SettlementData) => (
     <div className="flex items-center gap-2">
-      <Link href={`/dashboard/settlements/${row.id}`}>
-        <Button variant="ghost" size="sm">
-          View
-        </Button>
-      </Link>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => openSheet(row.id)}
+      >
+        View
+      </Button>
     </div>
   );
 
@@ -164,9 +190,10 @@ export default function SettlementListNew() {
 
       {/* Data Table */}
       <DataTableWrapper
-        config={settlementsTableConfig}
+        config={tableConfig}
         fetchData={fetchSettlements}
         rowActions={rowActions}
+        onRowClick={(row) => openSheet(row.id)}
         emptyMessage="No settlements found."
         enableColumnVisibility={can('data.column_visibility')}
         enableRowSelection={true}
@@ -192,6 +219,15 @@ export default function SettlementListNew() {
           onActionComplete={() => { }}
         />
       )}
+
+      <SettlementSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        settlementId={selectedSettlementId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['settlements'] });
+        }}
+      />
     </div>
   );
 }

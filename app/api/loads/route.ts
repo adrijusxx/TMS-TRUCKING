@@ -175,8 +175,8 @@ export async function POST(request: NextRequest) {
     // 6. Extract location and date fields
     const { location, dates } = extractLocationAndDateFields(validated);
 
-    // 7. Determine MC number assignment
-    const mcResult = await determineMcNumberAssignment(session, (body as { mcNumberId?: string }).mcNumberId);
+    // 7. Determine MC number assignment (uses dropdown selection from cookies)
+    const mcResult = await determineMcNumberAssignment(session, (body as { mcNumberId?: string }).mcNumberId, request);
     if (mcResult.error) {
       return NextResponse.json(mcResult.error, { status: 403 });
     }

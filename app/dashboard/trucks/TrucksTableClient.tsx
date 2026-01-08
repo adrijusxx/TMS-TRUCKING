@@ -63,8 +63,14 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
 
 
   const columns = React.useMemo(
-    () => createTruckColumns(handleUpdate),
-    [handleUpdate]
+    () => createTruckColumns((id) => {
+      if (id) {
+        openSheet(can('trucks.edit') ? 'edit' : 'view', id);
+      } else {
+        handleUpdate();
+      }
+    }),
+    [handleUpdate, can]
   );
 
   const rowActions = React.useCallback((row: TruckData) => {

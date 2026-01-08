@@ -111,8 +111,14 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
   }, []);
 
   const columns = React.useMemo(
-    () => createCustomerColumns(handleUpdate),
-    [handleUpdate]
+    () => createCustomerColumns((id) => {
+      if (id) {
+        openSheet(can('customers.edit') ? 'edit' : 'view', id);
+      } else {
+        handleUpdate();
+      }
+    }),
+    [handleUpdate, can]
   );
 
   const rowActions = React.useCallback((row: CustomerData) => {

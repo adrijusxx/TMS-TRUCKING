@@ -5,7 +5,7 @@ import { createDriverSchema } from '@/lib/validations/driver';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { hasPermission } from '@/lib/permissions';
-import { calculateDriverTariff } from '@/lib/utils/driverTariff';
+
 import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { getDriverFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
@@ -257,7 +257,7 @@ export async function GET(request: NextRequest) {
           },
           teamDriver: true,
           payTo: true,
-          driverTariff: true,
+
           warnings: true,
           notes: true,
           hireDate: true,
@@ -317,21 +317,14 @@ export async function GET(request: NextRequest) {
       prisma.driver.count({ where }),
     ]);
 
-    // Calculate driver tariff for each driver based on their loads
     const driversWithTariff = drivers.map((driver) => {
-      const tariff = calculateDriverTariff({
-        payType: driver.payType,
-        payRate: driver.payRate,
-        loads: driver.loads || [],
-      });
-
       return {
         ...driver,
         firstName: driver.user.firstName,
         lastName: driver.user.lastName,
         email: driver.user.email,
         phone: driver.user.phone,
-        driverTariff: driver.driverTariff || tariff,
+
         truck: driver.currentTruck,
         trailer: driver.currentTrailer,
         tags: driver.driverTags || [],

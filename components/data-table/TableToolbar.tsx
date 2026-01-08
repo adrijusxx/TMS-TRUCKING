@@ -91,6 +91,10 @@ interface TableToolbarProps {
    * Required fields for import (used with ImportWizard)
    */
   importRequiredFields?: string[];
+  /**
+   * Custom actions to be rendered in the toolbar
+   */
+  toolbarActions?: React.ReactNode;
 }
 
 /**
@@ -114,6 +118,7 @@ export function TableToolbar({
   enableImport = false,
   onImport,
   importRequiredFields = [],
+  toolbarActions,
 }: TableToolbarProps) {
   const { can, isAdmin } = usePermissions();
   // Capture onImport at the top level to avoid type narrowing issues
@@ -172,7 +177,7 @@ export function TableToolbar({
   // Handle filter change
   const handleFilterChange = (key: string, value: any, filterType?: string) => {
     const newFilters = columnFilters.filter((f) => f.id !== key && !f.id.startsWith(`${key}_`));
-    
+
     // Handle special filter types
     if (filterType === 'daterange') {
       // Date ranges need to be split into startDate and endDate
@@ -199,7 +204,7 @@ export function TableToolbar({
         newFilters.push({ id: key, value: String(value) });
       }
     }
-    
+
     onColumnFiltersChange(newFilters);
   };
 
@@ -359,7 +364,7 @@ export function TableToolbar({
                 <div className="space-y-4">
                   {visibleFilters.map((filter) => {
                     let currentValue: any = filterValues[filter.key] || filter.defaultValue || '';
-                    
+
                     // Handle date range values
                     if (filter.type === 'daterange') {
                       currentValue = {
@@ -367,7 +372,7 @@ export function TableToolbar({
                         end: filterValues[`${filter.key}_end`] || '',
                       };
                     }
-                    
+
                     // Handle number range values
                     if (filter.type === 'numberrange') {
                       currentValue = {
@@ -541,13 +546,13 @@ export function TableToolbar({
             }}
             onApplyFilter={(filters) => {
               const { search, ...rest } = filters;
-              
+
               // Update search
               if (search !== undefined) {
                 setSearchInput(search || '');
                 onSearchChange(search || '');
               }
-              
+
               // Update column filters
               const newFilters: ColumnFiltersState = [];
               Object.entries(rest).forEach(([key, value]) => {
@@ -567,10 +572,17 @@ export function TableToolbar({
                 }
               });
               onColumnFiltersChange(newFilters);
-              
+
               setIsFilterOpen(false);
             }}
           />
+        </div>
+      )}
+
+      {/* Custom Toolbar Actions */}
+      {toolbarActions && (
+        <div className="flex items-center gap-2">
+          {toolbarActions}
         </div>
       )}
     </div>

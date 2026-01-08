@@ -43,7 +43,9 @@ async function triggerBulkSettlementGeneration(data: {
     const error = await response.json();
     throw new Error(error.error?.message || 'Failed to generate settlements');
   }
-  return response.json();
+  const json = await response.json();
+  // API returns { success: boolean, data: GenerationResult }
+  return json.data || json;
 }
 
 export default function BulkSettlementGeneration() {
@@ -283,7 +285,7 @@ export default function BulkSettlementGeneration() {
                 <p>
                   <strong>Duration:</strong> {(result.duration / 1000).toFixed(2)} seconds
                 </p>
-                {result.errors.length > 0 && (
+                {result.errors && result.errors.length > 0 && (
                   <div className="mt-2">
                     <p className="font-semibold text-destructive">Errors ({result.errors.length}):</p>
                     <ul className="list-disc list-inside text-sm">

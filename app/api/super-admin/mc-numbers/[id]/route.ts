@@ -98,7 +98,7 @@ export async function DELETE(
             await tx.trailer.updateMany(filter);
             await tx.driver.updateMany(filter);
             await tx.fuelEntry.updateMany(filter);
-            await tx.loadTemplate.updateMany(filter);
+            // await tx.loadTemplate.updateMany(filter); // Model removed
             await tx.breakdown.updateMany(filter);
             await tx.payment.updateMany(filter);
             await tx.tariff.updateMany(filter);

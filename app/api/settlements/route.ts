@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
-import { getSettlementFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 
 export async function GET(request: NextRequest) {
@@ -21,17 +20,9 @@ export async function GET(request: NextRequest) {
     // Note: Add hasPermission import and check if needed
 
     // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
-    const isAdmin = (session?.user as any)?.role === 'ADMIN';
-    const viewingAll = isAdmin;
-    
-    let mcWhere: { companyId?: string; mcNumberId?: string | { in: string[] } };
-    
-    if (!viewingAll) {
-      mcWhere = await buildMcNumberWhereClause(session, request);
-    } else {
-      // Admin viewing all - no filtering
-      mcWhere = {};
-    }
+    // Always use buildMcNumberWhereClause - it handles "all" mode internally for admins
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+    const viewingAll = !mcWhere.mcNumberId;
 
     // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
@@ -41,18 +32,19 @@ export async function GET(request: NextRequest) {
     const driverId = searchParams.get('driverId');
     const status = searchParams.get('status');
 
-    // Apply role-based filtering with MC context
-    const roleFilter = await getSettlementFilter(
-      createFilterContext(
-        session.user.id,
-        session.user.role as any,
-        viewingAll ? 'ADMIN_ALL_COMPANIES' : session.user.companyId,
-        mcWhere.mcNumberId
-      )
-    );
+    // Build where clause - Settlement has no companyId, filter through driver relation
+    const where: any = {
+      driver: {
+        companyId: session.user.companyId,
+        deletedAt: null,
+      },
+    };
 
-    // Build where clause
-    const where: any = viewingAll ? {} : { ...roleFilter, ...mcWhere };
+    // Settlement filters through driver.companyId and driver.mcNumberId
+    // Add MC number filter only if applicable (not viewing all)
+    if (!viewingAll && mcWhere.mcNumberId) {
+      where.driver.mcNumberId = mcWhere.mcNumberId;
+    }
 
     if (driverId) {
       where.driverId = driverId;
@@ -102,12 +94,16 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Settlement list error:', error);
     return NextResponse.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error?.message || 'Something went wrong',
+          details: process.env.NODE_ENV === 'development' ? String(error) : undefined,
+        },
       },
       { status: 500 }
     );

@@ -57,35 +57,50 @@ export class McStateManager {
   }
 
   /**
-   * Checks if user can access a specific MC ID
-   * 
-   * Rules:
-   * - Admins with empty mcAccess array can access all MCs
-   * - Employees can only access MCs in their mcAccess array
-   * - If mcAccess is empty for non-admin, they have no access
-   * 
-   * IMPORTANT: Reads from database to ensure fresh data
-   */
+ * Checks if user can access a specific MC ID
+ * 
+ * Rules:
+ * - Admins can access ALL MCs in their company (regardless of mcAccess array)
+ * - Employees can only access MCs in their mcAccess array
+ * - If mcAccess is empty for non-admin, they have no access
+ * 
+ * IMPORTANT: Reads from database to ensure fresh data
+ */
   static async canAccessMc(session: any, mcId: string): Promise<boolean> {
     const userId = session?.user?.id;
+    const companyId = session?.user?.companyId;
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
 
+    console.log('[McStateManager] canAccessMc called:', { userId, companyId, isAdmin, mcId });
+
     if (!userId) {
+      console.log('[McStateManager] canAccessMc: No userId');
       return false;
     }
 
-    // Always read from database for fresh data
-    const mcAccess = await this.getMcAccessFromDb(userId);
-
-    // Admins with empty mcAccess array have access to all MCs
-    if (isAdmin && mcAccess.length === 0) {
-      return true;
+    // Admins can access ANY MC in their company
+    if (isAdmin && companyId) {
+      // Verify the MC belongs to the same company
+      const mcNumber = await prisma.mcNumber.findFirst({
+        where: {
+          id: mcId,
+          companyId: companyId,
+          deletedAt: null,
+        },
+      });
+      console.log('[McStateManager] canAccessMc: Admin check result:', !!mcNumber);
+      return !!mcNumber;
     }
 
-    // All users (including admins with restricted access) can only access MCs in their mcAccess array
-    return mcAccess.includes(mcId);
-  }
+    // Non-admins: read mcAccess from database for fresh data
+    const mcAccess = await this.getMcAccessFromDb(userId);
+    const hasAccess = mcAccess.includes(mcId);
 
+    console.log('[McStateManager] canAccessMc: Non-admin check:', { mcAccess, hasAccess });
+
+    // Employees can only access MCs in their mcAccess array
+    return hasAccess;
+  }
   /**
    * Gets the current MC state from session and request
    * Single source of truth - checks session first, then cookies
@@ -130,40 +145,67 @@ export class McStateManager {
     let mcNumberIds: string[] = [];
     let viewMode: 'all' | 'filtered' | 'assigned' = 'all';
 
-    // CASE 1: Admin with empty mcAccess (full access to all MCs)
-    if (isAdmin && mcAccess.length === 0) {
+    // CASE 1: Admin - always uses cookie-based filtering for dropdown selection
+    if (isAdmin) {
       // Check cookies for admin's selection
       const viewModeCookie = this.getCookieValue(request, 'mcViewMode');
       const selectedMcIdsCookie = this.getCookieValue(request, 'selectedMcNumberIds');
+      const currentMcIdCookie = this.getCookieValue(request, 'currentMcNumberId');
+
+      // Debug logging
+      console.log('[McStateManager] Admin cookie values:', {
+        viewModeCookie,
+        currentMcIdCookie,
+        selectedMcIdsCookie: selectedMcIdsCookie ? `${selectedMcIdsCookie.substring(0, 50)}...` : null,
+        requestType: request ? (request.cookies ? 'NextRequest' : 'cookies()') : 'null',
+      });
 
       if (viewModeCookie === 'all' || !viewModeCookie) {
         // Admin viewing all MCs (default)
         viewMode = 'all';
         mcNumberIds = [];
-      } else if (viewModeCookie === 'filtered' && selectedMcIdsCookie) {
-        // Admin viewing specific filtered MCs
-        try {
-          const parsedIds = JSON.parse(selectedMcIdsCookie);
-          if (Array.isArray(parsedIds) && parsedIds.length > 0) {
-            viewMode = 'filtered';
-            mcNumberIds = parsedIds;
-          } else {
-            // Invalid selection, default to 'all'
+        console.log('[McStateManager] Decision: viewMode=all (no filter or explicit all)');
+      } else if (viewModeCookie === 'filtered') {
+        // Admin viewing specific filtered MCs - check both single and multi-select cookies
+        if (currentMcIdCookie) {
+          // Single MC selection
+          viewMode = 'filtered';
+          mcNumberIds = [currentMcIdCookie];
+          console.log('[McStateManager] Decision: viewMode=filtered (single MC)', { mcNumberIds });
+        } else if (selectedMcIdsCookie) {
+          // Multi-MC selection
+          try {
+            const parsedIds = JSON.parse(selectedMcIdsCookie);
+            if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+              viewMode = 'filtered';
+              mcNumberIds = parsedIds;
+              console.log('[McStateManager] Decision: viewMode=filtered (multi MC)', { mcNumberIds });
+            } else {
+              // Invalid selection, default to 'all'
+              viewMode = 'all';
+              mcNumberIds = [];
+              console.log('[McStateManager] Decision: viewMode=all (invalid parsedIds)');
+            }
+          } catch {
+            // Invalid JSON, default to 'all'
             viewMode = 'all';
             mcNumberIds = [];
+            console.log('[McStateManager] Decision: viewMode=all (JSON parse error)');
           }
-        } catch {
-          // Invalid JSON, default to 'all'
+        } else {
+          // No MC IDs found, default to 'all'
           viewMode = 'all';
           mcNumberIds = [];
+          console.log('[McStateManager] Decision: viewMode=all (no MC IDs in cookies)');
         }
       } else {
         // Default to 'all' for any other case
         viewMode = 'all';
         mcNumberIds = [];
+        console.log('[McStateManager] Decision: viewMode=all (unknown viewModeCookie value)');
       }
     }
-    // CASE 2: Employee (or admin with restricted mcAccess)
+    // CASE 2: Employee with mcAccess - always see their assigned MCs only
     else if (mcAccess.length > 0) {
       // Employees always see their assigned MCs (combined view)
       viewMode = 'assigned';

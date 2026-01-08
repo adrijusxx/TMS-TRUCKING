@@ -335,38 +335,40 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Determine mcNumber for the new customer
-      const isAdmin = (session?.user as any)?.role === 'ADMIN';
-      const mcState = await McStateManager.getMcState(session, request);
-      let customerMcNumber: string | null = validated.mcNumber || null;
+      // Determine mcNumber (string) for the new customer
+      let customerMcNumberString: string | null = null;
+      let targetMcId: string | null = null;
 
-      if (!isAdmin) {
-        // Non-admins automatically assign to their default MC
-        const userMcNumber = (session.user as any)?.mcNumber || null;
-        // Ensure non-admins cannot explicitly set mcNumber in the request body
-        if (validated.mcNumber && validated.mcNumber !== userMcNumber) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'FORBIDDEN',
-                message: 'Employees can only create customers under their assigned MC number.',
-              },
-            },
-            { status: 403 }
-          );
+      if (validated.mcNumber) {
+        // If provided in body (optional string from schema), treat as ID? Or String? 
+        // Schema says string. Let's assume frontend processes might send ID if they use the selector.
+        // BUT Customer model expects string. Let's assume input is ID if it looks like CUID, or just handle both.
+        // Actually, let's rely on standard logic: Determine ID, then fetch String.
+        targetMcId = validated.mcNumber;
+      } else {
+        // Fallback to active context
+        const { McStateManager } = await import('@/lib/managers/McStateManager');
+        targetMcId = await McStateManager.determineActiveCreationMc(session, request);
+      }
+
+      // If we have an ID, fetch the number string
+      if (targetMcId) {
+        const mcRecord = await prisma.mcNumber.findUnique({
+          where: { id: targetMcId },
+          select: { number: true },
+        });
+        if (mcRecord) {
+          customerMcNumberString = mcRecord.number;
         }
-        customerMcNumber = userMcNumber;
-      } else if (!customerMcNumber) {
-        // Admin didn't specify MC, use their current selection
-        customerMcNumber = mcState.mcNumber;
       }
 
       const customer = await prisma.customer.create({
         data: {
           ...validated,
+          // Remove mcNumber from validated if it exists there to avoid conflict/wrong type (though schema has it)
+          // We override it explicitly
+          mcNumber: customerMcNumberString, // Save the STRING (e.g. "123456")
           companyId: session.user.companyId,
-          mcNumber: customerMcNumber,
         },
       });
 

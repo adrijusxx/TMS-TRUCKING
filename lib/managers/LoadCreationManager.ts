@@ -155,16 +155,25 @@ export function extractLocationAndDateFields(
  */
 export async function determineMcNumberAssignment(
   session: Session,
-  bodyMcNumberId: string | undefined
+  bodyMcNumberId: string | undefined,
+  request?: any
 ): Promise<{ mcNumberId: string | null; error?: LoadCreationResult }> {
   const isAdmin = session.user.role === 'ADMIN';
   const userMcAccess = McStateManager.getMcAccess(session);
   let assignedMcNumberId: string | null = null;
 
+  console.log('[LoadCreationManager] determineMcNumberAssignment called:', {
+    bodyMcNumberId,
+    isAdmin,
+    userMcAccess,
+    hasRequest: !!request,
+  });
+
   if (bodyMcNumberId) {
     // User provided mcNumberId - validate access
     if (await McStateManager.canAccessMc(session, bodyMcNumberId)) {
       assignedMcNumberId = bodyMcNumberId;
+      console.log('[LoadCreationManager] Using bodyMcNumberId:', assignedMcNumberId);
     } else {
       return {
         mcNumberId: null,
@@ -178,8 +187,16 @@ export async function determineMcNumberAssignment(
       };
     }
   } else {
-    // Use default MC
-    assignedMcNumberId = (session.user as { mcNumberId?: string }).mcNumberId || null;
+    // No mcNumberId provided - use active selection from dropdown (via cookies)
+    // This respects the user's current MC filter selection
+    assignedMcNumberId = await McStateManager.determineActiveCreationMc(session, request);
+    console.log('[LoadCreationManager] determineActiveCreationMc returned:', assignedMcNumberId);
+
+    // If still no MC, fall back to user's default or company default
+    if (!assignedMcNumberId) {
+      assignedMcNumberId = (session.user as { mcNumberId?: string }).mcNumberId || null;
+      console.log('[LoadCreationManager] Fell back to user.mcNumberId:', assignedMcNumberId);
+    }
 
     // Validate default MC is accessible
     if (assignedMcNumberId && !(await McStateManager.canAccessMc(session, assignedMcNumberId))) {
@@ -220,6 +237,7 @@ export async function determineMcNumberAssignment(
     }
   }
 
+  console.log('[LoadCreationManager] Final assignedMcNumberId:', assignedMcNumberId);
   return { mcNumberId: assignedMcNumberId };
 }
 

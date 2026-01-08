@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * GET /api/fleet/breakdowns/active
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority'); // Filter by priority
     const assignedTo = searchParams.get('assignedTo'); // Filter by assigned staff
 
+    // Build MC filter
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
     const where: any = {
       companyId: session.user.companyId,
       deletedAt: null,
@@ -28,6 +32,11 @@ export async function GET(request: NextRequest) {
         notIn: ['RESOLVED', 'CANCELLED'],
       },
     };
+
+    // Add MC number filter if applicable (not in "all" mode)
+    if (mcWhere.mcNumberId) {
+      where.mcNumberId = mcWhere.mcNumberId;
+    }
 
     if (priority) {
       where.priority = priority;

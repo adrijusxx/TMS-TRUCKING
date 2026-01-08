@@ -29,7 +29,7 @@ interface Settlement {
   periodStart: string;
   periodEnd: string;
   grossPay: number;
-  totalDeductions: number;
+  deductions: number;
   netPay: number;
   createdAt: string;
 }
@@ -165,7 +165,7 @@ export function SettlementApprovalQueue() {
                 <TableRow key={settlement.id}>
                   <TableCell className="font-medium">
                     <Link
-                      href={`/dashboard/settlements/${settlement.id}`}
+                      href={`/dashboard/settlements?settlementId=${settlement.id}`}
                       className="hover:underline"
                     >
                       {settlement.settlementNumber}
@@ -191,7 +191,7 @@ export function SettlementApprovalQueue() {
                     ${(settlement.grossPay ?? 0).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right text-red-600">
-                    -${(settlement.totalDeductions ?? 0).toLocaleString()}
+                    -${(settlement.deductions ?? 0).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right font-bold text-green-600">
                     ${(settlement.netPay ?? 0).toLocaleString()}
@@ -201,7 +201,7 @@ export function SettlementApprovalQueue() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Link href={`/api/settlements/${settlement.id}/breakdown`}>
+                      <Link href={`/dashboard/settlements?settlementId=${settlement.id}`}>
                         <Button variant="ghost" size="sm">
                           <Eye className="h-4 w-4" />
                         </Button>

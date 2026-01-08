@@ -152,6 +152,27 @@ export class MigrationImportService {
       throw new Error(`Missing unique identifier: ${uniqueField}`);
     }
 
+    // ============================================================
+    // LOAD SPECIAL HANDLING: Auto-set readyForSettlement & deliveredAt
+    // for imported loads with completed status and assigned driver
+    // ============================================================
+    if (entityType === 'LOAD') {
+      const completedStatuses = ['DELIVERED', 'INVOICED', 'PAID'];
+      const hasCompletedStatus = data.status && completedStatuses.includes(data.status);
+      const hasDriver = !!data.driverId;
+
+      if (hasCompletedStatus && hasDriver) {
+        // Auto-set readyForSettlement for settlement eligibility
+        if (data.readyForSettlement === undefined || data.readyForSettlement === false) {
+          data.readyForSettlement = true;
+        }
+        // Auto-set deliveredAt if missing (use current date as fallback)
+        if (!data.deliveredAt) {
+          data.deliveredAt = new Date();
+        }
+      }
+    }
+
     // Check if entity exists
     const existing = await (prisma as any)[modelName].findFirst({
       where: {

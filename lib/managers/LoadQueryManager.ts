@@ -1,123 +1,20 @@
 /**
  * LoadQueryManager - Handles building query filters for loads API
- * Extracted from app/api/loads/route.ts to comply with 400-line limit
+ * Refactored to use sub-modules to comply with 400-line limit
  */
 
 import { NextRequest } from 'next/server';
 import { Session } from 'next-auth';
-import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { getLoadFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
-import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { LoadQueryParams } from './load-query/types';
 
-export interface LoadQueryParams {
-  page: number;
-  limit: number;
-  skip: number;
-  sortBy: string;
-  sortOrder: string;
-  sortFields: Array<{ field: string; order: 'asc' | 'desc' }>;
-  statusParams: string[];
-  customerIdParams: string[];
-  driverIdParams: string[];
-  truckIdParams: string[];
-  search: string | null;
-  pickupCity: string | null;
-  pickupState: string | null;
-  deliveryCity: string | null;
-  deliveryState: string | null;
-  pickupDate: string | null;
-  pickupDateStart: string | null;
-  pickupDateEnd: string | null;
-  deliveryDate: string | null;
-  deliveryDateStart: string | null;
-  deliveryDateEnd: string | null;
-  createdAt: string | null;
-  createdAfter: string | null;
-  createdBefore: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  revenue: string | null;
-  miles: string | null;
-  truckNumber: string | null;
-  dispatcherId: string | null;
-  mcNumberIdFilter: string | null;
-  createdToday: boolean;
-  pickupToday: boolean;
-  createdLast24h: boolean;
-  hasMissingDocuments: string | null;
-}
-
-/**
- * Parse query parameters from request URL
- */
-export function parseQueryParams(request: NextRequest): LoadQueryParams {
-  const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
-
-  // Parse multi-column sorting
-  // Format: sortBy=pickupDate,deliveryDate&sortOrder=asc,desc
-  const sortByParam = searchParams.get('sortBy') || 'createdAt';
-  const sortOrderParam = searchParams.get('sortOrder') || 'desc';
-
-  const sortByFields = sortByParam.split(',').map(s => s.trim()).filter(Boolean);
-  const sortOrders = sortOrderParam.split(',').map(s => s.trim().toLowerCase() as 'asc' | 'desc');
-
-  const sortFields: Array<{ field: string; order: 'asc' | 'desc' }> = sortByFields.map((field, index) => ({
-    field,
-    order: sortOrders[index] === 'asc' ? 'asc' : 'desc',
-  }));
-
-  return {
-    page,
-    limit,
-    skip: (page - 1) * limit,
-    sortBy: sortByFields[0] || 'createdAt',
-    sortOrder: sortOrders[0] || 'desc',
-    sortFields,
-    statusParams: searchParams.getAll('status'),
-    customerIdParams: searchParams.getAll('customerId'),
-    driverIdParams: searchParams.getAll('driverId'),
-    truckIdParams: searchParams.getAll('truckId'),
-    search: searchParams.get('search'),
-    pickupCity: searchParams.get('pickupCity'),
-    pickupState: searchParams.get('pickupState'),
-    deliveryCity: searchParams.get('deliveryCity'),
-    deliveryState: searchParams.get('deliveryState'),
-    pickupDate: searchParams.get('pickupDate'),
-    pickupDateStart: searchParams.get('pickupDateStart'),
-    pickupDateEnd: searchParams.get('pickupDateEnd'),
-    deliveryDate: searchParams.get('deliveryDate'),
-    deliveryDateStart: searchParams.get('deliveryDateStart'),
-    deliveryDateEnd: searchParams.get('deliveryDateEnd'),
-    createdAt: searchParams.get('createdAt'),
-    createdAfter: searchParams.get('createdAfter'),
-    createdBefore: searchParams.get('createdBefore'),
-    startDate: searchParams.get('startDate'),
-    endDate: searchParams.get('endDate'),
-    revenue: searchParams.get('revenue'),
-    miles: searchParams.get('miles'),
-    truckNumber: searchParams.get('truckNumber'),
-    dispatcherId: searchParams.get('dispatcherId'),
-    mcNumberIdFilter: searchParams.get('mcNumberId'),
-    createdToday: searchParams.get('createdToday') === 'true',
-    pickupToday: searchParams.get('pickupToday') === 'true',
-    createdLast24h: searchParams.get('createdLast24h') === 'true',
-    hasMissingDocuments: searchParams.get('hasMissingDocuments'),
-  };
-}
-
-/**
- * Build orderBy clause for Prisma query (supports multi-column sorting)
- */
-export function buildOrderByClause(params: LoadQueryParams): Array<Record<string, 'asc' | 'desc'>> {
-  if (params.sortFields.length === 0) {
-    return [{ createdAt: 'desc' }];
-  }
-  return params.sortFields.map(({ field, order }) => ({ [field]: order }));
-}
+// Re-export sub-modules
+export * from './load-query/types';
+export * from './load-query/parsing';
+export * from './load-query/selection';
+export * from './load-query/post-processing';
 
 /**
  * Build the base where clause with MC and role filters
@@ -171,6 +68,11 @@ export function applyQueryFilters(
 
   // Status filter
   applyStatusFilter(where, params.statusParams);
+
+  // Ready for Settlement filter
+  if (params.readyForSettlement !== null) {
+    where.readyForSettlement = params.readyForSettlement;
+  }
 
   // Entity ID filters
   applyEntityIdFilters(where, params);
@@ -484,147 +386,3 @@ function applySearchFilter(
     where.OR = searchOr;
   }
 }
-
-/**
- * Load select clause for list queries
- */
-export const loadListSelect = {
-  id: true,
-  loadNumber: true,
-  status: true,
-  dispatchStatus: true,
-  pickupLocation: true,
-  pickupCity: true,
-  pickupState: true,
-  pickupDate: true,
-  deliveryLocation: true,
-  deliveryCity: true,
-  deliveryState: true,
-  deliveryDate: true,
-  revenue: true,
-  driverPay: true,
-  totalPay: true,
-  totalMiles: true,
-  loadedMiles: true,
-  emptyMiles: true,
-  trailerNumber: true,
-  shipmentId: true,
-  stopsCount: true,
-  serviceFee: true,
-  createdAt: true,
-  updatedAt: true,
-  deletedAt: true,
-  customer: {
-    select: { id: true, name: true, customerNumber: true },
-  },
-  driver: {
-    select: {
-      id: true,
-      driverNumber: true,
-      user: { select: { firstName: true, lastName: true, phone: true } },
-    },
-  },
-  truck: {
-    select: { id: true, truckNumber: true },
-  },
-  dispatcher: {
-    select: { id: true, firstName: true, lastName: true, email: true, phone: true },
-  },
-  mcNumber: {
-    select: { id: true, number: true, companyName: true },
-  },
-  stops: {
-    select: { id: true, stopType: true, sequence: true, city: true, state: true },
-    orderBy: { sequence: 'asc' as const },
-  },
-  documents: {
-    where: { deletedAt: null },
-    select: { id: true, type: true, title: true, fileName: true, fileUrl: true },
-    orderBy: { createdAt: 'desc' as const },
-    take: 5,
-  },
-  statusHistory: {
-    select: { createdBy: true, createdAt: true },
-    orderBy: { createdAt: 'asc' as const },
-    take: 1,
-  },
-  rateConfirmation: {
-    select: { id: true, rateConfNumber: true },
-  },
-};
-
-/**
- * Calculate statistics from loads
- */
-export function calculateLoadStats(
-  sums: { _sum: Record<string, number | null> },
-  allLoadsForStats: Array<{ totalMiles: number | null; loadedMiles: number | null; emptyMiles: number | null }>
-) {
-  const revenueSum = Number(sums._sum.revenue ?? 0);
-  const totalPaySum = Number(sums._sum.totalPay ?? 0);
-  const driverPaySum = Number(sums._sum.driverPay ?? 0);
-  const totalMilesSum = Number(sums._sum.totalMiles ?? 0);
-  const emptyMilesSum = Number(sums._sum.emptyMiles ?? 0);
-  const serviceFeeSum = Number(sums._sum.serviceFee ?? 0);
-
-  // Calculate loaded miles
-  let calculatedLoadedMilesSum = 0;
-  for (const load of allLoadsForStats) {
-    const totalMiles = Number(load.totalMiles ?? 0);
-    const loadedMiles = Number(load.loadedMiles ?? 0);
-    const emptyMiles = Number(load.emptyMiles ?? 0);
-    const calculatedLoadedMiles = loadedMiles > 0 ? loadedMiles : Math.max(totalMiles - emptyMiles, 0);
-    calculatedLoadedMilesSum += calculatedLoadedMiles;
-  }
-
-  const derivedLoadedMiles = calculatedLoadedMilesSum;
-  const rpmLoadedMiles = derivedLoadedMiles > 0 ? revenueSum / derivedLoadedMiles : null;
-  const rpmTotalMiles = totalMilesSum > 0 ? revenueSum / totalMilesSum : null;
-
-  return {
-    totalPay: totalPaySum,
-    totalLoadPay: revenueSum,
-    driverGross: driverPaySum,
-    totalMiles: totalMilesSum,
-    loadedMiles: derivedLoadedMiles,
-    emptyMiles: emptyMilesSum,
-    rpmLoadedMiles,
-    rpmTotalMiles,
-    serviceFee: serviceFeeSum,
-  };
-}
-
-/**
- * Add document status to loads
- */
-export function addDocumentStatus<T extends { documents?: Array<{ type: string }> }>(
-  loads: T[]
-): Array<T & { missingDocuments: string[]; hasMissingDocuments: boolean }> {
-  const REQUIRED_DOCUMENTS = ['BOL', 'POD', 'RATE_CONFIRMATION'] as const;
-
-  return loads.map((load) => {
-    const documentTypes = load.documents?.map((doc) => doc.type) || [];
-    const missingDocuments = REQUIRED_DOCUMENTS.filter(
-      (type) => !documentTypes.includes(type)
-    );
-
-    return {
-      ...load,
-      missingDocuments,
-      hasMissingDocuments: missingDocuments.length > 0,
-    };
-  });
-}
-
-/**
- * Filter loads for sensitive fields based on role
- */
-export function filterLoadsForRole<T extends Record<string, any>>(
-  loads: T[],
-  role: 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER'
-): T[] {
-  return loads.map((load) => filterSensitiveFields(load, role)) as T[];
-}
-
-
-

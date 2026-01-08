@@ -61,29 +61,40 @@ export async function POST(request: NextRequest) {
       periodEnd = validated.periodEnd;
     }
 
-    // Send event to Inngest
-    if (validated.companyId) {
-      // Generate for specific company
+    // Send event to Inngest with Fallback
+    try {
+      const targetCompanyId = validated.companyId || session.user.companyId;
+
       await inngest.send({
         name: 'settlement/generate-for-company',
         data: {
-          companyId: validated.companyId,
+          companyId: targetCompanyId,
           periodStart,
           periodEnd,
         },
       });
-    } else {
-      // Use the current company from session
-      const companyId = session.user.companyId;
-      
-      await inngest.send({
-        name: 'settlement/generate-for-company',
-        data: {
-          companyId,
-          periodStart,
-          periodEnd,
-        },
-      });
+    } catch (inngestError: any) {
+      console.warn('Inngest unavailable, falling back to direct execution:', inngestError.message);
+
+      // Fallback: Execute logic directly (Sync)
+      // This is helpful for local dev where Inngest might not be configured
+      const { processCompanySettlements } = await import('@/lib/inngest/functions/generate-settlements');
+      const targetCompanyId = validated.companyId || session.user.companyId;
+
+      const simpleLogger = {
+        info: (msg: string) => console.log(`[DirectSettlement] ${msg}`),
+        error: (msg: string, e?: unknown) => console.error(`[DirectSettlement] ${msg}`, e),
+      };
+
+      // Run async but don't await to avoid blocking the response significantly? 
+      // Actually for "Manual Batch" waiting is fine, but Vercel timeout is 10s.
+      // We'll await it to ensure it works, but log warnings.
+      await processCompanySettlements(
+        targetCompanyId,
+        new Date(periodStart!),
+        new Date(periodEnd!),
+        simpleLogger
+      );
     }
 
     return NextResponse.json({
@@ -150,9 +161,9 @@ export async function GET() {
       success: true,
       data: lastRun
         ? {
-            lastRun: lastRun.createdAt,
-            details: lastRun.metadata,
-          }
+          lastRun: lastRun.createdAt,
+          details: lastRun.metadata,
+        }
         : null,
     });
   } catch (error: unknown) {

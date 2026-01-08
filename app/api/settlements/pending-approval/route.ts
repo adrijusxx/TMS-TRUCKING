@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 /**
  * Get all settlements pending approval
@@ -21,10 +22,22 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = (page - 1) * limit;
 
+    // Build MC filter - Settlement filters through driver.mcNumberId
+    const mcWhere = await buildMcNumberWhereClause(session, request);
+
+    // Build where clause with MC filtering
+    const driverFilter: any = {
+      companyId: session.user.companyId,
+      deletedAt: null,
+    };
+
+    // Add MC number filter if applicable (not in "all" mode)
+    if (mcWhere.mcNumberId) {
+      driverFilter.mcNumberId = mcWhere.mcNumberId;
+    }
+
     const where = {
-      driver: {
-        companyId: session.user.companyId,
-      },
+      driver: driverFilter,
       approvalStatus: 'PENDING' as const,
     };
 

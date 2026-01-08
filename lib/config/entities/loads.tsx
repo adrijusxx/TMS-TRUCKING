@@ -161,7 +161,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       })() : false;
 
       const hasMissingDocs = row.original.hasMissingDocuments || false;
-      const missingDocs = row.original.missingDocuments || [];
+
+      // Deduplicate missing documents
+      const missingDocs = Array.from(new Set(row.original.missingDocuments || []));
 
       const documentLabels: Record<string, string> = {
         BOL: 'Bill of Lading',
@@ -209,23 +211,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     filterType: 'text',
     filterKey: 'loadNumber',
   },
-  {
-    id: 'rateConfNumber',
-    header: 'Rate Con #',
-    cell: ({ row }) => {
-      const rateConf = row.original.rateConfirmation?.[0];
-      return (
-        <RateConfEditableCell
-          loadId={row.original.id}
-          rateConfId={rateConf?.id || null}
-          rateConfNumber={rateConf?.rateConfNumber || null}
-        />
-      );
-    },
-    defaultVisible: true,
-    filterType: 'text',
-    filterKey: 'rateConfNumber',
-  },
+
   {
     id: 'status',
     accessorKey: 'status',
@@ -341,12 +327,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'Driver',
     cell: ({ row }) =>
       row.original.driver && row.original.driver.user ? (
-        <Link
-          href={`/dashboard/drivers/${row.original.driver.id}`}
-          className="text-primary hover:underline"
-        >
+        <span className="text-sm font-medium">
           {row.original.driver.user.firstName} {row.original.driver.user.lastName}
-        </Link>
+        </span>
       ) : (
         'Unassigned'
       ),
@@ -360,18 +343,27 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     header: 'Truck',
     cell: ({ row }) =>
       row.original.truck ? (
-        <Link
-          href={`/dashboard/trucks/${row.original.truck.id}`}
-          className="text-primary hover:underline"
-        >
+        <span className="text-sm font-medium">
           {row.original.truck.truckNumber}
-        </Link>
+        </span>
       ) : (
         'Unassigned'
       ),
     defaultVisible: true,
     enableColumnFilter: true,
     filterKey: 'truckId',
+    filterType: 'searchable-select',
+  },
+  {
+    id: 'trailer',
+    header: 'Trailer',
+    cell: ({ row }) => {
+      const trailerNumber = (row.original as any).trailerNumber;
+      return trailerNumber || '—';
+    },
+    defaultVisible: true,
+    enableColumnFilter: true,
+    filterKey: 'trailerId',
     filterType: 'searchable-select',
   },
   {
@@ -541,18 +533,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     defaultVisible: false,
     permission: 'loads.view_financial',
   },
-  {
-    id: 'trailer',
-    header: 'Trailer',
-    cell: ({ row }) => {
-      const trailerNumber = (row.original as any).trailerNumber;
-      return trailerNumber || '—';
-    },
-    defaultVisible: true,
-    enableColumnFilter: true,
-    filterKey: 'trailerId',
-    filterType: 'searchable-select',
-  },
+
   {
     id: 'mcNumber',
     accessorKey: 'mcNumber',
@@ -583,60 +564,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     filterType: 'searchable-select',
     className: 'min-w-[150px]',
   },
-  {
-    id: 'documents',
-    header: 'Documents',
-    cell: ({ row }) => {
-      const hasMissingDocs = row.original.hasMissingDocuments || false;
-      const missingDocs = row.original.missingDocuments || [];
 
-      const documentLabels: Record<string, string> = {
-        BOL: 'BOL',
-        POD: 'POD',
-        RATE_CONFIRMATION: 'Rate Conf',
-      };
-
-      if (!hasMissingDocs) {
-        return (
-          <Badge
-            variant="secondary"
-            className="bg-green-50 text-green-700 border-green-200 text-xs whitespace-nowrap px-1.5 py-0.5 inline-flex items-center gap-1"
-          >
-            <FileText className="h-3 w-3 shrink-0" />
-            <span>Complete</span>
-          </Badge>
-        );
-      }
-
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge
-                variant="destructive"
-                className="text-xs whitespace-nowrap px-1.5 py-0.5 inline-flex items-center gap-1"
-              >
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                <span>Missing {missingDocs.length}</span>
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className="space-y-1">
-                <p className="font-semibold">Missing Documents:</p>
-                {missingDocs.map((doc) => (
-                  <p key={doc} className="text-sm">• {documentLabels[doc] || doc}</p>
-                ))}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
-    },
-    defaultVisible: true,
-    enableColumnFilter: true,
-    filterKey: 'hasMissingDocuments',
-    filterType: 'boolean',
-  },
   {
     id: 'createdAt',
     accessorKey: 'createdAt',

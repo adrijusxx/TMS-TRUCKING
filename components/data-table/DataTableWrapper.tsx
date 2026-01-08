@@ -118,6 +118,10 @@ interface DataTableWrapperProps<TData extends Record<string, any>> {
    * Enable draggable column reordering
    */
   enableColumnReorder?: boolean;
+  /**
+   * Custom actions to be rendered in the toolbar
+   */
+  toolbarActions?: React.ReactNode;
 }
 
 /**
@@ -144,6 +148,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   onExportSelected,
   enableInlineFilters,
   enableColumnReorder = false,
+  toolbarActions,
 }: DataTableWrapperProps<TData>) {
 
   const { can } = usePermissions();
@@ -593,6 +598,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
           onExport={config.enableExport !== false ? handleExport : undefined}
           enableImport={config.enableImport === true}
           onImport={config.enableImport === true ? handleImport : undefined}
+          toolbarActions={toolbarActions}
         />
       )}
 

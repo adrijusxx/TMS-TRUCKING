@@ -44,7 +44,7 @@ export default function DriverSheet({ open, onOpenChange, mode, driverId, onSucc
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
                 side="right"
-                className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl overflow-y-auto p-0 border-l border-border/50 bg-background/95 backdrop-blur-sm"
+                className="w-full sm:max-w-[85vw] md:max-w-4xl lg:max-w-5xl xl:max-w-6xl overflow-y-auto p-0 border-l border-border/50 bg-background/95 backdrop-blur-sm"
             >
                 <SheetHeader className="px-6 py-4 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur-sm z-20">
                     <div className="flex items-center gap-3">

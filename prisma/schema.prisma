@@ -46,7 +46,7 @@ model User {
   reconciliations            Reconciliation[]
   dispatchedLoads            Load[]                   @relation("LoadDispatcher")
   createdLoads               Load[]                   @relation("LoadCreatedBy")
-  createdLoadTemplates       LoadTemplate[]           @relation("LoadTemplateCreatedBy")
+
   assignedDrivers            Driver[]                 @relation("DriverDispatcher")
   hrManagedDrivers           Driver[]                 @relation("DriverHRManager")
   safetyManagedDrivers       Driver[]                 @relation("DriverSafetyManager")
@@ -159,7 +159,7 @@ model Company {
   users                     User[]
   userCompanies             UserCompany[]
   loads                     Load[]
-  loadTemplates             LoadTemplate[]
+
   drivers                   Driver[]
   trucks                    Truck[]
   trailers                  Trailer[]
@@ -481,126 +481,7 @@ model LoadStop {
 }
 
 // ============================================
-// LOAD TEMPLATES
-// ============================================
 
-model LoadTemplate {
-  id          String   @id @default(cuid())
-  name        String // Template name (e.g., "Weekly Dallas-Houston")
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  customerId  String
-  customer    Customer @relation(fields: [customerId], references: [id])
-  createdById String?
-  createdBy   User?    @relation("LoadTemplateCreatedBy", fields: [createdById], references: [id])
-
-  // Load Details (no driver, no dates)
-  loadType      LoadType      @default(FTL)
-  equipmentType EquipmentType
-
-  // Pickup Information (no dates)
-  pickupLocation String?
-  pickupAddress  String?
-  pickupCity     String?
-  pickupState    String?
-  pickupZip      String?
-  pickupCompany  String?
-  pickupContact  String?
-  pickupPhone    String?
-  pickupNotes    String?
-
-  // Delivery Information (no dates)
-  deliveryLocation String?
-  deliveryAddress  String?
-  deliveryCity     String?
-  deliveryState    String?
-  deliveryZip      String?
-  deliveryCompany  String?
-  deliveryContact  String?
-  deliveryPhone    String?
-  deliveryNotes    String?
-
-  // Load Specifications
-  weight      Float
-  pieces      Int?
-  commodity   String?
-  pallets     Int?
-  temperature String?
-  hazmat      Boolean @default(false)
-  hazmatClass String?
-
-  // Financial
-  revenue     Float
-  driverPay   Float?
-  fuelAdvance Float  @default(0)
-  expenses    Float  @default(0)
-
-  // Distances
-  loadedMiles    Float?
-  emptyMiles     Float?
-  totalMiles     Float?
-  revenuePerMile Float?
-
-  // Notes
-  dispatchNotes String?
-  driverNotes   String?
-
-  // MC Number assignment
-  mcNumberId String?
-  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  // Migration metadata - stores unmapped fields from source TMS
-  metadata Json?
-
-  // Relations
-  stops LoadTemplateStop[]
-
-  @@index([companyId])
-  @@index([customerId])
-  @@index([mcNumberId])
-  @@index([companyId, mcNumberId])
-}
-
-model LoadTemplateStop {
-  id         String       @id @default(cuid())
-  templateId String
-  template   LoadTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-
-  // Stop Details
-  stopType StopType
-  sequence Int
-
-  // Location
-  company String?
-  address String
-  city    String
-  state   String
-  zip     String
-  phone   String?
-
-  // Contact
-  contactName  String?
-  contactPhone String?
-
-  // Items at this stop
-  items       Json?
-  totalPieces Int?
-  totalWeight Float?
-
-  // Notes
-  notes               String?
-  specialInstructions String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([templateId])
-  @@index([templateId, sequence])
-}
 
 enum StopType {
   PICKUP
@@ -865,7 +746,7 @@ model Driver {
   // Pay
   payType      PayType @default(PER_MILE)
   payRate      Float
-  driverTariff String? // Calculated tariff display (e.g., "$0.65 per mile + 30 per stop")
+
   payTo        String? // Who to pay to (e.g., company name)
 
   // Deduction Configuration
@@ -1817,7 +1698,7 @@ model Customer {
 
   // Relations
   loads          Load[]
-  loadTemplates  LoadTemplate[]
+
   invoices       Invoice[]
   contacts       CustomerContact[]
   tags           CustomerTag[]
@@ -2432,6 +2313,10 @@ model DeductionRule {
 
   // Conditions
   minGrossPay Float? // Only apply if gross pay exceeds this
+  
+  // Stop Limit / Goal
+  goalAmount    Float? // Total target amount to collect (e.g. $1000 Escrow)
+  currentAmount Float  @default(0) // Amount collected so far
   maxAmount   Float? // Cap the deduction at this amount
 
   isActive Boolean @default(true)
@@ -5479,7 +5364,7 @@ model McNumber {
   trucks                Truck[] // Trucks assigned to this MC number
   trailers              Trailer[] // Trailers assigned to this MC number
   loads                 Load[] // Loads assigned to this MC number
-  loadTemplates         LoadTemplate[] // Load templates assigned to this MC number
+
   paymentConfigurations PaymentConfiguration[]
   orderPaymentTypes     OrderPaymentType[]
   dynamicStatuses       DynamicStatus[]

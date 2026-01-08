@@ -27,19 +27,29 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const isSuperAdmin = session.user.role === 'SUPER_ADMIN';
+
+    const where: any = {
+      id: resolvedParams.id,
+    };
+
+    // Only enforce company isolation for non-super admins
+    if (!isSuperAdmin) {
+      where.driver = {
+        companyId: session.user.companyId,
+      };
+    }
+
     const settlement = await prisma.settlement.findFirst({
-      where: {
-        id: resolvedParams.id,
-        driver: {
-          companyId: session.user.companyId,
-        },
-      },
+      where,
       include: {
         driver: {
           select: {
             id: true,
             driverNumber: true,
             driverType: true,
+            // Also select companyId for Super Admin context awareness
+            companyId: true,
             user: {
               select: {
                 firstName: true,
@@ -49,7 +59,6 @@ export async function GET(
             },
             payType: true,
             payRate: true,
-            driverTariff: true,
             escrowBalance: true,
             escrowTargetAmount: true,
             escrowDeductionPerWeek: true,
@@ -113,7 +122,7 @@ export async function GET(
     // Note: Only filter by driverType since driverId column doesn't exist in database
     const deductionRules = await prisma.deductionRule.findMany({
       where: {
-        companyId: session.user.companyId,
+        companyId: settlement.driver.companyId,
         isActive: true,
         OR: [
           { driverType: null }, // Company-wide rules for all driver types

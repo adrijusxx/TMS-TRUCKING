@@ -217,7 +217,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
       console.error('[SettlementDetail] Error fetching settlement:', settlementError);
     }
   }, [data, settlementError]);
-  
+
   // Initialize state from settlement data when it loads
   useEffect(() => {
     if (data?.data) {
@@ -326,7 +326,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
   });
 
   const settlement = data?.data;
-  
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -393,7 +393,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
 
   const handleSave = () => {
     const updateData: any = {};
-    
+
     if (status) updateData.status = status;
     if (notes !== settlement.notes) updateData.notes = notes;
     if (editedGrossPay && parseFloat(editedGrossPay) !== settlement.grossPay) {
@@ -405,7 +405,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
     if (editedPeriodEnd && editedPeriodEnd !== new Date(settlement.periodEnd).toISOString().split('T')[0]) {
       updateData.periodEnd = new Date(editedPeriodEnd);
     }
-    
+
     updateMutation.mutate(updateData);
   };
 
@@ -547,7 +547,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
             <p className="text-sm text-muted-foreground">
               {settlement.driver?.user?.email || 'N/A'}
             </p>
-            <Link href={`/dashboard/drivers/${settlement.driverId}`}>
+            <Link href={`/dashboard/drivers?driverId=${settlement.driverId}`}>
               <Button variant="ghost" size="sm" className="mt-2">
                 Edit Driver
               </Button>
@@ -568,11 +568,11 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
               {(() => {
                 const payType = settlement.driver?.payType;
                 const payRate = settlement.driver?.payRate;
-                
+
                 if (!payType || payRate === null || payRate === undefined) {
                   return <span className="text-muted-foreground">Not Configured</span>;
                 }
-                
+
                 switch (payType) {
                   case 'PER_MILE':
                     return `CPM: ${formatCurrency(payRate)}/mile`;
@@ -681,8 +681,8 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {rule.calculationType === 'FIXED' ? 'Fixed' :
-                             rule.calculationType === 'PERCENTAGE' ? 'Percentage' :
-                             rule.calculationType === 'PER_MILE' ? 'Per Mile' : rule.calculationType}
+                              rule.calculationType === 'PERCENTAGE' ? 'Percentage' :
+                                rule.calculationType === 'PER_MILE' ? 'Per Mile' : rule.calculationType}
                           </TableCell>
                         </TableRow>
                       );
@@ -894,10 +894,10 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                     <TableRow key={addition.id}>
                       <TableCell>
                         {addition.deductionType === 'BONUS' ? 'Bonus' :
-                         addition.deductionType === 'OVERTIME' ? 'Overtime' :
-                         addition.deductionType === 'INCENTIVE' ? 'Incentive' :
-                         addition.deductionType === 'REIMBURSEMENT' ? 'Reimbursement' :
-                         addition.deductionType}
+                          addition.deductionType === 'OVERTIME' ? 'Overtime' :
+                            addition.deductionType === 'INCENTIVE' ? 'Incentive' :
+                              addition.deductionType === 'REIMBURSEMENT' ? 'Reimbursement' :
+                                addition.deductionType}
                       </TableCell>
                       <TableCell>{addition.description}</TableCell>
                       <TableCell className="text-right font-medium text-green-600">

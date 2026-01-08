@@ -212,6 +212,12 @@ export async function PATCH(
         companyId: session.user.companyId,
         deletedAt: null,
       },
+      include: {
+        documents: {
+          where: { deletedAt: null },
+          select: { type: true },
+        },
+      },
     });
 
     if (!existingLoad) {
@@ -242,6 +248,29 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateLoadSchema.parse(body);
 
+    // STRICT VALIDATION: Block transition to DELIVERED if documents are missing
+    if (validated.status === 'DELIVERED' && existingLoad.status !== 'DELIVERED') {
+      const hasBOL = existingLoad.documents.some(d => d.type === 'BOL');
+      const hasPOD = existingLoad.documents.some(d => d.type === 'POD');
+
+      const missingDocs = [];
+      if (!hasBOL) missingDocs.push('Bill of Lading (BOL)');
+      if (!hasPOD) missingDocs.push('Proof of Delivery (POD)');
+
+      if (missingDocs.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: `Cannot mark as Delivered. Missing documents: ${missingDocs.join(', ')}. Please upload them first.`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Prepare update data
     const updateData: any = { ...validated };
 
@@ -260,6 +289,18 @@ export async function PATCH(
           },
         });
         if (!trailer) {
+          console.log('[Load Update DEBUG] Trailer validation failed:', {
+            trailerId: validated.trailerId,
+            companyId: session.user.companyId,
+            found: false
+          });
+          const globalTrailer = await prisma.trailer.findUnique({ where: { id: validated.trailerId } });
+          console.log('[Load Update DEBUG] Global trailer check:', globalTrailer ? {
+            id: globalTrailer.id,
+            companyId: globalTrailer.companyId,
+            isDeleted: !!globalTrailer.deletedAt
+          } : 'Not found globally');
+
           return NextResponse.json(
             {
               success: false,
@@ -287,6 +328,18 @@ export async function PATCH(
           },
         });
         if (!truck) {
+          console.log('[Load Update DEBUG] Truck validation failed:', {
+            truckId: validated.truckId,
+            companyId: session.user.companyId,
+            found: false
+          });
+          const globalTruck = await prisma.truck.findUnique({ where: { id: validated.truckId } });
+          console.log('[Load Update DEBUG] Global truck check:', globalTruck ? {
+            id: globalTruck.id,
+            companyId: globalTruck.companyId,
+            isDeleted: !!globalTruck.deletedAt
+          } : 'Not found globally');
+
           return NextResponse.json(
             {
               success: false,
@@ -305,6 +358,7 @@ export async function PATCH(
       if (validated.driverId === null || validated.driverId === '') {
         updateData.driverId = null;
       } else {
+
         // Verify driver exists and belongs to company
         const driver = await prisma.driver.findFirst({
           where: {
@@ -313,7 +367,21 @@ export async function PATCH(
             deletedAt: null,
           },
         });
+
         if (!driver) {
+          console.log('[Load Update DEBUG] Driver validation failed:', {
+            driverId: validated.driverId,
+            companyId: session.user.companyId,
+            found: false
+          });
+          // Also check if driver exists at all to verify ID
+          const globalDriver = await prisma.driver.findUnique({ where: { id: validated.driverId } });
+          console.log('[Load Update DEBUG] Global driver check:', globalDriver ? {
+            id: globalDriver.id,
+            companyId: globalDriver.companyId,
+            isDeleted: !!globalDriver.deletedAt
+          } : 'Not found globally');
+
           return NextResponse.json(
             {
               success: false,
@@ -534,6 +602,10 @@ export async function PATCH(
       },
     });
 
+    // Variables for completion workflow results
+    let completionResult: any = null;
+    let completionWarnings: string[] = [];
+
     // Send notifications
     if (wasDriverAssigned && load.driverId) {
       await notifyLoadAssigned(load.id, load.driverId);
@@ -553,11 +625,16 @@ export async function PATCH(
       if (validated.status === 'DELIVERED') {
         try {
           const completionManager = new LoadCompletionManager();
-          const completionResult = await completionManager.handleLoadCompletion(load.id);
+          completionResult = await completionManager.handleLoadCompletion(load.id);
           console.log(`[Load Update] Completion workflow triggered for load ${load.loadNumber}:`, completionResult);
+
+          if (!completionResult.success && completionResult.errors) {
+            completionWarnings = completionResult.errors;
+          }
         } catch (completionError: any) {
           // Log but don't fail the request - load is already updated
           console.error(`[Load Update] Completion workflow failed for load ${load.loadNumber}:`, completionError.message);
+          completionWarnings.push(`Completion workflow error: ${completionError.message}`);
         }
       }
     }
@@ -565,6 +642,10 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       data: load,
+      meta: {
+        completionResult: completionResult || undefined,
+        warnings: completionWarnings.length > 0 ? completionWarnings : undefined
+      }
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

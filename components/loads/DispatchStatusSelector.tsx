@@ -30,10 +30,18 @@ interface DispatchStatusSelectorProps {
 }
 
 async function updateDispatchStatus(loadId: string, dispatchStatus: LoadDispatchStatus | null) {
+  // When dispatchStatus is set to DELIVERED, also update the main status field
+  // This triggers the LoadCompletionManager workflow which sets readyForSettlement=true
+  const updatePayload: Record<string, any> = { dispatchStatus };
+
+  if (dispatchStatus === 'DELIVERED') {
+    updatePayload.status = 'DELIVERED';
+  }
+
   const response = await fetch(apiUrl(`/api/loads/${loadId}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dispatchStatus }),
+    body: JSON.stringify(updatePayload),
   });
   if (!response.ok) {
     const error = await response.json();
@@ -127,8 +135,48 @@ export default function DispatchStatusSelector({
   // IMPORTANT: All hooks must be called before any early returns (React Rules of Hooks)
   const updateMutation = useMutation({
     mutationFn: (status: LoadDispatchStatus | null) => updateDispatchStatus(loadId, status),
-    onSuccess: () => {
-      toast.success('Dispatch status updated successfully');
+    onSuccess: (data) => {
+      // Check for completion warnings from API
+      const completionWarnings = data?.meta?.warnings;
+      const completionResult = data?.meta?.completionResult;
+
+      if (completionWarnings && completionWarnings.length > 0) {
+        // Status updated but with issues
+        toast.warning('Status Updated (Action Required)', {
+          description: (
+            <div className="flex flex-col gap-1">
+              <span>Load marked as DELIVERED but issues prevented completion:</span>
+              <ul className="list-disc list-inside text-xs mt-1">
+                {completionWarnings.map((w: string, i: number) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          ),
+          duration: 8000,
+        });
+      } else if (completionResult?.success) {
+        // Fully successful completion flow
+        toast.success('Load Delivered & Ready', {
+          description: 'Load is validated, synced to accounting, and ready for settlement.',
+          action: {
+            label: 'Create Settlement',
+            onClick: () => {
+              const driverId = data?.data?.driverId;
+              if (driverId) {
+                window.location.href = `/dashboard/settlements/create?driverId=${driverId}`;
+              } else {
+                window.location.href = '/dashboard/settlements/create';
+              }
+            }
+          },
+          duration: 8000,
+        });
+      } else {
+        // Standard success for non-delivery updates
+        toast.success('Dispatch status updated successfully');
+      }
+
       queryClient.invalidateQueries({ queryKey: ['load', loadId] });
       queryClient.invalidateQueries({ queryKey: ['loads'] });
     },

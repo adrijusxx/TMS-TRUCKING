@@ -94,7 +94,6 @@ export default async function DriversPage() {
         payRate: driver.payRate,
         payType: driver.payType,
         payTo: driver.payTo,
-        driverTariff: driver.driverTariff,
         licenseExpiry: driver.licenseExpiry,
         medicalCardExpiry: driver.medicalCardExpiry,
       };

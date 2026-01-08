@@ -58,11 +58,11 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
 
   const isAdmin = session?.user?.role === 'ADMIN';
   const userMcAccess = (session?.user as any)?.mcAccess || [];
-  
+
   // Read current MC state from cookies on mount and when cookies change
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const getCookie = (name: string) => {
       const value = `; ${document.cookie}`;
       const parts = value.split(`; ${name}=`);
@@ -97,7 +97,7 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
         // Invalid cookie
       }
     }
-    
+
     if (cookieViewMode) {
       setViewMode(cookieViewMode);
     } else if (cookieMcId) {
@@ -119,7 +119,7 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
 
   // For employees, show their assigned MC(s) as read-only info
   if (!isAdmin) {
-    const assignedMcs = mcNumbers.filter(mc => 
+    const assignedMcs = mcNumbers.filter(mc =>
       userMcAccess.includes(mc.id) || mc.id === currentMcId
     );
 
@@ -163,12 +163,10 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
       setSelectedMcIds([]);
       setViewMode('all');
       queryClient.invalidateQueries();
-      router.refresh();
-      setDropdownOpen(false);
-      toast.success('Viewing all MCs');
+      // Use hard reload to ensure all API calls get the new cookies
+      window.location.reload();
     } catch (error) {
       toast.error('Failed to update MC view');
-    } finally {
       setIsUpdating(false);
     }
   };
@@ -184,12 +182,10 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
       setSelectedMcIds([]);
       setViewMode('filtered');
       queryClient.invalidateQueries();
-      router.refresh();
-      setDropdownOpen(false);
-      toast.success(`Viewing MC ${mc?.number || mcId}`);
+      // Use hard reload to ensure all API calls get the new cookies
+      window.location.reload();
     } catch (error) {
       toast.error('Failed to update MC view');
-    } finally {
       setIsUpdating(false);
     }
   };
@@ -197,23 +193,23 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
   // Toggle MC selection - handles both single and multi-select
   const toggleMcSelection = async (mcId: string) => {
     const isCurrentlySelected = selectedMcIds.includes(mcId) || currentMcId === mcId;
-    
+
     // If this MC is currently selected and it's the only one, deselect it (go to "All")
     if (isCurrentlySelected && selectedMcIds.length === 0 && currentMcId === mcId) {
       await handleViewAllMcs();
       return;
     }
-    
+
     // If this MC is selected in multi-select, remove it
     if (selectedMcIds.includes(mcId)) {
       const newSelected = selectedMcIds.filter(id => id !== mcId);
-      
+
       if (newSelected.length === 0) {
         // No MCs left, switch to "All MCs"
         await handleViewAllMcs();
         return;
       }
-      
+
       // Update multi-select
       setIsUpdating(true);
       try {
@@ -223,16 +219,15 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
         setCurrentMcNumber(null);
         setViewMode('filtered');
         queryClient.invalidateQueries();
-        router.refresh();
-        toast.success(`Viewing ${newSelected.length} MC${newSelected.length > 1 ? 's' : ''}`);
+        // Use hard reload to ensure all API calls get the new cookies
+        window.location.reload();
       } catch (error) {
         toast.error('Failed to update MC view');
-      } finally {
         setIsUpdating(false);
       }
       return;
     }
-    
+
     // If we have a single MC selected, switch to multi-select mode
     if (currentMcId && currentMcId !== mcId && selectedMcIds.length === 0) {
       const newSelected = [currentMcId, mcId];
@@ -244,16 +239,15 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
         setCurrentMcNumber(null);
         setViewMode('filtered');
         queryClient.invalidateQueries();
-        router.refresh();
-        toast.success(`Viewing ${newSelected.length} MCs`);
+        // Use hard reload to ensure all API calls get the new cookies
+        window.location.reload();
       } catch (error) {
         toast.error('Failed to update MC view');
-      } finally {
         setIsUpdating(false);
       }
       return;
     }
-    
+
     // If we're in multi-select mode, add this MC
     if (selectedMcIds.length > 0) {
       const newSelected = [...selectedMcIds, mcId];
@@ -265,16 +259,15 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
         setCurrentMcNumber(null);
         setViewMode('filtered');
         queryClient.invalidateQueries();
-        router.refresh();
-        toast.success(`Viewing ${newSelected.length} MCs`);
+        // Use hard reload to ensure all API calls get the new cookies
+        window.location.reload();
       } catch (error) {
         toast.error('Failed to update MC view');
-      } finally {
         setIsUpdating(false);
       }
       return;
     }
-    
+
     // Otherwise, select this single MC
     await handleSelectSingleMc(mcId);
   };
@@ -326,7 +319,7 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <Building2 className="h-4 w-4 text-muted-foreground" />
-      
+
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
           <button
@@ -345,7 +338,7 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
         <DropdownMenuContent className="w-[250px]" align="start">
           <DropdownMenuLabel>Select MC Number</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          
+
           {/* All MCs option */}
           <DropdownMenuItem
             onSelect={(e) => {
@@ -364,16 +357,16 @@ export default function McViewSelector({ className }: McViewSelectorProps) {
               <span className={viewingAll ? 'font-medium' : ''}>All MCs</span>
             </div>
           </DropdownMenuItem>
-          
+
           <DropdownMenuSeparator />
-          
+
           {/* MC list with checkboxes */}
           <div className="max-h-[300px] overflow-y-auto">
             {mcNumbers.map((mc) => {
               const isSelected = selectedMcIds.includes(mc.id);
               const isSingleSelected = currentMcId === mc.id && !viewingAll && !viewingMultiple;
               const isChecked = isSelected || isSingleSelected;
-              
+
               return (
                 <DropdownMenuItem
                   key={mc.id}

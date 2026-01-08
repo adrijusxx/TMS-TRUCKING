@@ -15,7 +15,7 @@ const deleteEverythingSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    
+
     // Strict admin-only check
     if (!session?.user?.companyId) {
       return NextResponse.json(
@@ -110,37 +110,7 @@ export async function POST(request: NextRequest) {
         where: { companyId },
       })).count;
 
-      // LoadTemplate and LoadTemplateStop may not exist in all databases - wrap in try-catch
-      try {
-        // First get all template IDs for this company
-        const templateIds = await prisma.loadTemplate.findMany({
-          where: { companyId },
-          select: { id: true },
-        });
-        
-        if (templateIds.length > 0) {
-          // Delete LoadTemplateStop first (if it exists)
-          try {
-            await prisma.loadTemplateStop.deleteMany({
-              where: { templateId: { in: templateIds.map(t => t.id) } },
-            });
-          } catch (error: any) {
-            if (error.code !== 'P2021') throw error;
-            // Table doesn't exist, continue
-          }
-        }
-        
-        deletionResults.loadTemplates = (await prisma.loadTemplate.deleteMany({
-          where: { companyId },
-        })).count;
-      } catch (error: any) {
-        if (error.code === 'P2021') { // P2021 = table doesn't exist
-          deletionResults.loadTemplates = 0;
-          console.log('LoadTemplate table does not exist, skipping deletion');
-        } else {
-          throw error;
-        }
-      }
+      // LoadTemplate deletion removed as model is deprecated
 
       // 3. Delete invoice-related records
       deletionResults.invoiceBatchItems = (await prisma.invoiceBatchItem.deleteMany({
@@ -154,9 +124,9 @@ export async function POST(request: NextRequest) {
       // Payment doesn't have companyId - need to find IDs through related entities
       // Reuse userIds from above, get other related IDs
       const [companyInvoiceIds, companyFuelEntryIds, companyBreakdownIds] = await Promise.all([
-        prisma.invoice.findMany({ 
-          where: { customer: { companyId } }, 
-          select: { id: true } 
+        prisma.invoice.findMany({
+          where: { customer: { companyId } },
+          select: { id: true }
         }),
         prisma.fuelEntry.findMany({ where: { truck: { companyId } }, select: { id: true } }),
         prisma.breakdown.findMany({ where: { companyId }, select: { id: true } }),
@@ -178,7 +148,7 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true },
       });
-      
+
       if (paymentsToDelete.length > 0) {
         deletionResults.payments = (await prisma.payment.deleteMany({
           where: {
