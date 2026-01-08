@@ -23,6 +23,10 @@ export interface ExtendedColumnDef<TData extends TableData> extends Omit<ColumnD
    */
   accessorKey?: string;
   /**
+   * Accessor function for the column (alternative to accessorKey)
+   */
+  accessorFn?: (row: TData) => any;
+  /**
    * Whether column can be toggled (default: true)
    */
   enableHiding?: boolean;
