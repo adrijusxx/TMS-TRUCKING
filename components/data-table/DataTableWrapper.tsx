@@ -193,7 +193,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
       // If column is in defaultVisibleColumns, it's visible
       // Otherwise, check defaultVisible property
       if (defaultVisibleColumns.length > 0) {
-        visibility[columnId] = defaultVisibleColumns.includes(columnId);
+        visibility[columnId] = Array.isArray(defaultVisibleColumns) && defaultVisibleColumns.includes(columnId);
       } else {
         visibility[columnId] = column.defaultVisible ?? true;
       }
