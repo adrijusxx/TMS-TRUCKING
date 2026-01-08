@@ -50,25 +50,26 @@ export function usePermissions() {
   }
 
   const role = (session?.user?.role || 'CUSTOMER') as UserRole;
-  const permissions = permissionsData?.permissions || [];
+  // Ensure permissions is always an array
+  const permissions = Array.isArray(permissionsData?.permissions) ? permissionsData.permissions : [];
 
   const can = (permission: Permission): boolean => {
     // Use database permissions if available, otherwise fallback to static
-    if (permissions.length > 0) {
+    if (Array.isArray(permissions) && permissions.length > 0) {
       return permissions.includes(permission);
     }
     return hasPermission(role, permission);
   };
 
   const canAny = (permissionsList: Permission[]): boolean => {
-    if (permissions.length > 0) {
+    if (Array.isArray(permissions) && permissions.length > 0) {
       return permissionsList.some((permission) => permissions.includes(permission));
     }
     return permissionsList.some((permission) => hasPermission(role, permission));
   };
 
   const canAll = (permissionsList: Permission[]): boolean => {
-    if (permissions.length > 0) {
+    if (Array.isArray(permissions) && permissions.length > 0) {
       return permissionsList.every((permission) => permissions.includes(permission));
     }
     return permissionsList.every((permission) => hasPermission(role, permission));

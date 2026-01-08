@@ -2981,7 +2981,7 @@ enum NotificationType {
 model NotificationPreferences {
   id     String @id @default(cuid())
   userId String @unique
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   emailEnabled Boolean @default(true)
   pushEnabled  Boolean @default(true)
