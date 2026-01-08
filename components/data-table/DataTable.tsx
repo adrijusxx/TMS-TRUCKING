@@ -298,7 +298,9 @@ export function DataTable<TData extends Record<string, any>>({
 
         // Try to get value from the specified filterKey path
         let value: any;
-        if (filterKey.includes('.')) {
+
+        // Guard against non-string filterKey
+        if (typeof filterKey === 'string' && filterKey.includes('.')) {
           // Handle nested paths like 'user.lastName'
           const keys = filterKey.split('.');
           value = keys.reduce((obj: any, key) => obj?.[key], rowData);
@@ -316,7 +318,6 @@ export function DataTable<TData extends Record<string, any>>({
             return String(value).includes(searchValue);
           }
         }
-
         // If filterKey value not found or doesn't match, return false
         // (Don't fallback to searching all values - be specific to the filterKey)
         return false;
@@ -491,8 +492,9 @@ export function DataTable<TData extends Record<string, any>>({
                                           .filter((f) => f.id === ((header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id))
                                           .map((f) => {
                                             try {
-                                              const parsed = JSON.parse(String(f.value));
-                                              return Array.isArray(parsed) ? parsed : [String(f.value)];
+                                              const strVal = String(f.value);
+                                              const parsed = JSON.parse(strVal);
+                                              return Array.isArray(parsed) ? parsed : [strVal];
                                             } catch {
                                               return [String(f.value)];
                                             }
