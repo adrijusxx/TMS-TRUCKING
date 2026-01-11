@@ -38,6 +38,8 @@
   ],
   "exclude": [
     "node_modules",
-    "legacy_src"
+    "legacy_src",
+    "scripts"
   ]
+]
 }
