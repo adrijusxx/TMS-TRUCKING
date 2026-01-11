@@ -5354,6 +5354,16 @@ model McNumber {
   notes        String?
   number       String // MC number value
 
+  // Branding & Contact Info for this MC
+  logoUrl      String?
+  address      String?
+  city         String?
+  state        String?
+  zip          String?
+  email        String?
+  website      String?
+  branding     Json?    // Stores colors, invoice terms, email signature, etc.
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

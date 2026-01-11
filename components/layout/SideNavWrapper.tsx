@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import LoadManagementNav from '@/components/loads/LoadManagementNav';
 import AccountingNav from '@/components/accounting/AccountingNav';
-import SafetyNav from '@/components/safety/SafetyNav';
+
 import HRManagementNav from '@/components/hr/HRManagementNav';
 import SettingsNav from '@/components/settings/SettingsNav';
 import FleetManagementSidebar from '@/components/fleet/FleetManagementSidebar';
@@ -38,12 +38,12 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
 
     // Safety pages
     if (pathname.startsWith('/dashboard/safety')) {
-      return <SafetyNav />;
+      return null;
     }
 
     // Documents page (if not in safety section)
     if (pathname.startsWith('/dashboard/documents')) {
-      return <SafetyNav />;
+      return null;
     }
 
     // Reports pages

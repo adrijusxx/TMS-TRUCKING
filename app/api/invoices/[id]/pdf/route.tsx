@@ -150,7 +150,7 @@ function InvoicePDF({ invoice, company, loads, remitToAddress, noticeOfAssignmen
           <View style={styles.companyInfo}>
             {company && (
               <>
-                <Text style={styles.companyName}>{company.name}</Text>
+                {!company.hideName && <Text style={styles.companyName}>{company.name}</Text>}
                 <Text>{company.address}</Text>
                 <Text>
                   {company.city}, {company.state} {company.zip}
@@ -347,25 +347,57 @@ export async function GET(
       where: { id: session.user.companyId },
     });
 
-    // Fetch loads if invoice has load IDs
+    // Fetch loads if invoice has load IDs to derive MC Number
     const loads =
       invoice.loadIds && invoice.loadIds.length > 0
         ? await prisma.load.findMany({
-            where: {
-              id: { in: invoice.loadIds },
-              companyId: session.user.companyId,
-            },
-            select: {
-              id: true,
-              loadNumber: true,
-              pickupCity: true,
-              pickupState: true,
-              deliveryCity: true,
-              deliveryState: true,
-              revenue: true,
-            },
-          })
+          where: {
+            id: { in: invoice.loadIds },
+            companyId: session.user.companyId,
+          },
+          select: {
+            id: true,
+            loadNumber: true,
+            pickupCity: true,
+            pickupState: true,
+            deliveryCity: true,
+            deliveryState: true,
+            revenue: true,
+            mcNumberId: true, // Fetch MC Number to override branding
+          },
+        })
         : [];
+
+    // Derive MC Number from loads (assume all loads on an invoice belong to same MC)
+    const mcNumberId = loads.length > 0 ? loads[0].mcNumberId : null;
+    let mcNumber = null;
+
+    if (mcNumberId) {
+      mcNumber = await prisma.mcNumber.findUnique({
+        where: { id: mcNumberId },
+      });
+    }
+
+    // Apply MC Branding Overrides
+    const brandingCompany: any = { ...company };
+    if (mcNumber) {
+      // Parse MC specific branding JSON
+      const branding = mcNumber.branding ? (typeof mcNumber.branding === 'string' ? JSON.parse(mcNumber.branding) : mcNumber.branding) : {};
+
+      // Override text fields if present on MC
+      if (mcNumber.logoUrl) brandingCompany.logoUrl = mcNumber.logoUrl;
+      if (mcNumber.address) brandingCompany.address = mcNumber.address;
+      if (mcNumber.city) brandingCompany.city = mcNumber.city;
+      if (mcNumber.state) brandingCompany.state = mcNumber.state;
+      if (mcNumber.zip) brandingCompany.zip = mcNumber.zip;
+      if (mcNumber.email) brandingCompany.email = mcNumber.email;
+      if (mcNumber.companyName) brandingCompany.name = mcNumber.companyName; // Override name 
+
+      // Apply hideCompanyName preference
+      if (branding.hideCompanyName) {
+        brandingCompany.hideName = true;
+      }
+    }
 
     // 🔥 CRITICAL: Finalize invoice with factoring logic
     const invoiceManager = new InvoiceManager();
@@ -383,9 +415,9 @@ export async function GET(
 
     // Generate PDF with factoring information
     const pdfDoc = (
-      <InvoicePDF 
-        invoice={invoice} 
-        company={company} 
+      <InvoicePDF
+        invoice={invoice}
+        company={brandingCompany}
         loads={loads}
         remitToAddress={finalization.remitToAddress}
         noticeOfAssignment={finalization.noticeOfAssignment}

@@ -10,13 +10,23 @@ export async function GET(request: Request) {
     }
 
     try {
-        const mcWhere = await buildMcNumberWhereClause(session, request);
+        const fullMcWhere = await buildMcNumberWhereClause(session, request);
+        const { companyId, ...mcFilter } = fullMcWhere;
+        const hasMcFilter = Object.keys(mcFilter).length > 0;
 
         // Fetch Internal Inspections
         const internalInspections = await prisma.inspection.findMany({
             where: {
-                ...mcWhere,
+                companyId,
                 deletedAt: null,
+                ...(hasMcFilter
+                    ? {
+                        OR: [
+                            { truck: mcFilter },
+                            { driver: mcFilter }
+                        ]
+                    }
+                    : {})
             },
             include: {
                 truck: { select: { truckNumber: true } },
@@ -29,8 +39,16 @@ export async function GET(request: Request) {
         // Fetch Roadside/DOT Inspections
         const roadsideInspections = await prisma.roadsideInspection.findMany({
             where: {
-                ...mcWhere,
+                companyId,
                 deletedAt: null,
+                ...(hasMcFilter
+                    ? {
+                        OR: [
+                            { truck: mcFilter },
+                            { driver: mcFilter }
+                        ]
+                    }
+                    : {})
             },
             include: {
                 truck: { select: { truckNumber: true } },

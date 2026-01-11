@@ -11,7 +11,7 @@ import RolePermissions from '@/components/settings/RolePermissions';
 import { apiUrl } from '@/lib/utils';
 
 async function fetchUsersStats() {
-  const response = await fetch(apiUrl('/api/settings/users?stats=true'));
+  const response = await fetch(apiUrl('/api/settings/users?stats=true&excludeDrivers=true'));
   if (!response.ok) throw new Error('Failed to fetch user stats');
   return response.json();
 }

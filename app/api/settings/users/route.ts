@@ -63,12 +63,15 @@ export async function GET(request: NextRequest) {
     // Build base conditions
     const baseConditions: any = {
       deletedAt: null,
+      companyId: session.user.companyId, // STRICTLY enforce company isolation
     };
 
     // Exclude drivers if requested (but not if we're specifically filtering for drivers)
     if (excludeDrivers && roleFilter !== 'DRIVER') {
+      // Explicitly exclude DRIVER role
       baseConditions.role = { not: 'DRIVER' };
-      baseConditions.drivers = { none: {} }; // Also exclude users who have a driver record
+      // Also ensure we don't accidentally pick up users who might have a driver profile but different role (rare but possible)
+      baseConditions.drivers = { none: {} };
     }
 
     // When showing drivers, exclude users whose associated Driver record is soft-deleted

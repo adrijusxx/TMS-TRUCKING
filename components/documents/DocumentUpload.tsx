@@ -73,7 +73,8 @@ export default function DocumentUpload({
   onSuccess,
   onFileSelected,
   defaultType,
-}: DocumentUploadProps) {
+  compact = false, // New prop
+}: DocumentUploadProps & { compact?: boolean }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -92,33 +93,23 @@ export default function DocumentUpload({
     mutationFn: uploadDocument,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
-      if (loadId) {
-        queryClient.invalidateQueries({ queryKey: ['loads', loadId] });
-      }
-      if (driverId) {
-        queryClient.invalidateQueries({ queryKey: ['drivers', driverId] });
-      }
-      if (truckId) {
-        queryClient.invalidateQueries({ queryKey: ['trucks', truckId] });
-      }
+      if (loadId) queryClient.invalidateQueries({ queryKey: ['loads', loadId] });
+      if (driverId) queryClient.invalidateQueries({ queryKey: ['drivers', driverId] });
+      if (truckId) queryClient.invalidateQueries({ queryKey: ['trucks', truckId] });
+
       setSelectedFile(null);
-      setDocumentType('');
+      if (!defaultType) setDocumentType('');
       setDescription('');
       setError(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
       onSuccess?.(data);
     },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
+    onError: (err: Error) => setError(err.message),
   });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         setError('File size must be less than 10MB');
         return;
@@ -134,28 +125,22 @@ export default function DocumentUpload({
       return;
     }
 
-    // If no loadId/driverId/truckId and onFileSelected callback provided, just pass file to callback
-    // This is for collecting files before entity creation (e.g., before load is created)
     if (!loadId && !driverId && !truckId && onFileSelected) {
       onFileSelected(selectedFile);
       setSelectedFile(null);
-      setDocumentType('');
+      if (!defaultType) setDocumentType('');
       setDescription('');
       setError(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    // Otherwise, upload immediately
     const fileUrl = `/uploads/${Date.now()}-${selectedFile.name}`;
-
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('type', documentType);
     formData.append('fileName', selectedFile.name);
-    formData.append('title', description || selectedFile.name); // Use description as title if provided, otherwise use filename
+    formData.append('title', description || selectedFile.name);
     formData.append('fileUrl', fileUrl);
     formData.append('fileSize', selectedFile.size.toString());
     formData.append('mimeType', selectedFile.type);
@@ -172,6 +157,50 @@ export default function DocumentUpload({
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
+
+  if (compact) {
+    return (
+      <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+        {error && <div className="text-xs text-destructive">{error}</div>}
+
+        <div className="flex items-center gap-2">
+          <Input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,image/png,image/jpeg,image/jpg"
+            onChange={handleFileSelect}
+            className="h-8 text-xs file:text-xs bg-background"
+          />
+          {selectedFile && (
+            <Button
+              onClick={handleUpload}
+              disabled={uploadMutation.isPending}
+              size="sm"
+              className="h-8 px-3 shrink-0"
+            >
+              {uploadMutation.isPending ? 'Uploading...' : 'Upload'}
+            </Button>
+          )}
+        </div>
+
+        {/* If no default type is forced, show the select in a smaller definition */}
+        {!defaultType && (
+          <Select value={documentType} onValueChange={setDocumentType}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Doc Type" />
+            </SelectTrigger>
+            <SelectContent>
+              {(loadId ? loadDocumentTypes : allDocumentTypes).map((type) => (
+                <SelectItem key={type.value} value={type.value} className="text-xs">
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Card>

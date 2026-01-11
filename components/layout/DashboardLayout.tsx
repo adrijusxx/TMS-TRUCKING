@@ -290,9 +290,15 @@ export default function DashboardLayout({
     pathname?.startsWith('/dashboard/automation') ||
     pathname?.startsWith('/dashboard/accounting') ||
     pathname?.startsWith('/dashboard/batches');
-
   // Check if we're in Safety section
   const isSafetySection = pathname?.startsWith('/dashboard/safety');
+
+
+
+  // Filter navigation items based on permissions, department access, and menu visibility config
+
+
+
 
   // Filter navigation items based on permissions, department access, and menu visibility config
   const role = (session?.user?.role || 'CUSTOMER') as UserRole;
