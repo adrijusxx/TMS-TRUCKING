@@ -1728,9 +1728,11 @@ export async function POST(
       const driverNameMap = new Map<string, string>();
       driversForAssignment.forEach(d => {
         driverNumberMap.set(d.driverNumber.toLowerCase().trim(), d.id);
-        const fullName = `${d.user.firstName} ${d.user.lastName}`.toLowerCase().trim();
-        driverNameMap.set(fullName, d.id);
-        driverNameMap.set(`${d.user.firstName} ${d.user.lastName}`.trim(), d.id);
+        if (d.user) {
+          const fullName = `${d.user.firstName} ${d.user.lastName}`.toLowerCase().trim();
+          driverNameMap.set(fullName, d.id);
+          driverNameMap.set(`${d.user.firstName} ${d.user.lastName}`.trim(), d.id);
+        }
       });
 
       // Track unresolved values for value resolution dialog
@@ -2244,8 +2246,8 @@ export async function POST(
         if (d.driverNumber) {
           driverMap.set(d.driverNumber.toLowerCase(), d.id);
         }
-        // Map by full name
-        if (d.user.firstName && d.user.lastName) {
+        // Map by full name (only if user exists)
+        if (d.user?.firstName && d.user?.lastName) {
           const fullName = `${d.user.firstName} ${d.user.lastName}`.toLowerCase();
           driverMap.set(fullName, d.id);
           driverMap.set(fullName.replace(/\s+/g, ''), d.id); // Also map without spaces
@@ -2254,8 +2256,8 @@ export async function POST(
           // Map by first name + last name variations
           driverMap.set(`${d.user.firstName.toLowerCase()} ${d.user.lastName.toLowerCase()}`, d.id);
         }
-        // Map by email
-        if (d.user.email) {
+        // Map by email (only if user exists)
+        if (d.user?.email) {
           driverMap.set(d.user.email.toLowerCase(), d.id);
         }
       });
@@ -3584,13 +3586,13 @@ export async function POST(
       // existingEmails tracks ALL emails known to the system (DB + currently processing batch)
       // Initialize with emails from DB
       const existingEmails = new Set([
-        ...existingDrivers.map(d => d.user.email.toLowerCase()),
+        ...existingDrivers.filter(d => d.user?.email).map(d => d.user!.email.toLowerCase()),
         ...existingUsers.map(u => u.email.toLowerCase()),
       ]);
 
       // Create lookup maps for updates
       const driverByNumber = new Map(existingDrivers.map(d => [d.driverNumber.toLowerCase().trim(), d]));
-      const driverByEmail = new Map(existingDrivers.map(d => [d.user.email.toLowerCase(), d]));
+      const driverByEmail = new Map(existingDrivers.filter(d => d.user?.email).map(d => [d.user!.email.toLowerCase(), d]));
       // User map now includes companyId to check for cross-company conflicts
       const userByEmail = new Map(existingUsers.map(u => [u.email.toLowerCase(), { ...u, id: u.id }]));
 
@@ -3641,7 +3643,7 @@ export async function POST(
       const defaultPasswordHash = await bcrypt.hash('Driver123!', 10);
 
       const driversToCreate: Array<{ userData: any; driverData: any; rowIndex: number }> = [];
-      const driversToUpdate: Array<{ driverId: string; userId: string; userData: any; driverData: any; rowIndex: number; needsReactivation?: boolean }> = [];
+      const driversToUpdate: Array<{ driverId: string; userId: string | null; userData: any; driverData: any; rowIndex: number; needsReactivation?: boolean }> = [];
 
       for (let i = 0; i < importResult.data.length; i++) {
         const row = importResult.data[i];
@@ -3911,7 +3913,7 @@ export async function POST(
             const needsReactivation = !!existingDriver.deletedAt || !existingDriver.isActive;
             driversToUpdate.push({
               driverId: existingDriver.id,
-              userId: existingDriver.userId,
+              userId: existingDriver.userId || null,
               rowIndex: i + 1,
               needsReactivation, // Flag to reactivate soft-deleted drivers
               userData: {
@@ -4257,11 +4259,13 @@ export async function POST(
             // Use transaction to update user + driver pairs in batch
             const results = await prisma.$transaction(async (tx) => {
               const updatePromises = batch.map(async (item) => {
-                // Update user
-                await tx.user.update({
-                  where: { id: item.userId },
-                  data: item.userData,
-                });
+                // Update user (only if user exists)
+                if (item.userId) {
+                  await tx.user.update({
+                    where: { id: item.userId },
+                    data: item.userData,
+                  });
+                }
 
                 // Update driver
                 const updatedDriver = await tx.driver.update({
@@ -4280,11 +4284,13 @@ export async function POST(
             // If batch fails, try individual updates
             for (const item of batch) {
               try {
-                // Update user
-                await prisma.user.update({
-                  where: { id: item.userId },
-                  data: item.userData,
-                });
+                // Update user (only if user exists)
+                if (item.userId) {
+                  await prisma.user.update({
+                    where: { id: item.userId },
+                    data: item.userData,
+                  });
+                }
 
                 // Update driver
                 const updatedDriver = await prisma.driver.update({

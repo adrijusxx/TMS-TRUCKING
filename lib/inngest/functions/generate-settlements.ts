@@ -198,7 +198,7 @@ export const generateDriverSettlement = inngest.createFunction(
         include: { user: true },
       });
 
-      if (driver) {
+      if (driver && driver.userId) {
         // Notify driver
         await prisma.notification.create({
           data: {

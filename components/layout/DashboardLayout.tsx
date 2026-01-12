@@ -72,6 +72,8 @@ import AccountingHeaderNav from '@/components/accounting/AccountingHeaderNav';
 import FleetHeaderNav from '@/components/fleet/FleetHeaderNav';
 import LoadHeaderNav from '@/components/loads/LoadHeaderNav';
 import HRHeaderNav from '@/components/hr/HRHeaderNav';
+import AIAssistantChat from '@/components/ai/AIAssistantChat';
+import { ImportTutorial } from '@/components/onboarding/ImportTutorial';
 
 interface NavigationItem {
   name: string;
@@ -728,6 +730,8 @@ export default function DashboardLayout({
 
         {/* Page content */}
         <main className="p-3 lg:p-4">{children}</main>
+        <AIAssistantChat />
+        <ImportTutorial />
       </div>
     </div>
   );

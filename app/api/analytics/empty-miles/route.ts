@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
         if (!emptyMilesByDriver[driverId]) {
           emptyMilesByDriver[driverId] = {
             driverId,
-            driverName: `${load.driver?.user.firstName} ${load.driver?.user.lastName}`,
+            driverName: load.driver?.user ? `${load.driver.user.firstName} ${load.driver.user.lastName}` : 'Unknown',
             driverNumber: load.driver?.driverNumber || 'Unknown',
             emptyMiles: 0,
             loadedMiles: 0,

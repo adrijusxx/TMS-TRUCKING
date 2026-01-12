@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
             dispatchStatus: load.dispatchStatus,
             driver: load.driver ? {
                 id: load.driver.id,
-                name: `${load.driver.user.firstName} ${load.driver.user.lastName}`,
+                name: load.driver.user ? `${load.driver.user.firstName} ${load.driver.user.lastName}` : 'Unknown',
             } : null,
             truck: load.truck ? {
                 id: load.truck.id,

@@ -41,7 +41,7 @@ export async function GET(
                 ...profile,
                 driverMapping: driverMapping ? {
                     driverId: driverMapping.driver.id,
-                    driverName: `${driverMapping.driver.user.firstName} ${driverMapping.driver.user.lastName}`,
+                    driverName: driverMapping.driver.user ? `${driverMapping.driver.user.firstName} ${driverMapping.driver.user.lastName}` : 'Unknown',
                     currentTruck: driverMapping.driver.currentTruck?.truckNumber,
                 } : null,
             },

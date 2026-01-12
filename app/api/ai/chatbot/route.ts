@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const validated = chatbotSchema.parse(body);
 
     const chatbot = new AIChatbotService();
-    const result = await chatbot.processMessage({
+    const stream = await chatbot.processMessage({
       message: validated.message,
       companyId: session.user.companyId,
       customerId: validated.customerId,
@@ -35,9 +35,13 @@ export async function POST(request: NextRequest) {
       conversationHistory: validated.conversationHistory,
     });
 
-    return NextResponse.json({
-      success: true,
-      data: result,
+    // Return streaming response
+    return new NextResponse(stream as any, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     });
   } catch (error) {
     console.error('AI chatbot error:', error);

@@ -285,7 +285,7 @@ export class LiveMapService {
             ? {
               id: load.driver.id,
               driverNumber: load.driver.driverNumber,
-              name: `${load.driver.user.firstName} ${load.driver.user.lastName}`,
+              name: load.driver.user ? `${load.driver.user.firstName} ${load.driver.user.lastName}` : 'Unknown',
             }
             : undefined,
           dispatcher: load.dispatcher

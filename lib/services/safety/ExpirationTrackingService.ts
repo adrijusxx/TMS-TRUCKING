@@ -34,11 +34,12 @@ export class ExpirationTrackingService extends BaseComplianceService {
 
       for (const card of expiringMedicalCards) {
         const daysUntil = this.daysUntilExpiration(card.expirationDate);
+        const driverName = card.driver?.user ? `${card.driver.user.firstName} ${card.driver.user.lastName}` : 'Unknown';
         alerts.push({
           companyId,
           alertType: 'EXPIRING_DOCUMENT',
           severity: daysUntil <= 7 ? 'CRITICAL' : daysUntil <= 15 ? 'HIGH' : 'MEDIUM',
-          title: `Medical Card Expiring: ${card.driver.user.firstName} ${card.driver.user.lastName}`,
+          title: `Medical Card Expiring: ${driverName}`,
           message: `Medical card expires in ${daysUntil} days`,
           relatedEntityType: 'driver',
           relatedEntityId: card.driverId
@@ -59,11 +60,12 @@ export class ExpirationTrackingService extends BaseComplianceService {
 
       for (const cdl of expiringCDLs) {
         const daysUntil = this.daysUntilExpiration(cdl.expirationDate);
+        const driverName = cdl.driver?.user ? `${cdl.driver.user.firstName} ${cdl.driver.user.lastName}` : 'Unknown';
         alerts.push({
           companyId,
           alertType: 'EXPIRING_DOCUMENT',
           severity: daysUntil <= 7 ? 'CRITICAL' : daysUntil <= 15 ? 'HIGH' : 'MEDIUM',
-          title: `CDL Expiring: ${cdl.driver.user.firstName} ${cdl.driver.user.lastName}`,
+          title: `CDL Expiring: ${driverName}`,
           message: `CDL expires in ${daysUntil} days`,
           relatedEntityType: 'driver',
           relatedEntityId: cdl.driverId
@@ -85,11 +87,12 @@ export class ExpirationTrackingService extends BaseComplianceService {
       for (const training of expiringTraining) {
         if (training.expiryDate) {
           const daysUntil = this.daysUntilExpiration(training.expiryDate);
+          const driverName = training.driver?.user ? `${training.driver.user.firstName} ${training.driver.user.lastName}` : 'Unknown';
           alerts.push({
             companyId,
             alertType: 'EXPIRING_DOCUMENT',
             severity: daysUntil <= 7 ? 'CRITICAL' : daysUntil <= 15 ? 'HIGH' : 'MEDIUM',
-            title: `Training Expiring: ${training.driver.user.firstName} ${training.driver.user.lastName}`,
+            title: `Training Expiring: ${driverName}`,
             message: `${training.trainingName} expires in ${daysUntil} days`,
             relatedEntityType: 'driver',
             relatedEntityId: training.driverId

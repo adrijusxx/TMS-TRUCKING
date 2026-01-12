@@ -12,6 +12,7 @@ export const ALL_ACCESS_PLANS = [
     SUBSCRIPTION_PLANS.PRO, // Pro Monthly now grants full access
     'pro-bundle', // Legacy or bundle identifier
     'premium',    // Potential alias
+    'pro-trial-14day', // 14-day Pro Trial
 ];
 
 export const MODULE_PRICES: Record<SubscriptionModule, string> = {

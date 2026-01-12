@@ -64,7 +64,7 @@ export async function GET(request: Request) {
             date: i.inspectionDate,
             type: i.inspectionType,
             vehicle: i.truck.truckNumber,
-            driver: i.driver ? `${i.driver.user.firstName} ${i.driver.user.lastName}` : 'Unassigned',
+            driver: i.driver?.user ? `${i.driver.user.firstName} ${i.driver.user.lastName}` : 'Unassigned',
             location: i.location || 'Terminal',
             result: i.status === 'PASSED' ? 'Pass' : 'Fail',
             source: 'INTERNAL'
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
             date: i.inspectionDate,
             type: i.inspectionLevel,
             vehicle: i.truck?.truckNumber || 'N/A',
-            driver: i.driver ? `${i.driver.user.firstName} ${i.driver.user.lastName}` : 'Unassigned',
+            driver: i.driver?.user ? `${i.driver.user.firstName} ${i.driver.user.lastName}` : 'Unassigned',
             location: i.inspectionState,
             result: i.outOfService ? 'Out of Service' : (i.violationsFound ? 'Violations' : 'Clean'),
             source: 'DOT'

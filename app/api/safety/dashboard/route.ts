@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
 
     // Generate Dynamic Alerts for Expirations
     const dynamicAlerts = expiringDocsRaw.map(doc => {
-      const entityName = doc.driver ? `${doc.driver.user.firstName} ${doc.driver.user.lastName}`
+      const entityName = doc.driver?.user ? `${doc.driver.user.firstName} ${doc.driver.user.lastName}`
         : doc.truck ? `Truck ${doc.truck.truckNumber}`
           : 'Unknown Asset';
       return {

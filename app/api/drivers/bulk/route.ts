@@ -52,7 +52,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     const validDriverIds = drivers.map((driver) => driver.id);
-    const userIds = drivers.map((driver) => driver.userId);
+    const userIds = drivers.map((driver) => driver.userId).filter((id): id is string => id !== null);
 
     if (validDriverIds.length === 0) {
       return NextResponse.json(
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft delete drivers and users (only the valid ones)
-    const [deletedDrivers, deletedUsers] = await Promise.all([
+    const deleteOps: Promise<any>[] = [
       prisma.driver.updateMany({
         where: {
           id: { in: validDriverIds },
@@ -78,16 +78,24 @@ export async function DELETE(request: NextRequest) {
           isActive: false,
         },
       }),
-      prisma.user.updateMany({
-        where: {
-          id: { in: userIds },
-        },
-        data: {
-          deletedAt: new Date(),
-          isActive: false,
-        },
-      }),
-    ]);
+    ];
+
+    // Only delete users if there are valid userIds
+    if (userIds.length > 0) {
+      deleteOps.push(
+        prisma.user.updateMany({
+          where: {
+            id: { in: userIds },
+          },
+          data: {
+            deletedAt: new Date(),
+            isActive: false,
+          },
+        })
+      );
+    }
+
+    const [deletedDrivers] = await Promise.all(deleteOps);
 
     // Log if some drivers were skipped
     if (validDriverIds.length < validated.driverIds.length) {

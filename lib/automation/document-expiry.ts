@@ -33,6 +33,9 @@ async function checkDriverDocumentExpiry(companyId: string, daysAhead: number = 
   }> = [];
 
   for (const driver of drivers) {
+    // Skip drivers without user accounts
+    if (!driver.user) continue;
+
     // Check license expiry
     if (driver.licenseExpiry && driver.licenseExpiry <= expiryDate) {
       expiring.push({

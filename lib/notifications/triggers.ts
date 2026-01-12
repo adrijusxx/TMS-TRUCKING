@@ -25,7 +25,7 @@ export async function notifyLoadAssigned(loadId: string, driverId: string) {
       },
     });
 
-    if (!load || !load.driver) {
+    if (!load || !load.driver || !load.driver.userId) {
       return;
     }
 
@@ -83,7 +83,7 @@ export async function notifyLoadStatusChanged(
     }
 
     // Notify driver if assigned
-    if (load.driverId && load.driver) {
+    if (load.driverId && load.driver && load.driver.userId) {
       await sendNotificationEmail(
         load.driver.userId,
         'LOAD_UPDATED',
@@ -148,7 +148,7 @@ export async function notifyHOSViolation(
       },
     });
 
-    if (!driver) {
+    if (!driver || !driver.userId || !driver.user) {
       return;
     }
 
@@ -188,7 +188,7 @@ export async function notifyHOSViolation(
         data: {
           userId: dispatcher.id,
           type: 'HOS_VIOLATION',
-          title: `HOS Violation: ${driver.user.firstName} ${driver.user.lastName}`,
+          title: `HOS Violation: ${driver.user?.firstName ?? ''} ${driver.user?.lastName ?? ''}`,
           message: `Driver ${driver.driverNumber} has an HOS violation: ${violationType}`,
           link: `/dashboard/drivers/${driver.id}`,
         },
@@ -221,8 +221,9 @@ async function notifyMaintenanceDue(truckId: string, maintenanceType: string, du
 
     const formattedDate = dueDate.toLocaleDateString();
 
-    // Notify drivers assigned to this truck
+    // Notify drivers assigned to this truck (only those with user accounts)
     for (const driver of truck.currentDrivers) {
+      if (!driver.userId) continue;
       await sendNotificationEmail(
         driver.userId,
         'MAINTENANCE_DUE',
@@ -289,11 +290,11 @@ export async function notifyDocumentExpiring(
         },
       });
 
-      if (!driver) return;
+      if (!driver || !driver.user) return;
 
       entityName = `${driver.user.firstName} ${driver.user.lastName}`;
       companyId = driver.companyId;
-      userIds = [driver.userId];
+      userIds = driver.userId ? [driver.userId] : [];
     } else if (entityType === 'TRUCK') {
       const truck = await prisma.truck.findUnique({
         where: { id: entityId },
@@ -310,11 +311,12 @@ export async function notifyDocumentExpiring(
 
       entityName = truck.truckNumber;
       companyId = truck.companyId;
-      userIds = truck.currentDrivers.map((d) => d.userId);
+      userIds = truck.currentDrivers.filter(d => d.userId).map((d) => d.userId as string);
     }
 
-    // Notify relevant users
+    // Notify relevant users (only those with valid IDs)
     for (const userId of userIds) {
+      if (!userId) continue;
       await sendNotificationEmail(
         userId,
         'DOCUMENT_EXPIRING',
@@ -422,7 +424,7 @@ export async function notifySettlementGenerated(settlementId: string) {
       },
     });
 
-    if (!settlement || !settlement.driver) {
+    if (!settlement || !settlement.driver || !settlement.driver.userId) {
       return;
     }
 
@@ -453,7 +455,7 @@ export async function notifySettlementGenerated(settlementId: string) {
           userId: user.id,
           type: 'SYSTEM_ALERT',
           title: `Settlement Generated: ${settlement.settlementNumber}`,
-          message: `Settlement ${settlement.settlementNumber} for ${settlement.driver.user.firstName} ${settlement.driver.user.lastName} has been generated. Net pay: $${settlement.netPay.toFixed(2)}`,
+          message: `Settlement ${settlement.settlementNumber} for ${settlement.driver.user?.firstName ?? ''} ${settlement.driver.user?.lastName ?? ''} has been generated. Net pay: $${settlement.netPay.toFixed(2)}`,
           link: `/dashboard/settlements/${settlement.id}`,
         },
       });
@@ -494,7 +496,7 @@ export async function notifyDetentionDetected(params: {
       return;
     }
 
-    const lateWarning = params.driverLate 
+    const lateWarning = params.driverLate
       ? ' ⚠️ DRIVER LATE - Detention may be at risk if broker disputes.'
       : '';
 
@@ -571,7 +573,7 @@ export async function notifyBillingHold(params: {
       },
     });
 
-    const settlementNote = params.allowsSettlement 
+    const settlementNote = params.allowsSettlement
       ? ' NOTE: Driver settlement (AP) can proceed independently.'
       : '';
 

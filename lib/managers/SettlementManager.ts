@@ -252,7 +252,7 @@ export class SettlementManager {
         action: 'SETTLEMENT_GENERATED',
         entityType: 'Settlement',
         entityId: settlement.id,
-        description: `Settlement ${settlementNumber} generated for ${driver.user.firstName} ${driver.user.lastName}`,
+        description: `Settlement ${settlementNumber} generated for ${driver.user?.firstName ?? ''} ${driver.user?.lastName ?? ''}`,
         metadata: {
           grossPay,
           additions: totalAdditions,

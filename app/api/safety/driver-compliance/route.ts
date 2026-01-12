@@ -220,9 +220,9 @@ export async function GET(request: NextRequest) {
       // Calculate DQF status
       const dqfStatus = driver.dqf
         ? calculateComplianceStatus(
-            driver.dqf.nextReviewDate,
-            driver.dqf.status === 'COMPLETE'
-          )
+          driver.dqf.nextReviewDate,
+          driver.dqf.status === 'COMPLETE'
+        )
         : calculateComplianceStatus(null, false);
 
       // Calculate Medical Card status
@@ -279,96 +279,96 @@ export async function GET(request: NextRequest) {
       return {
         driverId: driver.id,
         driverNumber: driver.driverNumber,
-        driverName: `${driver.user.firstName} ${driver.user.lastName}`,
+        driverName: driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown',
         mcNumberId: driver.mcNumberId,
         mcNumber: driver.mcNumber?.number || null,
         overallCompliance,
         dqf: driver.dqf
           ? {
-              status: driver.dqf.status,
-              lastReviewDate: driver.dqf.lastReviewDate,
-              nextReviewDate: driver.dqf.nextReviewDate,
-              documents: driver.dqf.documents.map((doc) => ({
-                id: doc.id,
-                documentId: doc.documentId,
-                documentType: doc.documentType,
-                status: doc.status,
-                expirationDate: doc.expirationDate,
-                issueDate: doc.issueDate,
-                document: doc.document
-                  ? {
-                      id: doc.document.id,
-                      title: doc.document.title,
-                      fileName: doc.document.fileName,
-                      fileUrl: doc.document.fileUrl,
-                    }
-                  : undefined,
-              })),
-            }
+            status: driver.dqf.status,
+            lastReviewDate: driver.dqf.lastReviewDate,
+            nextReviewDate: driver.dqf.nextReviewDate,
+            documents: driver.dqf.documents.map((doc) => ({
+              id: doc.id,
+              documentId: doc.documentId,
+              documentType: doc.documentType,
+              status: doc.status,
+              expirationDate: doc.expirationDate,
+              issueDate: doc.issueDate,
+              document: doc.document
+                ? {
+                  id: doc.document.id,
+                  title: doc.document.title,
+                  fileName: doc.document.fileName,
+                  fileUrl: doc.document.fileUrl,
+                }
+                : undefined,
+            })),
+          }
           : null,
         medicalCard: latestMedicalCard
           ? {
-              id: latestMedicalCard.id,
-              cardNumber: latestMedicalCard.cardNumber,
-              expirationDate: latestMedicalCard.expirationDate,
-              issueDate: latestMedicalCard.issueDate,
-              medicalExaminerName: latestMedicalCard.medicalExaminerName,
-              medicalExaminerCertificateNumber: latestMedicalCard.medicalExaminerCertificateNumber,
-              waiverInformation: latestMedicalCard.waiverInformation,
-              document: latestMedicalCard.document
-                ? {
-                    id: latestMedicalCard.document.id,
-                    fileName: latestMedicalCard.document.fileName,
-                    fileUrl: latestMedicalCard.document.fileUrl,
-                  }
-                : undefined,
-              status: medicalCardStatus,
-            }
+            id: latestMedicalCard.id,
+            cardNumber: latestMedicalCard.cardNumber,
+            expirationDate: latestMedicalCard.expirationDate,
+            issueDate: latestMedicalCard.issueDate,
+            medicalExaminerName: latestMedicalCard.medicalExaminerName,
+            medicalExaminerCertificateNumber: latestMedicalCard.medicalExaminerCertificateNumber,
+            waiverInformation: latestMedicalCard.waiverInformation,
+            document: latestMedicalCard.document
+              ? {
+                id: latestMedicalCard.document.id,
+                fileName: latestMedicalCard.document.fileName,
+                fileUrl: latestMedicalCard.document.fileUrl,
+              }
+              : undefined,
+            status: medicalCardStatus,
+          }
           : null,
         cdl: driver.cdlRecord
           ? {
-              id: driver.cdlRecord.id,
-              cdlNumber: driver.cdlRecord.cdlNumber,
-              expirationDate: driver.cdlRecord.expirationDate,
-              issueDate: driver.cdlRecord.issueDate,
-              issueState: driver.cdlRecord.issueState,
-              licenseClass: driver.cdlRecord.licenseClass,
-              endorsements: driver.cdlRecord.endorsements,
-              restrictions: driver.cdlRecord.restrictions,
-              document: driver.cdlRecord.document
-                ? {
-                    id: driver.cdlRecord.document.id,
-                    fileName: driver.cdlRecord.document.fileName,
-                    fileUrl: driver.cdlRecord.document.fileUrl,
-                  }
-                : undefined,
-              status: cdlStatus,
-            }
+            id: driver.cdlRecord.id,
+            cdlNumber: driver.cdlRecord.cdlNumber,
+            expirationDate: driver.cdlRecord.expirationDate,
+            issueDate: driver.cdlRecord.issueDate,
+            issueState: driver.cdlRecord.issueState,
+            licenseClass: driver.cdlRecord.licenseClass,
+            endorsements: driver.cdlRecord.endorsements,
+            restrictions: driver.cdlRecord.restrictions,
+            document: driver.cdlRecord.document
+              ? {
+                id: driver.cdlRecord.document.id,
+                fileName: driver.cdlRecord.document.fileName,
+                fileUrl: driver.cdlRecord.document.fileUrl,
+              }
+              : undefined,
+            status: cdlStatus,
+          }
           : null,
         mvr: latestMVR
           ? {
-              id: latestMVR.id,
-              pullDate: latestMVR.pullDate,
-              state: latestMVR.state,
-              nextPullDueDate: latestMVR.nextPullDueDate,
-              violations: latestMVR.violations.map((v) => ({
-                id: v.id,
-                violationCode: v.violationCode,
-                violationDescription: v.violationDescription,
-                violationDate: v.violationDate,
-                state: v.state,
-                points: v.points,
-                isNew: v.isNew,
-              })),
-              document: latestMVR.document
-                ? {
-                    id: latestMVR.document.id,
-                    fileName: latestMVR.document.fileName,
-                    fileUrl: latestMVR.document.fileUrl,
-                  }
-                : undefined,
-              status: mvrStatus,
-            }
+            id: latestMVR.id,
+            pullDate: latestMVR.pullDate,
+            state: latestMVR.state,
+            nextPullDueDate: latestMVR.nextPullDueDate,
+            violations: latestMVR.violations.map((v) => ({
+              id: v.id,
+              violationCode: v.violationCode,
+              violationDescription: v.violationDescription,
+              violationDate: v.violationDate,
+              state: v.state,
+              points: v.points,
+              isNew: v.isNew,
+            })),
+            document: latestMVR.document
+              ? {
+                id: latestMVR.document.id,
+                fileName: latestMVR.document.fileName,
+                fileUrl: latestMVR.document.fileUrl,
+              }
+              : undefined,
+            status: mvrStatus,
+          }
           : null,
         recentDrugTests: driver.drugAlcoholTests.map((test) => ({
           id: test.id,
@@ -378,10 +378,10 @@ export async function GET(request: NextRequest) {
           testingFacility: test.labName,
           document: test.document
             ? {
-                id: test.document.id,
-                fileName: test.document.fileName,
-                fileUrl: test.document.fileUrl,
-              }
+              id: test.document.id,
+              fileName: test.document.fileName,
+              fileUrl: test.document.fileUrl,
+            }
             : undefined,
         })),
         hos: {

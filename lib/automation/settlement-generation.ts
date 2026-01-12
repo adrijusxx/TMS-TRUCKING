@@ -225,7 +225,7 @@ async function sendDriverNotification(driverId: string, settlementId: string): P
       },
     });
 
-    if (!settlement) return;
+    if (!settlement || !settlement.driver.userId) return;
 
     await prisma.notification.create({
       data: {
@@ -258,7 +258,7 @@ async function sendAccountingNotification(companyId: string, settlementId: strin
       },
     });
 
-    if (!settlement) return;
+    if (!settlement || !settlement.driver.user) return;
 
     // Get all accountants and admins for the company
     const accountingUsers = await prisma.user.findMany({
@@ -279,7 +279,7 @@ async function sendAccountingNotification(companyId: string, settlementId: strin
             userId: user.id,
             type: 'SYSTEM_ALERT',
             title: 'Settlement Pending Approval',
-            message: `Settlement ${settlement.settlementNumber} for ${settlement.driver.user.firstName} ${settlement.driver.user.lastName} ($${settlement.netPay.toFixed(2)}) is pending approval.`,
+            message: `Settlement ${settlement.settlementNumber} for ${settlement.driver.user!.firstName} ${settlement.driver.user!.lastName} ($${settlement.netPay.toFixed(2)}) is pending approval.`,
           },
         })
       )

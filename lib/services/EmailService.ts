@@ -11,17 +11,21 @@ interface EmailOptions {
 }
 
 export class EmailService {
-    private static readonly FROM_EMAIL = process.env.AWS_SES_FROM_EMAIL || "noreply@yourdomain.com";
     private static client: SESClient | null = null;
 
     private static getClient(): SESClient {
         if (!this.client) {
             this.client = new SESClient({
                 region: process.env.AWS_REGION || "us-east-1",
-                credentials: {
-                    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-                    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-                },
+                // Only provide credentials if they exist; otherwise SDK falls back to IAM Role
+                ...(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+                    ? {
+                        credentials: {
+                            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+                        },
+                    }
+                    : {}),
             });
         }
         return this.client;
@@ -45,7 +49,7 @@ export class EmailService {
                         Data: subject,
                     },
                 },
-                Source: from || this.FROM_EMAIL,
+                Source: from || process.env.AWS_SES_FROM_EMAIL || "noreply@yourdomain.com",
             });
 
             const response = await this.getClient().send(command);

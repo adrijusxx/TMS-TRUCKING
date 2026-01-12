@@ -503,8 +503,8 @@ export async function PATCH(
 
 
 
-    // Update user if needed
-    if (validated.firstName || validated.lastName || validated.phone) {
+    // Update user if needed (only if driver has a linked user account)
+    if (existingDriver.userId && (validated.firstName || validated.lastName || validated.phone)) {
       await prisma.user.update({
         where: { id: existingDriver.userId },
         data: {
@@ -515,8 +515,8 @@ export async function PATCH(
       });
     }
 
-    // Update password if provided
-    if (validated.password) {
+    // Update password if provided (only if driver has a linked user account)
+    if (validated.password && existingDriver.userId) {
       const hashedPassword = await bcrypt.hash(validated.password, 10);
       await prisma.user.update({
         where: { id: existingDriver.userId },
@@ -624,17 +624,24 @@ export async function DELETE(
       );
     }
 
-    // Soft delete driver and user
-    await Promise.all([
+    // Soft delete driver and user (if driver has linked user account)
+    const deleteOps = [
       prisma.driver.update({
         where: { id },
         data: { deletedAt: new Date(), isActive: false },
       }),
-      prisma.user.update({
-        where: { id: existingDriver.userId },
-        data: { deletedAt: new Date(), isActive: false },
-      }),
-    ]);
+    ];
+
+    if (existingDriver.userId) {
+      deleteOps.push(
+        prisma.user.update({
+          where: { id: existingDriver.userId },
+          data: { deletedAt: new Date(), isActive: false },
+        }) as any
+      );
+    }
+
+    await Promise.all(deleteOps);
 
     return NextResponse.json({
       success: true,

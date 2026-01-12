@@ -128,46 +128,46 @@ export class AIDispatchAssistant extends AIService {
 
 UNASSIGNED LOADS:
 ${JSON.stringify(unassignedLoads.map(load => ({
-  id: load.id,
-  loadNumber: load.loadNumber,
-  pickupCity: load.pickupCity,
-  pickupState: load.pickupState,
-  deliveryCity: load.deliveryCity,
-  deliveryState: load.deliveryState,
-  pickupDate: load.pickupDate,
-  deliveryDate: load.deliveryDate,
-  equipmentType: load.equipmentType,
-  revenue: load.revenue,
-  customer: load.customer?.name,
-  paymentTerms: load.customer?.paymentTerms,
-})), null, 2)}
+      id: load.id,
+      loadNumber: load.loadNumber,
+      pickupCity: load.pickupCity,
+      pickupState: load.pickupState,
+      deliveryCity: load.deliveryCity,
+      deliveryState: load.deliveryState,
+      pickupDate: load.pickupDate,
+      deliveryDate: load.deliveryDate,
+      equipmentType: load.equipmentType,
+      revenue: load.revenue,
+      customer: load.customer?.name,
+      paymentTerms: load.customer?.paymentTerms,
+    })), null, 2)}
 
 ASSIGNED LOADS (for conflict detection):
 ${JSON.stringify(assignedLoads.map(load => ({
-  loadNumber: load.loadNumber,
-  driverId: load.driverId,
-  driverName: load.driver ? `${load.driver.user.firstName} ${load.driver.user.lastName}` : null,
-  truckId: load.truckId,
-  truckNumber: load.truck?.truckNumber,
-  pickupDate: load.pickupDate,
-  deliveryDate: load.deliveryDate,
-  pickupCity: load.pickupCity,
-  pickupState: load.pickupState,
-  deliveryCity: load.deliveryCity,
-  deliveryState: load.deliveryState,
-})), null, 2)}
+      loadNumber: load.loadNumber,
+      driverId: load.driverId,
+      driverName: load.driver?.user ? `${load.driver.user.firstName} ${load.driver.user.lastName}` : null,
+      truckId: load.truckId,
+      truckNumber: load.truck?.truckNumber,
+      pickupDate: load.pickupDate,
+      deliveryDate: load.deliveryDate,
+      pickupCity: load.pickupCity,
+      pickupState: load.pickupState,
+      deliveryCity: load.deliveryCity,
+      deliveryState: load.deliveryState,
+    })), null, 2)}
 
 AVAILABLE DRIVERS:
 ${JSON.stringify(availableDrivers.map(driver => ({
-  id: driver.id,
-  name: `${driver.user.firstName} ${driver.user.lastName}`,
-  driverNumber: driver.driverNumber,
-  currentTruck: driver.currentTruck ? {
-    id: driver.currentTruck.id,
-    truckNumber: driver.currentTruck.truckNumber,
-    equipmentType: driver.currentTruck.equipmentType,
-  } : null,
-})), null, 2)}
+      id: driver.id,
+      name: driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown',
+      driverNumber: driver.driverNumber,
+      currentTruck: driver.currentTruck ? {
+        id: driver.currentTruck.id,
+        truckNumber: driver.currentTruck.truckNumber,
+        equipmentType: driver.currentTruck.equipmentType,
+      } : null,
+    })), null, 2)}
 
 PRIORITIZATION FACTORS:
 1. Delivery date urgency (earlier = higher priority)

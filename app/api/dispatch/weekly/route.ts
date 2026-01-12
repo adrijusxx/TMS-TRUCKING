@@ -17,11 +17,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get('date');
     const startDate = dateParam ? new Date(dateParam) : new Date();
-    
+
     // Get the week range (Sunday to Saturday)
     const weekStart = startOfWeek(startDate, { weekStartsOn: 0 });
     const weekEnd = endOfWeek(startDate, { weekStartsOn: 0 });
-    
+
     // Get all drivers for the company
     const drivers = await prisma.driver.findMany({
       where: {
@@ -132,9 +132,9 @@ export async function GET(request: NextRequest) {
         driver: {
           id: driver.id,
           driverNumber: driver.driverNumber,
-          firstName: driver.user.firstName,
-          lastName: driver.user.lastName,
-          phone: driver.user.phone,
+          firstName: driver.user?.firstName ?? '',
+          lastName: driver.user?.lastName ?? '',
+          phone: driver.user?.phone ?? null,
           status: driver.status,
           companyName: driver.company.name,
           currentTruck: driver.currentTruck,
@@ -308,9 +308,9 @@ export async function GET(request: NextRequest) {
           coverageRatio:
             overallStats.totalDrivers > 0
               ? (
-                  (overallStats.coveredDrivers / overallStats.totalDrivers) *
-                  100
-                ).toFixed(1)
+                (overallStats.coveredDrivers / overallStats.totalDrivers) *
+                100
+              ).toFixed(1)
               : '0.0',
         },
         statusCounts,

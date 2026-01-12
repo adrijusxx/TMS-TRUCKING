@@ -308,7 +308,7 @@ export async function GET(request: NextRequest) {
           ? {
             id: trailer.operatorDriver.id,
             driverNumber: trailer.operatorDriver.driverNumber,
-            name: `${trailer.operatorDriver.user.firstName} ${trailer.operatorDriver.user.lastName}`,
+            name: trailer.operatorDriver.user ? `${trailer.operatorDriver.user.firstName} ${trailer.operatorDriver.user.lastName}` : 'Unknown',
           }
           : null,
         loadCount,

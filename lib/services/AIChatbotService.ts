@@ -5,6 +5,7 @@
 
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { KnowledgeBaseService } from './KnowledgeBaseService';
 
 interface ChatbotInput {
   message: string;
@@ -24,7 +25,7 @@ export class AIChatbotService extends AIService {
   /**
    * Process chatbot message
    */
-  async processMessage(input: ChatbotInput): Promise<ChatbotResponse> {
+  async processMessage(input: ChatbotInput): Promise<ReadableStream> {
     // Fetch relevant data based on message context
     let contextData = '';
 
@@ -91,6 +92,23 @@ export class AIChatbotService extends AIService {
       }
     }
 
+    // Search Knowledge Base
+    const kbService = new KnowledgeBaseService(input.companyId);
+    console.log(`[AIChatbot] Searching KB for: "${input.message}"`);
+    // Increased to 5 results to provide better context
+    const kbResults = await kbService.search(input.message, 5);
+    console.log(`[AIChatbot] Found ${kbResults.length} KB results`);
+
+    // Add System Context
+    contextData += this.getSystemContext();
+
+    if (kbResults.length > 0) {
+      contextData += `\nKNOWLEDGE BASE INFORMATION:\n`;
+      kbResults.forEach((result, index) => {
+        contextData += `[Result ${index + 1} from "${result.documentTitle}"]: ${result.content}\n\n`;
+      });
+    }
+
     // Build AI prompt
     const prompt = `You are a helpful customer service chatbot for a trucking company. Answer the user's question helpfully and accurately.
 
@@ -107,26 +125,58 @@ CAPABILITIES:
 - Check load status by load number
 - Check invoice status and balance
 - Answer general questions about trucking operations
+- Answer questions based on uploaded company documents
 - Provide contact information
 - Help with common questions
 
-Return JSON with:
-- response: string (helpful response to the user)
-- suggestions: array of strings (optional follow-up questions or actions)
-- data: object (optional structured data if query is about specific entity)
+Return plain text response. Do NOT return JSON. Be friendly, professional, and concise.`;
 
-Be friendly, professional, and concise. If you don't have enough information, ask clarifying questions.`;
+    // Note: We are switching to streaming, so we return the stream directly
+    // The route handler will pipe this stream to the response
+    return this.callAIStream(prompt, {
+      temperature: 0.5, // Lower temperature for more factual answers
+      maxTokens: 1000,
+      systemPrompt: 'You are a helpful customer service chatbot. You MUST prioritize the provided CONTEXT DATA (Knowledge Base, Loads, Invoices) to answer questions. If the answer is in the context, use it. If not, be helpful but admit you don\'t know specific details.',
+    });
+  }
 
-    const result = await this.callAI<ChatbotResponse>(
-      prompt,
-      {
-        temperature: 0.7,
-        maxTokens: 1000,
-        systemPrompt: 'You are a helpful customer service chatbot. Return ONLY valid JSON with your response.',
-      }
-    );
+  /**
+   * Get system-wide context (Default Knowledge Base)
+   */
+  /**
+   * Get system-wide context (Default Knowledge Base)
+   */
+  private getSystemContext(): string {
+    return `
+SYSTEM INFORMATION (TMS DEFAULT KNOWLEDGE):
+- **Role**: You are the AI Assistant for "Four Ways Cargo" TMS, a comprehensive transport management system.
+- **Tone**: Professional, helpful, concise.
 
-    return result.data;
+### 🚛 OPERATIONS & DISPATCH
+- **Loads**: Central unit of work. Status flow: PENDING -> DISPATCHED -> PICKED_UP -> DELIVERED -> COMPLETED.
+- **Dispatching**: Assign Drivers, Trucks, and Trailers to Loads. Dispatchers can send SMS updates.
+- **Tracking**: Loads have Pickup/Delivery dates, times, and locations. Map view available.
+
+### 💰 ACCOUNTING & FINANCE
+- **Invoices**: Generated from Completed Loads. Can be factored or direct bill.
+- **Settlements**: Weekly pay statements for Drivers. specialized logic for "Split Loads" (Team Drivers).
+- **Driver Pay**: Supports "Per Mile", "Percentage" (of Gross), or "Flat Rate".
+- **Expenses**: Recurring deductions (Insurance, ELD) and one-time deductions (Cash Advance, Repairs).
+
+### 🛡️ SAFETY & COMPLIANCE
+- **Driver Qualification**: Tracks CDL Expiry, Medical Cards, MVR checks, Drug Tests.
+- **Maintenance**: Tracks Service intervals, Inspections (DVIR), and Breakdowns.
+- **Alerts**: System auto-flags expiring documents. Drivers with expired credentials cannot be dispatched.
+
+### 👥 USERS & ROLES
+- **Admin**: Full access. Can manage settings, users, and all financial data.
+- **Dispatcher**: Read/Write for Loads, Drivers, and Trucks. Restricted financial view.
+- **Driver**: Mobile app access. Can view assigned loads and settlements.
+- **Safety**: manages compliance documents and incidents.
+
+### 🆘 HELP & SUPPORT
+- **Contact**: Telegram (@adrianvia) is the fastest way to get human support.
+- **Docs**: Uploaded documents in "Knowledge Base" (e.g. company policies) override this default knowledge.
+`;
   }
 }
-

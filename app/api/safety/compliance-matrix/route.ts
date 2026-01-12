@@ -94,7 +94,7 @@ export async function GET(request: Request) {
 
         const formattedDrivers = drivers.map(d => ({
             id: d.id,
-            name: `${d.user.firstName} ${d.user.lastName}`,
+            name: d.user ? `${d.user.firstName} ${d.user.lastName}` : 'Unknown',
             driverNumber: d.driverNumber,
             cdl: d.cdlRecord ? {
                 number: d.cdlRecord.cdlNumber,

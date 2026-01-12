@@ -44,11 +44,12 @@ export async function dailyHOSViolationCheck() {
         });
 
         for (const violation of violations) {
+          const driverName = violation.driver?.user ? `${violation.driver.user.firstName} ${violation.driver.user.lastName}` : 'Unknown';
           await alertService.createAlert({
             companyId: company.id,
             alertType: 'HOS_VIOLATION',
             severity: 'HIGH',
-            title: `HOS Violation: ${violation.driver.user.firstName} ${violation.driver.user.lastName}`,
+            title: `HOS Violation: ${driverName}`,
             message: `${violation.violationType}: ${violation.violationDescription}`,
             relatedEntityType: 'driver',
             relatedEntityId: violation.driverId

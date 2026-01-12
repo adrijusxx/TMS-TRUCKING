@@ -320,15 +320,15 @@ export async function GET(request: NextRequest) {
     const driversWithTariff = drivers.map((driver) => {
       return {
         ...driver,
-        firstName: driver.user.firstName,
-        lastName: driver.user.lastName,
-        email: driver.user.email,
-        phone: driver.user.phone,
+        firstName: driver.user?.firstName ?? '',
+        lastName: driver.user?.lastName ?? '',
+        email: driver.user?.email ?? '',
+        phone: driver.user?.phone ?? null,
 
         truck: driver.currentTruck,
         trailer: driver.currentTrailer,
         tags: driver.driverTags || [],
-        userId: driver.user.id,
+        userId: driver.user?.id ?? null,
         currentTruckId: driver.currentTruckId,
         currentTrailerId: driver.currentTrailerId,
         mcNumberId: driver.mcNumberId || null,

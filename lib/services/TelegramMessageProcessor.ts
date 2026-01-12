@@ -59,7 +59,7 @@ export class TelegramMessageProcessor {
             }
 
             const driver = driverMapping.driver;
-            const driverName = `${driver.user.firstName} ${driver.user.lastName} `;
+            const driverName = driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown Driver';
 
             // Analyze message with AI
             const analysis = await this.aiService.analyzeMessage(message.message, {

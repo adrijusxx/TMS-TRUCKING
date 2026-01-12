@@ -36,6 +36,10 @@ model User {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
+  // Onboarding
+  onboardingStep     Int       @default(1)    // Current step in registration wizard (1-4)
+  onboardingComplete Boolean   @default(false) // Has completed full onboarding
+
   // Relations for driver-specific data
   drivers                    Driver[]
   activityLogs               ActivityLog[]
@@ -151,6 +155,12 @@ model Company {
   subscription       Subscription?
   quickBooksSettings QuickBooksSettings?
   samsaraSettings    SamsaraSettings?
+
+  // Subscription Tier & Limits
+  trialEndsAt        DateTime?              // When 14-day Pro trial expires
+  truckLimit         Int       @default(999) // 1 for owner-operator tier
+  onboardingComplete Boolean   @default(false) // Has completed data import onboarding
+  isReadOnly         Boolean   @default(false) // True if downgraded to Core (trial expired)
 
   deletedAt DateTime?
 
@@ -650,8 +660,8 @@ model Route {
 
 model Driver {
   id        String  @id @default(cuid())
-  userId    String
-  user      User    @relation(fields: [userId], references: [id])
+  userId    String? // Optional - drivers can be imported without user accounts
+  user      User?   @relation(fields: [userId], references: [id])
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
 
@@ -6597,8 +6607,10 @@ enum SubscriptionStatus {
   UNPAID
   INCOMPLETE
   INCOMPLETE_EXPIRED
-  TRIALING
-  FREE
+  TRIALING         // 14-day Pro trial (full access)
+  FREE             // Legacy free tier (deprecated)
+  OWNER_OPERATOR   // Free tier: 1 truck limit, core features only
+  CORE_READONLY    // Downgraded trial: read-only, no new entries
 }
 
 enum SubscriptionModule {

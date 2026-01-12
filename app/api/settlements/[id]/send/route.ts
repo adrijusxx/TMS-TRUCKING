@@ -53,7 +53,7 @@ export async function POST(
     }
 
     // Get driver email
-    const driverEmail = settlement.driver.user.email;
+    const driverEmail = settlement.driver?.user?.email;
     if (!driverEmail) {
       return NextResponse.json(
         {
@@ -161,7 +161,7 @@ function generateSettlementEmail(settlement: any, company: any, pdfUrl: string):
     });
   };
 
-  const driverName = `${settlement.driver.user.firstName} ${settlement.driver.user.lastName}`;
+  const driverName = settlement.driver?.user ? `${settlement.driver.user.firstName} ${settlement.driver.user.lastName}` : 'Driver';
   const periodStart = formatDate(settlement.periodStart);
   const periodEnd = formatDate(settlement.periodEnd);
   const netPay = formatCurrency(settlement.netPay);

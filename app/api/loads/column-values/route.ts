@@ -87,7 +87,9 @@ export async function GET(request: NextRequest) {
         loads.forEach((load) => {
           if (load.driverId && load.driver) {
             const key = load.driverId;
-            const label = `${load.driver.driverNumber} - ${load.driver.user.firstName} ${load.driver.user.lastName}`;
+            const label = load.driver.user
+              ? `${load.driver.driverNumber} - ${load.driver.user.firstName} ${load.driver.user.lastName}`
+              : load.driver.driverNumber;
             if (driverMap.has(key)) {
               driverMap.get(key)!.count++;
             } else {

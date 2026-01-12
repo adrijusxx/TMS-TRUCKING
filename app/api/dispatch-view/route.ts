@@ -206,8 +206,8 @@ export async function GET(request: NextRequest) {
 
             return {
                 id: driver.id,
-                name: `${driver.user.firstName} ${driver.user.lastName}`,
-                phone: driver.user.phone,
+                name: driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown',
+                phone: driver.user?.phone ?? null,
                 status: driver.status,
                 dispatchStatus: driver.dispatchStatus,
                 mcNumber: driver.mcNumber?.number || null,

@@ -72,7 +72,7 @@ export class AIDriverRetentionPredictor extends AIService {
 
     const prompt = `Predict driver retention risk based on historical data.
 
-DRIVER: ${driver.user.firstName} ${driver.user.lastName}
+DRIVER: ${driver.user?.firstName ?? ''} ${driver.user?.lastName ?? ''}
 DRIVER NUMBER: ${driver.driverNumber}
 STATUS: ${driver.status}
 HIRE DATE: ${driver.hireDate || 'Not available'}
@@ -118,7 +118,7 @@ Return JSON with:
     return {
       ...result.data,
       driverId,
-      driverName: `${driver.user.firstName} ${driver.user.lastName}`,
+      driverName: driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown',
     };
   }
 }

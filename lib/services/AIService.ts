@@ -59,7 +59,7 @@ export class AIService {
     this.apiKey = OPENAI_API_KEY;
     this.apiUrl = OPENAI_API_URL;
     this.defaultModel = DEFAULT_MODEL;
-    
+
     if (!this.apiKey) {
       console.warn('[AIService] OPENAI_API_KEY not set. AI features will fail.');
     }
@@ -137,7 +137,7 @@ export class AIService {
 
       // Parse JSON response
       const parsed = this.parseJsonResponse<T>(content);
-      
+
       return {
         data: parsed,
         finishReason,
@@ -155,18 +155,67 @@ export class AIService {
   }
 
   /**
+   * Make a streaming call to OpenAI API
+   */
+  protected async callAIStream(
+    userPrompt: string,
+    options: AICallOptions = {}
+  ): Promise<ReadableStream> {
+    const {
+      temperature = 0.5,
+      maxTokens = 4000,
+      systemPrompt = 'You are a helpful AI assistant.',
+      model = this.defaultModel,
+    } = options;
+
+    if (!this.apiKey) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature,
+          max_tokens: maxTokens,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI processing failed: ${response.statusText}`);
+      }
+
+      return response.body as ReadableStream;
+    } catch (error) {
+      console.error('[AIService] Streaming Error:', error);
+      throw error;
+    }
+  }
+
+
+  /**
    * Parse JSON response, handling markdown code blocks
    */
   private parseJsonResponse<T>(content: string): T {
     let jsonText = content.trim();
-    
+
     // Remove markdown code blocks if present
     if (jsonText.startsWith('```json')) {
       jsonText = jsonText.replace(/^```json\s*/g, '').replace(/\s*```$/g, '');
     } else if (jsonText.startsWith('```')) {
       jsonText = jsonText.replace(/^```\s*/g, '').replace(/\s*```$/g, '');
     }
-    
+
     // Try to extract JSON object if wrapped in text
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -187,16 +236,16 @@ export class AIService {
    */
   protected fixIncompleteJSON(text: string): string {
     let fixed = text.trim();
-    
+
     // Remove trailing commas before closing brackets/braces
     fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
-    
+
     // Count open/close braces and brackets
     const openBraces = (fixed.match(/\{/g) || []).length;
     const closeBraces = (fixed.match(/\}/g) || []).length;
     const openBrackets = (fixed.match(/\[/g) || []).length;
     const closeBrackets = (fixed.match(/\]/g) || []).length;
-    
+
     // If JSON appears incomplete, close it
     if (openBraces > closeBraces || openBrackets > closeBrackets) {
       // Find the last complete value before the truncation
@@ -204,25 +253,25 @@ export class AIService {
       let depth = 0;
       let inString = false;
       let escapeNext = false;
-      
+
       for (let i = 0; i < fixed.length; i++) {
         const char = fixed[i];
-        
+
         if (escapeNext) {
           escapeNext = false;
           continue;
         }
-        
+
         if (char === '\\') {
           escapeNext = true;
           continue;
         }
-        
+
         if (char === '"' && !escapeNext) {
           inString = !inString;
           continue;
         }
-        
+
         if (!inString) {
           if (char === '{' || char === '[') {
             depth++;
@@ -239,19 +288,19 @@ export class AIService {
           }
         }
       }
-      
+
       if (lastValidIndex > 0) {
         fixed = fixed.substring(0, lastValidIndex + 1);
       }
-      
+
       // Close any remaining open structures
       const bracesToClose = openBraces - closeBraces;
       const bracketsToClose = openBrackets - closeBrackets;
-      
+
       fixed += ']'.repeat(Math.max(0, bracketsToClose));
       fixed += '}'.repeat(Math.max(0, bracesToClose));
     }
-    
+
     return fixed;
   }
 
@@ -262,20 +311,20 @@ export class AIService {
     try {
       const pdfParse = (await import('pdf-parse')).default;
       const data = await pdfParse(buffer);
-      
+
       let text = data.text;
-      
+
       // Optimize: Remove excessive whitespace and normalize line breaks
       text = text
         .replace(/\n{3,}/g, '\n\n')
         .replace(/[ \t]+/g, ' ')
         .trim();
-      
+
       // Limit text length for efficiency
       if (text.length > 25000) {
         text = text.substring(0, 25000);
       }
-      
+
       return text;
     } catch (error) {
       console.error('[AIService] PDF parsing error:', error);
