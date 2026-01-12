@@ -425,9 +425,9 @@ export default function TelegramIntegrationPage() {
                             {/* Auto-Create Cases */}
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
-                                    <Label htmlFor="auto-create">Auto-Create Breakdown Cases</Label>
+                                    <Label htmlFor="auto-create">Auto-Create Cases</Label>
                                     <p className="text-sm text-muted-foreground">
-                                        Automatically create breakdown cases when AI detects issues
+                                        Automatically create Breakdown, Safety, and Maintenance cases when AI detects driver issues
                                     </p>
                                 </div>
                                 <Switch
@@ -678,7 +678,7 @@ export default function TelegramIntegrationPage() {
                                     rows={3}
                                 />
                                 <p className="text-sm text-muted-foreground">
-                                    Sent when a breakdown case is auto-created. Use {'{caseNumber}'} as placeholder
+                                    Sent when a case is auto-created. Use {'{caseNumber}'} as placeholder
                                 </p>
                             </div>
 

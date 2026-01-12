@@ -6,17 +6,29 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, FileText, Trash2, Database, RefreshCw, File } from 'lucide-react';
+import { Loader2, Upload, FileText, Trash2, Database, RefreshCw, File, Bot } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
 
-import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function KnowledgeBaseManager() {
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; filename: string; percent: number } | null>(null);
+    const [viewingDoc, setViewingDoc] = useState<any | null>(null);
+    const [docContent, setDocContent] = useState<string | null>(null);
+    const [isLoadingDoc, setIsLoadingDoc] = useState(false);
 
     const { data: documents, isLoading } = useQuery({
         queryKey: ['knowledge-base-docs'],
@@ -131,6 +143,22 @@ export default function KnowledgeBaseManager() {
         }
     };
 
+    const handleViewDoc = async (doc: any) => {
+        setViewingDoc(doc);
+        setIsLoadingDoc(true);
+        setDocContent(null);
+        try {
+            const res = await fetch(apiUrl(`/api/knowledge-base/${doc.id}`));
+            if (!res.ok) throw new Error('Failed to fetch document content');
+            const data = await res.json();
+            setDocContent(data.data.fullContent);
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setIsLoadingDoc(false);
+        }
+    };
+
     const statusColor = (status: string) => {
         switch (status) {
             case 'READY': return 'bg-green-500';
@@ -139,6 +167,11 @@ export default function KnowledgeBaseManager() {
             default: return 'bg-gray-500';
         }
     };
+
+    // Filter documents by source
+    const fileDocuments = documents?.filter((doc: any) => doc.url !== 'internal') || [];
+    const learnedDocuments = documents?.filter((doc: any) => doc.url === 'internal') || [];
+    const totalChunks = documents?.reduce((acc: number, doc: any) => acc + (doc._count?.chunks || 0), 0) || 0;
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
@@ -194,13 +227,21 @@ export default function KnowledgeBaseManager() {
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{documents?.length || 0}</div>
+                        <div className="text-2xl font-bold">{fileDocuments.length}</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Learned Facts</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold text-blue-600">{learnedDocuments.length}</div>
                     </CardContent>
                 </Card>
                 <Card>
@@ -208,18 +249,16 @@ export default function KnowledgeBaseManager() {
                         <CardTitle className="text-sm font-medium">Total Chunks</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">
-                            {documents?.reduce((acc: number, doc: any) => acc + (doc._count?.chunks || 0), 0) || 0}
-                        </div>
+                        <div className="text-2xl font-bold">{totalChunks}</div>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Synced Status</CardTitle>
+                        <CardTitle className="text-sm font-medium">System Status</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-green-600">
-                            {documents?.filter((d: any) => d.status === 'READY').length || 0} Ready
+                            {documents?.filter((d: any) => d.status === 'READY').length || 0} Active
                         </div>
                     </CardContent>
                 </Card>
@@ -227,88 +266,180 @@ export default function KnowledgeBaseManager() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Documents</CardTitle>
+                    <CardTitle>Knowledge Explorer</CardTitle>
                     <CardDescription>
-                        PDF, Text, and Markdown files uploaded for AI reference.
+                        Explore uploaded documents and AI-synthesized knowledge from conversations.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {isLoading ? (
-                        <div className="flex justify-center py-8">
-                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                        </div>
-                    ) : documents?.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground border-dashed border-2 rounded-lg">
-                            <Database className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                            <p>No documents found.</p>
-                            <p className="text-sm">Upload PDF, TXT, or MD files to get started.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {/* Upload Progress Indicator in List */}
-                            {isUploading && uploadProgress && (
-                                <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/50 border-primary/20">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                                            <div>
-                                                <h4 className="font-semibold text-sm">Importing {uploadProgress.filename}</h4>
-                                                <p className="text-xs text-muted-foreground">
-                                                    File {uploadProgress.current} of {uploadProgress.total} ({Math.round(uploadProgress.percent)}%)
-                                                </p>
+                    <Tabs defaultValue="files" className="space-y-4">
+                        <TabsList>
+                            <TabsTrigger value="files" className="gap-2">
+                                <FileText className="h-4 w-4" />
+                                Uploaded Files
+                                <Badge variant="secondary" className="ml-2">{fileDocuments.length}</Badge>
+                            </TabsTrigger>
+                            <TabsTrigger value="learned" className="gap-2">
+                                <Bot className="h-4 w-4" />
+                                Automated Learning
+                                <Badge variant="secondary" className="ml-2 text-blue-600">{learnedDocuments.length}</Badge>
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="files" className="space-y-4">
+                            {isLoading ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : fileDocuments.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground border-dashed border-2 rounded-lg">
+                                    <Database className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                                    <p>No documents found.</p>
+                                    <p className="text-sm">Upload PDF, TXT, or MD files to get started.</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4">
+                                    {isUploading && uploadProgress && (
+                                        <div className="flex flex-col gap-2 p-4 border rounded-lg bg-muted/50 border-primary/20">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-4">
+                                                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                                    <div>
+                                                        <h4 className="font-semibold text-sm">Importing {uploadProgress.filename}</h4>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            File {uploadProgress.current} of {uploadProgress.total} ({Math.round(uploadProgress.percent)}%)
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
+                                            <Progress value={uploadProgress.percent} className="h-2" />
                                         </div>
-                                    </div>
-                                    <Progress value={uploadProgress.percent} className="h-2" />
+                                    )}
+                                    {fileDocuments.map((doc: any) => (
+                                        <DocumentRow
+                                            key={doc.id}
+                                            doc={doc}
+                                            onView={() => handleViewDoc(doc)}
+                                            onDelete={() => deleteMutation.mutate(doc.id)}
+                                            statusColor={statusColor}
+                                        />
+                                    ))}
                                 </div>
                             )}
+                        </TabsContent>
 
-                            {documents?.map((doc: any) => (
-                                <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/30 transition-colors">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-2 bg-muted rounded">
-                                            {doc.fileType?.includes('pdf') ? (
-                                                <FileText className="h-6 w-6 text-red-500" />
-                                            ) : doc.title.endsWith('.md') || doc.fileType?.includes('markdown') ? (
-                                                <FileText className="h-6 w-6 text-purple-500" />
-                                            ) : (
-                                                <File className="h-6 w-6 text-blue-500" />
-                                            )}
-                                        </div>
-                                        <div>
-                                            <h4 className="font-semibold">{doc.title}</h4>
-                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                <span>{formatBytes(doc.fileSize)}</span>
-                                                <span>•</span>
-                                                <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
-                                                <span>•</span>
-                                                <Badge variant="outline" className={`${statusColor(doc.status)} text-white border-0 text-[10px] h-5`}>
-                                                    {doc.status}
-                                                </Badge>
-                                                {doc.status === 'READY' && (
-                                                    <span>({doc._count?.chunks || 0} chunks)</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-muted-foreground hover:text-destructive"
-                                        onClick={() => {
-                                            if (confirm('Are you sure you want to delete this document?')) {
-                                                deleteMutation.mutate(doc.id);
-                                            }
-                                        }}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                        <TabsContent value="learned" className="space-y-4">
+                            {learnedDocuments.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground border-dashed border-2 rounded-lg">
+                                    <Bot className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                                    <p>No automated learning data yet.</p>
+                                    <p className="text-sm">Conversations will be synthesized and indexed here daily.</p>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            ) : (
+                                <div className="grid gap-4">
+                                    {learnedDocuments.map((doc: any) => (
+                                        <DocumentRow
+                                            key={doc.id}
+                                            doc={doc}
+                                            isLearned
+                                            onView={() => handleViewDoc(doc)}
+                                            onDelete={() => deleteMutation.mutate(doc.id)}
+                                            statusColor={statusColor}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </TabsContent>
+                    </Tabs>
                 </CardContent>
             </Card>
+
+            {/* Content Viewer Sheet */}
+            <Sheet open={!!viewingDoc} onOpenChange={(open) => !open && setViewingDoc(null)}>
+                <SheetContent side="right" className="sm:max-w-xl">
+                    <SheetHeader className="pb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                            {viewingDoc?.url === 'internal' ? <Bot className="h-5 w-5 text-blue-600" /> : <FileText className="h-5 w-5" />}
+                            <SheetTitle className="text-xl">{viewingDoc?.title}</SheetTitle>
+                        </div>
+                        <SheetDescription>
+                            {viewingDoc?.url === 'internal'
+                                ? 'AI-synthesized knowledge from Telegram conversations.'
+                                : `Uploaded on ${viewingDoc && new Date(viewingDoc.createdAt).toLocaleDateString()}`}
+                        </SheetDescription>
+                    </SheetHeader>
+
+                    <div className="mt-4 border rounded-lg bg-muted/30 h-[calc(100vh-180px)]">
+                        {isLoadingDoc ? (
+                            <div className="flex items-center justify-center h-full">
+                                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : (
+                            <ScrollArea className="h-full p-6">
+                                <div className="prose prose-sm max-w-none dark:prose-invert">
+                                    {docContent ? (
+                                        docContent.split('\n').map((line, i) => (
+                                            <p key={i} className="mb-4 text-sm leading-relaxed">
+                                                {line}
+                                            </p>
+                                        ))
+                                    ) : (
+                                        <p className="text-muted-foreground italic">No content available.</p>
+                                    )}
+                                </div>
+                            </ScrollArea>
+                        )}
+                    </div>
+                </SheetContent>
+            </Sheet>
+        </div>
+    );
+}
+
+function DocumentRow({ doc, onView, onDelete, statusColor, isLearned = false }: any) {
+    return (
+        <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer group" onClick={onView}>
+            <div className="flex items-center gap-4">
+                <div className="p-2 bg-muted rounded group-hover:bg-background transition-colors">
+                    {isLearned ? (
+                        <Bot className="h-6 w-6 text-blue-600" />
+                    ) : doc.fileType?.includes('pdf') ? (
+                        <FileText className="h-6 w-6 text-red-500" />
+                    ) : (
+                        <File className="h-6 w-6 text-blue-500" />
+                    )}
+                </div>
+                <div>
+                    <h4 className="font-semibold">{doc.title}</h4>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {!isLearned && <span>{formatBytes(doc.fileSize)}</span>}
+                        {!isLearned && <span>•</span>}
+                        <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
+                        <span>•</span>
+                        <Badge variant="outline" className={`${statusColor(doc.status)} text-white border-0 text-[10px] h-5`}>
+                            {doc.status}
+                        </Badge>
+                        {doc.status === 'READY' && (
+                            <span>({doc._count?.chunks || 0} chunks)</span>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" onClick={onView}>View</Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                        if (confirm('Are you sure you want to delete this document?')) {
+                            onDelete();
+                        }
+                    }}
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </div>
         </div>
     );
 }

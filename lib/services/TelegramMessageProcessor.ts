@@ -84,16 +84,27 @@ export class TelegramMessageProcessor {
                 return;
             }
 
-            let breakdownId: string | undefined;
+            let caseId: string | undefined;
             let caseNumber: string | undefined;
 
-            // Auto-create breakdown case if detected
-            if (analysis.isBreakdown && settings.autoCreateCases && analysis.confidence >= settings.confidenceThreshold) {
-                const breakdown = await this.createBreakdownCase(driver.id, driver.currentTruck?.id, analysis, message.message);
-                breakdownId = breakdown.id;
-                caseNumber = breakdown.breakdownNumber;
-
-                console.log(`[Telegram] Created breakdown case: ${caseNumber} `);
+            // Auto-create cases based on detection
+            if (settings.autoCreateCases && analysis.confidence >= settings.confidenceThreshold) {
+                if (analysis.isBreakdown) {
+                    const breakdown = await this.createBreakdownCase(driver.id, driver.currentTruck?.id, analysis, message.message);
+                    caseId = breakdown.id;
+                    caseNumber = breakdown.breakdownNumber;
+                    console.log(`[Telegram] Created breakdown case: ${caseNumber}`);
+                } else if (analysis.isSafetyIncident) {
+                    const incident = await this.createSafetyIncident(driver.id, driver.currentTruck?.id, analysis, message.message);
+                    caseId = incident.id;
+                    caseNumber = incident.incidentNumber;
+                    console.log(`[Telegram] Created safety incident: ${caseNumber}`);
+                } else if (analysis.isMaintenanceRequest) {
+                    const record = await this.createMaintenanceRequest(driver.id, driver.currentTruck?.id, analysis, message.message);
+                    caseId = record.id;
+                    caseNumber = record.maintenanceNumber || record.id;
+                    console.log(`[Telegram] Created maintenance request: ${caseNumber}`);
+                }
             }
 
             // Log communication
@@ -101,10 +112,10 @@ export class TelegramMessageProcessor {
                 data: {
                     companyId: this.companyId,
                     driverId: driver.id,
-                    breakdownId,
+                    breakdownId: analysis.isBreakdown ? caseId : undefined,
                     channel: 'TELEGRAM',
                     direction: 'INBOUND',
-                    type: analysis.isBreakdown ? 'BREAKDOWN_REPORT' : 'MESSAGE',
+                    type: analysis.category === 'BREAKDOWN' ? 'BREAKDOWN_REPORT' : 'MESSAGE',
                     content: message.message,
                     status: 'DELIVERED',
                     telegramMessageId: message.id,
@@ -138,7 +149,6 @@ export class TelegramMessageProcessor {
             } else if (analysis.requiresHumanReview || settings.requireStaffApproval) {
                 // Queue for staff review
                 console.log('[Telegram] Message queued for staff review');
-                // TODO: Notify staff via notification system
             }
 
         } catch (error) {
@@ -155,10 +165,8 @@ export class TelegramMessageProcessor {
         analysis: any,
         originalMessage: string
     ) {
-        // Generate breakdown number
         const breakdownNumber = await this.generateBreakdownNumber();
 
-        // Determine priority from urgency
         const priorityMap: Record<string, any> = {
             LOW: 'LOW',
             MEDIUM: 'MEDIUM',
@@ -170,14 +178,14 @@ export class TelegramMessageProcessor {
             data: {
                 companyId: this.companyId,
                 breakdownNumber,
-                truckId: truckId || '', // Will need to handle missing truck
+                truckId: truckId || '',
                 driverId,
-                breakdownType: BreakdownType.OTHER, // Default, can be refined
+                breakdownType: BreakdownType.OTHER,
                 priority: priorityMap[analysis.urgency] || 'MEDIUM',
                 problem: analysis.problemDescription || 'Unknown',
                 description: originalMessage,
                 location: analysis.location || 'Unknown',
-                odometerReading: 0, // Will be updated later
+                odometerReading: 0,
                 status: 'REPORTED',
                 reportedAt: new Date(),
             },
@@ -187,31 +195,106 @@ export class TelegramMessageProcessor {
     }
 
     /**
-     * Generate unique breakdown number
+     * Create a safety incident from AI analysis
      */
-    private async generateBreakdownNumber(): Promise<string> {
-        const year = new Date().getFullYear();
-        const prefix = `BD - ${year} -`;
+    private async createSafetyIncident(
+        driverId: string,
+        truckId: string | undefined,
+        analysis: any,
+        originalMessage: string
+    ) {
+        const incidentNumber = await this.generateCaseNumber('SI', 'safetyIncident', 'incidentNumber');
 
-        // Find the last breakdown number for this year
-        const lastBreakdown = await prisma.breakdown.findFirst({
+        const incident = await prisma.safetyIncident.create({
+            data: {
+                companyId: this.companyId,
+                incidentNumber,
+                driverId,
+                truckId: truckId || null,
+                incidentType: 'OTHER', // Default, AI could refine this later
+                severity: (analysis.urgency === 'CRITICAL' || analysis.urgency === 'HIGH') ? 'MAJOR' : 'MINOR',
+                date: new Date(),
+                location: analysis.location || 'Unknown',
+                description: analysis.problemDescription || originalMessage,
+                status: 'REPORTED',
+            },
+        });
+
+        return incident;
+    }
+
+    /**
+     * Create a maintenance request from AI analysis
+     */
+    private async createMaintenanceRequest(
+        driverId: string,
+        truckId: string | undefined,
+        analysis: any,
+        originalMessage: string
+    ) {
+        if (!truckId) {
+            throw new Error('Truck ID is required for maintenance requests');
+        }
+
+        const recordNumber = await this.generateCaseNumber('MAINT', 'maintenanceRecord', 'maintenanceNumber');
+
+        const record = await prisma.maintenanceRecord.create({
+            data: {
+                companyId: this.companyId,
+                maintenanceNumber: recordNumber,
+                truckId: truckId,
+                type: 'REPAIR',
+                description: analysis.problemDescription || originalMessage,
+                cost: 0,
+                odometer: 0, // Should be updated with real data if available
+                date: new Date(),
+                status: 'OPEN',
+            },
+        });
+
+        return record;
+    }
+
+    /**
+     * Generate unique case number for various models
+     */
+    private async generateCaseNumber(
+        prefix: string,
+        model: string,
+        field: string
+    ): Promise<string> {
+        const year = new Date().getFullYear();
+        const basePrefix = `${prefix}-${year}-`;
+
+        // @ts-ignore - dynamic prisma access
+        const lastRecord = await (prisma[model] as any).findFirst({
             where: {
-                breakdownNumber: {
-                    startsWith: prefix,
+                [field]: {
+                    startsWith: basePrefix,
                 },
             },
             orderBy: {
-                breakdownNumber: 'desc',
+                [field]: 'desc',
             },
         });
 
         let nextNumber = 1;
-        if (lastBreakdown) {
-            const lastNumber = parseInt(lastBreakdown.breakdownNumber.split('-')[2]);
-            nextNumber = lastNumber + 1;
+        if (lastRecord) {
+            const parts = lastRecord[field].split('-');
+            const lastNum = parseInt(parts[parts.length - 1]);
+            if (!isNaN(lastNum)) {
+                nextNumber = lastNum + 1;
+            }
         }
 
-        return `${prefix}${nextNumber.toString().padStart(4, '0')} `;
+        return `${basePrefix}${nextNumber.toString().padStart(4, '0')}`;
+    }
+
+    /**
+     * Generate unique breakdown number (DEPRECATED: using generateCaseNumber)
+     */
+    private async generateBreakdownNumber(): Promise<string> {
+        return this.generateCaseNumber('BD', 'breakdown', 'breakdownNumber');
     }
 
     /**

@@ -35,18 +35,11 @@ export const authOptions: NextAuthConfig = {
       async authorize(credentials, request): Promise<{ id: string; email: string; name: string; role: UserRole; companyId: string; mcAccess: string[] } | null> {
         try {
           if (!credentials?.email || !credentials?.password) {
-            console.log('[Auth] Missing credentials');
             return null;
           }
 
           const email = typeof credentials.email === 'string' ? credentials.email.toLowerCase().trim() : '';
           const password = typeof credentials.password === 'string' ? credentials.password : '';
-
-          console.log('[Auth] Attempting login for:', email);
-          console.log('[Auth] Raw password received:', JSON.stringify(password));
-          console.log('[Auth] Password type:', typeof password);
-          console.log('[Auth] Password length:', password.length);
-          console.log('[Auth] Password bytes:', Buffer.from(password).toString('hex'));
 
           const user = await prisma.user.findUnique({
             where: { email },
@@ -89,47 +82,18 @@ export const authOptions: NextAuthConfig = {
             }
           });
 
-          if (!user) {
-            console.log('[Auth] User not found:', email);
+          if (!user || !user.isActive) {
             return null;
           }
-
-          if (!user.isActive) {
-            console.log('[Auth] User is inactive:', email);
-            return null;
-          }
-
-          console.log('[Auth] User found, verifying password...');
-          console.log('[Auth] Password length:', password.length);
-          console.log('[Auth] Password hash prefix:', user.password.substring(0, 20));
-          console.log('[Auth] User password hash length:', user.password.length);
 
           const isPasswordValid = await bcrypt.compare(
             password,
             user.password
           );
 
-          console.log('[Auth] Password comparison result:', isPasswordValid);
-
           if (!isPasswordValid) {
-            console.log('[Auth] Invalid password for:', email);
-            // Try to verify with a test hash to ensure bcrypt is working
-            const testHash = await bcrypt.hash('password123', 10);
-            const testCompare = await bcrypt.compare('password123', testHash);
-            console.log('[Auth] Test bcrypt comparison (should be true):', testCompare);
-
-            // Try comparing with the literal password string
-            const literalCompare = await bcrypt.compare('password123', user.password);
-            console.log('[Auth] Literal "password123" compare:', literalCompare);
-
-            // Try comparing with trimmed password
-            const trimmedCompare = await bcrypt.compare(password.trim(), user.password);
-            console.log('[Auth] Trimmed password compare:', trimmedCompare);
-
             return null;
           }
-
-          console.log('[Auth] Login successful for:', email);
 
           // Clear tempPassword after successful login (security: password was used)
           if (user.tempPassword) {
@@ -137,7 +101,6 @@ export const authOptions: NextAuthConfig = {
               where: { id: user.id },
               data: { tempPassword: null },
             });
-            console.log('[Auth] Cleared tempPassword for user:', email);
           }
 
           // Determine effective company ID
@@ -148,7 +111,6 @@ export const authOptions: NextAuthConfig = {
           if (user.role === 'DRIVER' && user.userCompanies && user.userCompanies.length > 0) {
             // userCompanies is already ordered by createdAt desc in the query
             effectiveCompanyId = user.userCompanies[0].companyId;
-            console.log('[Auth] Driver login - defaulting to newest company:', effectiveCompanyId);
           }
 
           return {

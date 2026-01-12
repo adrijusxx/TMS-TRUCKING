@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
                 fileType: true,
                 fileSize: true,
                 status: true,
+                url: true,
                 createdAt: true,
                 _count: {
                     select: { chunks: true }

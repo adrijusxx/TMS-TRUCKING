@@ -44,38 +44,10 @@ export class KnowledgeBaseService {
                 text = fileBuffer.toString('utf-8');
             }
 
-            // 3. Chunk Text
-            const chunks = this.chunkText(text);
+            // 3. Chunk Text & Embed
+            await this.processText(text, doc.id);
 
-            // 4. Generate Embeddings & Store
-            // Process in batches to avoid rate limits
-            const batchSize = 10;
-            for (let i = 0; i < chunks.length; i += batchSize) {
-                const batch = chunks.slice(i, i + batchSize);
-
-                const embeddingResponse = await this.openai.embeddings.create({
-                    model: 'text-embedding-3-small',
-                    input: batch,
-                });
-
-                const embeddings = embeddingResponse.data;
-
-                // Store chunks
-                await prisma.$transaction(
-                    batch.map((chunkContent, idx) =>
-                        prisma.documentChunk.create({
-                            data: {
-                                documentId: doc.id,
-                                content: chunkContent,
-                                chunkIndex: i + idx,
-                                embedding: embeddings[idx].embedding,
-                            }
-                        })
-                    )
-                );
-            }
-
-            // 5. Update Status
+            // 4. Update Status
             await prisma.knowledgeBaseDocument.update({
                 where: { id: doc.id },
                 data: { status: 'READY' },
@@ -85,9 +57,77 @@ export class KnowledgeBaseService {
 
         } catch (error: any) {
             console.error('[KnowledgeBase] Error processing document:', error);
-            // Try to update status to failed if we created the doc
-            // Note: In a real job queue, this would be robustly handled
             throw error;
+        }
+    }
+
+    /**
+     * Process direct text segment for indexing
+     */
+    async processTextSegment(
+        text: string,
+        title: string,
+        metadata?: any
+    ): Promise<string> {
+        try {
+            // 1. Create Document Record
+            const doc = await prisma.knowledgeBaseDocument.create({
+                data: {
+                    companyId: this.companyId,
+                    title: title,
+                    filename: 'text_segment.txt',
+                    fileType: 'text/plain',
+                    fileSize: Buffer.byteLength(text),
+                    url: 'internal',
+                    status: 'PROCESSING',
+                },
+            });
+
+            // 2. Chunk & Embed
+            await this.processText(text, doc.id);
+
+            // 3. Update Status
+            await prisma.knowledgeBaseDocument.update({
+                where: { id: doc.id },
+                data: { status: 'READY' },
+            });
+
+            return doc.id;
+        } catch (error) {
+            console.error('[KnowledgeBase] Error processing text segment:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Helper to chunk and embed text for a document
+     */
+    private async processText(text: string, documentId: string): Promise<void> {
+        const chunks = this.chunkText(text);
+        const batchSize = 10;
+
+        for (let i = 0; i < chunks.length; i += batchSize) {
+            const batch = chunks.slice(i, i + batchSize);
+
+            const embeddingResponse = await this.openai.embeddings.create({
+                model: 'text-embedding-3-small',
+                input: batch,
+            });
+
+            const embeddings = embeddingResponse.data;
+
+            await prisma.$transaction(
+                batch.map((chunkContent, idx) =>
+                    prisma.documentChunk.create({
+                        data: {
+                            documentId: documentId,
+                            content: chunkContent,
+                            chunkIndex: i + idx,
+                            embedding: embeddings[idx].embedding,
+                        }
+                    })
+                )
+            );
         }
     }
 

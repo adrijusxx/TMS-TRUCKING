@@ -6,6 +6,9 @@ import { prisma } from '@/lib/prisma';
  */
 export interface AIAnalysis {
     isBreakdown: boolean;
+    isSafetyIncident: boolean;
+    isMaintenanceRequest: boolean;
+    category: 'BREAKDOWN' | 'SAFETY' | 'MAINTENANCE' | 'PAYROLL' | 'ROUTE_ISSUE' | 'GENERAL' | 'OTHER';
     confidence: number; // 0-1
     truckNumber?: string;
     location?: string;
@@ -91,6 +94,9 @@ export class AIMessageService {
             // Fallback analysis
             return {
                 isBreakdown: false,
+                isSafetyIncident: false,
+                isMaintenanceRequest: false,
+                category: 'OTHER',
                 confidence: 0,
                 urgency: 'LOW',
                 suggestedResponse: undefined,
@@ -158,46 +164,40 @@ export class AIMessageService {
      * Build system prompt for message analysis
      */
     private buildSystemPrompt(settings: any): string {
-        return `You are an AI assistant for a trucking company's TMS (Transportation Management System). Your job is to analyze messages from truck drivers to detect breakdowns and extract relevant information.
+        return `You are an AI assistant for a trucking company's TMS (Transportation Management System). Your job is to analyze messages from truck drivers to detect operational issues and extract relevant information.
 
 Analyze the message and return a JSON object with the following structure:
 {
-  "isBreakdown": boolean, // true if this is a breakdown/mechanical issue
-  "confidence": number, // 0-1, how confident you are in the breakdown detection
-  "truckNumber": string | null, // extracted truck number if mentioned
-  "location": string | null, // extracted location (address, mile marker, city, etc.)
-  "problemDescription": string | null, // brief description of the problem
-  "urgency": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL", // urgency level
-  "suggestedResponse": string | null, // suggested response to driver
-  "requiresHumanReview": boolean, // true if staff should review before auto-responding
+  "isBreakdown": boolean, // true if this is a breakdown/mechanical issue that stops the truck
+  "isSafetyIncident": boolean, // true if this is a safety hazard, accident, or policy violation
+  "isMaintenanceRequest": boolean, // true if the truck needs repair but can still move
+  "category": "BREAKDOWN" | "SAFETY" | "MAINTENANCE" | "PAYROLL" | "ROUTE_ISSUE" | "GENERAL" | "OTHER",
+  "confidence": number, // 0-1
+  "truckNumber": string | null,
+  "location": string | null,
+  "problemDescription": string | null,
+  "urgency": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  "suggestedResponse": string | null,
+  "requiresHumanReview": boolean,
   "entities": {
-    "truckNumbers": string[], // all truck numbers mentioned
-    "locations": string[], // all locations mentioned
-    "keywords": string[] // important keywords
+    "truckNumbers": string[],
+    "locations": string[],
+    "keywords": string[]
   },
-  "sentiment": "POSITIVE" | "NEUTRAL" | "NEGATIVE" | "URGENT", // driver's sentiment
-  "language": "en" | "es" | "other" // detected language
+  "sentiment": "POSITIVE" | "NEUTRAL" | "NEGATIVE" | "URGENT",
+  "language": "en" | "es" | "other"
 }
 
-Breakdown indicators:
-- Mechanical issues (engine, transmission, brakes, tires, etc.)
-- Vehicle won't start or move
-- Warning lights, alarms, or error codes
-- Accident or collision
-- Flat tire, blowout
-- Overheating, smoke, leaks
-- Electrical issues
+Issue Classification:
+- **BREAKDOWN**: Mechanical failure stopping the truck (Engine, Transmission, Brakes, Tires, Electrical).
+- **SAFETY**: Accidents, collisions, hazards, windshield cracks, lights out, DOT issues, medical emergencies.
+- **MAINTENANCE**: Repairs needed but not urgent (oil change, small leaks, sensors, cosmetic damage).
+- **PAYROLL**: Salary, settlements, advances, deduction questions.
+- **ROUTE_ISSUE**: GPS problems, dock closed, wrong address, scale closed.
 
-NOT breakdowns:
-- General questions
-- Status updates
-- Delivery confirmations
-- Schedule inquiries
-- General conversation
+Emergency keywords for CRITICAL: ${settings.emergencyKeywords.join(', ')}
 
-Emergency keywords that should trigger CRITICAL urgency: ${settings.emergencyKeywords.join(', ')}
-
-Be conservative with breakdown detection - when in doubt, mark requiresHumanReview as true.`;
+Be accurate. When in doubt, mark requiresHumanReview as true.`;
     }
 
     /**

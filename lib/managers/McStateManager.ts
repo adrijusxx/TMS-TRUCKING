@@ -71,10 +71,7 @@ export class McStateManager {
     const companyId = session?.user?.companyId;
     const isAdmin = (session?.user as any)?.role === 'ADMIN';
 
-    console.log('[McStateManager] canAccessMc called:', { userId, companyId, isAdmin, mcId });
-
     if (!userId) {
-      console.log('[McStateManager] canAccessMc: No userId');
       return false;
     }
 
@@ -88,15 +85,12 @@ export class McStateManager {
           deletedAt: null,
         },
       });
-      console.log('[McStateManager] canAccessMc: Admin check result:', !!mcNumber);
       return !!mcNumber;
     }
 
     // Non-admins: read mcAccess from database for fresh data
     const mcAccess = await this.getMcAccessFromDb(userId);
     const hasAccess = mcAccess.includes(mcId);
-
-    console.log('[McStateManager] canAccessMc: Non-admin check:', { mcAccess, hasAccess });
 
     // Employees can only access MCs in their mcAccess array
     return hasAccess;
@@ -129,16 +123,6 @@ export class McStateManager {
       mcAccess = this.getMcAccess(session);
     }
 
-    // Debug logging (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[McStateManager] User MC Access:', {
-        userId,
-        role: isAdmin ? 'ADMIN' : 'EMPLOYEE',
-        mcAccessFromDb: mcAccess,
-        mcAccessFromSession: this.getMcAccess(session),
-      });
-    }
-
     // Initialize state variables
     let mcNumberId: string | null = null;
     let mcNumber: string | null = null;
@@ -152,26 +136,16 @@ export class McStateManager {
       const selectedMcIdsCookie = this.getCookieValue(request, 'selectedMcNumberIds');
       const currentMcIdCookie = this.getCookieValue(request, 'currentMcNumberId');
 
-      // Debug logging
-      console.log('[McStateManager] Admin cookie values:', {
-        viewModeCookie,
-        currentMcIdCookie,
-        selectedMcIdsCookie: selectedMcIdsCookie ? `${selectedMcIdsCookie.substring(0, 50)}...` : null,
-        requestType: request ? (request.cookies ? 'NextRequest' : 'cookies()') : 'null',
-      });
-
       if (viewModeCookie === 'all' || !viewModeCookie) {
         // Admin viewing all MCs (default)
         viewMode = 'all';
         mcNumberIds = [];
-        console.log('[McStateManager] Decision: viewMode=all (no filter or explicit all)');
       } else if (viewModeCookie === 'filtered') {
         // Admin viewing specific filtered MCs - check both single and multi-select cookies
         if (currentMcIdCookie) {
           // Single MC selection
           viewMode = 'filtered';
           mcNumberIds = [currentMcIdCookie];
-          console.log('[McStateManager] Decision: viewMode=filtered (single MC)', { mcNumberIds });
         } else if (selectedMcIdsCookie) {
           // Multi-MC selection
           try {
@@ -179,30 +153,25 @@ export class McStateManager {
             if (Array.isArray(parsedIds) && parsedIds.length > 0) {
               viewMode = 'filtered';
               mcNumberIds = parsedIds;
-              console.log('[McStateManager] Decision: viewMode=filtered (multi MC)', { mcNumberIds });
             } else {
               // Invalid selection, default to 'all'
               viewMode = 'all';
               mcNumberIds = [];
-              console.log('[McStateManager] Decision: viewMode=all (invalid parsedIds)');
             }
           } catch {
             // Invalid JSON, default to 'all'
             viewMode = 'all';
             mcNumberIds = [];
-            console.log('[McStateManager] Decision: viewMode=all (JSON parse error)');
           }
         } else {
           // No MC IDs found, default to 'all'
           viewMode = 'all';
           mcNumberIds = [];
-          console.log('[McStateManager] Decision: viewMode=all (no MC IDs in cookies)');
         }
       } else {
         // Default to 'all' for any other case
         viewMode = 'all';
         mcNumberIds = [];
-        console.log('[McStateManager] Decision: viewMode=all (unknown viewModeCookie value)');
       }
     }
     // CASE 2: Employee with mcAccess - always see their assigned MCs only
