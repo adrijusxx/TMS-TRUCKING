@@ -23,7 +23,7 @@ export class ConversationKnowledgeManager {
      * Sync recent conversations to Knowledge Base
      * This "teaches" the AI from past interactions
      */
-    async syncConversationsToKB(lookbackDays: number = 1): Promise<number> {
+    async syncConversationsToKB(lookbackDays: number = 7): Promise<number> {
         try {
             const startDate = new Date();
             startDate.setDate(startDate.getDate() - lookbackDays);

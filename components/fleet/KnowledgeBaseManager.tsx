@@ -29,8 +29,9 @@ export default function KnowledgeBaseManager() {
     const [viewingDoc, setViewingDoc] = useState<any | null>(null);
     const [docContent, setDocContent] = useState<string | null>(null);
     const [isLoadingDoc, setIsLoadingDoc] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
-    const { data: documents, isLoading } = useQuery({
+    const { data: documents, isLoading, refetch } = useQuery({
         queryKey: ['knowledge-base-docs'],
         queryFn: async () => {
             const res = await fetch(apiUrl('/api/knowledge-base'));
@@ -173,6 +174,24 @@ export default function KnowledgeBaseManager() {
     const learnedDocuments = documents?.filter((doc: any) => doc.url === 'internal') || [];
     const totalChunks = documents?.reduce((acc: number, doc: any) => acc + (doc._count?.chunks || 0), 0) || 0;
 
+    const handleSyncLearning = async () => {
+        setIsSyncing(true);
+        try {
+            const res = await fetch(apiUrl('/api/admin/system/ai/sync'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Sync failed');
+            toast.success(`Learning sync complete! ${data.ingestedCount || 0} conversations processed.`);
+            refetch();
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to sync learning');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
             const res = await fetch(apiUrl(`/api/knowledge-base?id=${id}`), {
@@ -200,6 +219,18 @@ export default function KnowledgeBaseManager() {
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={handleSyncLearning}
+                        disabled={isSyncing}
+                    >
+                        {isSyncing ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <Bot className="h-4 w-4 mr-2" />
+                        )}
+                        {isSyncing ? 'Syncing...' : 'Sync Learning'}
+                    </Button>
                     <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['knowledge-base-docs'] })}>
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Refresh
