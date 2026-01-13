@@ -92,3 +92,22 @@ If I ask you to **"Build it right"**, you will:
 2.  Create the Type definition.
 3.  Implement the Manager logic with unit tests.
 4.  Build the UI component (checking file size limits).
+
+AWS DB LOGINS
+Endpoint tms-database.c6pekwuuuh43.us-east-1.rds.amazonaws.com
+Port 5432
+
+username
+tms_admin
+password
+tUQo19WCTuv|UmaO*Xt|85zliv?i
+
+Secret details
+
+Actions
+Encryption key
+aws/secretsmanager
+Secret name
+rds!db-6748f518-a7ef-42a5-a907-00fb82f38a16
+Secret ARN
+arn:aws:secretsmanager:us-east-1:842822459362:secret:rds!db-6748f518-a7ef-42a5-a907-00fb82f38a16-WBxe28

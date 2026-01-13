@@ -1,6 +1,6 @@
 
 import { execSync } from 'child_process';
-import { initializeSecrets } from '../lib/secrets/initialize';
+import { initializeSecrets } from '@/lib/secrets/initialize';
 
 async function main() {
     try {
