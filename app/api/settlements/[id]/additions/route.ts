@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const createAdditionSchema = z.object({
-  deductionType: z.enum(['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']),
+  deductionType: z.enum(['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT', 'OTHER']),
   description: z.string().min(1, 'Description is required'),
   amount: z.number().positive('Amount must be positive'),
 });
@@ -51,9 +51,14 @@ export async function GET(
     const additions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
-        deductionType: {
-          in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
-        },
+        OR: [
+          { category: 'addition' },
+          {
+            deductionType: {
+              in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
+            }
+          }
+        ]
       },
       orderBy: {
         createdAt: 'desc',
@@ -122,6 +127,7 @@ export async function POST(
       data: {
         settlementId,
         deductionType: validated.deductionType,
+        category: 'addition', // Explicitly mark as addition
         description: validated.description,
         amount: validated.amount,
       },
@@ -132,9 +138,15 @@ export async function POST(
     const allDeductions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
-        deductionType: {
-          notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
-        },
+        OR: [
+          { category: 'deduction' },
+          {
+            category: null,
+            deductionType: {
+              notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
+            }
+          }
+        ]
       },
     });
     const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
@@ -143,9 +155,14 @@ export async function POST(
     const allAdditions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
-        deductionType: {
-          in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
-        },
+        OR: [
+          { category: 'addition' },
+          {
+            deductionType: {
+              in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
+            }
+          }
+        ]
       },
     });
     const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
@@ -269,9 +286,15 @@ export async function DELETE(
       const allDeductions = await prisma.settlementDeduction.findMany({
         where: {
           settlementId,
-          deductionType: {
-            notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
-          },
+          OR: [
+            { category: 'deduction' },
+            {
+              category: null,
+              deductionType: {
+                notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
+              }
+            }
+          ]
         },
       });
       const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
@@ -280,9 +303,14 @@ export async function DELETE(
       const allAdditions = await prisma.settlementDeduction.findMany({
         where: {
           settlementId,
-          deductionType: {
-            in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'],
-          },
+          OR: [
+            { category: 'addition' },
+            {
+              deductionType: {
+                in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
+              }
+            }
+          ]
         },
       });
       const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);

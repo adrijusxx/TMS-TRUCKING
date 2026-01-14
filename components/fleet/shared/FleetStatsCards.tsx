@@ -51,13 +51,13 @@ export default function FleetStatsCards({
     const { data: metricsData, isLoading: metricsLoading } = useQuery<{ data: FleetMetrics }>({
         queryKey: ['fleet-metrics-summary'],
         queryFn: fetchFleetMetrics,
-        refetchInterval: 60000,
+        refetchInterval: 300000, // 5 minutes
     });
 
     const { data: commsData, isLoading: commsLoading } = useQuery<{ data: CommunicationsData }>({
         queryKey: ['communications-summary'],
         queryFn: fetchCommunications,
-        refetchInterval: 30000,
+        refetchInterval: 60000, // 1 minute
     });
 
     const metrics = metricsData?.data;

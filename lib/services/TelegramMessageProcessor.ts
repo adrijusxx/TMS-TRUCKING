@@ -52,20 +52,16 @@ export class TelegramMessageProcessor {
                 },
             });
 
-            if (!driverMapping) {
-                console.log(`[Telegram] No driver mapping found for Telegram ID ${senderId} `);
-                // TODO: Send registration instructions
-                return;
-            }
-
-            const driver = driverMapping.driver;
-            const driverName = driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown Driver';
+            // We now support unlinked chats for AI replies (if manually enabled via toggle)
+            const driver = driverMapping?.driver;
+            const driverName = driver?.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown User';
 
             // Analyze message with AI
+            // If no driver, we pass generic context
             const analysis = await this.aiService.analyzeMessage(message.message, {
-                driverId: driver.id,
+                driverId: driver?.id || 'unlinked',
                 driverName,
-                currentTruck: driver.currentTruck?.truckNumber,
+                currentTruck: driver?.currentTruck?.truckNumber || 'Unknown',
             });
 
             console.log(`[Telegram] AI Analysis: `, {
@@ -87,13 +83,27 @@ export class TelegramMessageProcessor {
             let caseId: string | undefined;
             let caseNumber: string | undefined;
 
-            // Auto-create cases based on detection
-            if (settings.autoCreateCases && analysis.confidence >= settings.confidenceThreshold) {
+            // Auto-create cases based on detection (Only if linked to a Driver)
+            if (driver && settings.autoCreateCases && analysis.confidence >= settings.confidenceThreshold) {
                 if (analysis.isBreakdown) {
-                    const breakdown = await this.createBreakdownCase(driver.id, driver.currentTruck?.id, analysis, message.message);
-                    caseId = breakdown.id;
-                    caseNumber = breakdown.breakdownNumber;
-                    console.log(`[Telegram] Created breakdown case: ${caseNumber}`);
+                    // Check for existing open breakdown for this truck to prevent duplicates
+                    const existingBreakdown = await prisma.breakdown.findFirst({
+                        where: {
+                            truckId: driver.currentTruck?.id,
+                            status: { in: ['REPORTED', 'IN_PROGRESS'] }
+                        }
+                    });
+
+                    if (!existingBreakdown) {
+                        const breakdown = await this.createBreakdownCase(driver.id, driver.currentTruck?.id, analysis, message.message);
+                        caseId = breakdown.id;
+                        caseNumber = breakdown.breakdownNumber;
+                        console.log(`[Telegram] Created breakdown case: ${caseNumber}`);
+                    } else {
+                        console.log(`[Telegram] Skipped breakdown creation: Active case ${existingBreakdown.breakdownNumber} exists`);
+                        caseId = existingBreakdown.id;
+                        caseNumber = existingBreakdown.breakdownNumber;
+                    }
                 } else if (analysis.isSafetyIncident) {
                     const incident = await this.createSafetyIncident(driver.id, driver.currentTruck?.id, analysis, message.message);
                     caseId = incident.id;
@@ -105,48 +115,106 @@ export class TelegramMessageProcessor {
                     caseNumber = record.maintenanceNumber || record.id;
                     console.log(`[Telegram] Created maintenance request: ${caseNumber}`);
                 }
+            } else if (!driver && analysis.confidence >= settings.confidenceThreshold) {
+                console.log('[Telegram] Skipped case creation: User is not linked to a driver profile');
             }
 
             // Log communication
+            // We log for both linked and unlinked users
+
+            // Prepare common data
+            const communicationData = {
+                companyId: settings.companyId,
+                type: analysis.category === 'BREAKDOWN' ? 'BREAKDOWN_REPORT' : 'MESSAGE', // Use AI category for type
+                channel: 'TELEGRAM', // Explicitly set channel
+                direction: 'INBOUND',
+                content: message.message, // Use message.message for content
+                telegramMessageId: message.id, // Use message.id for telegramMessageId
+                telegramChatId: senderId, // For private chats, senderId is usually chatId
+                // fromNumber: dialog.entity?.phone || driverMapping?.phoneNumber, // 'dialog' and 'phoneNumber' not available here
+                driverId: driver?.id, // Optional
+                status: 'DELIVERED', // Original status was DELIVERED
+                // receivedAt: new Date(), // Original didn't have receivedAt
+                // mediaUrls: mediaUrl ? [mediaUrl] : [], // 'mediaUrl' not available here
+                // metadata: { // 'dialog' not available here
+                //     senderName: dialog.title || 'Unknown',
+                //     isGroup: dialog.isGroup,
+                //     isChannel: dialog.isChannel
+                // }
+            };
+
+            // Create Communication record
+            // @ts-ignore
             const communication = await prisma.communication.create({
-                data: {
-                    companyId: this.companyId,
-                    driverId: driver.id,
-                    breakdownId: analysis.isBreakdown ? caseId : undefined,
-                    channel: 'TELEGRAM',
-                    direction: 'INBOUND',
-                    type: analysis.category === 'BREAKDOWN' ? 'BREAKDOWN_REPORT' : 'MESSAGE',
-                    content: message.message,
-                    status: 'DELIVERED',
-                    telegramMessageId: message.id,
-                    telegramChatId: senderId,
-                },
+                data: communicationData as any
             });
 
-            // Log AI analysis
+            // Create AI Response Log linked to communication
             await prisma.aIResponseLog.create({
                 data: {
                     communicationId: communication.id,
-                    messageContent: message.message,
+                    messageContent: message.message, // Use message.message
                     aiAnalysis: analysis as any,
                     confidence: analysis.confidence,
                     requiresReview: analysis.requiresHumanReview,
+                    wasAutoSent: false, // Updated later if sent
                 },
             });
 
             // Determine if we should auto-respond
-            const shouldAutoRespond = await this.shouldAutoRespond(settings, analysis);
+            const shouldAutoRespond = await this.shouldAutoRespond(settings, analysis, driverMapping);
 
             if (shouldAutoRespond) {
-                // Generate response
-                const response = await this.aiService.generateResponse(analysis, {
-                    driverName,
-                    caseNumber,
-                });
+                // Fetch conversation history (Safe fallback approach)
+                let history: any[] = [];
+                try {
+                    // Fetch recent telegram messages for relevant context (broad query)
+                    const rawHistory = await prisma.communication.findMany({
+                        where: {
+                            channel: 'TELEGRAM',
+                            companyId: this.companyId
+                        },
+                        orderBy: { createdAt: 'desc' },
+                        take: 20
+                    });
 
-                // Send response
-                await this.sendResponse(senderId, response, communication.id, !settings.requireStaffApproval);
-            } else if (analysis.requiresHumanReview || settings.requireStaffApproval) {
+                    // Filter in memory to bypass potential schema mismatch issues
+                    const targetId = senderId.toString();
+                    history = rawHistory.filter((msg: any) =>
+                        (msg as any).senderId === targetId ||
+                        (msg as any).recipientId === targetId ||
+                        (msg as any).metadata?.senderId === targetId ||
+                        (msg as any).metadata?.recipientId === targetId ||
+                        (msg as any).telegramId === targetId
+                    );
+                } catch (err) {
+                    console.warn('[Telegram] Failed to fetch history:', err);
+                }
+
+                const conversationHistory = history.reverse().map(msg => ({
+                    role: (msg as any).direction === 'INBOUND' ? 'user' : 'assistant',
+                    content: msg.content
+                }));
+
+                // Generate response context
+                const responseContext = {
+                    driverName: driverMapping?.driver?.user?.firstName || 'Driver',
+                    caseNumber: caseNumber,
+                    isAiAutoReplyEnabled: !!driverMapping?.aiAutoReply,
+                    conversationHistory,
+                    originalMessage: message.message
+                };
+
+                const response = await this.aiService.generateResponse(analysis, responseContext);
+                console.log(`[Telegram] Generated response: "${response}" (Length: ${response?.length})`);
+
+                if (response) {
+                    console.log(`[Telegram] Attempting to send response to ${senderId}...`);
+                    await this.sendResponse(senderId, response, communication.id, !settings.requireStaffApproval);
+                } else {
+                    console.warn(`[Telegram] Response generation returned empty/null.`);
+                }
+            } else if (analysis.requiresHumanReview || settings.requireStaffApproval) { // This `else if` was outside the `if (shouldAutoRespond)` block
                 // Queue for staff review
                 console.log('[Telegram] Message queued for staff review');
             }
@@ -298,30 +366,33 @@ export class TelegramMessageProcessor {
     }
 
     /**
-     * Determine if we should auto-respond
+     * Determine if we should auto-respond based on settings and analysis
      */
-    private async shouldAutoRespond(settings: any, analysis: any): Promise<boolean> {
-        // Don't auto-respond if disabled
-        if (!settings.aiAutoResponse) {
+    private async shouldAutoRespond(settings: any, analysis: any, driverMapping: any): Promise<boolean> {
+        // 0. Check Explicit Disable (Hard Stop for this driver)
+        if (driverMapping && driverMapping.aiAutoReply === false) {
+            console.log(`[Telegram] Auto-Reply EXPLICITLY DISABLED for ${driverMapping.telegramId}`);
             return false;
         }
 
-        // Don't auto-respond if requires human review
+        // 1. Check Chat-specific AI Toggle (from Mapping) - Positive override
+        if (driverMapping?.aiAutoReply) {
+            console.log(`[Telegram] Auto-Reply enabled for ${driverMapping.telegramId} (Override HumanReview)`);
+            return true;
+        }
+
+        // 2. Check Global Settings
+        if (!settings.enableAiAutoResponse) {
+            return false;
+        }
+
+        // 3. Human Review Check (if not overridden by driver toggle)
         if (analysis.requiresHumanReview) {
             return false;
         }
 
-        // Check business hours if required
-        if (settings.businessHoursOnly) {
-            const isBusinessHours = await this.aiService.isBusinessHours();
-            if (!isBusinessHours) {
-                // Send after-hours message instead
-                return true; // Will use after-hours template
-            }
-        }
-
-        // Check confidence threshold
-        if (analysis.confidence < settings.confidenceThreshold) {
+        // 4. Confidence Check
+        if (analysis.confidence < (settings.confidenceThreshold || 0.7)) {
             return false;
         }
 

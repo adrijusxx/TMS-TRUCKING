@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { KnowledgeBaseService } from '@/lib/services/KnowledgeBaseService';
+import { getTelegramService } from '@/lib/services/TelegramService';
 import OpenAI from 'openai';
 
 /**
  * Conversation Knowledge Manager
- * Handles syncing communication logs into the AI Knowledge Base
+ * Handles syncing Telegram conversations into the AI Knowledge Base
  */
 export class ConversationKnowledgeManager {
     private companyId: string;
@@ -20,63 +21,110 @@ export class ConversationKnowledgeManager {
     }
 
     /**
-     * Sync recent conversations to Knowledge Base
-     * This "teaches" the AI from past interactions
+     * Sync recent Telegram conversations to Knowledge Base
+     * Fetches messages directly from Telegram API
      */
     async syncConversationsToKB(lookbackDays: number = 7): Promise<number> {
         try {
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - lookbackDays);
+            const telegramService = getTelegramService();
 
-            // 1. Fetch recent inbound messages with no prior KB sync
-            // We look for Communications that haven't been summarized yet
-            const communications = await prisma.communication.findMany({
-                where: {
-                    companyId: this.companyId,
-                    createdAt: { gte: startDate },
-                    direction: 'INBOUND',
-                    // Optional: filter for resolved issues or high quality conversations
-                },
-                include: {
-                    driver: {
-                        include: { user: true }
-                    }
-                },
-                orderBy: { createdAt: 'asc' }
-            });
-
-            if (communications.length === 0) {
-                console.log(`[ConvKnowledge] No new conversations to sync for company ${this.companyId}`);
+            // Check if Telegram is connected
+            const isConnected = await telegramService.autoConnect();
+            if (!isConnected) {
+                console.log(`[ConvKnowledge] Telegram not connected for company ${this.companyId}. Skipping.`);
                 return 0;
             }
 
-            // 2. Group by driver/conversation to provide context
-            const groupedMessages = this.groupByDriver(communications);
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
+
+            // 1. Get all dialogs (conversations)
+            console.log(`[ConvKnowledge] Fetching Telegram dialogs...`);
+            const dialogs = await telegramService.getDialogs(50);
+
+            if (dialogs.length === 0) {
+                console.log(`[ConvKnowledge] No Telegram dialogs found.`);
+                return 0;
+            }
+
+            console.log(`[ConvKnowledge] Found ${dialogs.length} dialogs. Processing...`);
+
+            // Get today's date for deduplication
+            const today = new Date().toISOString().split('T')[0];
+
+            // Check which dialogs were already synced today
+            const existingDocs = await prisma.knowledgeBaseDocument.findMany({
+                where: {
+                    companyId: this.companyId,
+                    title: { contains: today }
+                },
+                select: { title: true }
+            });
+            const syncedTitles = new Set(existingDocs.map(d => d.title));
+            console.log(`[ConvKnowledge] ${syncedTitles.size} conversations already synced today. Skipping duplicates.`);
+
             let ingestedCount = 0;
 
-            for (const [driverId, messages] of Object.entries(groupedMessages)) {
-                const driverName = messages[0].driver?.user ?
-                    `${messages[0].driver.user.firstName} ${messages[0].driver.user.lastName}` :
-                    'Unknown Driver';
+            // 2. Process each dialog
+            for (const dialog of dialogs) {
+                try {
+                    // Skip channels and groups for now (focus on 1:1 chats)
+                    if (dialog.isChannel || dialog.isGroup) continue;
 
-                // 3. Summarize the conversation to extract "knowledge"
-                const knowledgeSnippet = await this.summarizeConversation(driverName, messages);
+                    // Skip if last message is older than cutoff
+                    if (dialog.lastMessageDate && dialog.lastMessageDate < cutoffDate) continue;
 
-                if (knowledgeSnippet && knowledgeSnippet.length > 50) {
-                    // 4. Index into Knowledge Base
-                    await this.kbService.processTextSegment(
-                        knowledgeSnippet,
-                        `Interaction with ${driverName} on ${new Date().toLocaleDateString()}`,
-                        {
-                            type: 'CONVERSATION_SYNC',
-                            driverId,
-                            syncedAt: new Date().toISOString()
-                        }
+                    // Skip if already synced today
+                    const expectedTitle = `Telegram: ${dialog.title} - ${today}`;
+                    if (syncedTitles.has(expectedTitle)) continue;
+
+                    // 3. Fetch messages from this chat
+                    const messages = await telegramService.getMessages(dialog.id, 100);
+
+                    // Filter to messages within lookback period
+                    const recentMessages = messages.filter(
+                        (m: any) => m.date && m.date >= cutoffDate
                     );
-                    ingestedCount++;
+
+                    if (recentMessages.length < 3) continue; // Skip chats with too few messages
+
+                    // 4. Format messages for summarization
+                    const formattedMessages = recentMessages.map((m: any) => ({
+                        role: m.out ? 'DISPATCH' : 'CONTACT',
+                        content: m.text || '[media]',
+                        date: m.date
+                    }));
+
+                    // 5. Summarize and classify conversation
+                    const result = await this.summarizeTelegramConversation(
+                        dialog.title,
+                        formattedMessages
+                    );
+
+                    if (result && result.summary.length > 50) {
+                        // 6. Store in Knowledge Base with dated title and category
+                        await this.kbService.processTextSegment(
+                            result.summary,
+                            `Telegram: ${dialog.title} - ${today}`,
+                            {
+                                type: 'TELEGRAM_SYNC',
+                                category: result.category,
+                                chatId: dialog.id,
+                                chatTitle: dialog.title,
+                                syncedAt: new Date().toISOString(),
+                                messageCount: recentMessages.length
+                            }
+                        );
+                        ingestedCount++;
+                        console.log(`[ConvKnowledge] Synced [${result.category}]: ${dialog.title}`);
+                    }
+                } catch (dialogError) {
+                    console.error(`[ConvKnowledge] Error processing dialog ${dialog.title}:`, dialogError);
+                    // Continue with other dialogs
                 }
             }
 
+            console.log(`[ConvKnowledge] Sync complete. Ingested ${ingestedCount} conversations.`);
             return ingestedCount;
 
         } catch (error) {
@@ -86,46 +134,75 @@ export class ConversationKnowledgeManager {
     }
 
     /**
-     * Group communications by driver ID
+     * Use AI to clean and classify Telegram conversation
      */
-    private groupByDriver(comms: any[]): Record<string, any[]> {
-        return comms.reduce((acc, comm) => {
-            const key = comm.driverId || 'unknown';
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(comm);
-            return acc;
-        }, {} as Record<string, any[]>);
-    }
-
-    /**
-     * Use AI to turn messy chat history into structured knowledge
-     */
-    private async summarizeConversation(driverName: string, messages: any[]): Promise<string | null> {
-        const historyText = messages.map(m => `DRIVER: ${m.content}`).join('\n');
+    private async summarizeTelegramConversation(
+        contactName: string,
+        messages: Array<{ role: string; content: string; date: Date }>
+    ): Promise<{ summary: string; category: string } | null> {
+        const historyText = messages
+            .map(m => `${m.role}: ${m.content}`)
+            .join('\n');
 
         const prompt = `
-You are a TMS Knowledge Curator. Review the following chat history between a driver and the system/dispatch.
-Extract any important operational knowledge, policies mentioned, or problem-resolution patterns that might be useful for future AI responses.
+You are a TMS Knowledge Curator. Review the following Telegram conversation.
+Your goal is to create a CLEAN, SEARCHABLE TRANSCRIPT for AI training.
+DO NOT SUMMARIZE. Preserve the exact instructions, addresses, codes, and operational details.
 
-DRIVER NAME: ${driverName}
+CONTACT: ${contactName}
 CONVERSATION:
 ${historyText}
 
 INSTRUCTIONS:
-- Summarize the key issue and how it was handled (if evident).
-- If the driver shared important info (e.g. "Gate 4 is broken at TQL warehouse"), preserve that detail.
-- If it's just general chatter ("hello", "thanks"), return NULL.
-- Return a concise knowledge snippet (1-3 paragraphs) formatted for a vector database.
-- Do NOT include sensitive personal data.
+1. "content": Create a REFINED TRANSCRIPT.
+   - Remove "hello", "good morning", "thanks", "ok", "bye" (unless it's the only confirmation).
+   - Remove timestamps.
+   - CORRECTION: Fix obvious typos in addresses or numbers if clear from context.
+   - KEEP: All gate codes, pickup numbers, addresses, rates, truck numbers, and driver operational updates.
+   - FORMAT: "Speaker: Message" (New lines for each).
+
+2. "category": Classify into ONE category:
+   - DISPATCH (Load assignments, routing, pickup/delivery)
+   - BREAKDOWN (Truck issues, repairs, tires)
+   - COMPLIANCE (CDL, medical cards, inspections)
+   - ONBOARDING (New driver setup, orientation)
+   - SETTLEMENT (Pay, deductions, advances)
+   - GENERAL (Other)
+
+3. If conversation is empty or just "hello"/"ok", return null.
+
+Return RAW JSON (no markdown):
+{ "content": "Dispatcher: Load 1234 picked up at 10am...", "category": "DISPATCH" }
 `;
 
-        const response = await this.openai.chat.completions.create({
-            model: 'gpt-4-turbo-preview',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
-        });
+        try {
+            const response = await this.openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.1, // Lower temperature for factual transcript
+                max_tokens: 1000,
+            });
 
-        const result = response.choices[0]?.message?.content?.trim();
-        return (result === 'NULL' || !result) ? null : result;
+            let result = response.choices[0]?.message?.content?.trim();
+            if (!result || result === 'null') return null;
+
+            // Strip markdown code blocks if present
+            result = result.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+            try {
+                const parsed = JSON.parse(result);
+                if (parsed.content && parsed.category) {
+                    // Map 'content' to 'summary' key to match interface or update interface
+                    return { summary: parsed.content, category: parsed.category };
+                }
+            } catch {
+                // Formatting failed, save raw result
+                return { summary: result, category: 'GENERAL' };
+            }
+            return null;
+        } catch (error) {
+            console.error('[ConvKnowledge] AI summarization failed:', error);
+            return null;
+        }
     }
 }

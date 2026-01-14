@@ -138,6 +138,17 @@ export class TelegramService {
 
             // Update connection status in database
             await this.updateConnectionStatus(true);
+
+            // Auto-initialize AI if enabled
+            try {
+                const settings = await prisma.telegramSettings.findFirst();
+                if (settings && settings.aiAutoResponse) {
+                    await this.initializeAIProcessing(settings.companyId);
+                    console.log('[Telegram] Auto-initialized AI for company:', settings.companyId);
+                }
+            } catch (initError) {
+                console.error('[Telegram] Failed to auto-initialize AI:', initError);
+            }
         } catch (error) {
             console.error('[Telegram] Failed to connect with session:', error);
             await this.updateConnectionStatus(false, error instanceof Error ? error.message : 'Unknown error');
@@ -344,16 +355,121 @@ export class TelegramService {
         try {
             const dialogs = await this.client.getDialogs({ limit });
 
-            return dialogs.map((dialog: any) => ({
-                id: dialog.id?.toString() || '',
-                title: dialog.title || dialog.name || 'Unknown',
-                unreadCount: dialog.unreadCount || 0,
-                lastMessage: dialog.message?.message || '',
-                lastMessageDate: dialog.message?.date ? new Date(dialog.message.date * 1000) : null,
-                isUser: dialog.isUser || false,
-                isGroup: dialog.isGroup || false,
-                isChannel: dialog.isChannel || false,
-            }));
+            // Get all telegram IDs to check driver mappings
+            const telegramIds = dialogs.map((d: any) => d.id?.toString()).filter(Boolean);
+
+            // Batch fetch driver settings
+            const mappings = await prisma.telegramDriverMapping.findMany({
+                where: { telegramId: { in: telegramIds } },
+                select: { telegramId: true, aiAutoReply: true, driverId: true }
+            });
+
+            // Create a lookup map
+            const aiSettingsMap = new Map();
+            mappings.forEach(m => {
+                // Use the setting from the mapping directly
+                aiSettingsMap.set(m.telegramId, m.aiAutoReply);
+            });
+
+            // --- AUTO-LINKING LOGIC ---
+            // Attempt to link unmapped dialogs by matching phone numbers
+            const unmappedWithPhone = dialogs.filter((d: any) => {
+                const id = d.id?.toString();
+                // Check if unmapped and has a phone number
+                return id && !aiSettingsMap.has(id) && d.entity?.phone;
+            });
+
+            if (unmappedWithPhone.length > 0) {
+                try {
+                    // Fetch all active drivers who have a phone number
+                    const drivers = await prisma.driver.findMany({
+                        where: {
+                            isActive: true, // Only link active drivers
+                            user: { phone: { not: null } }
+                        },
+                        select: {
+                            id: true,
+                            user: { select: { phone: true } }
+                        }
+                    });
+
+                    // Helper to normalize phone numbers (digits only)
+                    const normalize = (p: string) => p.replace(/\D/g, '');
+
+                    // Map normalized driver phones to driver IDs
+                    const driverPhoneMap = new Map<string, string>();
+                    drivers.forEach(d => {
+                        if (d.user?.phone) {
+                            // Store normalized version. Handle potential empty strings.
+                            const norm = normalize(d.user.phone);
+                            if (norm.length > 5) { // Basic sanity check
+                                driverPhoneMap.set(norm, d.id);
+                            }
+                        }
+                    });
+
+                    // Check for matches
+                    for (const d of unmappedWithPhone) {
+                        const rawTelegramPhone = (d.entity as any)?.phone;
+                        if (!rawTelegramPhone) continue;
+
+                        const telegramPhone = normalize(rawTelegramPhone);
+
+                        // Try exact match
+                        // Telegram often sends IDD code (e.g. 1 for US) which user might not have stored.
+                        // Or user has (312) 555... and Telegram has 1312555...
+                        // We'll check direct match first.
+                        let matchedDriverId = driverPhoneMap.get(telegramPhone);
+
+                        // If no match, try matching last 10 digits if lengths differ
+                        if (!matchedDriverId && telegramPhone.length > 10) {
+                            const last10 = telegramPhone.slice(-10);
+                            // We'd have to iterate to find suffix match if we keyed by full phone.
+                            // For now, strict match or "driver key includes telegram key" if appropriate?
+                            // Let's stick to strict normalized match to avoid false positives.
+                            // But we can check if driverPhoneMap has the key locally.
+                        }
+
+                        if (matchedDriverId) {
+                            try {
+                                const telegramId = d.id?.toString() || '';
+                                if (!telegramId) continue;
+                                await prisma.telegramDriverMapping.create({
+                                    data: {
+                                        telegramId,
+                                        driverId: matchedDriverId
+                                    }
+                                });
+                                // Update map so the UI reflects the link immediately
+                                aiSettingsMap.set(telegramId, false);
+                                console.log(`[Telegram] Auto-linked chat ${d.title} (${telegramPhone}) to Driver ${matchedDriverId}`);
+                            } catch (createError) {
+                                // Ignore duplicate key errors if race condition
+                                console.warn(`[Telegram] Failed to create auto-link for ${d.title}`, createError);
+                            }
+                        }
+                    }
+                } catch (linkError) {
+                    console.error('[Telegram] Auto-linking process failed:', linkError);
+                }
+            }
+            // --- END AUTO-LINKING ---
+
+            return dialogs.map((dialog: any) => {
+                const id = dialog.id?.toString() || '';
+                return {
+                    id,
+                    title: dialog.title || dialog.name || 'Unknown',
+                    unreadCount: dialog.unreadCount || 0,
+                    lastMessage: dialog.message?.message || '',
+                    lastMessageDate: dialog.message?.date ? new Date(dialog.message.date * 1000) : null,
+                    isUser: dialog.isUser || false,
+                    isGroup: dialog.isGroup || false,
+                    isChannel: dialog.isChannel || false,
+                    aiAutoReply: aiSettingsMap.get(id) || false, // Return the setting
+                    phone: dialog.entity?.phone || null,
+                };
+            });
         } catch (error) {
             console.error('[Telegram] Failed to get dialogs:', error);
             throw error;
@@ -706,12 +822,13 @@ export class TelegramService {
 
 // Use globalThis to persist the instance across hot reloads in development
 const globalForTelegram = globalThis as unknown as {
-    telegramService: TelegramService | undefined;
+    telegramService_v4: TelegramService | undefined;
 };
 
 export function getTelegramService(): TelegramService {
-    if (!globalForTelegram.telegramService) {
-        globalForTelegram.telegramService = new TelegramService();
+    if (!globalForTelegram.telegramService_v4) {
+        console.log('[TelegramService] Initializing v4 instance (CACHE BUST)...');
+        globalForTelegram.telegramService_v4 = new TelegramService();
     }
-    return globalForTelegram.telegramService;
+    return globalForTelegram.telegramService_v4;
 }

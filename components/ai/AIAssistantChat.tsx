@@ -16,9 +16,30 @@ interface Message {
     timestamp: Date;
 }
 
-export default function AIAssistantChat() {
+interface AIAssistantChatProps {
+    isOpen?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    hideTrigger?: boolean;
+}
+
+export default function AIAssistantChat({
+    isOpen: controlledIsOpen,
+    onOpenChange,
+    hideTrigger = false
+}: AIAssistantChatProps = {}) {
     const { data: session } = useSession();
-    const [isOpen, setIsOpen] = useState(false);
+    const [internalIsOpen, setInternalIsOpen] = useState(false);
+
+    // Use controlled state if provided, otherwise internal state
+    const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+    const setIsOpen = (open: boolean) => {
+        if (onOpenChange) {
+            onOpenChange(open);
+        } else {
+            setInternalIsOpen(open);
+        }
+    };
+
     const [view, setView] = useState<'menu' | 'chat' | 'help'>('menu');
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -242,18 +263,20 @@ export default function AIAssistantChat() {
     return (
         <>
             {/* Floating Toggle Button */}
-            <div className={cn(
-                "fixed bottom-6 right-6 z-50 transition-all duration-300",
-                isOpen ? "scale-0 opacity-0 pointer-events-none" : "scale-100 opacity-100"
-            )}>
-                <Button
-                    onClick={() => { setIsOpen(true); setView('menu'); }}
-                    size="icon"
-                    className="rounded-full h-14 w-14 shadow-lg bg-primary hover:bg-primary/90 transition-transform hover:scale-110 flex items-center justify-center p-0"
-                >
-                    <Sparkles className="h-7 w-7 text-white" />
-                </Button>
-            </div>
+            {!hideTrigger && (
+                <div className={cn(
+                    "fixed bottom-6 right-6 z-50 transition-all duration-300",
+                    isOpen ? "scale-0 opacity-0 pointer-events-none" : "scale-100 opacity-100"
+                )}>
+                    <Button
+                        onClick={() => { setIsOpen(true); setView('menu'); }}
+                        size="icon"
+                        className="rounded-full h-14 w-14 shadow-lg bg-primary hover:bg-primary/90 transition-transform hover:scale-110 flex items-center justify-center p-0"
+                    >
+                        <Sparkles className="h-7 w-7 text-white" />
+                    </Button>
+                </div>
+            )}
 
             {/* Chat Window */}
             <div className={cn(

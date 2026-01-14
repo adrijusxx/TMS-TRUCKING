@@ -100,14 +100,19 @@ export async function POST(request: NextRequest) {
     // ============================================
     // STEP 1: FETCH DEDUCTION RULES FOR DRIVER
     // ============================================
-    // Note: startDate and endDate columns don't exist in database, so we skip date range filtering
+    // CRITICAL FIX: Filter by driver-specific rules, not just driver type
+    // This prevents deductions from other drivers from being applied
     const deductionRules = await prisma.deductionRule.findMany({
       where: {
         companyId: session.user.companyId,
         isActive: true,
         OR: [
-          { driverType: null }, // Company-wide rules for all driver types
-          { driverType: driver.driverType }, // Rules for this driver's type
+          // Company-wide rules (no driver type and no specific driver)
+          { driverType: null, driverId: null },
+          // Driver-type-specific rules (matching type, no specific driver)
+          { driverType: driver.driverType, driverId: null },
+          // Driver-specific rules (assigned to THIS driver only)
+          { driverId: driver.id },
         ],
       },
       select: {
@@ -122,12 +127,14 @@ export async function POST(request: NextRequest) {
         minGrossPay: true,
         maxAmount: true,
         driverType: true,
+        driverId: true, // Include driverId for logging
         notes: true,
-        isAddition: true, // CRITICAL: Needed to distinguish additions from deductions
+        isAddition: true,
       },
     });
 
-    console.log(`[Settlement Generate] Found ${deductionRules.length} applicable deduction rules for driver ${driver.driverNumber}`);
+    console.log(`[Settlement Generate] Found ${deductionRules.length} applicable deduction rules for driver ${driver.driverNumber} (ID: ${driver.id})`);
+    console.log(`[Settlement Generate] Rules breakdown: ${deductionRules.filter(r => r.driverId === driver.id).length} driver-specific, ${deductionRules.filter(r => r.driverType === driver.driverType && !r.driverId).length} type-specific, ${deductionRules.filter(r => !r.driverType && !r.driverId).length} company-wide`);
 
     // ============================================
     // STEP 2: CALCULATE GROSS PAY FROM LOADS
@@ -212,11 +219,11 @@ export async function POST(request: NextRequest) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    // Get recent settlements for this driver to check if deductions were already applied
+    // CRITICAL FIX: Only check THIS driver's recent settlements, not all settlements
     const recentSettlements = await prisma.settlement.findMany({
       where: {
-        driverId: driver.id,
-        createdAt: { gte: startOfMonth }, // Get settlements from start of month
+        driverId: driver.id, // Only THIS driver's settlements
+        createdAt: { gte: startOfMonth },
       },
       select: {
         id: true,
@@ -231,7 +238,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Helper to check if a deduction was already applied this period
+    console.log(`[Settlement Generate] Found ${recentSettlements.length} recent settlements for driver ${driver.driverNumber} since ${startOfMonth.toISOString()}`);
+
+    // Helper to check if a deduction was already applied this period FOR THIS DRIVER
     const wasDeductionApplied = (ruleName: string, frequency: string | null): boolean => {
       if (!frequency) return false;
 
@@ -241,7 +250,7 @@ export async function POST(request: NextRequest) {
       for (const settlement of settlementsInPeriod) {
         const found = settlement.deductionItems.some(d => d.description === ruleName);
         if (found) {
-          console.log(`[Settlement Generate] Deduction "${ruleName}" found in existing settlement ${settlement.settlementNumber} (${settlement.id}) from ${settlement.createdAt.toISOString()}`);
+          console.log(`[Settlement Generate] Deduction "${ruleName}" already applied in settlement ${settlement.settlementNumber} for driver ${driver.driverNumber}`);
           return true;
         }
       }
@@ -249,6 +258,18 @@ export async function POST(request: NextRequest) {
     };
 
     for (const rule of deductionRules) {
+      // ============================================
+      // CRITICAL SAFETY CHECK: Prevent cross-driver rule contamination
+      // If a rule's name contains "Driver [NUMBER]" pattern, verify it matches THIS driver.
+      // This catches rules that were incorrectly assigned (null driverId but named for specific driver).
+      // ============================================
+      if (rule.name.startsWith('Driver ')) {
+        if (driver.driverNumber && !rule.name.includes(driver.driverNumber)) {
+          console.log(`[Settlement Generate] SKIPPING contamination rule "${rule.name}" - does not match driver ${driver.driverNumber}`);
+          continue;
+        }
+      }
+
       // Check frequency - skip if already applied this period
       if (rule.frequency) {
         if (wasDeductionApplied(rule.name, rule.frequency)) {

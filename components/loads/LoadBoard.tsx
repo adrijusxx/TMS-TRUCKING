@@ -7,10 +7,10 @@ import { cn, apiUrl, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Loader2, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
   AlertTriangle,
   Filter
 } from 'lucide-react';
@@ -121,7 +121,7 @@ export default function LoadBoard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dispatch-weekly', format(currentDate, 'yyyy-MM-dd')],
     queryFn: () => fetchWeeklySchedule(currentDate),
-    refetchInterval: 60000,
+    refetchInterval: 300000, // 5 minutes
     enabled: activeTab === 'drivers',
   });
 
@@ -132,11 +132,11 @@ export default function LoadBoard() {
   const filteredDrivers = React.useMemo(() => {
     if (!data?.drivers) return [];
     if (activeFilter === 'ALL') return data.drivers;
-    
+
     return data.drivers.filter((schedule) => {
       const status = schedule.driver.status;
       const hasLoads = Object.values(schedule.loadsByDate).some(loads => loads.length > 0);
-      
+
       switch (activeFilter) {
         case 'HOME': return status === 'OFF_DUTY' || status === 'AVAILABLE';
         case 'OTR': return status === 'DRIVING' || status === 'ON_DUTY';
@@ -151,11 +151,11 @@ export default function LoadBoard() {
 
   const filterCounts = React.useMemo(() => {
     if (!data?.drivers) return {} as Record<LoadBoardFilter, number>;
-    
+
     const counts: Record<LoadBoardFilter, number> = {
       ALL: data.drivers.length, HOME: 0, OTR: 0, HOME_ALERTS: 0, ONBOARD: 0, IN_SHOP: 0, DROP: 0,
     };
-    
+
     data.drivers.forEach((schedule) => {
       const status = schedule.driver.status;
       const hasLoads = Object.values(schedule.loadsByDate).some(loads => loads.length > 0);
@@ -166,7 +166,7 @@ export default function LoadBoard() {
       if (status === 'INACTIVE') counts.IN_SHOP++;
       if (status === 'ON_LEAVE') counts.DROP++;
     });
-    
+
     return counts;
   }, [data?.drivers]);
 
@@ -248,8 +248,8 @@ export default function LoadBoard() {
                       <th className="text-right py-1 px-1 font-medium min-w-[45px]">Miles</th>
                       <th className="text-right py-1 px-1 font-medium min-w-[40px]">RPM</th>
                       {weekDays.map((day) => (
-                        <th 
-                          key={format(day, 'yyyy-MM-dd')} 
+                        <th
+                          key={format(day, 'yyyy-MM-dd')}
                           className={cn(
                             'text-center py-1 px-1 font-medium min-w-[70px]',
                             format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && 'bg-primary/10'
@@ -263,9 +263,9 @@ export default function LoadBoard() {
                   </thead>
                   <tbody>
                     {filteredDrivers.map((schedule) => {
-                      const rpm = schedule.summary.totalMiles > 0 
+                      const rpm = schedule.summary.totalMiles > 0
                         ? schedule.summary.totalGross / schedule.summary.totalMiles : 0;
-                      
+
                       return (
                         <tr key={schedule.driver.id} className="border-b hover:bg-muted/30">
                           <td className="py-1 px-2 sticky left-0 bg-background z-10">
@@ -297,7 +297,7 @@ export default function LoadBoard() {
                             const dayKey = format(day, 'yyyy-MM-dd');
                             const loads = schedule.loadsByDate[dayKey] || [];
                             const isToday = dayKey === format(new Date(), 'yyyy-MM-dd');
-                            
+
                             return (
                               <td key={dayKey} className={cn('py-1 px-1 text-center', isToday && 'bg-primary/5')}>
                                 {loads.length > 0 ? (
@@ -328,7 +328,7 @@ export default function LoadBoard() {
                         </tr>
                       );
                     })}
-                    
+
                     {filteredDrivers.length === 0 && (
                       <tr>
                         <td colSpan={13} className="py-6 text-center text-muted-foreground text-xs">
@@ -337,7 +337,7 @@ export default function LoadBoard() {
                       </tr>
                     )}
                   </tbody>
-                  
+
                   {stats && filteredDrivers.length > 0 && (
                     <tfoot>
                       <tr className="bg-muted/50 border-t font-medium">

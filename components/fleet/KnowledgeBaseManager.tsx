@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import { formatBytes } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -30,6 +31,8 @@ export default function KnowledgeBaseManager() {
     const [docContent, setDocContent] = useState<string | null>(null);
     const [isLoadingDoc, setIsLoadingDoc] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     const { data: documents, isLoading, refetch } = useQuery({
         queryKey: ['knowledge-base-docs'],
@@ -87,7 +90,6 @@ export default function KnowledgeBaseManager() {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        // Convert FileList to array for easier handling
         const fileList = Array.from(files);
 
         // Filter valid files
@@ -101,48 +103,34 @@ export default function KnowledgeBaseManager() {
             return isValidType && isValidSize;
         });
 
-        if (validFiles.length === 0) return;
-
         setIsUploading(true);
-        let successCount = 0;
-        let failCount = 0;
+        let completed = 0;
 
-        for (let i = 0; i < validFiles.length; i++) {
-            const file = validFiles[i];
-            setUploadProgress({
-                current: i + 1,
-                total: validFiles.length,
-                filename: file.name,
-                percent: 0
-            });
-
+        for (const file of validFiles) {
             try {
+                setUploadProgress({
+                    current: completed + 1,
+                    total: validFiles.length,
+                    filename: file.name,
+                    percent: 0
+                });
+
                 await uploadFile(file, (percent) => {
                     setUploadProgress(prev => prev ? { ...prev, percent } : null);
                 });
-                successCount++;
+
+                completed++;
+                toast.success(`Uploaded ${file.name}`);
             } catch (err: any) {
-                console.error(`Error uploading ${file.name}:`, err);
-                failCount++;
                 toast.error(`Failed to upload ${file.name}: ${err.message}`);
             }
         }
 
-        // Cleanup
-        setIsUploading(false);
         setUploadProgress(null);
-        e.target.value = ''; // Reset input
-
-        // Refresh and notify
-        queryClient.invalidateQueries({ queryKey: ['knowledge-base-docs'] });
-
-        if (successCount > 0) {
-            toast.success(`Successfully uploaded ${successCount} documents`);
-        }
-        if (failCount > 0) {
-            toast.warning(`Failed to upload ${failCount} documents`);
-        }
+        setIsUploading(false);
+        refetch();
     };
+
 
     const handleViewDoc = async (doc: any) => {
         setViewingDoc(doc);
@@ -174,6 +162,43 @@ export default function KnowledgeBaseManager() {
     const learnedDocuments = documents?.filter((doc: any) => doc.url === 'internal') || [];
     const totalChunks = documents?.reduce((acc: number, doc: any) => acc + (doc._count?.chunks || 0), 0) || 0;
 
+    // Category constants
+    const CATEGORIES = ['ALL', 'DISPATCH', 'BREAKDOWN', 'COMPLIANCE', 'ONBOARDING', 'SETTLEMENT', 'GENERAL'];
+
+    // Filter learned documents by category
+    const filteredLearnedDocs = selectedCategory === 'ALL'
+        ? learnedDocuments
+        : learnedDocuments.filter((doc: any) => {
+            const meta = typeof doc.metadata === 'string' ? JSON.parse(doc.metadata) : doc.metadata;
+            return meta?.category === selectedCategory;
+        });
+
+    // Category badge colors
+    const categoryColor = (cat: string) => {
+        switch (cat) {
+            case 'DISPATCH': return 'bg-blue-500';
+            case 'BREAKDOWN': return 'bg-red-500';
+            case 'COMPLIANCE': return 'bg-purple-500';
+            case 'ONBOARDING': return 'bg-green-500';
+            case 'SETTLEMENT': return 'bg-yellow-500';
+            default: return 'bg-gray-500';
+        }
+    };
+
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = (docs: any[]) => {
+        if (selectedIds.length === docs.length && docs.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(docs.map(d => d.id));
+        }
+    };
+
     const handleSyncLearning = async () => {
         setIsSyncing(true);
         try {
@@ -203,6 +228,27 @@ export default function KnowledgeBaseManager() {
         onSuccess: () => {
             toast.success('Document deleted');
             queryClient.invalidateQueries({ queryKey: ['knowledge-base-docs'] });
+            setSelectedIds(prev => prev.filter(id => id !== deleteMutation.variables));
+        },
+        onError: (err: Error) => {
+            toast.error(err.message);
+        },
+    });
+
+    const bulkDeleteMutation = useMutation({
+        mutationFn: async (ids: string[]) => {
+            const res = await fetch(apiUrl('/api/knowledge-base'), {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids }),
+            });
+            if (!res.ok) throw new Error('Failed to delete documents');
+            return res.json();
+        },
+        onSuccess: (data) => {
+            toast.success(`Deleted ${data.count} documents`);
+            queryClient.invalidateQueries({ queryKey: ['knowledge-base-docs'] });
+            setSelectedIds([]);
         },
         onError: (err: Error) => {
             toast.error(err.message);
@@ -360,24 +406,84 @@ export default function KnowledgeBaseManager() {
                         </TabsContent>
 
                         <TabsContent value="learned" className="space-y-4">
-                            {learnedDocuments.length === 0 ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                {/* Category Filters */}
+                                <div className="flex flex-wrap gap-2">
+                                    {CATEGORIES.map(cat => (
+                                        <Button
+                                            key={cat}
+                                            variant={selectedCategory === cat ? 'default' : 'outline'}
+                                            size="sm"
+                                            onClick={() => setSelectedCategory(cat)}
+                                            className="text-xs"
+                                        >
+                                            {cat}
+                                            {cat !== 'ALL' && (
+                                                <Badge variant="secondary" className="ml-2 text-[10px]">
+                                                    {learnedDocuments.filter((d: any) => {
+                                                        const m = typeof d.metadata === 'string' ? JSON.parse(d.metadata) : d.metadata;
+                                                        return m?.category === cat;
+                                                    }).length}
+                                                </Badge>
+                                            )}
+                                        </Button>
+                                    ))}
+                                </div>
+
+                                {/* Bulk Actions */}
+                                {filteredLearnedDocs.length > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 mr-2">
+                                            <Checkbox
+                                                checked={selectedIds.length === filteredLearnedDocs.length && filteredLearnedDocs.length > 0}
+                                                onCheckedChange={() => toggleSelectAll(filteredLearnedDocs)}
+                                            />
+                                            <span className="text-sm text-muted-foreground">Select All</span>
+                                        </div>
+                                        {selectedIds.length > 0 && (
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() => {
+                                                    if (confirm(`Delete ${selectedIds.length} documents?`)) {
+                                                        bulkDeleteMutation.mutate(selectedIds);
+                                                    }
+                                                }}
+                                                disabled={bulkDeleteMutation.isPending}
+                                            >
+                                                {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                                                Delete Selected ({selectedIds.length})
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {filteredLearnedDocs.length === 0 ? (
                                 <div className="text-center py-12 text-muted-foreground border-dashed border-2 rounded-lg">
                                     <Bot className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                    <p>No automated learning data yet.</p>
-                                    <p className="text-sm">Conversations will be synthesized and indexed here daily.</p>
+                                    <p>No {selectedCategory !== 'ALL' ? selectedCategory.toLowerCase() : ''} documents yet.</p>
+                                    <p className="text-sm">Conversations will be synced and categorized here.</p>
                                 </div>
                             ) : (
                                 <div className="grid gap-4">
-                                    {learnedDocuments.map((doc: any) => (
-                                        <DocumentRow
-                                            key={doc.id}
-                                            doc={doc}
-                                            isLearned
-                                            onView={() => handleViewDoc(doc)}
-                                            onDelete={() => deleteMutation.mutate(doc.id)}
-                                            statusColor={statusColor}
-                                        />
-                                    ))}
+                                    {filteredLearnedDocs.map((doc: any) => {
+                                        const meta = typeof doc.metadata === 'string' ? JSON.parse(doc.metadata) : doc.metadata;
+                                        return (
+                                            <DocumentRow
+                                                key={doc.id}
+                                                doc={doc}
+                                                isLearned
+                                                category={meta?.category}
+                                                categoryColor={categoryColor}
+                                                onView={() => handleViewDoc(doc)}
+                                                onDelete={() => deleteMutation.mutate(doc.id)}
+                                                statusColor={statusColor}
+                                                selected={selectedIds.includes(doc.id)}
+                                                onToggle={() => toggleSelection(doc.id)}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             )}
                         </TabsContent>
@@ -427,10 +533,15 @@ export default function KnowledgeBaseManager() {
     );
 }
 
-function DocumentRow({ doc, onView, onDelete, statusColor, isLearned = false }: any) {
+function DocumentRow({ doc, onView, onDelete, statusColor, isLearned = false, category, categoryColor, selected, onToggle }: any) {
     return (
         <div className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/30 transition-colors cursor-pointer group" onClick={onView}>
             <div className="flex items-center gap-4">
+                {onToggle && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={selected} onCheckedChange={onToggle} />
+                    </div>
+                )}
                 <div className="p-2 bg-muted rounded group-hover:bg-background transition-colors">
                     {isLearned ? (
                         <Bot className="h-6 w-6 text-blue-600" />
@@ -441,7 +552,14 @@ function DocumentRow({ doc, onView, onDelete, statusColor, isLearned = false }: 
                     )}
                 </div>
                 <div>
-                    <h4 className="font-semibold">{doc.title}</h4>
+                    <div className="flex items-center gap-2">
+                        <h4 className="font-semibold">{doc.title}</h4>
+                        {category && categoryColor && (
+                            <Badge variant="outline" className={`${categoryColor(category)} text-white border-0 text-[10px] h-5`}>
+                                {category}
+                            </Badge>
+                        )}
+                    </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         {!isLearned && <span>{formatBytes(doc.fileSize)}</span>}
                         {!isLearned && <span>•</span>}

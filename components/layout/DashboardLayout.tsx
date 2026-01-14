@@ -51,6 +51,7 @@ import {
   PinOff,
   History,
   Key,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -159,6 +160,7 @@ export default function DashboardLayout({
   // This ensures we have session data even if SessionProvider has timing issues
   const clientSessionResult = useSession();
   const session = serverSession || clientSessionResult?.data || null;
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mainSidebarCollapsed, setMainSidebarCollapsed] = useState(false); // Default to expanded
   const [mainSidebarHidden, setMainSidebarHidden] = useState(false); // Toggle to completely hide/show
@@ -724,13 +726,36 @@ export default function DashboardLayout({
               <FontSizeToggle />
               <ThemeToggle />
               <NotificationBell />
+              {/* AI Assistant Toggle in Header */}
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsAiChatOpen(!isAiChatOpen)}
+                      className={cn(
+                        "transition-colors",
+                        isAiChatOpen && "bg-primary/10 text-primary"
+                      )}
+                    >
+                      <Bot className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>AI Assistant</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </header>
 
         {/* Page content */}
         <main className="p-3 lg:p-4">{children}</main>
-        <AIAssistantChat />
+        <AIAssistantChat
+          isOpen={isAiChatOpen}
+          onOpenChange={setIsAiChatOpen}
+          hideTrigger={true}
+        />
         <ImportTutorial />
       </div>
     </div>

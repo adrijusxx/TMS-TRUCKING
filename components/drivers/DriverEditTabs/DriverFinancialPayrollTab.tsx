@@ -131,38 +131,27 @@ export default function DriverFinancialPayrollTab({
   useEffect(() => {
     const loadDeductionRules = async () => {
       try {
-        const driverIdentifier = driver.driverNumber || driver.id.slice(0, 8);
-        // Fetch all active deduction rules for this driver type
+        // Fetch rules by driverId (proper association)
         const response = await fetch(
-          apiUrl(`/api/deduction-rules?driverType=${driver.driverType || ''}&isActive=true&t=${Date.now()}`),
+          apiUrl(`/api/deduction-rules?driverId=${driver.id}&isActive=true&t=${Date.now()}`),
           { cache: 'no-store' }
         );
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data) {
-            // Filter rules that match this driver (by name pattern)
-            const driverRules = result.data.filter(
-              (rule: any) =>
-                rule.name && rule.name.startsWith(`Driver ${driverIdentifier} - `) && rule.isActive
-            );
-
             // Convert to form format
-            const loadedTransactions: RecurringTransaction[] = driverRules.map((rule: any) => {
+            const loadedTransactions: RecurringTransaction[] = result.data.map((rule: any) => {
               let type = rule.deductionType;
 
-              // If type is OTHER, try to extract original custom type from name
+              // If type is OTHER and we stored custom type in name, try to extract
               if (type === 'OTHER' && rule.name) {
-                // Name format: "Driver identifier - Type (Note)" or "Driver identifier - Type"
                 const parts = rule.name.split(' - ');
                 if (parts.length >= 2) {
-                  // Join rest parts in case type itself has dashes
                   let extracted = parts.slice(1).join(' - ');
-
-                  // Remove note from name if present (it was added in the backend)
+                  // Remove note from name if present
                   if (rule.notes && extracted.endsWith(` (${rule.notes})`)) {
                     extracted = extracted.slice(0, -(rule.notes.length + 3));
                   }
-
                   type = extracted.trim();
                 }
               }
@@ -180,7 +169,7 @@ export default function DriverFinancialPayrollTab({
             });
 
             if (loadedTransactions.length > 0) {
-              console.log('[Driver Financial Tab] Loaded', loadedTransactions.length, 'deduction rules');
+              console.log('[Driver Financial Tab] Loaded', loadedTransactions.length, 'deduction rules for driver', driver.id);
               setRecurringTransactions(loadedTransactions);
             }
           }
@@ -189,14 +178,13 @@ export default function DriverFinancialPayrollTab({
         }
       } catch (error) {
         console.error('[Driver Financial Tab] Error loading deduction rules:', error);
-        // Don't block the form if loading fails
       }
     };
 
-    if (driver.id && driver.driverType) {
+    if (driver.id) {
       loadDeductionRules();
     }
-  }, [driver.id, driver.driverNumber, driver.driverType]);
+  }, [driver.id]);
 
   useEffect(() => {
     const handleSave = () => {

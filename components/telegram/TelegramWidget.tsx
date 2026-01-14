@@ -6,7 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { MessageSquare, User, Users, Radio, Loader2, Settings, ExternalLink } from 'lucide-react';
+import { MessageSquare, User, Users, Radio, Loader2, Settings, ExternalLink, Bot } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
@@ -20,6 +23,17 @@ interface Dialog {
     isUser: boolean;
     isGroup: boolean;
     isChannel: boolean;
+    aiAutoReply?: boolean;
+}
+
+async function updateDriverAutoReply(telegramId: string, enabled: boolean) {
+    const response = await fetch(apiUrl('/api/telegram/driver-settings'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId, aiAutoReply: enabled }),
+    });
+    if (!response.ok) throw new Error('Failed to update settings');
+    return response.json();
 }
 
 async function fetchDialogs() {
@@ -38,8 +52,21 @@ export default function TelegramWidget() {
     const { data: dialogsData, isLoading, error } = useQuery({
         queryKey: ['telegram-dialogs-widget'],
         queryFn: fetchDialogs,
-        refetchInterval: 30000, // Refresh every 30 seconds
+        refetchInterval: 60000, // Refresh every 60 seconds
         retry: false,
+    });
+
+    const queryClient = useQueryClient();
+
+    // Toggle AI Auto-Reply Mutation
+    const toggleAiMutation = useMutation({
+        mutationFn: ({ id, enabled }: { id: string, enabled: boolean }) => updateDriverAutoReply(id, enabled),
+        onSuccess: () => {
+            // Optimistic update or refetch would be better, but refetch is simplest
+            queryClient.invalidateQueries({ queryKey: ['telegram-dialogs-widget'] });
+            toast.success('AI Auto-Reply updated');
+        },
+        onError: () => toast.error('Failed to update AI settings'),
     });
 
     const dialogs: Dialog[] = dialogsData?.data || [];
@@ -141,6 +168,17 @@ export default function TelegramWidget() {
                                             </p>
                                         )}
                                     </div>
+                                    {(!dialog.isChannel && !dialog.isGroup) && (
+                                        <div className="flex items-center self-center pl-2" onClick={(e) => e.preventDefault()}>
+                                            <Switch
+                                                checked={dialog.aiAutoReply || false}
+                                                onCheckedChange={(checked) => toggleAiMutation.mutate({ id: dialog.id, enabled: checked })}
+                                                disabled={toggleAiMutation.isPending}
+                                                className="scale-75 data-[state=checked]:bg-green-500"
+                                            />
+                                            <Bot className={`h-3 w-3 ml-1 ${dialog.aiAutoReply ? 'text-green-500' : 'text-muted-foreground'}`} />
+                                        </div>
+                                    )}
                                 </Link>
                             ))}
                         </div>

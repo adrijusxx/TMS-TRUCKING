@@ -1,5 +1,5 @@
 /**
- * AI Chatbot Service
+ * AI Chatbot Service (Updated)
  * Customer service chatbot for load status and invoice inquiries
  */
 
@@ -13,6 +13,7 @@ interface ChatbotInput {
   customerId?: string;
   userId?: string;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  systemContext?: string;
 }
 
 interface ChatbotResponse {
@@ -101,6 +102,9 @@ export class AIChatbotService extends AIService {
 
     // Add System Context
     contextData += this.getSystemContext();
+    if (input.systemContext) {
+      contextData += `\nADDITIONAL CONTEXT:\n${input.systemContext}\n`;
+    }
 
     if (kbResults.length > 0) {
       contextData += `\nKNOWLEDGE BASE INFORMATION:\n`;
@@ -110,9 +114,9 @@ export class AIChatbotService extends AIService {
     }
 
     // Build AI prompt
-    const prompt = `You are a helpful customer service chatbot for a trucking company. Answer the user's question helpfully and accurately.
+    const prompt = `You are an expert TMS AI Assistant. Your goal is to provide specific, actionable answers based on the company's Knowledge Base.
 
-${contextData ? `CONTEXT DATA:\n${contextData}\n` : ''}
+${contextData ? `*** CRITICAL CONTEXT DATA ***\n${contextData}\n` : ''}
 
 USER MESSAGE: ${input.message}
 
@@ -121,28 +125,85 @@ CONVERSATION HISTORY:
 ${input.conversationHistory.slice(-5).map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n')}
 ` : ''}
 
-CAPABILITIES:
-- Check load status by load number
-- Check invoice status and balance
-- Answer general questions about trucking operations
-- Answer questions based on uploaded company documents
-- Provide contact information
-- Help with common questions
+INSTRUCTIONS:
+1. **SEARCH FIRST**: Look at the "KNOWLEDGE BASE INFORMATION" section above.
+2. **PRECEDENCE**: If you see a similar situation in the logs (e.g. "Breakdown" transcript), recommend the *exact steps* taken in that successful case (e.g. "Record video", "Send to Compliance").
+3. **SPECIFICITY**: Do not give generic advice like "Call a mechanic" unless the KB says so. Use specific company terminology found in the context.
+4. **HONESTY**: If the answer is not in the context, say "I don't have a specific policy for this in my Knowledge Base, but generally..."
 
-Return plain text response. Do NOT return JSON. Be friendly, professional, and concise.`;
+Return plain text response. Be concise and authoritative.`;
 
     // Note: We are switching to streaming, so we return the stream directly
     // The route handler will pipe this stream to the response
     return this.callAIStream(prompt, {
-      temperature: 0.5, // Lower temperature for more factual answers
+      temperature: 0.3, // Lower temperature for more factual answers
       maxTokens: 1000,
-      systemPrompt: 'You are a helpful customer service chatbot. You MUST prioritize the provided CONTEXT DATA (Knowledge Base, Loads, Invoices) to answer questions. If the answer is in the context, use it. If not, be helpful but admit you don\'t know specific details.',
+      systemPrompt: 'You are a TMS Dispatch AI. You strictly follow the procedures found in KNOWLEDGE BASE INFORMATION. You prioritize specific company history over general knowledge.',
     });
   }
 
   /**
-   * Get system-wide context (Default Knowledge Base)
+   * Non-streaming chat for internal use (e.g. Telegram auto-reply)
    */
+  async chat(input: ChatbotInput): Promise<string> {
+    // 1. Build Context (Same as processMessage)
+    let contextData = '';
+
+    // Check for load/invoice in message (Simplified duplication for now)
+    const loadNumberMatch = input.message.match(/load\s+([A-Z0-9-]+)/i);
+    // ... we can support load look, but for Auto-Replies it's usually breakdown/general
+    // Let's rely on KB and System Context primarily for this fix.
+
+    // KB Search
+    const kbService = new KnowledgeBaseService(input.companyId);
+    console.log(`[AIChatbot] Searching KB for: "${input.message}"`);
+    const kbResults = await kbService.search(input.message, 3);
+
+    // System Context
+    contextData += this.getSystemContext();
+    if (input.systemContext) {
+      contextData += `\nADDITIONAL CONTEXT:\n${input.systemContext}\n`;
+    }
+
+    if (kbResults.length > 0) {
+      contextData += `\nKNOWLEDGE BASE INFORMATION:\n`;
+      kbResults.forEach((result, index) => {
+        contextData += `[Result ${index + 1} from "${result.documentTitle}"]: ${result.content}\n\n`;
+      });
+    }
+
+    // Build Prompt
+    const prompt = `You are an expert TMS AI Assistant acting as a friendly, human dispatcher.
+    
+${contextData ? `*** CONTEXT DATA ***\n${contextData}\n` : ''}
+
+USER MESSAGE: ${input.message}
+
+INSTRUCTIONS:
+1. **PERSONA**: Friendly, helpful, confident. Short texts (max 2 sentences).
+2. **KNOWLEDGE**: Use the "KNOWLEDGE BASE INFORMATION" if available.
+3. **GAP FILLING**: If the exact answer is missing, use general trucking common sense. **NEVER say "I don't have a specific policy" or "As an AI".**
+4. **STYLE**: verification needed? ask for a photo. advice needed? give it clearly.
+5. **HISTORY**: If you see past conversations, follow their tone.
+
+IMPORTANT: Return ONLY valid JSON. Format: { "response": "answer" }.`;
+
+    const result = await this.callAI<any>(prompt, {
+      temperature: 0.3,
+      maxTokens: 500,
+      systemPrompt: 'You are a TMS Dispatch AI. You strictly follow local procedures. Return valid JSON.',
+      stream: false,
+      jsonMode: true
+    });
+
+    console.log('[AIChatbot] Raw AI Result:', JSON.stringify(result.data, null, 2));
+
+    if (typeof result.data === 'string') {
+      return result.data;
+    }
+    return result.data?.response || "I couldn't generate a response.";
+  }
+
   /**
    * Get system-wide context (Default Knowledge Base)
    */

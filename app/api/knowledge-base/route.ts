@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
                 status: true,
                 url: true,
                 createdAt: true,
+                metadata: true,
                 _count: {
                     select: { chunks: true }
                 }
@@ -57,10 +58,25 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
+        // Check for bulk delete via body
+        let ids: string[] = [];
+        try {
+            const body = await request.json().catch(() => null);
+            if (body && Array.isArray(body.ids)) {
+                ids = body.ids;
+            }
+        } catch (e) {
+            // No body or invalid json
+        }
 
-        if (!id) {
+        // Fallback to query param
+        if (ids.length === 0) {
+            const { searchParams } = new URL(request.url);
+            const id = searchParams.get('id');
+            if (id) ids.push(id);
+        }
+
+        if (ids.length === 0) {
             return NextResponse.json({ error: 'ID is required' }, { status: 400 });
         }
 
@@ -70,25 +86,36 @@ export async function DELETE(request: NextRequest) {
             select: { companyId: true },
         });
 
-        const doc = await prisma.knowledgeBaseDocument.findUnique({
-            where: { id },
-        });
-
-        if (!doc || doc.companyId !== user?.companyId) {
-            return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+        if (!user?.companyId) {
+            return NextResponse.json({ error: 'No company found' }, { status: 400 });
         }
 
-        // Delete chunks and document
+        // Find docs to ensure they belong to company
+        const docs = await prisma.knowledgeBaseDocument.findMany({
+            where: {
+                id: { in: ids },
+                companyId: user.companyId
+            },
+            select: { id: true }
+        });
+
+        const validIds = docs.map(d => d.id);
+
+        if (validIds.length === 0) {
+            return NextResponse.json({ error: 'No valid documents found' }, { status: 404 });
+        }
+
+        // Delete chunks and documents
         await prisma.$transaction([
             prisma.documentChunk.deleteMany({
-                where: { documentId: id }
+                where: { documentId: { in: validIds } }
             }),
-            prisma.knowledgeBaseDocument.delete({
-                where: { id }
+            prisma.knowledgeBaseDocument.deleteMany({
+                where: { id: { in: validIds } }
             })
         ]);
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json({ success: true, count: validIds.length });
 
     } catch (error: any) {
         console.error('[API] Error deleting document:', error);

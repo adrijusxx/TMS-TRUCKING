@@ -68,6 +68,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createRuleSchema.parse(body);
 
+    // Check 1000 template limit per company
+    const templateCount = await prisma.deductionRule.count({
+      where: { companyId: session.user.companyId },
+    });
+
+    if (templateCount >= 1000) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'LIMIT_EXCEEDED',
+            message: 'Maximum 1000 templates allowed per company. Please delete unused templates.',
+          },
+        },
+        { status: 403 }
+      );
+    }
+
     // Validate that appropriate amount field is provided based on calculationType
     if (validated.calculationType === 'FIXED' && !validated.amount) {
       return NextResponse.json(
@@ -174,6 +192,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const driverId = searchParams.get('driverId');
     const driverType = searchParams.get('driverType');
     const deductionType = searchParams.get('deductionType');
     const isActive = searchParams.get('isActive');
@@ -182,7 +201,11 @@ export async function GET(request: NextRequest) {
       companyId: session.user.companyId,
     };
 
-    // Note: driverId column doesn't exist in database, only filter by driverType
+    // Filter by driverId if provided
+    if (driverId) {
+      where.driverId = driverId;
+    }
+
     if (driverType) {
       where.driverType = driverType;
     }
@@ -201,10 +224,10 @@ export async function GET(request: NextRequest) {
         orderBy: {
           createdAt: 'desc',
         },
-        // Explicitly exclude driverId relation to avoid Prisma errors if column doesn't exist
         select: {
           id: true,
           companyId: true,
+          driverId: true, // Include driverId for association
           name: true,
           deductionType: true,
           driverType: true,

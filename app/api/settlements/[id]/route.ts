@@ -109,6 +109,8 @@ export async function GET(
         revenue: true,
         driverPay: true,
         totalMiles: true,
+        loadedMiles: true,
+        emptyMiles: true,
         route: {
           select: {
             totalDistance: true,
@@ -142,7 +144,9 @@ export async function GET(
         maxAmount: true,
         driverType: true,
         notes: true,
-        isAddition: true, // Needed to distinguish additions from deductions
+        isAddition: true,
+        goalAmount: true,
+        currentAmount: true, // Needed to distinguish additions from deductions
       },
       orderBy: {
         createdAt: 'desc',

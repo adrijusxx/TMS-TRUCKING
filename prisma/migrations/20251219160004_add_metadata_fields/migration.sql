@@ -62,3 +62,4 @@ CREATE INDEX "Truck_metadata_idx" ON "Truck" USING GIN ("metadata");
 
 
 
+

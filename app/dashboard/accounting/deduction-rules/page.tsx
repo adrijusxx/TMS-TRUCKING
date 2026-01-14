@@ -1,16 +1,26 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { apiUrl } from '@/lib/utils';
+
+// Fetch template count for limit display
+async function fetchTemplateCount() {
+  const res = await fetch(apiUrl('/api/deduction-rules'));
+  if (!res.ok) return { count: 0 };
+  const data = await res.json();
+  return { count: data.data?.length || 0 };
+}
 
 const fields = [
-  { name: 'name', label: 'Rule Name', type: 'text' as const, required: true },
-  { 
-    name: 'deductionType', 
-    label: 'Transaction Type', 
-    type: 'select' as const, 
-    required: true, 
+  { name: 'name', label: 'Template Name', type: 'text' as const, required: true },
+  {
+    name: 'deductionType',
+    label: 'Transaction Type',
+    type: 'select' as const,
+    required: true,
     options: [
       // Deductions
       { value: 'FUEL_ADVANCE', label: 'Fuel Advance' },
@@ -28,42 +38,43 @@ const fields = [
       { value: 'FUEL_CARD_FEE', label: 'Fuel Card Fee' },
       { value: 'TRAILER_RENTAL', label: 'Trailer Rental' },
       { value: 'OTHER', label: 'Other' },
-      // Additions (Payments to driver)
+      // Additions
       { value: 'BONUS', label: 'Bonus' },
       { value: 'OVERTIME', label: 'Overtime' },
       { value: 'INCENTIVE', label: 'Incentive' },
       { value: 'REIMBURSEMENT', label: 'Reimbursement' },
     ]
   },
-  { 
-    name: 'driverType', 
-    label: 'Driver Type', 
-    type: 'select' as const, 
+  {
+    name: 'driverType',
+    label: 'Driver Type (Optional)',
+    type: 'select' as const,
     options: [
+      { value: '', label: 'All Drivers' },
       { value: 'COMPANY_DRIVER', label: 'Company Driver' },
       { value: 'OWNER_OPERATOR', label: 'Owner Operator' },
       { value: 'LEASE', label: 'Lease' },
     ]
   },
-  { 
-    name: 'calculationType', 
-    label: 'Calculation Type', 
-    type: 'select' as const, 
-    required: true, 
+  {
+    name: 'calculationType',
+    label: 'Calculation',
+    type: 'select' as const,
+    required: true,
     options: [
       { value: 'FIXED', label: 'Fixed Amount' },
-      { value: 'PERCENTAGE', label: 'Percentage' },
+      { value: 'PERCENTAGE', label: 'Percentage of Gross' },
       { value: 'PER_MILE', label: 'Per Mile' },
     ]
   },
-  { name: 'amount', label: 'Amount (Fixed)', type: 'number' as const },
-  { name: 'percentage', label: 'Percentage', type: 'number' as const },
-  { name: 'perMileRate', label: 'Per Mile Rate', type: 'number' as const },
-  { 
-    name: 'frequency', 
-    label: 'Frequency', 
-    type: 'select' as const, 
-    required: true, 
+  { name: 'amount', label: 'Fixed Amount ($)', type: 'number' as const },
+  { name: 'percentage', label: 'Percentage (%)', type: 'number' as const },
+  { name: 'perMileRate', label: 'Per Mile Rate ($)', type: 'number' as const },
+  {
+    name: 'frequency',
+    label: 'Frequency',
+    type: 'select' as const,
+    required: true,
     options: [
       { value: 'PER_SETTLEMENT', label: 'Per Settlement' },
       { value: 'WEEKLY', label: 'Weekly' },
@@ -72,24 +83,23 @@ const fields = [
       { value: 'ONE_TIME', label: 'One Time' },
     ]
   },
-  { name: 'minGrossPay', label: 'Min Gross Pay', type: 'number' as const },
-  { name: 'maxAmount', label: 'Max Amount', type: 'number' as const },
+  { name: 'minGrossPay', label: 'Min Gross Pay ($)', type: 'number' as const },
+  { name: 'maxAmount', label: 'Max Amount ($)', type: 'number' as const },
   { name: 'isActive', label: 'Active', type: 'checkbox' as const },
   { name: 'notes', label: 'Notes', type: 'textarea' as const },
 ];
 
 const columns = [
-  { key: 'name', label: 'Rule Name' },
-  { 
-    key: 'deductionType', 
+  { key: 'name', label: 'Template Name' },
+  {
+    key: 'deductionType',
     label: 'Type',
     render: (val: string) => {
       const labels: Record<string, string> = {
-        // Deductions
         FUEL_ADVANCE: 'Fuel Advance',
         CASH_ADVANCE: 'Cash Advance',
         INSURANCE: 'Insurance',
-        OCCUPATIONAL_ACCIDENT: 'Occupational Accident',
+        OCCUPATIONAL_ACCIDENT: 'Occ. Accident',
         TRUCK_PAYMENT: 'Truck Payment',
         TRUCK_LEASE: 'Truck Lease',
         ESCROW: 'Escrow',
@@ -101,7 +111,6 @@ const columns = [
         FUEL_CARD_FEE: 'Fuel Card Fee',
         TRAILER_RENTAL: 'Trailer Rental',
         OTHER: 'Other',
-        // Additions (Payments to driver)
         BONUS: 'Bonus',
         OVERTIME: 'Overtime',
         INCENTIVE: 'Incentive',
@@ -110,24 +119,18 @@ const columns = [
       return labels[val] || val;
     }
   },
-  { 
-    key: 'calculationType', 
-    label: 'Calculation',
+  {
+    key: 'calculationType',
+    label: 'Amount',
     render: (val: string, row: any) => {
-      if (val === 'FIXED' && row.amount) {
-        return `$${Number(row.amount).toFixed(2)}`;
-      }
-      if (val === 'PERCENTAGE' && row.percentage) {
-        return `${Number(row.percentage).toFixed(2)}%`;
-      }
-      if (val === 'PER_MILE' && row.perMileRate) {
-        return `$${Number(row.perMileRate).toFixed(2)}/mile`;
-      }
+      if (val === 'FIXED' && row.amount) return `$${Number(row.amount).toFixed(2)}`;
+      if (val === 'PERCENTAGE' && row.percentage) return `${Number(row.percentage).toFixed(1)}%`;
+      if (val === 'PER_MILE' && row.perMileRate) return `$${Number(row.perMileRate).toFixed(2)}/mi`;
       return val;
     }
   },
-  { 
-    key: 'frequency', 
+  {
+    key: 'frequency',
     label: 'Frequency',
     render: (val: string) => {
       const labels: Record<string, string> = {
@@ -140,32 +143,44 @@ const columns = [
       return labels[val] || val;
     }
   },
-  { 
-    key: 'isActive', 
+  {
+    key: 'isActive',
     label: 'Status',
     render: (val: boolean) => val ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge>
   },
 ];
 
-export default function DeductionRulesPage() {
+export default function DeductionTemplatesPage() {
+  const { data: countData } = useQuery({
+    queryKey: ['deduction-templates-count'],
+    queryFn: fetchTemplateCount,
+    staleTime: 30000,
+  });
+
   return (
     <>
       <Breadcrumb items={[
         { label: 'Accounting', href: '/dashboard/accounting' },
-        { label: 'Deduction Rules' }
+        { label: 'Settings', href: '/dashboard/accounting/settings' },
+        { label: 'Deduction Templates' }
       ]} />
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Deduction Rules</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage deduction rules for driver settlements. Configure automatic deductions for fuel advances, insurance, truck payments, and more.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Deduction Templates</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Create reusable templates for driver deductions and additions.
+            </p>
+          </div>
+          <Badge variant="outline" className="text-sm">
+            {countData?.count || 0} / 1000 templates
+          </Badge>
         </div>
         <GenericCRUDManager
           endpoint="/api/deduction-rules"
           queryKey="deduction-rules"
-          title="Deduction Rules"
-          description="Configure automatic deductions applied to driver settlements"
+          title="Templates"
+          description="Templates are applied automatically during settlement generation"
           searchable={true}
           fields={fields}
           columns={columns}
@@ -174,4 +189,3 @@ export default function DeductionRulesPage() {
     </>
   );
 }
-

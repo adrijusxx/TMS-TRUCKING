@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,8 +12,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { X, Plus, Calculator, Check, ChevronsUpDown } from 'lucide-react';
+import { X, Plus, Calculator, Check, ChevronsUpDown, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import {
   Command,
   CommandEmpty,
@@ -78,9 +79,51 @@ export function RecurringTransactionsSection({
   onTransactionsChange,
   isReadOnly,
 }: RecurringTransactionsSectionProps) {
-  /* eslint-disable @typescript-eslint/no-unused-vars */
   const [openComboboxId, setOpenComboboxId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [customTypes, setCustomTypes] = useState<Array<{ id: string; name: string; category: string }>>([]);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(true);
+
+  // Fetch custom type templates
+  useEffect(() => {
+    const fetchCustomTypes = async () => {
+      try {
+        const res = await fetch('/api/deduction-type-templates?isActive=true');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data) {
+            setCustomTypes(data.data);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load custom type templates:', error);
+      } finally {
+        setIsLoadingTypes(false);
+      }
+    };
+    fetchCustomTypes();
+  }, []);
+
+  // Create new custom type and add to list
+  const createCustomType = async (name: string, category: 'addition' | 'deduction') => {
+    try {
+      const res = await fetch('/api/deduction-type-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, category }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          setCustomTypes(prev => [...prev, data.data]);
+          return data.data.name;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create custom type:', error);
+    }
+    return name; // Return original name even if save fails
+  };
 
   const addTransaction = () => {
     const newTransaction: RecurringTransaction = {
@@ -98,23 +141,70 @@ export function RecurringTransactionsSection({
     onTransactionsChange(transactions.filter((t) => t.id !== id));
   };
 
-  const updateTransaction = (id: string, field: keyof RecurringTransaction, value: any) => {
+  const updateTransactionFields = (id: string, updates: Partial<RecurringTransaction>) => {
     onTransactionsChange(
-      transactions.map((t) => (t.id === id ? { ...t, [field]: value } : t))
+      transactions.map((t) => (t.id === id ? { ...t, ...updates } : t))
     );
   };
 
-  const handleTypeSelect = (id: string, typeValue: string) => {
-    const config = TRANSACTION_TYPES[typeValue as keyof typeof TRANSACTION_TYPES];
-    if (config) {
-      updateTransaction(id, 'type', typeValue);
-      // Optional: enforce category based on type
-      updateTransaction(id, 'category', config.category);
+  const updateTransaction = (id: string, field: keyof RecurringTransaction, value: any) => {
+    updateTransactionFields(id, { [field]: value });
+  };
+
+  const handleTypeSelect = async (id: string, typeValue: string, category?: 'addition' | 'deduction') => {
+    let finalTypeValue = typeValue;
+    // Check key match first
+    let builtInConfig = TRANSACTION_TYPES[typeValue as keyof typeof TRANSACTION_TYPES];
+
+    // Smart Match: Check label match if key not found
+    if (!builtInConfig) {
+      const foundKey = Object.keys(TRANSACTION_TYPES).find(key =>
+        TRANSACTION_TYPES[key as keyof typeof TRANSACTION_TYPES].label === typeValue
+      );
+      if (foundKey) {
+        builtInConfig = TRANSACTION_TYPES[foundKey as keyof typeof TRANSACTION_TYPES];
+        finalTypeValue = foundKey; // Normalize to Key
+      }
+    }
+
+    const customType = customTypes.find(t => t.name === typeValue);
+
+    if (builtInConfig) {
+      updateTransactionFields(id, { type: finalTypeValue, category: builtInConfig.category });
+    } else if (customType) {
+      updateTransactionFields(id, {
+        type: customType.name,
+        category: customType.category as 'addition' | 'deduction'
+      });
     } else {
-      updateTransaction(id, 'type', typeValue);
+      // New custom type - save it
+      const savedName = await createCustomType(typeValue, category || 'deduction');
+      const updates: Partial<RecurringTransaction> = { type: savedName };
+      if (category) updates.category = category;
+      updateTransactionFields(id, updates);
     }
     setOpenComboboxId(null);
     setSearchTerm('');
+  };
+
+  const deleteCustomType = async (e: React.MouseEvent, templateId: string) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this template?')) return;
+
+    try {
+      const res = await fetch(`/api/deduction-type-templates/${templateId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setCustomTypes(prev => prev.filter(t => t.id !== templateId));
+        toast.success('Template deleted');
+      } else {
+        toast.error('Failed to delete template');
+      }
+    } catch (error) {
+      console.error('Failed to delete template:', error);
+      toast.error('Error deleting template');
+    }
   };
 
   const totalAdditions = transactions
@@ -124,6 +214,10 @@ export function RecurringTransactionsSection({
   const totalDeductions = transactions
     .filter((t) => t.category === 'deduction')
     .reduce((sum, t) => sum + t.amount, 0);
+
+  // Combine built-in and custom types for dropdown
+  const customAdditions = customTypes.filter(t => t.category === 'addition');
+  const customDeductions = customTypes.filter(t => t.category === 'deduction');
 
   return (
     <Card>
@@ -207,45 +301,72 @@ export function RecurringTransactionsSection({
                                   </Button>
                                 </CommandEmpty>
                               )}
-                              <CommandGroup heading="Additions">
-                                {Object.entries(TRANSACTION_TYPES)
-                                  .filter(([_, config]) => config.category === 'addition')
-                                  .map(([key, config]) => (
+                              {customAdditions.length > 0 && (
+                                <CommandGroup heading="Additions">
+                                  {customAdditions.map((ct) => (
                                     <CommandItem
-                                      key={key}
-                                      value={config.label}
-                                      onSelect={() => handleTypeSelect(transaction.id, key)}
+                                      key={ct.id}
+                                      value={ct.name}
+                                      onSelect={() => handleTypeSelect(transaction.id, ct.name)}
+                                      className="justify-between"
                                     >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          transaction.type === key ? "opacity-100" : "opacity-0"
-                                        )}
-                                      />
-                                      {config.label}
+                                      <div className="flex items-center">
+                                        <Check
+                                          className={cn(
+                                            "mr-2 h-4 w-4",
+                                            transaction.type === ct.name ? "opacity-100" : "opacity-0"
+                                          )}
+                                        />
+                                        {ct.name}
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                        onClick={(e) => deleteCustomType(e, ct.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
                                     </CommandItem>
                                   ))}
-                              </CommandGroup>
+                                </CommandGroup>
+                              )}
+
                               <CommandSeparator />
-                              <CommandGroup heading="Deductions">
-                                {Object.entries(TRANSACTION_TYPES)
-                                  .filter(([_, config]) => config.category === 'deduction')
-                                  .map(([key, config]) => (
-                                    <CommandItem
-                                      key={key}
-                                      value={config.label}
-                                      onSelect={() => handleTypeSelect(transaction.id, key)}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          transaction.type === key ? "opacity-100" : "opacity-0"
-                                        )}
-                                      />
-                                      {config.label}
-                                    </CommandItem>
-                                  ))}
-                              </CommandGroup>
+                              {customDeductions.length > 0 && (
+                                <>
+                                  <CommandSeparator />
+                                  <CommandGroup heading="Deductions">
+                                    {customDeductions.map((ct) => (
+                                      <CommandItem
+                                        key={ct.id}
+                                        value={ct.name}
+                                        onSelect={() => handleTypeSelect(transaction.id, ct.name)}
+                                        className="justify-between"
+                                      >
+                                        <div className="flex items-center">
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              transaction.type === ct.name ? "opacity-100" : "opacity-0"
+                                            )}
+                                          />
+                                          {ct.name}
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                          onClick={(e) => deleteCustomType(e, ct.id)}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </>
+                              )}
+
                             </CommandList>
                           </Command>
                         </PopoverContent>
@@ -368,8 +489,8 @@ export function RecurringTransactionsSection({
         <p className="text-xs text-muted-foreground mt-4">
           Additions (Bonus, Reimbursement) increase driver pay. Deductions (Insurance, Lease) reduce driver pay.
         </p>
-      </CardContent>
-    </Card>
+      </CardContent >
+    </Card >
   );
 }
 

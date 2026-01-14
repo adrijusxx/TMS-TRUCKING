@@ -80,6 +80,7 @@ export class KnowledgeBaseService {
                     fileSize: Buffer.byteLength(text),
                     url: 'internal',
                     status: 'PROCESSING',
+                    metadata: metadata,
                 },
             });
 

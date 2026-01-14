@@ -307,11 +307,11 @@ export async function PATCH(
       const driverIdentifier = existingDriver.driverNumber || id.slice(0, 8);
       console.log('[Driver Update] Driver identifier:', driverIdentifier);
 
-      // Get existing deduction rules created for this driver (identified by name pattern)
+      // Get existing deduction rules for THIS driver (by driverId)
       const existingRules = await prisma.deductionRule.findMany({
         where: {
           companyId: session.user.companyId,
-          name: { startsWith: `Driver ${driverIdentifier} - ` },
+          driverId: id, // Query by driverId for proper association
         },
       });
       console.log('[Driver Update] Found existing rules:', existingRules.length);
@@ -376,16 +376,17 @@ export async function PATCH(
               const newRule = await prisma.deductionRule.create({
                 data: {
                   companyId: session.user.companyId,
+                  driverId: id, // CRITICAL: Associate rule with this driver
                   name: `Driver ${driverIdentifier} - ${transaction.type}${transaction.note ? ` (${transaction.note})` : ''}`,
                   deductionType: deductionType as any,
                   driverType: existingDriver.driverType as any,
-                  isAddition: isAddition, // Set based on transaction type
+                  isAddition: isAddition,
                   calculationType: 'FIXED',
                   amount: transaction.amount,
-                  goalAmount: transaction.stopLimit, // Save the "Stop Limit"
-                  currentAmount: transaction.currentBalance || 0, // Restore balance or default 0
-                  frequency: frequencyValue as any, // DeductionRuleFrequency (WEEKLY or MONTHLY)
-                  deductionFrequency: frequencyValue as any, // DeductionFrequency (WEEKLY or MONTHLY) - for settlement generation
+                  goalAmount: transaction.stopLimit,
+                  currentAmount: transaction.currentBalance || 0,
+                  frequency: frequencyValue as any,
+                  deductionFrequency: frequencyValue as any,
                   notes: transaction.note || null,
                   isActive: true,
                 },

@@ -28,6 +28,13 @@ const nextConfig = {
 
   // REQUIRED for AWS EC2 Deployment
   output: 'standalone',
+
+  // Reduce logging verbosity
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
 }
 
 module.exports = nextConfig

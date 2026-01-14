@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { prisma } from '@/lib/prisma';
+import { AIChatbotService } from './AIChatbotService';
 
 /**
  * AI Analysis Result Interface
@@ -112,6 +113,10 @@ export class AIMessageService {
         }
     }
 
+
+
+    // ... inside class ...
+
     /**
      * Generate an auto-response based on analysis
      */
@@ -132,23 +137,28 @@ export class AIMessageService {
                     `Case #${context.caseNumber} created. We'll contact you soon.`;
             }
 
-            // If breakdown detected, generate custom response
-            if (analysis.isBreakdown) {
-                const systemPrompt = `You are a professional dispatcher for a trucking company. Generate a brief, reassuring response to a driver who reported a breakdown. Be professional, empathetic, and concise. Maximum 2 sentences.`;
+            // Use Smart Chatbot for Breakdown/Maintenance responses OR if AI Auto-Reply is fully enabled
+            if (analysis.isBreakdown || analysis.isMaintenanceRequest || analysis.category === 'MAINTENANCE' || (context as any).isAiAutoReplyEnabled) {
+                const chatbot = new AIChatbotService();
 
-                const userPrompt = `Driver ${context.driverName} reported: ${analysis.problemDescription || 'a breakdown'}. Generate a response acknowledging their message and letting them know help is on the way.`;
-
-                const completion = await this.openai.chat.completions.create({
-                    model: 'gpt-4-turbo-preview',
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt },
-                    ],
-                    temperature: 0.7,
-                    max_tokens: 100,
+                const response = await chatbot.chat({
+                    message: (context as any).originalMessage || analysis.problemDescription || "I have a problem with my truck.",
+                    userId: 'driver-auto-reply',
+                    conversationHistory: (context as any).conversationHistory,
+                    companyId: 'cmjlj0l8u0000uosscqdvk1fz', // TODO: Get from context or settings
+                    systemContext: `
+                        You are replying to ${context.driverName}.
+                        Issue detected: ${analysis.category} - ${analysis.problemDescription || 'General Inquiry'}.
+                        
+                        GOAL: Act like a real human dispatcher. Be concise, helpful, and casual.
+                        Use past conversation history to understand context.
+                        If they say "understood" or "thanks", just say "You're welcome, stay safe" or similar.
+                        Do NOT use "It appears..." or robot-speak.
+                        Keep it under 160 chars.
+                    `
                 });
 
-                return completion.choices[0]?.message?.content || settings.autoAckMessage || 'We received your message. Our team will respond shortly.';
+                return response;
             }
 
             // Default acknowledgment

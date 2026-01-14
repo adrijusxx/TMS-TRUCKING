@@ -104,7 +104,7 @@ export default function BreakdownsDataTable({
     const { data, isLoading, error, refetch } = useQuery<{ success: boolean; data: ActiveBreakdownsData }>({
         queryKey: ['activeBreakdowns-table', mode],
         queryFn: fetchActiveBreakdowns,
-        refetchInterval: 30000,
+        refetchInterval: 120000,
     });
 
     const deleteMutation = useMutation({

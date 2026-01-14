@@ -39,7 +39,7 @@ export async function GET(
             success: true,
             data: {
                 ...profile,
-                driverMapping: driverMapping ? {
+                driverMapping: (driverMapping && driverMapping.driver) ? {
                     driverId: driverMapping.driver.id,
                     driverName: driverMapping.driver.user ? `${driverMapping.driver.user.firstName} ${driverMapping.driver.user.lastName}` : 'Unknown',
                     currentTruck: driverMapping.driver.currentTruck?.truckNumber,

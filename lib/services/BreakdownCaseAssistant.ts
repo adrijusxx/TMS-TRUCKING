@@ -166,7 +166,7 @@ Return ONLY a JSON array of the top ${limit} most similar cases with this format
 
 CURRENT BREAKDOWN:
 - Problem: ${input.problem || 'Unknown'}
-- Description: ${input.description}
+- Description: ${input.description} (THIS IS THE PRIMARY SYMPTOM)
 - Type: ${input.breakdownType || 'Unknown'}
 
 ${faultCodesText}
@@ -176,15 +176,17 @@ ${kbContext}
 ${context}
 
 CRITICAL INSTRUCTIONS:
-1. If Knowledge Base documents are provided above, you MUST use the troubleshooting steps and pricing from those documents
-2. Estimated costs MUST match the pricing in the KB documents, not generic estimates
-3. If the KB has repair procedures, include those exact steps
-4. Reference which document(s) you used in sourceDocuments
+1. **FOCUS ON DESCRIPTION**: The "Description" is what the driver is seeing. Solve THAT issue first.
+2. **FAULT CODES**: Only use "ACTIVE FAULT CODES" if they explain the "Description".
+   - If fault codes are unrelated (e.g. NOx sensor code during a tire blowout), ignore them for the Root Cause but mention them as "Secondary Issues".
+3. **KNOWLEDGE BASE**: Use the troubleshooting steps and pricing from KB documents if they match the Description.
+4. **ESTIMATES**: Estimated costs MUST match the pricing in the KB documents, not generic estimates.
+5. **STEPS**: If the KB has repair procedures, include those exact steps.
 
 Provide your response in this exact JSON format:
 {
-  "rootCause": "Based on fault codes and KB documents...",
-  "recommendedSteps": ["Step from KB document...", "Step 2", "Step 3"],
+  "rootCause": "Primary cause based on Description (explain if fault codes are related or coincidental)...",
+  "recommendedSteps": ["Step 1 from KB...", "Step 2..."],
   "estimatedTimeHours": 4,
   "estimatedCost": 500,
   "requiredParts": ["Part mentioned in KB..."],

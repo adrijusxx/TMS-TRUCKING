@@ -216,6 +216,7 @@ model Company {
   iftaConfigs               IFTAConfig[]
   iftaEntries               IFTAEntry[]
   deductionRules            DeductionRule[]
+  deductionTypeTemplates    DeductionTypeTemplate[]
   // Safety Relations
   driverQualificationFiles  DriverQualificationFile[]
   medicalCards              MedicalCard[]
@@ -769,6 +770,7 @@ model Driver {
   warnings String?
 
   isActive  Boolean   @default(true)
+  aiAutoReply Boolean  @default(false) // Toggle for AI auto-responses to this driver
   
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
@@ -2093,6 +2095,7 @@ model SettlementDeduction {
   settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
 
   deductionType DeductionType
+  category      String?    // "addition" | "deduction"
   description   String
   amount        Float
 
@@ -2344,6 +2347,30 @@ model DeductionRule {
   @@index([isAddition])
   @@index([startDate])
   @@index([endDate])
+}
+
+// ============================================
+// DEDUCTION TYPE TEMPLATES (User-Created)
+// ============================================
+// Custom deduction/addition type names that users can create, save, and reuse
+// These appear in TYPE dropdowns in driver edit and settlement dialogs
+
+model DeductionTypeTemplate {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  name     String // e.g., "Weekly Insurance", "ELD Subscription"
+  category String // "addition" or "deduction"
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([category])
+  @@index([isActive])
 }
 
 enum CalculationType {
@@ -6394,8 +6421,9 @@ model TelegramSession {
 // Map drivers to Telegram IDs
 model TelegramDriverMapping {
   id           String   @id @default(cuid())
-  driverId     String   @unique
-  driver       Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId     String?  @unique
+  driver       Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  aiAutoReply  Boolean  @default(false)
   telegramId   String   @unique // Telegram user ID (numeric)
   username     String?  // Telegram username (optional)
   phoneNumber  String?  // Phone number linked to Telegram
@@ -6484,6 +6512,7 @@ model KnowledgeBaseDocument {
   
   status      String   @default("PENDING") // PENDING, PROCESSING, READY, FAILED
   errorMessage String?
+  metadata     Json?
   
   chunks      DocumentChunk[]
   

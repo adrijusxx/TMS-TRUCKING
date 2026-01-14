@@ -227,7 +227,15 @@ export class AIService {
     } catch {
       // Try to fix incomplete JSON
       const fixedJson = this.fixIncompleteJSON(jsonText);
-      return JSON.parse(fixedJson) as T;
+      try {
+        return JSON.parse(fixedJson) as T;
+      } catch (finalError) {
+        // Fallback: If T is string, return text. If generic, return text as "response" or raw?
+        // Safe fallback: Return the raw text if expected type allows, otherwise specific object?
+        // For general usage, returning raw text is better than crashing.
+        console.warn('[AIService] JSON parse failed, returning raw text');
+        return content as unknown as T;
+      }
     }
   }
 
