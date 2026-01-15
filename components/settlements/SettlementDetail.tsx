@@ -1361,7 +1361,6 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                   <TableHeader>
                     <TableRow>
                       <TableHead>Type</TableHead>
-                      <TableHead>Description</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1370,7 +1369,6 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                     {deductions.map((deduction: any) => (
                       <TableRow key={deduction.id}>
                         <TableCell>{deductionTypeLabels[deduction.deductionType] || deduction.deductionType}</TableCell>
-                        <TableCell>{deduction.description}</TableCell>
                         <TableCell className="text-right text-red-600">
                           -{formatCurrency(deduction.amount)}
                         </TableCell>

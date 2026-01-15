@@ -671,10 +671,14 @@ export class SettlementManager {
 
     for (const rule of recurringRules) {
       // Safety Check: Prevent "Ghost" rules (rules meant for other drivers but saved with null driverId or wrongly assigned)
-      // If a rule has a name like "Driver [Name] - [Type]", check if it matches THIS driver.
-      if (rule.name.startsWith('Driver ')) {
-        // If the rule name contains a different driver's number/name, skip it
-        if (driver.driverNumber && !rule.name.includes(driver.driverNumber)) {
+      // Check if rule name contains ANY driver number pattern that doesn't match this driver
+      const driverNumberPattern = /DRV-[A-Z]{2}-[A-Z]+-\d+/g;
+      const matchedDriverNumbers = rule.name.match(driverNumberPattern);
+
+      if (matchedDriverNumbers && matchedDriverNumbers.length > 0) {
+        // If rule contains a driver number that doesn't match this driver, skip it
+        const containsThisDriver = matchedDriverNumbers.some(num => num === driver.driverNumber);
+        if (!containsThisDriver) {
           console.warn(`[SettlementManager] Skipping contamination rule "${rule.name}" for driver ${driver.driverNumber}`);
           continue;
         }
@@ -758,6 +762,18 @@ export class SettlementManager {
     });
 
     for (const rule of garnishmentRules) {
+      // Safety Check: Prevent "Ghost" rules - same as recurring rules
+      const driverNumberPattern = /DRV-[A-Z]{2}-[A-Z]+-\d+/g;
+      const matchedDriverNumbers = rule.name.match(driverNumberPattern);
+
+      if (matchedDriverNumbers && matchedDriverNumbers.length > 0) {
+        const containsThisDriver = matchedDriverNumbers.some(num => num === driver.driverNumber);
+        if (!containsThisDriver) {
+          console.warn(`[SettlementManager] Skipping contamination rule "${rule.name}" for driver ${driver.driverNumber}`);
+          continue;
+        }
+      }
+
       if (rule.minGrossPay && grossPay < rule.minGrossPay) {
         continue;
       }
