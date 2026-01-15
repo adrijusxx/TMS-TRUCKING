@@ -74,6 +74,7 @@ model User {
   approvedAdvances           DriverAdvance[]          @relation("AdvanceApprover")
   approvedExpenses           LoadExpense[]            @relation("ExpenseApprover")
   settlementApprovals        SettlementApproval[]     @relation("SettlementApprovalHistory")
+  createdSalaryBatches       SalaryBatch[]
   // AI Relations
   reviewedAISuggestions      AISuggestion[]           @relation("AISuggestionReviewer")
   appliedAISuggestions       AISuggestion[]           @relation("AISuggestionApplier")
@@ -262,6 +263,7 @@ model Company {
   truckFaultHistory         TruckFaultHistory[]
   knowledgeBaseDocuments    KnowledgeBaseDocument[]
   apiKeys                   ApiKeyConfig[]
+  salaryBatches             SalaryBatch[]
 }
 
 // ============================================
@@ -2072,6 +2074,10 @@ model Settlement {
   negativeBalances        DriverNegativeBalance[] @relation("NegativeBalanceSettlement")
   appliedNegativeBalances DriverNegativeBalance[] @relation("AppliedNegativeBalance")
 
+  // Batch Relation
+  salaryBatchId String?
+  salaryBatch   SalaryBatch? @relation(fields: [salaryBatchId], references: [id])
+
   @@index([driverId])
   @@index([status])
   @@index([approvalStatus])
@@ -2083,6 +2089,54 @@ model Settlement {
   @@index([driverId, status, createdAt])
   @@index([driverId, createdAt])
   @@index([status, createdAt])
+  @@index([salaryBatchId])
+}
+
+// ============================================
+// SALARY BATCHES
+// ============================================
+
+model SalaryBatch {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  batchNumber String
+  status      SalaryBatchStatus @default(OPEN)
+  
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Financials
+  totalAmount     Float @default(0)
+  settlementCount Int   @default(0)
+
+  notes String?
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  // Timestamps
+  postedAt   DateTime?
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  settlements Settlement[]
+
+  @@unique([companyId, batchNumber])
+  @@index([companyId])
+  @@index([status])
+  @@index([periodStart])
+  @@index([periodEnd])
+}
+
+enum SalaryBatchStatus {
+  OPEN
+  POSTED
+  ARCHIVED
 }
 
 // ============================================

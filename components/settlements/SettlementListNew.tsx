@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Upload, Download, FileText } from 'lucide-react';
-import { GenerateSettlementsButton } from './GenerateSettlementsButton';
+// Removed unused import
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportSheet from '@/components/import-export/ImportSheet';
@@ -151,13 +151,6 @@ export default function SettlementListNew() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
-          <GenerateSettlementsButton />
-          <Link href="/dashboard/settlements/bulk-generate">
-            <Button size="sm" variant="outline">
-              <FileText className="h-4 w-4 mr-2" />
-              Bulk Generate
-            </Button>
-          </Link>
           <Link href="/dashboard/settlements/generate">
             <Button size="sm" variant="outline">
               <FileText className="h-4 w-4 mr-2" />

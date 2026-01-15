@@ -19,6 +19,7 @@ interface SettlementGenerationParams {
   periodEnd: Date;
   settlementNumber?: string;
   notes?: string;
+  salaryBatchId?: string;
 }
 
 interface DeductionItem {
@@ -65,7 +66,7 @@ export class SettlementManager {
   async generateSettlement(
     params: SettlementGenerationParams
   ): Promise<any> {
-    const { driverId, periodStart, periodEnd } = params;
+    const { driverId, periodStart, periodEnd, salaryBatchId } = params;
 
     // 1. Fetch driver with deduction rules
     const driver = await prisma.driver.findUnique({
@@ -157,6 +158,7 @@ export class SettlementManager {
         approvalStatus: 'PENDING',
         calculatedAt: new Date(),
         notes: params.notes,
+        salaryBatchId: salaryBatchId, // Link to batch if provided
       },
     });
 
