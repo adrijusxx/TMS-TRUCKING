@@ -40,6 +40,12 @@ export class GoogleSheetsClient {
             // Handle private key with escaped newlines and remove surrounding quotes
             let privateKey = serviceAccountPrivateKey.trim();
 
+            console.log('[GoogleAuth] Raw key check - Length:', privateKey.length,
+                'Starts with quote:', privateKey.startsWith('"') || privateKey.startsWith("'"),
+                'Contains literal \\n:', privateKey.includes('\\n'),
+                'Contains real newline:', privateKey.includes('\n')
+            );
+
             // Remove surrounding quotes if present (common in .env or JSON strings)
             if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
                 (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
@@ -52,10 +58,21 @@ export class GoogleSheetsClient {
             // Fix case where newlines might have been replaced by spaces (invalid PEM)
             // But be careful not to break the header/footer
             if (!privateKey.includes('\n') && privateKey.includes('PRIVATE KEY')) {
+                console.log('[GoogleAuth] Detected flattened key. Attempting to restore PEM format...');
+                // Attempt to split headers first
                 privateKey = privateKey
                     .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
-                    .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----')
-                    .replace(/\s+/g, '\n'); // Aggressive? Maybe. But safer to assume standard PEM format if no newlines.
+                    .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+
+                // If still no internal newlines, try to split purely by spaces if they exist
+                // Note: A flattened key WITHOUT spaces is extremely hard to recover without specific length knowledge
+                if (privateKey.split('\n').length <= 2 && privateKey.includes(' ')) {
+                    privateKey = privateKey.replace(/\s+/g, '\n');
+                    // Fix headers again in case we mangled them
+                    privateKey = privateKey
+                        .replace('-----BEGIN\nPRIVATE\nKEY-----', '-----BEGIN PRIVATE KEY-----')
+                        .replace('-----END\nPRIVATE\nKEY-----', '-----END PRIVATE KEY-----');
+                }
             }
 
             // Ensure correct header/footer spacing if they got mashed
@@ -65,6 +82,8 @@ export class GoogleSheetsClient {
             if (!privateKey.includes('\n-----END PRIVATE KEY-----')) {
                 privateKey = privateKey.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
             }
+
+            console.log('[GoogleAuth] Final key check - Length:', privateKey.length, 'Contains newlines:', privateKey.includes('\n'));
 
             try {
                 this.auth = new google.auth.JWT({
