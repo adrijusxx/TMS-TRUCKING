@@ -220,7 +220,7 @@ export function IntegrationCredentialsManager({ mcNumbers = [] }: IntegrationCre
                                             <SelectValue placeholder="Select MC..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">Company Default</SelectItem>
+                                            <SelectItem value="default">Company Default</SelectItem>
                                             {mcNumbers.map(mc => (
                                                 <SelectItem key={mc.id} value={mc.id}>
                                                     MC# {mc.number} {mc.name && `- ${mc.name}`}

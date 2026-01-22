@@ -14,7 +14,9 @@ import {
   Settings,
   CheckCircle2,
   Clock,
-  XCircle
+  XCircle,
+  Sheet,
+  Database
 } from 'lucide-react';
 
 interface Integration {
@@ -24,7 +26,7 @@ interface Integration {
   icon: any;
   href: string;
   status: 'active' | 'available' | 'coming-soon' | 'not-configured';
-  category: 'communications' | 'gps' | 'finance';
+  category: 'communications' | 'gps' | 'finance' | 'data';
   features?: string[];
 }
 
@@ -96,6 +98,23 @@ const integrations: Integration[] = [
       'Automatic reconciliation'
     ]
   },
+
+  // Data Import
+  {
+    id: 'google-sheets',
+    name: 'Google Sheets',
+    description: 'Import CRM leads and data from Google Sheets with automatic sync',
+    icon: Sheet,
+    href: '/dashboard/settings/integrations/google-sheets',
+    status: 'not-configured',
+    category: 'data',
+    features: [
+      'CRM lead import',
+      'Automatic data sync',
+      'Column mapping',
+      'Incremental imports'
+    ]
+  },
 ];
 
 const categoryInfo = {
@@ -114,10 +133,15 @@ const categoryInfo = {
     description: 'Accounting, invoicing, and financial integrations',
     icon: DollarSign,
   },
+  data: {
+    title: 'Data Import',
+    description: 'Import data from external sources',
+    icon: Database,
+  },
 };
 
 export default function IntegrationsSettings() {
-  const [activeCategory, setActiveCategory] = useState<'all' | 'communications' | 'gps' | 'finance'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'communications' | 'gps' | 'finance' | 'data'>('all');
 
   const getStatusBadge = (status: Integration['status']) => {
     switch (status) {
@@ -165,18 +189,22 @@ export default function IntegrationsSettings() {
 
       <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as any)} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="all">All Integrations</TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="communications">
             <MessageSquare className="h-4 w-4 mr-2" />
             Communications
           </TabsTrigger>
           <TabsTrigger value="gps">
             <Radio className="h-4 w-4 mr-2" />
-            GPS & Telematics
+            GPS
           </TabsTrigger>
           <TabsTrigger value="finance">
             <DollarSign className="h-4 w-4 mr-2" />
             Finance
+          </TabsTrigger>
+          <TabsTrigger value="data">
+            <Database className="h-4 w-4 mr-2" />
+            Data
           </TabsTrigger>
         </TabsList>
 

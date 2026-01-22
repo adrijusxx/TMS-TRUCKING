@@ -77,6 +77,31 @@ function parseList(value: string): string[] {
         .filter(Boolean);
 }
 
+// Get all known/mapped field keys (sanitized)
+const KNOWN_FIELDS = new Set(
+    Object.values(HEADER_SYNONYMS).flat().map(s => sanitizeHeader(s))
+);
+
+/**
+ * Collect unmapped columns from a row as metadata
+ * These are extra fields like Facebook form responses that don't map to standard Lead fields
+ */
+function collectMetadata(row: SheetRow): Record<string, any> {
+    const metadata: Record<string, any> = {};
+
+    for (const [key, value] of Object.entries(row)) {
+        const sanitized = sanitizeHeader(key);
+        // Skip if it's a known/mapped field or empty value
+        if (KNOWN_FIELDS.has(sanitized) || !value || String(value).trim() === '') {
+            continue;
+        }
+        // Store with original key for readability
+        metadata[key] = String(value).trim();
+    }
+
+    return Object.keys(metadata).length > 0 ? metadata : {};
+}
+
 function normalizeStatus(status?: string): LeadStatus {
     if (!status) return 'NEW';
     const upperStatus = status.toUpperCase().replace(/\s+/g, '_');
@@ -154,7 +179,7 @@ export async function processCrmIntegration(integrationId: string, triggeredByUs
         throw new Error('Sheet ID not configured');
     }
 
-    const client = createGoogleSheetsClient();
+    const client = await createGoogleSheetsClient();
     const totalRows = await client.getRowCount(sheetId);
 
     if (totalRows <= lastImportedRow) {
@@ -245,6 +270,9 @@ export async function processCrmIntegration(integrationId: string, triggeredByUs
             });
             const leadNumber = `CRM-IMP-${integration.mcNumber.number}-${Date.now()}-${i}`; // Unique fallback
 
+            // Collect unmapped columns as metadata
+            const metadata = collectMetadata(row);
+
             // Create Lead
             console.log(`[DEBUG] Creating lead for row ${rowNumber}. userId:`, userId, typeof userId);
             const lead = await prisma.lead.create({
@@ -271,6 +299,9 @@ export async function processCrmIntegration(integrationId: string, triggeredByUs
                     yearsExperience: parseInt(readMappedValue(row, 'yearsExperience', columnMap, HEADER_SYNONYMS.yearsExperience)) || null,
 
                     tags: parseList(readMappedValue(row, 'tags', columnMap, HEADER_SYNONYMS.tags)),
+
+                    // Store extra columns as metadata (Facebook form responses, etc.)
+                    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 
                     createdById: userId, // Indicates system import (attributed to admin)
                 },

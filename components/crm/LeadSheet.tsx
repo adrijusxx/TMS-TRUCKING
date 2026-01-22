@@ -36,7 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, Phone } from 'lucide-react';
+import { Loader2, Sparkles, Phone, FileSpreadsheet } from 'lucide-react';
 
 const leadFormSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
@@ -252,7 +252,7 @@ export default function LeadSheet({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+            <SheetContent className="w-[700px] sm:max-w-[700px] overflow-y-auto">
                 <SheetHeader>
                     <SheetTitle>{isEditing ? 'Edit Lead' : 'Add New Lead'}</SheetTitle>
                     <SheetDescription>
@@ -270,13 +270,14 @@ export default function LeadSheet({
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-6">
                             <Tabs defaultValue="personal" className="w-full">
-                                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-6' : 'grid-cols-3'}`}>
+                                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-7' : 'grid-cols-3'}`}>
                                     <TabsTrigger value="personal">Personal</TabsTrigger>
                                     <TabsTrigger value="cdl">CDL Info</TabsTrigger>
                                     <TabsTrigger value="status">Status</TabsTrigger>
+                                    {isEditing && <TabsTrigger value="import">Import Data</TabsTrigger>}
                                     {isEditing && <TabsTrigger value="notes">Notes</TabsTrigger>}
                                     {isEditing && <TabsTrigger value="activity">Activity</TabsTrigger>}
-                                    {isEditing && <TabsTrigger value="documents">Documents</TabsTrigger>}
+                                    {isEditing && <TabsTrigger value="documents">Docs</TabsTrigger>}
                                 </TabsList>
 
                                 <TabsContent value="personal" className="space-y-4 mt-4">
@@ -589,9 +590,38 @@ export default function LeadSheet({
 
                                 {isEditing && (
                                     <>
+                                        <TabsContent value="import" className="mt-4">
+                                            <Card>
+                                                <CardContent className="pt-4">
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                                                        <span className="font-medium text-sm">Import Metadata</span>
+                                                    </div>
+                                                    {leadData?.metadata && Object.keys(leadData.metadata).length > 0 ? (
+                                                        <div className="space-y-2">
+                                                            {Object.entries(leadData.metadata as Record<string, any>).map(([key, value]) => (
+                                                                <div key={key} className="flex justify-between items-start py-2 border-b last:border-0">
+                                                                    <span className="text-xs text-muted-foreground capitalize">
+                                                                        {key.replace(/_/g, ' ')}
+                                                                    </span>
+                                                                    <span className="text-sm text-right max-w-[60%]">
+                                                                        {String(value)}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-6 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                                                            No import metadata available.
+                                                            <p className="text-xs mt-1">Extra fields from Facebook forms or spreadsheets will appear here.</p>
+                                                        </div>
+                                                    )}
+                                                </CardContent>
+                                            </Card>
+                                        </TabsContent>
+
                                         <TabsContent value="notes" className="mt-4">
                                             <div className="bg-muted/10 p-1 rounded-lg">
-                                                {/* Dynamic import or lazy load might be better but direct is fine for now */}
                                                 <LeadNotes leadId={leadId!} />
                                             </div>
                                         </TabsContent>

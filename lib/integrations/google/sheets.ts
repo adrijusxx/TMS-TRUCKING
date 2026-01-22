@@ -165,16 +165,30 @@ export class GoogleSheetsClient {
     }
 }
 
-export function createGoogleSheetsClient(): GoogleSheetsClient {
+/**
+ * Create a Google Sheets client using system credentials (AWS env vars)
+ * All companies share the same service account - customers just share their sheets with it
+ */
+export async function createGoogleSheetsClient(): Promise<GoogleSheetsClient> {
     const serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     const serviceAccountPrivateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
     if (!serviceAccountEmail || !serviceAccountPrivateKey) {
-        throw new Error('Google service account credentials not configured. Set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY environment variables.');
+        throw new Error(
+            'Google service account credentials not configured. Contact support to enable Google Sheets integration.'
+        );
     }
 
     return new GoogleSheetsClient({
         serviceAccountEmail,
         serviceAccountPrivateKey,
     });
+}
+
+/**
+ * Get the service account email for display in UI
+ * Customers need this to share their Google Sheets with the service account
+ */
+export function getGoogleServiceAccountEmail(): string | null {
+    return process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null;
 }

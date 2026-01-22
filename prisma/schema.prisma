@@ -276,6 +276,7 @@ model Company {
   salaryBatches             SalaryBatch[]
   // CRM Relations
   leads                     Lead[]
+  integrationSettings       IntegrationSettings?
 }
 
 // ============================================
@@ -6249,6 +6250,26 @@ model SystemConfig {
   @@index([companyId])
 }
 
+// ============================================
+// INTEGRATION SETTINGS (Per-Company Credentials)
+// ============================================
+
+model IntegrationSettings {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Google Sheets Integration
+  googleServiceAccountEmail      String?
+  googleServiceAccountPrivateKey String?  @db.Text  // PEM key can be long
+  googleSheetsEnabled            Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
 model CustomField {
   id        String  @id @default(cuid())
   companyId String
@@ -6874,7 +6895,10 @@ model Lead {
   aiScoreSummary    String?
   aiScoreUpdatedAt  DateTime?
 
-  // Metadata
+  // Import Metadata - stores extra fields from Facebook forms, spreadsheets, etc.
+  metadata  Json?
+
+  // Timestamps
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?

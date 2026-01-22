@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
 // GET /api/crm/leads/[id]/activities
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -10,13 +9,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { id } = await params;
-        const mcWhere = await buildMcNumberWhereClause(request, session);
+        const companyId = session.user.companyId;
 
-        // Verify lead access
+        if (!companyId) {
+            return NextResponse.json({ error: 'Company ID required' }, { status: 400 });
+        }
+
+        // Verify lead access via companyId
         const lead = await prisma.lead.findFirst({
             where: {
                 id,
-                ...mcWhere
+                companyId,
+                deletedAt: null
             }
         });
 
@@ -37,6 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
         return NextResponse.json({ data: activities });
     } catch (error) {
+        console.error('Error fetching activities:', error);
         return NextResponse.json({ error: 'Failed to fetch activities' }, { status: 500 });
     }
 }

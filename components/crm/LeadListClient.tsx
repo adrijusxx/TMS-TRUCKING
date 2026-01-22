@@ -24,9 +24,9 @@ import {
     Plus,
     Search,
     Phone,
-    Mail,
     RefreshCw,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import LeadSheet from './LeadSheet';
@@ -122,6 +122,34 @@ export default function LeadListClient() {
         return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     };
 
+    const handleCall = async (e: React.MouseEvent, phone: string) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        try {
+            const settingsRes = await fetch('/api/user/voip-settings');
+            const settingsData = await settingsRes.json();
+            const isYokoEnabled = settingsData?.voipConfig?.enabled;
+
+            if (isYokoEnabled) {
+                toast.info('Initiating call via Yoko...');
+                const callRes = await fetch('/api/communications/call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ destination: phone })
+                });
+                const callData = await callRes.json();
+                if (!callRes.ok) throw new Error(callData.error);
+                toast.success('Call initiated! Check your device.');
+            } else {
+                window.location.href = `tel:${phone}`;
+            }
+        } catch (err) {
+            console.error('Call failed', err);
+            window.location.href = `tel:${phone}`;
+        }
+    };
+
     return (
         <div className="space-y-4">
             {/* Filters */}
@@ -184,26 +212,24 @@ export default function LeadListClient() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[100px]">Lead #</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Contact</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Priority</TableHead>
                             <TableHead>Source</TableHead>
-                            <TableHead>Assigned To</TableHead>
                             <TableHead>Created</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                                     Loading leads...
                                 </TableCell>
                             </TableRow>
                         ) : leads.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                                     No leads found. Click "Add Lead" to create your first recruitment lead.
                                 </TableCell>
                             </TableRow>
@@ -214,29 +240,19 @@ export default function LeadListClient() {
                                     className="cursor-pointer hover:bg-muted/50"
                                     onClick={() => handleRowClick(lead.id)}
                                 >
-                                    <TableCell className="font-mono text-sm">
-                                        {lead.leadNumber}
-                                    </TableCell>
                                     <TableCell className="font-medium">
                                         {lead.firstName} {lead.lastName}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                            <a
-                                                href={`tel:${lead.phone}`}
-                                                className="flex items-center gap-2 hover:text-primary transition-colors hover:underline"
-                                                onClick={(e) => e.stopPropagation()}
+                                            <button
+                                                onClick={(e) => handleCall(e, lead.phone)}
+                                                className="flex items-center gap-1 hover:text-primary transition-colors"
                                                 title="Click to Call"
                                             >
                                                 <Phone className="h-3 w-3" />
                                                 <span>{lead.phone}</span>
-                                            </a>
-                                            {lead.email && (
-                                                <>
-                                                    <Mail className="h-3 w-3 ml-2" />
-                                                    <span className="truncate max-w-[150px]">{lead.email}</span>
-                                                </>
-                                            )}
+                                            </button>
                                         </div>
                                     </TableCell>
                                     <TableCell>
@@ -257,11 +273,6 @@ export default function LeadListClient() {
                                     </TableCell>
                                     <TableCell className="text-sm">
                                         {lead.source.replace(/_/g, ' ')}
-                                    </TableCell>
-                                    <TableCell className="text-sm">
-                                        {lead.assignedTo
-                                            ? `${lead.assignedTo.firstName} ${lead.assignedTo.lastName}`
-                                            : '-'}
                                     </TableCell>
                                     <TableCell className="text-sm text-muted-foreground">
                                         {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
@@ -14,13 +13,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { id } = await params;
-        const mcWhere = await buildMcNumberWhereClause(request, session);
+        const companyId = session.user.companyId;
 
-        // Verify lead access
+        if (!companyId) {
+            return NextResponse.json({ error: 'Company ID required' }, { status: 400 });
+        }
+
+        // Verify lead access via companyId
         const lead = await prisma.lead.findFirst({
             where: {
                 id,
-                ...mcWhere
+                companyId,
+                deletedAt: null
             }
         });
 
@@ -53,13 +57,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { id } = await params;
+        const companyId = session.user.companyId;
 
-        // Verify lead access first
-        const mcWhere = await buildMcNumberWhereClause(request, session);
+        if (!companyId) {
+            return NextResponse.json({ error: 'Company ID required' }, { status: 400 });
+        }
+
+        // Verify lead access via companyId
         const lead = await prisma.lead.findFirst({
             where: {
                 id,
-                ...mcWhere
+                companyId,
+                deletedAt: null
             }
         });
 
