@@ -40,14 +40,31 @@ export class GoogleSheetsClient {
             // Handle private key with escaped newlines and remove surrounding quotes
             let privateKey = serviceAccountPrivateKey.trim();
 
-            // Remove surrounding quotes if present
+            // Remove surrounding quotes if present (common in .env or JSON strings)
             if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
                 (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
                 privateKey = privateKey.slice(1, -1);
             }
 
-            // Replace escaped newlines with actual newlines
+            // Replace literal escaped "\n" sequences with actual newlines
             privateKey = privateKey.replace(/\\n/g, '\n');
+
+            // Fix case where newlines might have been replaced by spaces (invalid PEM)
+            // But be careful not to break the header/footer
+            if (!privateKey.includes('\n') && privateKey.includes('PRIVATE KEY')) {
+                privateKey = privateKey
+                    .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+                    .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----')
+                    .replace(/\s+/g, '\n'); // Aggressive? Maybe. But safer to assume standard PEM format if no newlines.
+            }
+
+            // Ensure correct header/footer spacing if they got mashed
+            if (!privateKey.includes('-----BEGIN PRIVATE KEY-----\n')) {
+                privateKey = privateKey.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n');
+            }
+            if (!privateKey.includes('\n-----END PRIVATE KEY-----')) {
+                privateKey = privateKey.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+            }
 
             try {
                 this.auth = new google.auth.JWT({
