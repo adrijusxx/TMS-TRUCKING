@@ -12,9 +12,11 @@ import DriverSettings from '@/components/settings/role-specific/DriverSettings';
 import HRSettings from '@/components/settings/role-specific/HRSettings';
 import SafetySettings from '@/components/settings/role-specific/SafetySettings';
 import FleetSettings from '@/components/settings/role-specific/FleetSettings';
-import { User, Settings, Bell, Eye, Shield, Package, DollarSign, Truck, Users, AlertTriangle, Wrench } from 'lucide-react';
+import { User, Settings, Bell, Eye, Shield, Package, DollarSign, Truck, Users, AlertTriangle, Wrench, Phone } from 'lucide-react';
 import type { UserRole } from '@/lib/permissions';
 import { usePermissions } from '@/hooks/usePermissions';
+
+import YokomobileIntegration from '@/components/settings/integrations/YokomobileIntegration';
 
 export default function MyProfileCategory() {
   const { role } = usePermissions();
@@ -60,6 +62,10 @@ export default function MyProfileCategory() {
             <Settings className="h-4 w-4 mr-2" />
             Preferences
           </TabsTrigger>
+          <TabsTrigger value="voip">
+            <Phone className="h-4 w-4 mr-2" />
+            VoIP
+          </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="h-4 w-4 mr-2" />
             Notifications
@@ -86,6 +92,10 @@ export default function MyProfileCategory() {
 
         <TabsContent value="general" className="space-y-6">
           <EmployeeGeneralSettings />
+        </TabsContent>
+
+        <TabsContent value="voip" className="space-y-6">
+          <YokomobileIntegration />
         </TabsContent>
 
         <TabsContent value="notifications" className="space-y-6">

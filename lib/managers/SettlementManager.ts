@@ -11,6 +11,7 @@
 import { prisma } from '@/lib/prisma';
 import { DriverAdvanceManager } from './DriverAdvanceManager';
 import { LoadExpenseManager } from './LoadExpenseManager';
+import { UsageManager } from './UsageManager';
 import { LoadStatus } from '@prisma/client';
 
 interface SettlementGenerationParams {
@@ -280,6 +281,13 @@ export class SettlementManager {
         },
       },
     });
+
+    // 16. Track usage
+    try {
+      await UsageManager.trackUsage(driver.companyId, 'SETTLEMENTS_GENERATED');
+    } catch (usageError) {
+      console.error('[SettlementManager] Failed to track usage:', usageError);
+    }
 
     return await prisma.settlement.findUnique({
       where: { id: settlement.id },

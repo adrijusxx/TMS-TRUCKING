@@ -1,0 +1,413 @@
+-- ==========================================
+-- COMPREHENSIVE FIX MIGRATION
+-- Phase 1: Enums → Phase 2: Columns → Phase 3: Indexes
+-- ==========================================
+
+-- ==========================================
+-- PHASE 1: ENUMS (Add all missing enum values)
+-- ==========================================
+DO $$ BEGIN
+    CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'INCOMPLETE', 'INCOMPLETE_EXPIRED', 'TRIALING', 'FREE', 'OWNER_OPERATOR', 'CORE_READONLY');
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+-- UserRole
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SAFETY';
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'FLEET';
+ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'HR';
+
+-- MaintenanceType (critical for seed)
+ALTER TYPE "MaintenanceType" ADD VALUE IF NOT EXISTS 'PM_A';
+ALTER TYPE "MaintenanceType" ADD VALUE IF NOT EXISTS 'PM_B';
+ALTER TYPE "MaintenanceType" ADD VALUE IF NOT EXISTS 'TIRES';
+ALTER TYPE "MaintenanceType" ADD VALUE IF NOT EXISTS 'REPAIR';
+
+-- MaintenanceRecordStatus
+ALTER TYPE "MaintenanceRecordStatus" ADD VALUE IF NOT EXISTS 'OPEN';
+ALTER TYPE "MaintenanceRecordStatus" ADD VALUE IF NOT EXISTS 'COMPLETED';
+ALTER TYPE "MaintenanceRecordStatus" ADD VALUE IF NOT EXISTS 'IN_PROGRESS';
+
+-- BreakdownType (used in seed)
+ALTER TYPE "BreakdownType" ADD VALUE IF NOT EXISTS 'ENGINE_FAILURE';
+ALTER TYPE "BreakdownType" ADD VALUE IF NOT EXISTS 'ELECTRICAL_ISSUE';
+ALTER TYPE "BreakdownType" ADD VALUE IF NOT EXISTS 'TIRE_FLAT';
+
+-- BreakdownStatus
+ALTER TYPE "BreakdownStatus" ADD VALUE IF NOT EXISTS 'REPORTED';
+ALTER TYPE "BreakdownStatus" ADD VALUE IF NOT EXISTS 'RESOLVED';
+
+-- SafetyIncidentType (used in seed)
+ALTER TYPE "SafetyIncidentType" ADD VALUE IF NOT EXISTS 'ACCIDENT';
+ALTER TYPE "SafetyIncidentType" ADD VALUE IF NOT EXISTS 'COLLISION';
+ALTER TYPE "SafetyIncidentType" ADD VALUE IF NOT EXISTS 'DRIVER_ERROR';
+
+-- SafetySeverity (used in seed)
+ALTER TYPE "SafetySeverity" ADD VALUE IF NOT EXISTS 'MINOR';
+ALTER TYPE "SafetySeverity" ADD VALUE IF NOT EXISTS 'MODERATE';
+ALTER TYPE "SafetySeverity" ADD VALUE IF NOT EXISTS 'MAJOR';
+
+-- SafetyIncidentStatus (used in seed)
+ALTER TYPE "SafetyIncidentStatus" ADD VALUE IF NOT EXISTS 'UNDER_INVESTIGATION';
+ALTER TYPE "SafetyIncidentStatus" ADD VALUE IF NOT EXISTS 'RESOLVED';
+ALTER TYPE "SafetyIncidentStatus" ADD VALUE IF NOT EXISTS 'CLOSED';
+
+-- LocationType (used in seed)
+ALTER TYPE "LocationType" ADD VALUE IF NOT EXISTS 'WAREHOUSE';
+ALTER TYPE "LocationType" ADD VALUE IF NOT EXISTS 'TERMINAL';
+
+-- VendorType (used in seed)
+ALTER TYPE "VendorType" ADD VALUE IF NOT EXISTS 'FUEL_VENDOR';
+ALTER TYPE "VendorType" ADD VALUE IF NOT EXISTS 'PARTS_VENDOR';
+ALTER TYPE "VendorType" ADD VALUE IF NOT EXISTS 'REPAIR_SHOP';
+
+-- DeductionType (used in seed)
+ALTER TYPE "DeductionType" ADD VALUE IF NOT EXISTS 'INSURANCE';
+ALTER TYPE "DeductionType" ADD VALUE IF NOT EXISTS 'ESCROW';
+ALTER TYPE "DeductionType" ADD VALUE IF NOT EXISTS 'EQUIPMENT_RENTAL';
+
+-- CalculationType (used in seed)
+ALTER TYPE "CalculationType" ADD VALUE IF NOT EXISTS 'FIXED';
+ALTER TYPE "CalculationType" ADD VALUE IF NOT EXISTS 'PERCENTAGE';
+
+-- DeductionFrequency (used in seed) 
+ALTER TYPE "DeductionFrequency" ADD VALUE IF NOT EXISTS 'PER_SETTLEMENT';
+
+-- AccessorialChargeType (used in seed)
+ALTER TYPE "AccessorialChargeType" ADD VALUE IF NOT EXISTS 'DETENTION';
+ALTER TYPE "AccessorialChargeType" ADD VALUE IF NOT EXISTS 'LAYOVER';
+ALTER TYPE "AccessorialChargeType" ADD VALUE IF NOT EXISTS 'FUEL_SURCHARGE';
+
+-- AccessorialChargeStatus (used in seed)
+ALTER TYPE "AccessorialChargeStatus" ADD VALUE IF NOT EXISTS 'PENDING';
+ALTER TYPE "AccessorialChargeStatus" ADD VALUE IF NOT EXISTS 'APPROVED';
+
+-- ==========================================
+-- PHASE 2: ADD ALL MISSING COLUMNS
+-- ==========================================
+
+-- COMPANY
+ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "subscriptionStatus" "SubscriptionStatus" NOT NULL DEFAULT 'FREE';
+ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "stripeCustomerId" TEXT;
+ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "trialEndsAt" TIMESTAMP(3);
+ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "truckLimit" INTEGER NOT NULL DEFAULT 999;
+ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "onboardingComplete" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "isReadOnly" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Company" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+
+-- USER
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "onboardingStep" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "onboardingComplete" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "tags" TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "employeeNumber" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "tempPassword" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "nickname" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "phone" TEXT;
+
+-- MCNUMBER
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "address" TEXT;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "city" TEXT;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "state" TEXT;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "zip" TEXT;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "email" TEXT;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "website" TEXT;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "branding" JSONB;
+ALTER TABLE "McNumber" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+
+-- DRIVER
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "payTo" TEXT;
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "escrowBalance" DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "legacyTags" JSONB;
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "aiAutoReply" BOOLEAN DEFAULT false;
+ALTER TABLE "Driver" ADD COLUMN IF NOT EXISTS "samsaraId" TEXT;
+
+-- TRUCK
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "fleetStatus" TEXT;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "ownership" TEXT;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "ownerName" TEXT;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "legacyTags" JSONB;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "samsaraId" TEXT;
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "samsaraSyncedAt" TIMESTAMP(3);
+ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "samsaraSyncStatus" TEXT;
+
+-- TRAILER
+ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "fleetStatus" TEXT;
+ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "legacyTags" JSONB;
+ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "samsaraId" TEXT;
+ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "samsaraSyncedAt" TIMESTAMP(3);
+ALTER TABLE "Trailer" ADD COLUMN IF NOT EXISTS "samsaraSyncStatus" TEXT;
+
+-- CUSTOMER
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "legacyTags" JSONB;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "creditHold" BOOLEAN DEFAULT false;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "qbCustomerId" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "billingAddress" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "billingCity" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "billingState" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "billingZip" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "billingEmail" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "billingEmails" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "billingType" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "paymentTermsType" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "discountPercentage" DOUBLE PRECISION;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "discountDays" INTEGER;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "creditAlertThreshold" DOUBLE PRECISION DEFAULT 80;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "creditHoldReason" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "creditHoldDate" TIMESTAMP(3);
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "creditRate" DOUBLE PRECISION;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "creditLimitNotes" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "rateConfirmationRequired" BOOLEAN DEFAULT false;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "status" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "warning" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "riskLevel" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "comments" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "scac" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "portalEnabled" BOOLEAN DEFAULT false;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "portalUserId" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "ediEnabled" BOOLEAN DEFAULT false;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "ediId" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "contactNumber" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "rating" DOUBLE PRECISION;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "totalLoads" INTEGER DEFAULT 0;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "totalRevenue" DOUBLE PRECISION DEFAULT 0;
+
+-- LOAD
+ALTER TABLE "Load" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Load" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "Load" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+
+-- INVOICE
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "companyId" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "totalAmount" DOUBLE PRECISION;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "qbSynced" BOOLEAN DEFAULT false;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "qbInvoiceId" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "qbSyncedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "qbSyncStatus" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "qbSyncError" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "qbCustomerId" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "factoringCompanyId" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "submittedToFactorAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "factoringSubmittedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "fundedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "reserveReleaseDate" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "factoringReserveReleasedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "factoringFee" DOUBLE PRECISION;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "reserveAmount" DOUBLE PRECISION;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "advanceAmount" DOUBLE PRECISION;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "shortPayAmount" DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "shortPayReasonCode" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "shortPayReason" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "shortPayApproved" BOOLEAN DEFAULT false;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "shortPayApprovedById" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "shortPayApprovedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "disputedAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "disputedReason" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "writtenOffAt" TIMESTAMP(3);
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "writtenOffReason" TEXT;
+ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "writtenOffById" TEXT;
+
+-- SETTLEMENT (Critical: salaryBatchId was missing)
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "salaryBatchId" TEXT;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "is1099Eligible" BOOLEAN DEFAULT false;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "year1099" INTEGER;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "paymentReference" TEXT;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "calculatedAt" TIMESTAMP(3);
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "approvalStatus" TEXT DEFAULT 'PENDING';
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "approvedById" TEXT;
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
+ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;
+
+-- MAINTENANCE RECORD (ALL fields from schema)
+DO $$ BEGIN
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "maintenanceNumber" TEXT;
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "nextServiceDate" TIMESTAMP(3);
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'OPEN';
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "vendorId" TEXT;
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "invoiceNumber" TEXT;
+    ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- BREAKDOWN (ALL fields from schema)
+DO $$ BEGIN
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "odometerReading" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "totalCost" DOUBLE PRECISION DEFAULT 0;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "isDriverChargeable" BOOLEAN DEFAULT false;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "driverChargeNotes" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "followUpRequired" BOOLEAN DEFAULT false;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "followUpNotes" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "telematicsSnapshot" JSONB;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "address" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "zip" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "latitude" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "longitude" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "problem" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "problemCategory" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "priority" TEXT DEFAULT 'MEDIUM';
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "serviceProvider" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "serviceContact" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "serviceAddress" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "repairCost" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "towingCost" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "laborCost" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "partsCost" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "otherCosts" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "dispatchedAt" TIMESTAMP(3);
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "arrivedAt" TIMESTAMP(3);
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "repairStartedAt" TIMESTAMP(3);
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "repairCompletedAt" TIMESTAMP(3);
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "truckReadyAt" TIMESTAMP(3);
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "downtimeHours" DOUBLE PRECISION;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "resolution" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "repairNotes" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "technicianNotes" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "trailerId" TEXT;
+    ALTER TABLE "Breakdown" ADD COLUMN IF NOT EXISTS "mcNumberId" TEXT;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- SAFETY INCIDENT
+DO $$ BEGIN
+    ALTER TABLE "SafetyIncident" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "SafetyIncident" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+    ALTER TABLE "SafetyIncident" ADD COLUMN IF NOT EXISTS "severity" TEXT;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- DOCUMENT
+DO $$ BEGIN
+    ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- LOCATION
+DO $$ BEGIN
+    ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- VENDOR
+DO $$ BEGIN
+    ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+    ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "qbVendorId" TEXT;
+    ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "qbSynced" BOOLEAN DEFAULT false;
+    ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "qbSyncedAt" TIMESTAMP(3);
+    ALTER TABLE "Vendor" ADD COLUMN IF NOT EXISTS "paymentTerms" INTEGER DEFAULT 30;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- EXPENSE CATEGORY
+DO $$ BEGIN
+    ALTER TABLE "ExpenseCategory" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "ExpenseCategory" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- EXPENSE TYPE
+DO $$ BEGIN
+    ALTER TABLE "ExpenseType" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "ExpenseType" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- DEDUCTION RULE
+DO $$ BEGIN
+    ALTER TABLE "DeductionRule" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "DeductionRule" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+    ALTER TABLE "DeductionRule" ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION;
+    ALTER TABLE "DeductionRule" ADD COLUMN IF NOT EXISTS "percentage" DOUBLE PRECISION;
+    ALTER TABLE "DeductionRule" ADD COLUMN IF NOT EXISTS "frequency" TEXT DEFAULT 'PER_SETTLEMENT';
+    ALTER TABLE "DeductionRule" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN DEFAULT true;
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- ACCESSORIAL CHARGE
+DO $$ BEGIN
+    ALTER TABLE "AccessorialCharge" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3);
+    ALTER TABLE "AccessorialCharge" ADD COLUMN IF NOT EXISTS "status" TEXT DEFAULT 'PENDING';
+    ALTER TABLE "AccessorialCharge" ADD COLUMN IF NOT EXISTS "approvedById" TEXT;
+    ALTER TABLE "AccessorialCharge" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3);
+EXCEPTION WHEN undefined_table THEN null;
+END $$;
+
+-- ==========================================
+-- PHASE 3: CREATE UNIQUE INDEXES (after columns exist)
+-- ==========================================
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Load_companyId_loadNumber_key" ON "Load"("companyId", "loadNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Invoice_companyId_invoiceNumber_key" ON "Invoice"("companyId", "invoiceNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Breakdown_companyId_breakdownNumber_key" ON "Breakdown"("companyId", "breakdownNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Settlement_settlementNumber_key" ON "Settlement"("settlementNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "SafetyIncident_incidentNumber_key" ON "SafetyIncident"("incidentNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Customer_companyId_customerNumber_key" ON "Customer"("companyId", "customerNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Truck_companyId_truckNumber_key" ON "Truck"("companyId", "truckNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Trailer_companyId_trailerNumber_key" ON "Trailer"("companyId", "trailerNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Driver_companyId_driverNumber_key" ON "Driver"("companyId", "driverNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "Vendor_companyId_vendorNumber_key" ON "Vendor"("companyId", "vendorNumber");
+EXCEPTION WHEN others THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE UNIQUE INDEX "McNumber_companyId_number_key" ON "McNumber"("companyId", "number");
+EXCEPTION WHEN others THEN null;
+END $$;

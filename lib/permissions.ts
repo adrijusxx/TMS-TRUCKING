@@ -208,7 +208,14 @@ export type Permission =
   | 'departments.safety.view'
   | 'departments.hr.view'
   | 'departments.reports.view'
-  | 'departments.settings.view';
+  | 'departments.settings.view'
+  | 'departments.crm.view'
+  // CRM / Recruitment permissions
+  | 'crm.leads.view'
+  | 'crm.leads.create'
+  | 'crm.leads.edit'
+  | 'crm.leads.delete'
+  | 'crm.leads.assign';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER' | 'HR' | 'SAFETY' | 'FLEET';
 
@@ -283,6 +290,9 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'departments.hr.view',
     'departments.reports.view',
     'departments.settings.view',
+    'departments.crm.view',
+    // CRM Permissions
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign',
   ],
   ADMIN: [
     // Full access to everything
@@ -349,6 +359,9 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'departments.hr.view',
     'departments.reports.view',
     'departments.settings.view',
+    'departments.crm.view',
+    // CRM Permissions
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign',
   ],
   DISPATCHER: [
     // Load management and dispatch operations
@@ -595,6 +608,9 @@ export function getAllPermissions(): Permission[] {
     'departments.hr.view',
     'departments.reports.view',
     'departments.settings.view',
+    'departments.crm.view',
+    // CRM / Recruitment permissions
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign',
   ];
 }
 

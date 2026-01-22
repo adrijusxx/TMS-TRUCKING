@@ -40,6 +40,9 @@ model User {
   onboardingStep     Int       @default(1)    // Current step in registration wizard (1-4)
   onboardingComplete Boolean   @default(false) // Has completed full onboarding
 
+  // VoIP Integration (Yokomobile)
+  voipConfig         Json?     // Stores per-user VoIP settings: { username, password, answerDevice, enabled }
+
   // Relations for driver-specific data
   drivers                    Driver[]
   activityLogs               ActivityLog[]
@@ -86,6 +89,13 @@ model User {
   // Fleet Vendors
   createdVendors             Vendor[]              @relation("VendorCreatedBy")
   auditLogs                  AuditLog[]
+  // CRM Relations
+  assignedLeads              Lead[]                @relation("LeadAssignee")
+  createdLeads               Lead[]                @relation("LeadCreator")
+  leadNotes                  LeadNote[]            @relation("LeadNoteCreator")
+  leadActivities             LeadActivity[]        @relation("LeadActivityCreator")
+  uploadedLeadDocuments      LeadDocument[]        @relation("LeadDocumentUploader")
+
 
   @@index([companyId])
   @@index([email])
@@ -264,6 +274,8 @@ model Company {
   knowledgeBaseDocuments    KnowledgeBaseDocument[]
   apiKeys                   ApiKeyConfig[]
   salaryBatches             SalaryBatch[]
+  // CRM Relations
+  leads                     Lead[]
 }
 
 // ============================================
@@ -5485,6 +5497,9 @@ model McNumber {
   payments              Payment[]
   invoices              Invoice[]
   apiKeys               ApiKeyConfig[]
+  // CRM Relations
+  leads                 Lead[]
+  crmIntegrations       CrmIntegration[]
 
   @@unique([companyId, number]) // MC number must be unique per company
   @@index([companyId])
@@ -6657,7 +6672,17 @@ model Subscription {
   manualOverride       Boolean  @default(false) // If true, Super Admin manually controls this subscription
   manualModules        SubscriptionModule[] @default([]) // Modules manually enabled by Super Admin
   
+  // Usage-Based Limits (null = unlimited)
+  usageBased           Boolean  @default(true)   // Enable usage tracking for this subscription
+  loadsLimit           Int?     // Monthly loads limit
+  invoicesLimit        Int?     // Monthly invoices limit
+  settlementsLimit     Int?     // Monthly settlements limit
+  documentsLimit       Int?     // Monthly document AI scans limit
+  driversLimit         Int?     // Max drivers allowed
+  trucksLimit          Int?     // Max trucks allowed (replaces Company.truckLimit)
+  
   addOns           SubscriptionAddOn[]
+  usageRecords     UsageRecord[]
   
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -6741,6 +6766,215 @@ model ApiKeyConfig {
   @@index([mcNumberId])
 }
 
+// ============================================
+// CRM / RECRUITMENT MODULE
+// ============================================
 
+// CRM Integration Settings
+model CrmIntegration {
+  id        String   @id @default(cuid())
+  
+  // Link to MC Number (each MC can have its own lead flow)
+  mcNumberId String
+  mcNumber   McNumber @relation(fields: [mcNumberId], references: [id])
+  
+  type      String   @default("GOOGLE_SHEETS") // GOOGLE_SHEETS, FACEBOOK, etc.
+  enabled   Boolean  @default(false)
+  
+  // Configuration JSON
+  // For Google Sheets: { sheetId: "...", columnMapping: {...}, lastImportedRow: 123 }
+  config    Json?
+  
+  lastSyncAt DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([mcNumberId, type])
+  @@index([mcNumberId])
+}
 
+// ... existing enums ...
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  DOCUMENTS_PENDING
+  DOCUMENTS_COLLECTED
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
 
+enum LeadPriority {
+  HOT
+  WARM
+  COLD
+}
+
+enum LeadSource {
+  FACEBOOK
+  REFERRAL
+  DIRECT
+  WEBSITE
+  OTHER
+}
+
+enum LeadActivityType {
+  CALL
+  SMS
+  EMAIL
+  NOTE
+  STATUS_CHANGE
+  DOCUMENT_UPLOAD
+  ASSIGNMENT_CHANGE
+}
+
+model Lead {
+  id            String       @id @default(cuid())
+  leadNumber    String       // CRM-001, CRM-002, etc.
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id])
+  mcNumberId    String?      // Multi-MC support
+  mcNumber      McNumber?    @relation(fields: [mcNumberId], references: [id])
+
+  // Personal Information
+  firstName     String
+  lastName      String
+  email         String?
+  phone         String
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  dateOfBirth   DateTime?
+
+  // CDL Information
+  cdlNumber     String?
+  cdlClass      String?      // A, B, C
+  cdlExpiration DateTime?
+  endorsements  String[]     // H, N, T, P, S, X
+
+  // Experience
+  yearsExperience    Int?
+  previousEmployers  String?
+  freightTypes       String[]
+
+  // Status & Assignment
+  status        LeadStatus   @default(NEW)
+  priority      LeadPriority @default(WARM)
+  source        LeadSource   @default(OTHER)
+  assignedToId  String?
+  assignedTo    User?        @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  tags          String[]
+
+  // AI Scoring (future)
+  aiScore           Float?
+  aiScoreSummary    String?
+  aiScoreUpdatedAt  DateTime?
+
+  // Metadata
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  lastContactedAt  DateTime?
+  createdById      String
+  createdBy        User      @relation("LeadCreator", fields: [createdById], references: [id])
+
+  // Relations
+  notes       LeadNote[]
+  activities  LeadActivity[]
+  documents   LeadDocument[]
+
+  @@unique([companyId, leadNumber])
+  @@index([companyId])
+  @@index([mcNumberId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([companyId, mcNumberId])
+  @@index([companyId, mcNumberId, status])
+}
+
+model LeadNote {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  content     String
+  createdById String
+  createdBy   User     @relation("LeadNoteCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+model LeadActivity {
+  id        String           @id @default(cuid())
+  leadId    String
+  lead      Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type      LeadActivityType
+  content   String
+  userId    String
+  user      User             @relation("LeadActivityCreator", fields: [userId], references: [id])
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  @@index([leadId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model LeadDocument {
+  id             String    @id @default(cuid())
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  documentType   String    // CDL_LICENSE, MEDICAL_CARD, MVR, APPLICATION, etc.
+  fileName       String
+  fileUrl        String
+  fileSize       Int
+  mimeType       String
+  expirationDate DateTime?
+  notes          String?
+  uploadedById   String
+  uploadedBy     User      @relation("LeadDocumentUploader", fields: [uploadedById], references: [id])
+  uploadedAt     DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([documentType])
+}
+
+// ============================================
+// USAGE TRACKING (USAGE-BASED FREE TIER)
+// ============================================
+
+model UsageRecord {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  periodStart    DateTime // Start of billing period (1st of month)
+  periodEnd      DateTime // End of billing period (last day of month)
+  
+  // Usage Counters
+  loadsCreated         Int @default(0)
+  invoicesGenerated    Int @default(0)
+  settlementsGenerated Int @default(0)
+  documentsProcessed   Int @default(0)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([subscriptionId, periodStart])
+  @@index([subscriptionId])
+  @@index([periodStart])
+}
+
+enum UsageMetric {
+  LOADS_CREATED
+  INVOICES_GENERATED
+  SETTLEMENTS_GENERATED
+  DOCUMENTS_PROCESSED
+}

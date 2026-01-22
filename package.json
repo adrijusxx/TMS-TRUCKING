@@ -109,6 +109,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
+    "googleapis": "^170.0.0",
     "html2canvas": "^1.4.1",
     "inngest": "^3.46.0",
     "input": "^1.0.1",

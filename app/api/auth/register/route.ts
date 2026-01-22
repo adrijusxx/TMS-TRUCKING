@@ -115,7 +115,27 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Initialize Subscription
+    // Initialize Subscription with usage limits
+    const usageLimits = isOwnerOperator
+      ? {
+        usageBased: true,
+        loadsLimit: 10,
+        invoicesLimit: 5,
+        settlementsLimit: 3,
+        documentsLimit: 5,
+        trucksLimit: 1,
+        driversLimit: 2,
+      }
+      : {
+        usageBased: false, // Pro trial = unlimited
+        loadsLimit: null,
+        invoicesLimit: null,
+        settlementsLimit: null,
+        documentsLimit: null,
+        trucksLimit: null,
+        driversLimit: null,
+      };
+
     await prisma.subscription.create({
       data: {
         companyId: company.id,
@@ -123,6 +143,7 @@ export async function POST(request: NextRequest) {
         status: subscriptionStatus,
         currentPeriodStart: new Date(),
         currentPeriodEnd: trialEndsAt || new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000),
+        ...usageLimits,
       },
     });
 

@@ -8,6 +8,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { createLoadSchema, validateLoadForAccounting } from '@/lib/validations/load';
 import { z } from 'zod';
+import { UsageManager } from '@/lib/managers/UsageManager';
 import { hasPermission } from '@/lib/permissions';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 import {
@@ -152,7 +153,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Parse and validate request body
+    // 3. Check usage limits
+    const usageCheck = await UsageManager.checkLimit(session.user.companyId, 'LOADS_CREATED');
+    if (!usageCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'USAGE_LIMIT_EXCEEDED',
+            message: `Monthly load limit reached (${usageCheck.current}/${usageCheck.limit}). Upgrade to continue.`,
+          },
+          usageInfo: usageCheck,
+        },
+        { status: 402 }
+      );
+    }
+
+    // 4. Parse and validate request body
     const body = await request.json();
     const validated = createLoadSchema.parse(body);
 
@@ -222,7 +239,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 10. Return success response
+    // 10. Track usage
+    await UsageManager.trackUsage(session.user.companyId, 'LOADS_CREATED');
+
+    // 11. Return success response
     return NextResponse.json(
       {
         success: true,

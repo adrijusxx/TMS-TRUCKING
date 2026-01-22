@@ -112,40 +112,31 @@ const testimonials = [
 
 const pricingPlans = [
   {
-    name: 'Core Platform',
+    name: 'Free Tier',
     price: '$0',
     period: '/mo',
-    description: 'Everything you need to move freight',
-    features: ['Load Management', 'Load Board', 'Driver List (View)', 'Truck/Trailer List (View)', 'Basic Analytics'],
+    description: 'Get started with usage-based limits',
+    features: ['10 Loads/month', '5 Invoices/month', '3 Settlements/month', '1 Truck, 2 Drivers', 'Basic Analytics'],
+    popular: false,
+    cta: 'Start Free',
+  },
+  {
+    name: 'Pro Plan',
+    price: '$99',
+    period: '/mo',
+    description: 'Unlimited usage for growing fleets',
+    features: ['Unlimited Loads', 'Unlimited Invoices', 'Unlimited Settlements', 'Unlimited Trucks & Drivers', 'Priority Support'],
     popular: true,
-    cta: 'Start Free Forever',
+    cta: 'Start 14-Day Trial',
   },
   {
-    name: 'Fleet Module',
-    price: '$200',
+    name: 'Module Add-ons',
+    price: 'From $100',
     period: '/mo',
-    description: 'Complete maintenance & asset tracking',
-    features: ['Maintenance Schedule', 'Breakdown Management', 'Inventory Tracking', 'Cost Analysis', 'Asset History'],
+    description: 'Expand with powerful modules',
+    features: ['Fleet Management', 'Accounting & Finance', 'Safety & Compliance', 'AI Dispatch', 'Integrations'],
     popular: false,
-    cta: 'Add on Dashboard',
-  },
-  {
-    name: 'Accounting',
-    price: '$300',
-    period: '/mo',
-    description: 'Financials & Settlements',
-    features: ['Driver Settlements', 'Invoicing & Factoring', 'Expense Tracking', 'Profitability Reports', 'QuickBooks Sync'],
-    popular: false,
-    cta: 'Add on Dashboard',
-  },
-  {
-    name: 'Safety & HR',
-    price: '$300',
-    period: '/mo',
-    description: 'Compliance bundle',
-    features: ['Safety Dashboard', 'Incident Tracking', 'Driver Qualification Files', 'Payroll & Performance', 'Training Portal'],
-    popular: false,
-    cta: 'Add on Dashboard',
+    cta: 'View Modules',
   },
 ];
 
@@ -322,8 +313,8 @@ export default function LandingPage() {
               <div
                 key={index}
                 className={`relative p-6 rounded-xl border ${plan.popular
-                    ? 'bg-gradient-to-b from-purple-900/30 to-slate-900/50 border-purple-500/50'
-                    : 'bg-slate-900/50 border-slate-800/50'
+                  ? 'bg-gradient-to-b from-purple-900/30 to-slate-900/50 border-purple-500/50'
+                  : 'bg-slate-900/50 border-slate-800/50'
                   }`}
               >
                 {plan.popular && (
@@ -352,8 +343,8 @@ export default function LandingPage() {
                 <Link href={plan.name === 'Enterprise' ? '/contact' : '/register'}>
                   <Button
                     className={`w-full ${plan.popular
-                        ? 'bg-purple-600 hover:bg-purple-500'
-                        : 'bg-slate-800 hover:bg-slate-700'
+                      ? 'bg-purple-600 hover:bg-purple-500'
+                      : 'bg-slate-800 hover:bg-slate-700'
                       }`}
                   >
                     {plan.cta}

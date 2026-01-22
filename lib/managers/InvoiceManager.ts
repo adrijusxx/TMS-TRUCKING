@@ -6,6 +6,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { validateLoadForAccounting } from '@/lib/validations/load';
+import { UsageManager } from '@/lib/managers/UsageManager';
 
 /**
  * Load data snapshot for invoice audit trail
@@ -559,14 +560,13 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
         },
       });
 
-      // 7. Update Loads
-      await prisma.load.updateMany({
-        where: { id: { in: loadIds } },
-        data: {
-          invoicedAt: new Date(),
-          status: 'INVOICED', // Using literal to avoid import issues if LoadStatus not imported
-        },
-      });
+      // 8. Track usage
+      try {
+        const companyId = load.companyId;
+        await UsageManager.trackUsage(companyId, 'INVOICES_GENERATED');
+      } catch (usageError) {
+        console.error('[InvoiceManager] Failed to track usage:', usageError);
+      }
 
       return { success: true, invoice };
 

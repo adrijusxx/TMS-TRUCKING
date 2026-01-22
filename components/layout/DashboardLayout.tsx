@@ -52,6 +52,7 @@ import {
   History,
   Key,
   Bot,
+  UserPlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,7 @@ import AccountingHeaderNav from '@/components/accounting/AccountingHeaderNav';
 import FleetHeaderNav from '@/components/fleet/FleetHeaderNav';
 import LoadHeaderNav from '@/components/loads/LoadHeaderNav';
 import HRHeaderNav from '@/components/hr/HRHeaderNav';
+import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
 import AIAssistantChat from '@/components/ai/AIAssistantChat';
 import { ImportTutorial } from '@/components/onboarding/ImportTutorial';
 
@@ -96,6 +98,7 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Accounting Department', href: '/dashboard/accounting', icon: DollarSign, permission: 'departments.accounting.view' },
   { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
   { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },
+  { name: 'Recruitment', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
   { name: 'Reports', href: '/dashboard/reports', icon: ChartBar, permission: 'departments.reports.view' },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'departments.settings.view' },
 ];
@@ -296,6 +299,9 @@ export default function DashboardLayout({
     pathname?.startsWith('/dashboard/batches');
   // Check if we're in Safety section
   const isSafetySection = pathname?.startsWith('/dashboard/safety');
+
+  // Check if we're in CRM section
+  const isCRMSection = pathname?.startsWith('/dashboard/crm');
 
 
 
@@ -714,6 +720,12 @@ export default function DashboardLayout({
             {isFleetSection && (
               <>
                 <FleetHeaderNav />
+                <div className="h-6 w-px bg-border flex-shrink-0" />
+              </>
+            )}
+            {isCRMSection && (
+              <>
+                <CRMHeaderNav />
                 <div className="h-6 w-px bg-border flex-shrink-0" />
               </>
             )}

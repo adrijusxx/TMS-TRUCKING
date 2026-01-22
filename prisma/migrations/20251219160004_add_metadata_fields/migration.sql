@@ -4,7 +4,7 @@
 -- Core Operations
 ALTER TABLE "Load" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "LoadStop" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "LoadTemplate" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "LoadTemplate" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Driver" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Truck" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Trailer" ADD COLUMN "metadata" JSONB;
@@ -16,14 +16,14 @@ ALTER TABLE "Location" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Invoice" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "InvoiceBatch" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Settlement" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "SettlementDeduction" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "DriverAdvance" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "DriverNegativeBalance" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "LoadExpense" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "SettlementDeduction" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "DriverAdvance" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "DriverNegativeBalance" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "LoadExpense" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Payment" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Reconciliation" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "FactoringCompany" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "FactoringBatch" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "FactoringBatch" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "AccessorialCharge" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "RateConfirmation" ADD COLUMN "metadata" JSONB;
 
@@ -31,11 +31,11 @@ ALTER TABLE "RateConfirmation" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "FuelEntry" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "MaintenanceRecord" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "Breakdown" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "Inspection" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "Inspection" ADD COLUMN "metadata" JSONB;
 
 -- Safety & Compliance
 ALTER TABLE "SafetyIncident" ADD COLUMN "metadata" JSONB;
-ALTER TABLE "SafetyTraining" ADD COLUMN "metadata" JSONB;
+-- ALTER TABLE "SafetyTraining" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "DVIR" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "RoadsideInspection" ADD COLUMN "metadata" JSONB;
 ALTER TABLE "DrugAlcoholTest" ADD COLUMN "metadata" JSONB;

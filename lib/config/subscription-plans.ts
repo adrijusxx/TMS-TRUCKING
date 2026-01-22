@@ -44,3 +44,64 @@ export const MODULE_DESCRIPTIONS: Record<SubscriptionModule, string> = {
     ANALYTICS: 'Comprehensive reporting and business intelligence dashboards.',
     HR: 'Driver evaluations, performance tracking, and personnel management.',
 };
+
+// ============================================
+// USAGE-BASED FREE TIER LIMITS
+// ============================================
+
+export interface UsageLimits {
+    loadsLimit: number | null;       // Monthly loads
+    invoicesLimit: number | null;    // Monthly invoices
+    settlementsLimit: number | null; // Monthly settlements
+    documentsLimit: number | null;   // Monthly document AI scans
+    trucksLimit: number | null;      // Max trucks
+    driversLimit: number | null;     // Max drivers
+}
+
+/**
+ * Free Tier: Usage-based limits
+ * Users get X actions per month, then must upgrade
+ */
+export const FREE_TIER_LIMITS: UsageLimits = {
+    loadsLimit: 10,           // 10 loads per month
+    invoicesLimit: 5,         // 5 invoices per month
+    settlementsLimit: 3,      // 3 settlements per month
+    documentsLimit: 5,        // 5 document AI scans per month
+    trucksLimit: 1,           // 1 truck max
+    driversLimit: 2,          // 2 drivers max
+};
+
+/**
+ * Pro Tier: Unlimited usage
+ * null = unlimited
+ */
+export const PRO_TIER_LIMITS: UsageLimits = {
+    loadsLimit: null,
+    invoicesLimit: null,
+    settlementsLimit: null,
+    documentsLimit: null,
+    trucksLimit: null,
+    driversLimit: null,
+};
+
+/**
+ * Get limits based on plan ID
+ */
+export function getLimitsForPlan(planId: string): UsageLimits {
+    if (ALL_ACCESS_PLANS.includes(planId)) {
+        return PRO_TIER_LIMITS;
+    }
+    return FREE_TIER_LIMITS;
+}
+
+/**
+ * Human-readable limit descriptions for UI
+ */
+export const LIMIT_DESCRIPTIONS = {
+    loadsLimit: 'Loads per month',
+    invoicesLimit: 'Invoices per month',
+    settlementsLimit: 'Settlements per month',
+    documentsLimit: 'Document scans per month',
+    trucksLimit: 'Maximum trucks',
+    driversLimit: 'Maximum drivers',
+};
