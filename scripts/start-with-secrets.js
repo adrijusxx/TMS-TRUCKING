@@ -22,6 +22,10 @@ const SECRETS_MAPPING = {
     "tms/integrations/google/maps-public-api-key": "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
     "tms/integrations/google/maps-places-api-key": "GOOGLE_PLACES_API_KEY",
 
+    // Google Service Account (Sheets)
+    "tms/integrations/google/service-account-email": "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+    "tms/integrations/google/service-account-key": "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
+
     // OpenAI
     "tms/integrations/openai/api-key": "OPENAI_API_KEY",
 
