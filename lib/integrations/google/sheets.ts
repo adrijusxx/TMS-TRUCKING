@@ -42,9 +42,27 @@ export class GoogleSheetsClient {
 
             console.log('[GoogleAuth] Raw key check - Length:', privateKey.length,
                 'Starts with quote:', privateKey.startsWith('"') || privateKey.startsWith("'"),
+                'Starts with curly brace:', privateKey.startsWith('{'),
                 'Contains literal \\n:', privateKey.includes('\\n'),
                 'Contains real newline:', privateKey.includes('\n')
             );
+
+            // SPECIAL HANDLE: If the user pasted the entire JSON file content
+            if (privateKey.startsWith('{')) {
+                try {
+                    console.log('[GoogleAuth] Detected JSON format. Attempting to parse...');
+                    const parsed = JSON.parse(privateKey);
+                    if (parsed.private_key) {
+                        privateKey = parsed.private_key;
+                        console.log('[GoogleAuth] Successfully extracted private_key from JSON.');
+                    } else {
+                        console.warn('[GoogleAuth] JSON parsed but no "private_key" field found.');
+                    }
+                } catch (e) {
+                    console.error('[GoogleAuth] Failed to parse JSON key:', e);
+                    // Fallthrough to normal string handling in case it's just a key starting with { (unlikely)
+                }
+            }
 
             // Remove surrounding quotes if present (common in .env or JSON strings)
             if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
@@ -52,38 +70,35 @@ export class GoogleSheetsClient {
                 privateKey = privateKey.slice(1, -1);
             }
 
-            // Replace literal escaped "\n" sequences with actual newlines
-            privateKey = privateKey.replace(/\\n/g, '\n');
+            // --- NUCLEAR OPTION: Reconstruct PEM from scratch ---
+            // This is the most robust way to handle any kind of botched formatting (flattened, escaped, etc.)
 
-            // Fix case where newlines might have been replaced by spaces (invalid PEM)
-            // But be careful not to break the header/footer
-            if (!privateKey.includes('\n') && privateKey.includes('PRIVATE KEY')) {
-                console.log('[GoogleAuth] Detected flattened key. Attempting to restore PEM format...');
-                // Attempt to split headers first
-                privateKey = privateKey
-                    .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
-                    .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+            // 1. Remove literal escaped newlines
+            let cleanKey = privateKey.replace(/\\n/g, '');
 
-                // If still no internal newlines, try to split purely by spaces if they exist
-                // Note: A flattened key WITHOUT spaces is extremely hard to recover without specific length knowledge
-                if (privateKey.split('\n').length <= 2 && privateKey.includes(' ')) {
-                    privateKey = privateKey.replace(/\s+/g, '\n');
-                    // Fix headers again in case we mangled them
-                    privateKey = privateKey
-                        .replace('-----BEGIN\nPRIVATE\nKEY-----', '-----BEGIN PRIVATE KEY-----')
-                        .replace('-----END\nPRIVATE\nKEY-----', '-----END PRIVATE KEY-----');
-                }
+            // 2. Remove standard Headers/Footers and any labels
+            cleanKey = cleanKey
+                .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+                .replace(/-----END PRIVATE KEY-----/g, '')
+                .replace(/-----BEGIN RSA PRIVATE KEY-----/g, '')
+                .replace(/-----END RSA PRIVATE KEY-----/g, '')
+                .replace(/PRIVATE KEY/g, ''); // Just in case loose words remain
+
+            // 3. Remove ALL whitespace (spaces, tabs, real newlines) and quotes
+            cleanKey = cleanKey.replace(/\s+/g, '').replace(/["']/g, '');
+
+            // 4. Validate Base64 (simple check)
+            if (!/^[A-Za-z0-9+/=]+$/.test(cleanKey)) {
+                const msg = `[GoogleAuth] Key contains invalid base64 characters after cleaning! First 20 chars: ${cleanKey.substring(0, 20)}...`;
+                console.error(msg);
+                // We DON'T throw here to let it try, but it will likely fail with DECODER error.
             }
 
-            // Ensure correct header/footer spacing if they got mashed
-            if (!privateKey.includes('-----BEGIN PRIVATE KEY-----\n')) {
-                privateKey = privateKey.replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n');
-            }
-            if (!privateKey.includes('\n-----END PRIVATE KEY-----')) {
-                privateKey = privateKey.replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
-            }
+            // 5. Reconstruct proper PEM format with 64-char lines
+            const chunked = cleanKey.match(/.{1,64}/g)?.join('\n');
+            privateKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
 
-            console.log('[GoogleAuth] Final key check - Length:', privateKey.length, 'Contains newlines:', privateKey.includes('\n'));
+            console.log('[GoogleAuth] Reconstructed PEM. Length:', privateKey.length);
 
             try {
                 this.auth = new google.auth.JWT({
@@ -94,6 +109,8 @@ export class GoogleSheetsClient {
 
                 this.sheets = google.sheets({ version: 'v4', auth: this.auth });
             } catch (error: any) {
+                // If it fails, log the key details (safe version) again
+                console.error('[GoogleAuth] JWT Init Failed. Final Key Preview:', privateKey.substring(0, 50) + '...');
                 throw new Error(`Failed to initialize Google authentication: ${error.message || 'Invalid credentials'}`);
             }
         }
