@@ -327,13 +327,7 @@ export default function LoadDetail({
           )}
           <h1 className="text-lg font-bold">{load.loadNumber}</h1>
           {/* Show DispatchStatus if set, otherwise show main LoadStatus */}
-          {load.dispatchStatus ? (
-            <DispatchStatusBadge status={load.dispatchStatus} />
-          ) : (
-            <Badge variant="outline" className={`text-xs ${statusColors[load.status as LoadStatus]}`}>
-              {formatStatus(load.status)}
-            </Badge>
-          )}
+
         </div>
         <div className="flex items-center gap-1">
           <DispatchStatusSelector

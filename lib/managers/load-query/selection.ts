@@ -3,6 +3,7 @@ export const loadListSelect = {
     loadNumber: true,
     status: true,
     dispatchStatus: true,
+    dispatchNotes: true,
     pickupLocation: true,
     pickupCity: true,
     pickupState: true,

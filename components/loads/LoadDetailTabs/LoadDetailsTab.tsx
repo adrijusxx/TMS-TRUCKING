@@ -208,28 +208,7 @@ export default function LoadDetailsTab({
         </CardHeader>
         <CardContent className="py-2 px-3">
           <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Status</Label>
-              {canEdit ? (
-                <Select
-                  value={formData.status || load.status}
-                  onValueChange={(value) => updateField('status', value)}
-                >
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(LoadStatus).map((status) => (
-                      <SelectItem key={status} value={status} className="text-xs">
-                        {status.replace(/_/g, ' ')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="text-xs font-medium">{load.status?.replace(/_/g, ' ')}</p>
-              )}
-            </div>
+
 
             <div className="space-y-1">
               <Label className="text-xs">Load Type</Label>

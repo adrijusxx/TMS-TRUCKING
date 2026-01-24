@@ -248,8 +248,16 @@ export async function PATCH(
     const body = await request.json();
     const validated = updateLoadSchema.parse(body);
 
-    // STRICT VALIDATION: Block transition to DELIVERED if documents are missing
-    if (validated.status === 'DELIVERED' && existingLoad.status !== 'DELIVERED') {
+    // Check Accounting Settings for validation strictness
+    const accountingSettings = await prisma.accountingSettings.findUnique({
+      where: { companyId: session.user.companyId },
+    });
+
+    // CONDITIONAL VALIDATION: Only block if Strict Mode AND POD required
+    const isStrictMode = accountingSettings?.settlementValidationMode === 'STRICT';
+    const requirePod = accountingSettings?.requirePodUploaded ?? false;
+
+    if (validated.status === 'DELIVERED' && existingLoad.status !== 'DELIVERED' && isStrictMode && requirePod) {
       const hasBOL = existingLoad.documents.some(d => d.type === 'BOL');
       const hasPOD = existingLoad.documents.some(d => d.type === 'POD');
 

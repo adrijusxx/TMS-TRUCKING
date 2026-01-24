@@ -482,6 +482,7 @@ export default function GenerateSettlementForm() {
                           />
                         </TableHead>
                         <TableHead>Load #</TableHead>
+                        <TableHead className="w-8">Notes</TableHead>
                         <TableHead>Route</TableHead>
                         <TableHead>Delivered</TableHead>
                         <TableHead className="text-right">Revenue</TableHead>
@@ -512,6 +513,22 @@ export default function GenerateSettlementForm() {
                                 </span>
                               )}
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {load.dispatchNotes && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                                    <FileText className="h-3.5 w-3.5 text-blue-500" />
+                                    <span className="sr-only">View Notes</span>
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 p-3">
+                                  <h4 className="text-sm font-medium mb-1">Dispatch Notes</h4>
+                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{load.dispatchNotes}</p>
+                                </PopoverContent>
+                              </Popover>
+                            )}
                           </TableCell>
                           <TableCell>
                             {load.pickupCity}, {load.pickupState} → {load.deliveryCity},{' '}
