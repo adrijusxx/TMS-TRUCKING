@@ -21,6 +21,8 @@ interface SettlementGenerationParams {
   settlementNumber?: string;
   notes?: string;
   salaryBatchId?: string;
+  loadIds?: string[]; // Optional: restrict to specific loads
+  forceIncludeNotReady?: boolean; // Optional: include loads not marked as ready
 }
 
 interface DeductionItem {
@@ -67,7 +69,7 @@ export class SettlementManager {
   async generateSettlement(
     params: SettlementGenerationParams
   ): Promise<any> {
-    const { driverId, periodStart, periodEnd, salaryBatchId } = params;
+    const { driverId, periodStart, periodEnd, salaryBatchId, loadIds, forceIncludeNotReady } = params;
 
     // 1. Fetch driver with deduction rules
     const driver = await prisma.driver.findUnique({
@@ -88,20 +90,33 @@ export class SettlementManager {
     }
 
     // 2. Fetch completed loads for the period
-    // CRITICAL: Do NOT filter by isBillingHold - settlement (AP) can proceed independently
-    const loads = await prisma.load.findMany({
-      where: {
-        driverId,
-        deliveredAt: {
-          gte: periodStart,
-          lte: periodEnd,
-        },
-        status: {
-          in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] as LoadStatus[],
-        },
-        readyForSettlement: true,
-        deletedAt: null,
+    const loadWhere: any = {
+      driverId,
+      deletedAt: null,
+      status: {
+        in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] as LoadStatus[],
       },
+    };
+
+    // If loadIds provided, restrict to those and ignore period (unless we want to enforce both)
+    // Using loadIds usually implies specific selection preference over date range
+    if (loadIds && loadIds.length > 0) {
+      loadWhere.id = { in: loadIds };
+    } else {
+      // Fallback to date range if no specific loads requested
+      loadWhere.deliveredAt = {
+        gte: periodStart,
+        lte: periodEnd,
+      };
+    }
+
+    // Only enforce readyForSettlement if NOT forced
+    if (!forceIncludeNotReady) {
+      loadWhere.readyForSettlement = true;
+    }
+
+    const loads = await prisma.load.findMany({
+      where: loadWhere,
       include: {
         accessorialCharges: {
           where: {

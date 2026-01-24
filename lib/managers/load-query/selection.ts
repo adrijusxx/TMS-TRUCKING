@@ -48,6 +48,9 @@ export const loadListSelect = {
     mcNumber: {
         select: { id: true, number: true, companyName: true },
     },
+    trailer: {
+        select: { id: true, trailerNumber: true },
+    },
     stops: {
         select: { id: true, stopType: true, sequence: true, city: true, state: true },
         orderBy: { sequence: 'asc' as const },

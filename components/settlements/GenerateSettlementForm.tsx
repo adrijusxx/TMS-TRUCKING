@@ -168,6 +168,21 @@ export default function GenerateSettlementForm() {
     }
   };
 
+  const { data: _config } = useQuery({
+    queryKey: ['accounting-settings'],
+    queryFn: async () => {
+      const res = await fetch('/api/accounting-settings');
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  const validationConfig = _config || {
+    // Default fallback if loading fails
+    requireDeliveredStatus: true,
+    settlementValidationMode: 'FLEXIBLE',
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDriverId) {
@@ -179,13 +194,65 @@ export default function GenerateSettlementForm() {
       return;
     }
 
-    generateMutation.mutate({
-      driverId: selectedDriverId,
-      loadIds: Array.from(selectedLoads),
-      settlementNumber: settlementNumber || undefined,
-      deductions: parseFloat(deductions) || 0,
-      advances: parseFloat(advances) || 0,
-      notes: notes || undefined,
+    // Validate Loads
+    const loadsToSettle = availableLoads.filter((l: any) => selectedLoads.has(l.id));
+
+    // Infer period for validation context (min/max delivery date)
+    const dates = loadsToSettle
+      .map((l: any) => l.deliveredAt ? new Date(l.deliveredAt).getTime() : 0)
+      .filter((d: number) => d > 0);
+
+    const periodStart = dates.length > 0 ? new Date(Math.min(...dates)) : new Date();
+    const periodEnd = dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
+
+    // Import the validation function dynamically to avoid server-side issues if any
+    import('@/lib/validations/settlement-validation').then(({ validateLoadsForSettlement }) => {
+      const validation = validateLoadsForSettlement(loadsToSettle, validationConfig, {
+        start: periodStart,
+        end: periodEnd
+      });
+
+      // Handle Invalid Loads (Blocking Errors)
+      if (validation.invalidLoads.length > 0) {
+        toast.error('Validation Failed', {
+          description: `${validation.invalidLoads.length} loads do not meet settlement requirements.`,
+        });
+
+        validation.invalidLoads.forEach((result) => {
+          const errorMessages = result.errors.map((e) => `• ${e.message}`).join('\n');
+          toast.error(`Load ${result.load.loadNumber} - Cannot Settle`, {
+            description: errorMessages,
+            duration: 5000,
+            action: {
+              label: 'View',
+              onClick: () => window.open(`/dashboard/loads/${result.load.loadNumber}`, '_blank'), // Simple redirect for now
+            }
+          });
+        });
+        return; // BLOCK submission
+      }
+
+      // Handle Warnings (Non-blocking)
+      if (validation.loadsWithWarnings.length > 0) {
+        validation.loadsWithWarnings.forEach((result) => {
+          const warningMessages = result.warnings.map((w) => `• ${w.message}`).join('\n');
+          toast.warning(`Load ${result.load.loadNumber} - Warning`, {
+            description: warningMessages,
+            duration: 5000,
+          });
+        });
+        // Continue execution...
+      }
+
+      // Proceed if valid
+      generateMutation.mutate({
+        driverId: selectedDriverId,
+        loadIds: Array.from(selectedLoads),
+        settlementNumber: settlementNumber || undefined,
+        deductions: parseFloat(deductions) || 0,
+        advances: parseFloat(advances) || 0,
+        notes: notes || undefined,
+      });
     });
   };
 

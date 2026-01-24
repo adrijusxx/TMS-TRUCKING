@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AccountingSettingsForm } from '@/components/settings/AccountingSettingsForm';
 import { Loader2, Save, DollarSign, Clock, Truck, Building2, Calculator } from 'lucide-react';
 
 interface SystemConfig {
@@ -59,10 +61,14 @@ export default function AccountingSettingsPage() {
     }
   }, [session, status, isAdmin, router]);
 
+  const [validationSettings, setValidationSettings] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('system');
+
   // Fetch config on mount
   useEffect(() => {
     if (isAdmin && session) {
       fetchConfig();
+      fetchValidationSettings();
     }
   }, [isAdmin, session]);
 
@@ -90,6 +96,18 @@ export default function AccountingSettingsPage() {
       toast.error('Failed to load system configuration');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchValidationSettings = async () => {
+    try {
+      const response = await fetch('/api/accounting-settings');
+      if (response.ok) {
+        const data = await response.json();
+        setValidationSettings(data);
+      }
+    } catch (error) {
+      console.error('Error fetching validation settings:', error);
     }
   };
 
@@ -138,256 +156,279 @@ export default function AccountingSettingsPage() {
           { label: 'Settings' },
         ]}
       />
+
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Accounting System Settings</h1>
+          <h1 className="text-3xl font-bold">Accounting Settings</h1>
           <p className="text-muted-foreground mt-2">
-            Configure global variables used by DetentionManager and DriverSettlement services
+            Manage global accounting configuration and settlement validation rules
           </p>
         </div>
 
-        {/* Global Variables Section */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              <CardTitle>Global Variables</CardTitle>
-            </div>
-            <CardDescription>
-              Configure default rates and fees used across the system
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Default Detention Rate */}
-              <div className="space-y-2">
-                <Label htmlFor="defaultDetentionRate">
-                  Default Detention Rate ($/hour)
-                </Label>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="system">System Defaults</TabsTrigger>
+            <TabsTrigger value="validation">Settlement Rules</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="system" className="space-y-6">
+            {/* Global Variables Section */}
+            <Card>
+              <CardHeader>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">$</span>
-                  <Input
-                    id="defaultDetentionRate"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.defaultDetentionRate}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        defaultDetentionRate: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="50.00"
-                  />
-                  <span className="text-sm text-muted-foreground">/hour</span>
+                  <DollarSign className="h-5 w-5" />
+                  <CardTitle>Global Variables</CardTitle>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Default hourly rate for detention charges
-                </p>
-              </div>
+                <CardDescription>
+                  Configure default rates and fees used across the system
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Default Detention Rate */}
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultDetentionRate">
+                      Default Detention Rate ($/hour)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">$</span>
+                      <Input
+                        id="defaultDetentionRate"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.defaultDetentionRate}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            defaultDetentionRate: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        placeholder="50.00"
+                      />
+                      <span className="text-sm text-muted-foreground">/hour</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Default hourly rate for detention charges
+                    </p>
+                  </div>
 
-              {/* Default Free Time */}
-              <div className="space-y-2">
-                <Label htmlFor="defaultFreeTimeMinutes">
-                  Default Free Time (minutes)
-                </Label>
+                  {/* Default Free Time */}
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultFreeTimeMinutes">
+                      Default Free Time (minutes)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="defaultFreeTimeMinutes"
+                        type="number"
+                        min="0"
+                        value={formData.defaultFreeTimeMinutes}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            defaultFreeTimeMinutes: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        placeholder="120"
+                      />
+                      <span className="text-sm text-muted-foreground">minutes</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Free time before detention charges apply (default: 120 = 2 hours)
+                    </p>
+                  </div>
+
+                  {/* Standard TONU Fee */}
+                  <div className="space-y-2">
+                    <Label htmlFor="standardTonuFee">
+                      Standard TONU Fee ($)
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">$</span>
+                      <Input
+                        id="standardTonuFee"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.standardTonuFee}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            standardTonuFee: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        placeholder="150.00"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Truck Ordered Not Used fee paid to driver when load is cancelled after dispatch
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Factoring Configuration */}
+            <Card>
+              <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Input
-                    id="defaultFreeTimeMinutes"
-                    type="number"
-                    min="0"
-                    value={formData.defaultFreeTimeMinutes}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        defaultFreeTimeMinutes: parseInt(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="120"
-                  />
-                  <span className="text-sm text-muted-foreground">minutes</span>
+                  <Building2 className="h-5 w-5" />
+                  <CardTitle>Factoring Configuration</CardTitle>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Free time before detention charges apply (default: 120 = 2 hours)
-                </p>
-              </div>
+                <CardDescription>
+                  Configure factoring company information for invoice assignment
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Factoring Active</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enable factoring for invoices (remit to factoring company)
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.factoringActive}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, factoringActive: checked })
+                    }
+                  />
+                </div>
 
-              {/* Standard TONU Fee */}
-              <div className="space-y-2">
-                <Label htmlFor="standardTonuFee">
-                  Standard TONU Fee ($)
-                </Label>
+                {formData.factoringActive && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="factoringCompanyName">
+                        Factoring Company Name
+                      </Label>
+                      <Input
+                        id="factoringCompanyName"
+                        value={formData.factoringCompanyName}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            factoringCompanyName: e.target.value,
+                          })
+                        }
+                        placeholder="ABC Factoring Company"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="factoringCompanyAddress">
+                        Factoring Company Address
+                      </Label>
+                      <Textarea
+                        id="factoringCompanyAddress"
+                        value={formData.factoringCompanyAddress}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            factoringCompanyAddress: e.target.value,
+                          })
+                        }
+                        placeholder="123 Main St&#10;City, State ZIP&#10;Phone: (555) 123-4567"
+                        rows={4}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Full address including street, city, state, ZIP, and contact information
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Settlement Defaults */}
+            <Card>
+              <CardHeader>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">$</span>
-                  <Input
-                    id="standardTonuFee"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.standardTonuFee}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        standardTonuFee: parseFloat(e.target.value) || 0,
-                      })
+                  <Calculator className="h-5 w-5" />
+                  <CardTitle>Settlement Defaults</CardTitle>
+                </div>
+                <CardDescription>
+                  Configure default settings for driver settlements
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Pay Driver % on Fuel Surcharge</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Include fuel surcharge in driver percentage calculations
+                    </p>
+                  </div>
+                  <Switch
+                    checked={formData.payDriverOnFuelSurcharge}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, payDriverOnFuelSurcharge: checked })
                     }
-                    placeholder="150.00"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Truck Ordered Not Used fee paid to driver when load is cancelled after dispatch
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Factoring Configuration */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              <CardTitle>Factoring Configuration</CardTitle>
-            </div>
-            <CardDescription>
-              Configure factoring company information for invoice assignment
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Factoring Active</Label>
-                <p className="text-sm text-muted-foreground">
-                  Enable factoring for invoices (remit to factoring company)
-                </p>
-              </div>
-              <Switch
-                checked={formData.factoringActive}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, factoringActive: checked })
-                }
-              />
-            </div>
-
-            {formData.factoringActive && (
-              <div className="space-y-4 pt-4 border-t">
                 <div className="space-y-2">
-                  <Label htmlFor="factoringCompanyName">
-                    Factoring Company Name
+                  <Label htmlFor="companyFuelTaxRate">
+                    Company Fuel Tax Rate (%)
                   </Label>
-                  <Input
-                    id="factoringCompanyName"
-                    value={formData.factoringCompanyName}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        factoringCompanyName: e.target.value,
-                      })
-                    }
-                    placeholder="ABC Factoring Company"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="factoringCompanyAddress">
-                    Factoring Company Address
-                  </Label>
-                  <Textarea
-                    id="factoringCompanyAddress"
-                    value={formData.factoringCompanyAddress}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        factoringCompanyAddress: e.target.value,
-                      })
-                    }
-                    placeholder="123 Main St&#10;City, State ZIP&#10;Phone: (555) 123-4567"
-                    rows={4}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="companyFuelTaxRate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={formData.companyFuelTaxRate || ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          companyFuelTaxRate: e.target.value
+                            ? parseFloat(e.target.value)
+                            : null,
+                        })
+                      }
+                      placeholder="8.5"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Full address including street, city, state, ZIP, and contact information
+                    Default fuel tax rate for IFTA calculations
                   </p>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Settlement Defaults */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
-              <CardTitle>Settlement Defaults</CardTitle>
+            {/* Save Button */}
+            <div className="flex justify-end">
+              <Button onClick={handleSave} disabled={saving} size="lg">
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
             </div>
-            <CardDescription>
-              Configure default settings for driver settlements
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Pay Driver % on Fuel Surcharge</Label>
-                <p className="text-sm text-muted-foreground">
-                  Include fuel surcharge in driver percentage calculations
-                </p>
-              </div>
-              <Switch
-                checked={formData.payDriverOnFuelSurcharge}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, payDriverOnFuelSurcharge: checked })
-                }
+          </TabsContent>
+
+          <TabsContent value="validation">
+            {validationSettings ? (
+              <AccountingSettingsForm
+                companyId={session.user.companyId!}
+                initialSettings={validationSettings}
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="companyFuelTaxRate">
-                Company Fuel Tax Rate (%)
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="companyFuelTaxRate"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={formData.companyFuelTaxRate || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      companyFuelTaxRate: e.target.value
-                        ? parseFloat(e.target.value)
-                        : null,
-                    })
-                  }
-                  placeholder="8.5"
-                />
-                <span className="text-sm text-muted-foreground">%</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Default fuel tax rate for IFTA calculations
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving} size="lg">
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
             ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Changes
-              </>
+              <div className="flex justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
             )}
-          </Button>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </>
   );

@@ -38,6 +38,7 @@ interface LoadDetailProps {
   load: any;
   availableDrivers?: any[];
   availableTrucks?: any[];
+  availableTrailers?: any[];
   onSuccess?: () => void;
   onCancel?: () => void;
   isSheet?: boolean;
@@ -97,6 +98,7 @@ export default function LoadDetail({
   load,
   availableDrivers = [],
   availableTrucks = [],
+  availableTrailers = [],
   onSuccess,
   onCancel,
   isSheet = false,
@@ -409,7 +411,9 @@ export default function LoadDetail({
             onFormDataChange={setFormData}
             availableDrivers={availableDrivers}
             availableTrucks={availableTrucks}
+            availableTrailers={availableTrailers}
             customers={customers}
+
           />
         </TabsContent>
 

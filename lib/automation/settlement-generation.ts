@@ -69,6 +69,19 @@ export async function runWeeklySettlementGeneration(): Promise<SettlementGenerat
       try {
         console.log(`[Settlement Cron] Processing company: ${company.name} (${company.id})`);
 
+        // Fetch Accounting Settings
+        const settings = await prisma.accountingSettings.findUnique({
+          where: { companyId: company.id },
+        });
+
+        // Determine validation rules
+        // Default to FLEXIBLE (allow not ready) if no settings
+        const isStrict = settings?.settlementValidationMode === 'STRICT';
+        const requireReady = isStrict || settings?.requireReadyForSettlementFlag;
+
+        // If requireReady is false (Flexible), we force inclusion of non-ready loads
+        const forceIncludeNotReady = !requireReady;
+
         // Get all active drivers for the company
         const drivers = await prisma.driver.findMany({
           where: {
@@ -97,6 +110,7 @@ export async function runWeeklySettlementGeneration(): Promise<SettlementGenerat
         for (const driver of drivers) {
           try {
             // Check if driver has any completed loads in the period
+            // We use a broad check here, manager enforces specifics
             const loadsCount = await prisma.load.findMany({
               where: {
                 driverId: driver.id,
@@ -111,9 +125,7 @@ export async function runWeeklySettlementGeneration(): Promise<SettlementGenerat
             });
 
             if (loadsCount.length === 0) {
-              console.log(
-                `[Settlement Cron] Skipping driver ${driver.driverNumber} - no completed loads in period`
-              );
+              // Only log if verbose, otherwise silent skip
               continue;
             }
 
@@ -138,6 +150,7 @@ export async function runWeeklySettlementGeneration(): Promise<SettlementGenerat
               driverId: driver.id,
               periodStart,
               periodEnd,
+              forceIncludeNotReady, // Pass the flag based on settings
             });
 
             settlementsGenerated++;
@@ -577,12 +590,22 @@ async function runSettlementGenerationForCompany(
 
     const settlementManager = new SettlementManager();
 
+    // Fetch Accounting Settings
+    const settings = await prisma.accountingSettings.findUnique({
+      where: { companyId },
+    });
+
+    const isStrict = settings?.settlementValidationMode === 'STRICT';
+    const requireReady = isStrict || settings?.requireReadyForSettlementFlag;
+    const forceIncludeNotReady = !requireReady;
+
     for (const driver of drivers) {
       try {
         const settlement = await settlementManager.generateSettlement({
           driverId: driver.id,
           periodStart,
           periodEnd,
+          forceIncludeNotReady,
         });
 
         settlementsGenerated++;

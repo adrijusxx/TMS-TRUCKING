@@ -36,6 +36,12 @@ async function fetchAvailableTrucks() {
     return response.json();
 }
 
+async function fetchAvailableTrailers() {
+    const response = await fetch(apiUrl('/api/trailers?status=AVAILABLE&limit=100'));
+    if (!response.ok) throw new Error('Failed to fetch trailers');
+    return response.json();
+}
+
 export default function LoadSheet({ open, onOpenChange, mode, loadId, initialData }: LoadSheetProps) {
     const queryClient = useQueryClient();
 
@@ -58,9 +64,16 @@ export default function LoadSheet({ open, onOpenChange, mode, loadId, initialDat
         enabled: open && (mode === 'edit' || mode === 'view'),
     });
 
+    const { data: trailersData } = useQuery({
+        queryKey: ['available-trailers'],
+        queryFn: fetchAvailableTrailers,
+        enabled: open && (mode === 'edit' || mode === 'view'),
+    });
+
     const load = loadData?.data;
     const availableDrivers = driversData?.data || [];
     const availableTrucks = trucksData?.data || [];
+    const availableTrailers = trailersData?.data || [];
 
     const handleSuccess = () => {
         onOpenChange(false);
@@ -121,6 +134,7 @@ export default function LoadSheet({ open, onOpenChange, mode, loadId, initialDat
                                     load={load}
                                     availableDrivers={availableDrivers}
                                     availableTrucks={availableTrucks}
+                                    availableTrailers={availableTrailers}
                                     onSuccess={handleSuccess}
                                     onCancel={() => onOpenChange(false)}
                                     isSheet={true}

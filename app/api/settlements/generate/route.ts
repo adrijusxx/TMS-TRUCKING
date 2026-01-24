@@ -68,6 +68,8 @@ export async function POST(request: NextRequest) {
       periodEnd,
       settlementNumber: validated.settlementNumber,
       notes: validated.notes,
+      loadIds: validated.loadIds, // Pass explicit load IDs
+      forceIncludeNotReady: true, // Trust frontend validation since we are passing specific IDs
     });
 
     console.log(`[Settlement Generate] Successfully generated settlement via Manager: ${settlement?.settlementNumber}`);

@@ -54,6 +54,10 @@ interface LoadData {
     id: string;
     truckNumber: string;
   };
+  trailer?: {
+    id: string;
+    trailerNumber: string;
+  };
   dispatcher?: {
     id: string;
     firstName: string;

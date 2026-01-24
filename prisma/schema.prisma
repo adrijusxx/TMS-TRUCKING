@@ -248,6 +248,8 @@ model Company {
   preventableDeterminations PreventableDetermination[]
   nearMisses                NearMiss[]
   policeReports             PoliceReport[]
+  accountingSettings        AccountingSettings?
+
   witnessStatements         WitnessStatement[]
   csascores                 CSAScore[]
   fmcsacompliance           FMCSACompliance?
@@ -7002,3 +7004,55 @@ enum UsageMetric {
   SETTLEMENTS_GENERATED
   DOCUMENTS_PROCESSED
 }
+
+/**
+ * Accounting Settings
+ * 
+ * Stores company-specific accounting preferences including
+ * settlement validation rules (strict vs. flexible mode)
+ */
+model AccountingSettings {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Settlement Validation Mode
+  settlementValidationMode SettlementValidationMode @default(FLEXIBLE)
+
+  // Settlement Validation Rules (Optional - can be toggled)
+  requirePodUploaded              Boolean @default(false)
+  requireReadyForSettlementFlag   Boolean @default(false)
+  requireDeliveredDate            Boolean @default(true)
+  requireMcNumberMatch            Boolean @default(true)
+
+  // Warning Settings
+  warnOnMissingPod         Boolean @default(true)
+  warnOnMissingBol         Boolean @default(true)
+  warnOnOldDeliveryDate    Boolean @default(true)
+  oldDeliveryThresholdDays Int     @default(30) // Days before warning about old delivery
+
+  // Invoice Validation Rules
+  requirePodForInvoicing Boolean @default(false)
+  requireBolForInvoicing Boolean @default(false)
+
+  // Batch Settings
+  allowPartialBatches Boolean @default(true) // Allow batches with some invalid loads
+
+  // General Settings
+  autoMarkReadyForSettlement Boolean @default(false) // Auto-check when POD uploaded
+  autoMarkReadyForInvoicing  Boolean @default(false) // Auto-check when delivered
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+enum SettlementValidationMode {
+  STRICT   // All validations required
+  FLEXIBLE // Only DELIVERED status required
+  CUSTOM   // User-defined rules
+}
+
+// Add this relation to the Company model:
+// accountingSettings AccountingSettings?

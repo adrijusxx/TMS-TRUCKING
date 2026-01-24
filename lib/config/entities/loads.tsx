@@ -42,6 +42,10 @@ interface LoadData {
     id: string;
     truckNumber: string;
   };
+  trailer?: {
+    id: string;
+    trailerNumber: string;
+  };
   dispatcher?: {
     id: string;
     firstName: string;
@@ -358,8 +362,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     id: 'trailer',
     header: 'Trailer',
     cell: ({ row }) => {
-      const trailerNumber = (row.original as any).trailerNumber;
-      return trailerNumber || '—';
+      const trailer = row.original.trailer;
+      const trailerNumber = row.original.trailerNumber;
+      return trailer?.trailerNumber || trailerNumber || '—';
     },
     defaultVisible: true,
     enableColumnFilter: true,

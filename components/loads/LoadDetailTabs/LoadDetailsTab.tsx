@@ -36,6 +36,7 @@ interface LoadDetailsTabProps {
   onFormDataChange: (data: any) => void;
   availableDrivers?: any[];
   availableTrucks?: any[];
+  availableTrailers?: any[];
   customers?: any[];
 }
 
@@ -57,6 +58,7 @@ export default function LoadDetailsTab({
   onFormDataChange,
   availableDrivers = [],
   availableTrucks = [],
+  availableTrailers = [],
   customers = [],
 }: LoadDetailsTabProps) {
   const { can } = usePermissions();
@@ -118,6 +120,7 @@ export default function LoadDetailsTab({
                     onValueChange={(value) => updateField('trailerId', value)}
                     placeholder="Search..."
                     className="h-7 text-xs"
+                    trailers={availableTrailers}
                     selectedTrailer={load.trailer}
                   />
                 </div>
