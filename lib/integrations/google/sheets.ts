@@ -64,6 +64,22 @@ export class GoogleSheetsClient {
             } catch (error: any) {
                 console.warn('[GoogleAuth] Standard key processing failed. Attempting robust reconstruction...', error.message);
 
+                // DEBUG: Inspect the raw key safely
+                if (serviceAccountPrivateKey) {
+                    const k = serviceAccountPrivateKey;
+                    console.log('[GoogleAuth DEBUG] Raw Key Stats:', {
+                        length: k.length,
+                        startsWithQuote: k.startsWith('"') || k.startsWith("'"),
+                        startsWithBrace: k.startsWith('{'),
+                        hasEscapedNewline: k.includes('\\n'),
+                        hasRealNewline: k.includes('\n'),
+                        first10: k.substring(0, 10),
+                        last10: k.substring(k.length - 10),
+                        // Safe ascii check of start
+                        first10Check: k.substring(0, 10).split('').map(c => c.charCodeAt(0)),
+                    });
+                }
+
                 // STRATEGY 2: Robust Reconstruction (Fallback)
                 try {
                     let cleanKey = serviceAccountPrivateKey
@@ -74,6 +90,12 @@ export class GoogleSheetsClient {
                         .replace(/\\n/g, '') // Remove literal escaped newlines
                         .replace(/\s+/g, '') // Remove all actual whitespace/newlines
                         .replace(/["']/g, ''); // Remove quotes
+
+                    console.log('[GoogleAuth DEBUG] Cleaned Key Stats:', {
+                        length: cleanKey.length,
+                        isBase64: /^[A-Za-z0-9+/=]+$/.test(cleanKey),
+                        first10: cleanKey.substring(0, 10)
+                    });
 
                     // Rebuild PEM with 64-char lines
                     const chunked = cleanKey.match(/.{1,64}/g)?.join('\n');
