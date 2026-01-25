@@ -52,8 +52,8 @@ export function AccountingSettingsForm({ companyId, initialSettings }: Accountin
                 ...settings,
                 requirePodUploaded: false,
                 requireReadyForSettlementFlag: false,
-                requireDeliveredDate: true,
-                requireMcNumberMatch: true,
+                requireDeliveredDate: false,
+                requireMcNumberMatch: false,
             });
         }
     };

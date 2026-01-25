@@ -28,8 +28,8 @@ export const DEFAULT_VALIDATION_CONFIG: SettlementValidationConfig = {
     // Optional validations (default: flexible mode)
     requirePodUploaded: false,
     requireReadyForSettlementFlag: false,
-    requireDeliveredDate: true, // Recommended but can be disabled
-    requireMcNumberMatch: true, // Recommended for multi-MC companies
+    requireDeliveredDate: false, // Default: Flexible
+    requireMcNumberMatch: false, // Default: Flexible
 
     // Warnings
     warnOnMissingPod: true,

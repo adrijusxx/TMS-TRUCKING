@@ -94,10 +94,21 @@ export async function POST(request: NextRequest) {
                 const loadCount = await prisma.load.count({
                     where: {
                         driverId: driver.id,
-                        deliveredAt: {
-                            gte: periodStart,
-                            lte: periodEnd,
-                        },
+                        OR: [
+                            {
+                                deliveredAt: {
+                                    gte: periodStart,
+                                    lte: periodEnd,
+                                },
+                            },
+                            {
+                                deliveredAt: null,
+                                updatedAt: {
+                                    gte: periodStart,
+                                    lte: periodEnd,
+                                },
+                            },
+                        ],
                         status: { in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] },
                         readyForSettlement: true,
                         deletedAt: null,

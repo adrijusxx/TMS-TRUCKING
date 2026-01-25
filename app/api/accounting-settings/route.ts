@@ -13,5 +13,5 @@ export async function GET(req: NextRequest) {
         where: { companyId: session.user.companyId },
     });
 
-    return NextResponse.json(settings || { ...DEFAULT_VALIDATION_CONFIG, settlementValidationMode: 'FLEXIBLE' });
+    return NextResponse.json(settings || { ...DEFAULT_VALIDATION_CONFIG, settlementValidationMode: 'FLEXIBLE', requireDeliveredDate: false, requireMcNumberMatch: false });
 }

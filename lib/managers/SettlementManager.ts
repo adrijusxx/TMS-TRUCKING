@@ -104,10 +104,21 @@ export class SettlementManager {
       loadWhere.id = { in: loadIds };
     } else {
       // Fallback to date range if no specific loads requested
-      loadWhere.deliveredAt = {
-        gte: periodStart,
-        lte: periodEnd,
-      };
+      loadWhere.OR = [
+        {
+          deliveredAt: {
+            gte: periodStart,
+            lte: periodEnd,
+          },
+        },
+        {
+          deliveredAt: null,
+          updatedAt: {
+            gte: periodStart,
+            lte: periodEnd,
+          },
+        },
+      ];
     }
 
     // Only enforce readyForSettlement if NOT forced
