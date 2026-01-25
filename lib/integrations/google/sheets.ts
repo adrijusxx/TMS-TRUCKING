@@ -37,52 +37,64 @@ export class GoogleSheetsClient {
                 throw new Error('Google service account credentials are required');
             }
 
-            // STRATEGY 1: Standard CRM Logic (Try this first)
             let privateKey = serviceAccountPrivateKey.trim();
-            if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
-                (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
-                privateKey = privateKey.slice(1, -1);
+
+            // STRATEGY 0: Handle JSON format (If the secret is the full JSON file)
+            if (privateKey.startsWith('{')) {
+                try {
+                    const parsed = JSON.parse(privateKey);
+                    if (parsed.private_key) {
+                        privateKey = parsed.private_key;
+                        // console.error('[GoogleAuth] Successfully extracted private_key from JSON.');
+                    }
+                } catch (e) {
+                    console.error('[GoogleAuth] JSON start detected but parsing failed:', e);
+                }
             }
-            privateKey = privateKey.replace(/\\n/g, '\n');
+
+            // STRATEGY 1: Standard PEM Logic
+            let standardKey = privateKey;
+            if ((standardKey.startsWith('"') && standardKey.endsWith('"')) ||
+                (standardKey.startsWith("'") && standardKey.endsWith("'"))) {
+                standardKey = standardKey.slice(1, -1);
+            }
+            standardKey = standardKey.replace(/\\n/g, '\n');
 
             try {
-                // Ensure markers exist before trying (CRM logic)
-                if (!privateKey.includes('BEGIN PRIVATE KEY')) throw new Error('Missing BEGIN PRIVATE KEY marker');
-                if (!privateKey.includes('END PRIVATE KEY')) throw new Error('Missing END PRIVATE KEY marker');
+                // Ensure markers exist
+                if (!standardKey.includes('BEGIN PRIVATE KEY')) throw new Error('Missing BEGIN PRIVATE KEY marker');
 
                 const authClient = new google.auth.JWT({
                     email: serviceAccountEmail,
-                    key: privateKey,
+                    key: standardKey,
                     scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
                 });
 
-                // FORCE VALIDATION: Attempt to authorize immediately to catch key errors
+                // FORCE VALIDATION
                 await authClient.authorize();
 
                 this.auth = authClient;
                 this.sheets = google.sheets({ version: 'v4', auth: this.auth });
             } catch (error: any) {
-                console.warn('[GoogleAuth] Standard key processing failed. Attempting robust reconstruction...', error.message);
+                console.error('[GoogleAuth] Standard key processing failed.', error.message);
 
-                // DEBUG: Inspect the raw key safely
-                if (serviceAccountPrivateKey) {
-                    const k = serviceAccountPrivateKey;
-                    console.log('[GoogleAuth DEBUG] Raw Key Stats:', {
-                        length: k.length,
-                        startsWithQuote: k.startsWith('"') || k.startsWith("'"),
-                        startsWithBrace: k.startsWith('{'),
-                        hasEscapedNewline: k.includes('\\n'),
-                        hasRealNewline: k.includes('\n'),
-                        first10: k.substring(0, 10),
-                        last10: k.substring(k.length - 10),
-                        // Safe ascii check of start
-                        first10Check: k.substring(0, 10).split('').map(c => c.charCodeAt(0)),
-                    });
-                }
+                // DEBUG: Inspect the raw key safely (Use console.error to ensure it prints)
+                const k = serviceAccountPrivateKey;
+                console.error('[GoogleAuth DEBUG] Raw Key Stats:', {
+                    length: k.length,
+                    startsWithQuote: k.startsWith('"') || k.startsWith("'"),
+                    startsWithBrace: k.startsWith('{'),
+                    hasEscapedNewline: k.includes('\\n'),
+                    hasRealNewline: k.includes('\n'),
+                    first10: k.substring(0, 10),
+                    last10: k.substring(k.length - 10),
+                    first10Check: k.substring(0, 10).split('').map(c => c.charCodeAt(0)),
+                });
 
                 // STRATEGY 2: Robust Reconstruction (Fallback)
+                console.warn('[GoogleAuth] Attempting robust reconstruction...');
                 try {
-                    let cleanKey = serviceAccountPrivateKey
+                    let cleanKey = privateKey // Use valid JSON-extracted key if possible, else raw
                         .replace(/-----BEGIN PRIVATE KEY-----/g, '')
                         .replace(/-----END PRIVATE KEY-----/g, '')
                         .replace(/-----BEGIN RSA PRIVATE KEY-----/g, '')
@@ -90,12 +102,6 @@ export class GoogleSheetsClient {
                         .replace(/\\n/g, '') // Remove literal escaped newlines
                         .replace(/\s+/g, '') // Remove all actual whitespace/newlines
                         .replace(/["']/g, ''); // Remove quotes
-
-                    console.log('[GoogleAuth DEBUG] Cleaned Key Stats:', {
-                        length: cleanKey.length,
-                        isBase64: /^[A-Za-z0-9+/=]+$/.test(cleanKey),
-                        first10: cleanKey.substring(0, 10)
-                    });
 
                     // Rebuild PEM with 64-char lines
                     const chunked = cleanKey.match(/.{1,64}/g)?.join('\n');
@@ -107,12 +113,12 @@ export class GoogleSheetsClient {
                         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
                     });
 
-                    // FORCE VALIDATION: Attempt to authorize immediately
+                    // FORCE VALIDATION
                     await authClient.authorize();
 
                     this.auth = authClient;
                     this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-                    console.log('[GoogleAuth] Reconstruction successful.');
+                    console.error('[GoogleAuth] Reconstruction successful.');
                 } catch (fallbackError: any) {
                     console.error('[GoogleAuth] All auth strategies failed.');
                     console.error('Standard Error:', error.message);
