@@ -37,29 +37,24 @@ export class GoogleSheetsClient {
                 throw new Error('Google service account credentials are required');
             }
 
+            // Handle private key with escaped newlines and remove surrounding quotes
             let privateKey = serviceAccountPrivateKey.trim();
 
-            // 1. Handle JSON format (Common when pasting the entire JSON file)
-            if (privateKey.startsWith('{')) {
-                try {
-                    const parsed = JSON.parse(privateKey);
-                    if (parsed.private_key) {
-                        privateKey = parsed.private_key;
-                    }
-                } catch (e) {
-                    console.warn('[GoogleAuth] JSON key detected but failed to parse. Using raw string.');
-                }
-            }
-
-            // 2. Remove surrounding quotes (Common in .env files)
+            // Remove surrounding quotes if present
             if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
                 (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
                 privateKey = privateKey.slice(1, -1);
             }
 
-            // 3. Fix escaped newlines (The most common issue)
-            if (privateKey.includes('\\n')) {
-                privateKey = privateKey.replace(/\\n/g, '\n');
+            // Replace escaped newlines with actual newlines
+            privateKey = privateKey.replace(/\\n/g, '\n');
+
+            // Ensure the key starts and ends with the correct markers
+            if (!privateKey.includes('BEGIN PRIVATE KEY')) {
+                throw new Error('Invalid private key format: missing BEGIN PRIVATE KEY marker');
+            }
+            if (!privateKey.includes('END PRIVATE KEY')) {
+                throw new Error('Invalid private key format: missing END PRIVATE KEY marker');
             }
 
             try {
@@ -71,7 +66,6 @@ export class GoogleSheetsClient {
 
                 this.sheets = google.sheets({ version: 'v4', auth: this.auth });
             } catch (error: any) {
-                console.error('[GoogleAuth] JWT Init Failed:', error.message);
                 throw new Error(`Failed to initialize Google authentication: ${error.message || 'Invalid credentials'}`);
             }
         }
