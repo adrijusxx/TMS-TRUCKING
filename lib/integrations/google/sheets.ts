@@ -37,27 +37,21 @@ export class GoogleSheetsClient {
                 throw new Error('Google service account credentials are required');
             }
 
-            // Handle private key with escaped newlines and remove surrounding quotes
+            // STRATEGY 1: Standard CRM Logic (Try this first)
             let privateKey = serviceAccountPrivateKey.trim();
 
-            // Remove surrounding quotes if present
             if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
                 (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
                 privateKey = privateKey.slice(1, -1);
             }
 
-            // Replace escaped newlines with actual newlines
             privateKey = privateKey.replace(/\\n/g, '\n');
 
-            // Ensure the key starts and ends with the correct markers
-            if (!privateKey.includes('BEGIN PRIVATE KEY')) {
-                throw new Error('Invalid private key format: missing BEGIN PRIVATE KEY marker');
-            }
-            if (!privateKey.includes('END PRIVATE KEY')) {
-                throw new Error('Invalid private key format: missing END PRIVATE KEY marker');
-            }
-
             try {
+                // Ensure markers exist before trying (CRM logic)
+                if (!privateKey.includes('BEGIN PRIVATE KEY')) throw new Error('Missing BEGIN PRIVATE KEY marker');
+                if (!privateKey.includes('END PRIVATE KEY')) throw new Error('Missing END PRIVATE KEY marker');
+
                 this.auth = new google.auth.JWT({
                     email: serviceAccountEmail,
                     key: privateKey,
@@ -66,7 +60,38 @@ export class GoogleSheetsClient {
 
                 this.sheets = google.sheets({ version: 'v4', auth: this.auth });
             } catch (error: any) {
-                throw new Error(`Failed to initialize Google authentication: ${error.message || 'Invalid credentials'}`);
+                console.warn('[GoogleAuth] Standard key processing failed. Attempting robust reconstruction...', error.message);
+
+                // STRATEGY 2: Robust Reconstruction (Fallback)
+                // This handles issues where newlines are lost, or there are weird whitespace chars
+                try {
+                    let cleanKey = serviceAccountPrivateKey
+                        .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+                        .replace(/-----END PRIVATE KEY-----/g, '')
+                        .replace(/-----BEGIN RSA PRIVATE KEY-----/g, '')
+                        .replace(/-----END RSA PRIVATE KEY-----/g, '')
+                        .replace(/\\n/g, '') // Remove literal escaped newlines
+                        .replace(/\s+/g, '') // Remove all actual whitespace/newlines
+                        .replace(/["']/g, ''); // Remove quotes
+
+                    // Rebuild PEM with 64-char lines
+                    const chunked = cleanKey.match(/.{1,64}/g)?.join('\n');
+                    const reconstructedKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
+
+                    this.auth = new google.auth.JWT({
+                        email: serviceAccountEmail,
+                        key: reconstructedKey,
+                        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+                    });
+
+                    this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+                    console.log('[GoogleAuth] Reconstruction successful.');
+                } catch (fallbackError: any) {
+                    console.error('[GoogleAuth] All auth strategies failed.');
+                    console.error('Standard Error:', error.message);
+                    console.error('Fallback Error:', fallbackError.message);
+                    throw new Error(`Failed to initialize Google authentication: ${error.message || 'Invalid credentials'}`);
+                }
             }
         }
     }
