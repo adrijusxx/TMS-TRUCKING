@@ -39,12 +39,10 @@ export class GoogleSheetsClient {
 
             // STRATEGY 1: Standard CRM Logic (Try this first)
             let privateKey = serviceAccountPrivateKey.trim();
-
             if ((privateKey.startsWith('"') && privateKey.endsWith('"')) ||
                 (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
                 privateKey = privateKey.slice(1, -1);
             }
-
             privateKey = privateKey.replace(/\\n/g, '\n');
 
             try {
@@ -52,18 +50,21 @@ export class GoogleSheetsClient {
                 if (!privateKey.includes('BEGIN PRIVATE KEY')) throw new Error('Missing BEGIN PRIVATE KEY marker');
                 if (!privateKey.includes('END PRIVATE KEY')) throw new Error('Missing END PRIVATE KEY marker');
 
-                this.auth = new google.auth.JWT({
+                const authClient = new google.auth.JWT({
                     email: serviceAccountEmail,
                     key: privateKey,
                     scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
                 });
 
+                // FORCE VALIDATION: Attempt to authorize immediately to catch key errors
+                await authClient.authorize();
+
+                this.auth = authClient;
                 this.sheets = google.sheets({ version: 'v4', auth: this.auth });
             } catch (error: any) {
                 console.warn('[GoogleAuth] Standard key processing failed. Attempting robust reconstruction...', error.message);
 
                 // STRATEGY 2: Robust Reconstruction (Fallback)
-                // This handles issues where newlines are lost, or there are weird whitespace chars
                 try {
                     let cleanKey = serviceAccountPrivateKey
                         .replace(/-----BEGIN PRIVATE KEY-----/g, '')
@@ -78,12 +79,16 @@ export class GoogleSheetsClient {
                     const chunked = cleanKey.match(/.{1,64}/g)?.join('\n');
                     const reconstructedKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
 
-                    this.auth = new google.auth.JWT({
+                    const authClient = new google.auth.JWT({
                         email: serviceAccountEmail,
                         key: reconstructedKey,
                         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
                     });
 
+                    // FORCE VALIDATION: Attempt to authorize immediately
+                    await authClient.authorize();
+
+                    this.auth = authClient;
                     this.sheets = google.sheets({ version: 'v4', auth: this.auth });
                     console.log('[GoogleAuth] Reconstruction successful.');
                 } catch (fallbackError: any) {
