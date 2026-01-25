@@ -1,2 +1,2 @@
-Timestamp: 2026-01-25T14:00:00Z
-Trigger: Force deployment for Google Auth Diagnostics
+Timestamp: 2026-01-25T15:00:00Z
+Trigger: Force deployment for JSON format support and high-priority logging
