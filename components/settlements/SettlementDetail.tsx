@@ -42,6 +42,7 @@ import {
 
   Check,
   ChevronsUpDown,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -440,10 +441,40 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
       setEditedPeriodStart('');
       setEditedPeriodEnd('');
     },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Failed to update settlement');
-    },
   });
+
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  const handleRecalculate = async () => {
+    if (!confirm('Are you sure you want to recalculate this settlement? This will reset all auto-generated deductions and update pay based on current load data. Manual edits to deductions may be lost.')) return;
+
+    setIsRecalculating(true);
+    try {
+      const response = await fetch(apiUrl(`/api/settlements/${settlementId}/recalculate`), {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to recalculate settlement');
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        toast.success('Settlement recalculated successfully');
+        queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+        queryClient.invalidateQueries({ queryKey: ['settlement-deductions', settlementId] });
+        queryClient.invalidateQueries({ queryKey: ['settlement-additions', settlementId] });
+        refetchDeductions();
+        refetchAdditions();
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to recalculate settlement');
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
 
   const settlement = data?.data;
 

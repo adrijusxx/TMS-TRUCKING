@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { createActivityLog } from '@/lib/activity-log';
+import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
 import { z } from 'zod';
 
 const bulkUpdateSchema = z.object({
@@ -130,6 +131,27 @@ export async function PATCH(request: NextRequest) {
         updates: validated.updates,
       },
     });
+
+    // CRITICAL FIX: Trigger completion workflow if status updated to DELIVERED
+    // This ensures loads are marked readyForSettlement and synced to accounting
+    if (validated.updates.status === 'DELIVERED') {
+      const completionManager = new LoadCompletionManager();
+      console.log(`[Bulk Update] Triggering completion workflow for ${validated.loadIds.length} loads`);
+
+      // Process in parallel but catch errors so one failure doesn't stop others
+      await Promise.allSettled(
+        validated.loadIds.map(async (loadId) => {
+          try {
+            const result = await completionManager.handleLoadCompletion(loadId);
+            if (!result.success) {
+              console.warn(`[Bulk Update] Completion failed for load ${loadId}:`, result.errors);
+            }
+          } catch (err: any) {
+            console.error(`[Bulk Update] Completion error for load ${loadId}:`, err.message);
+          }
+        })
+      );
+    }
 
     return NextResponse.json({
       success: true,

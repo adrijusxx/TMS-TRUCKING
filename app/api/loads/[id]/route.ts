@@ -628,8 +628,9 @@ export async function PATCH(
       emitLoadStatusChanged(load.id, validated.status, load);
       emitDispatchUpdated({ type: 'load_status_changed', loadId: load.id, status: validated.status });
 
-      // CRITICAL: Trigger load completion workflow when status changes to DELIVERED
-      // This sets readyForSettlement=true and syncs to accounting
+      // CRITICAL: Trigger load completion workflow when status is DELIVERED
+      // We do this even if status didn't change, to allow "retrying" the completion flows (sync to accounting, readyForSettlement)
+      // just by saving the load again.
       if (validated.status === 'DELIVERED') {
         try {
           const completionManager = new LoadCompletionManager();
@@ -645,6 +646,11 @@ export async function PATCH(
           completionWarnings.push(`Completion workflow error: ${completionError.message}`);
         }
       }
+    } else if (existingLoad.status === 'DELIVERED' && !validated.status) {
+      // If status wasn't in the update payload, but we are editing a DELIVERED load,
+      // we might want to ensure it's synced. For now, let's strictly require a status field or explicit triggers
+      // to avoid overhead on every minor edit.
+      // However, if the user explicitly saves "DELIVERED" again (validated.status === 'DELIVERED' above), it triggers.
     }
 
     return NextResponse.json({
