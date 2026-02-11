@@ -279,6 +279,8 @@ model Company {
   // CRM Relations
   leads                     Lead[]
   integrationSettings       IntegrationSettings?
+  // AI Relations
+  aiAnomalies               AIAnomaly[]
 }
 
 // ============================================
@@ -376,6 +378,7 @@ model Load {
   emptyMiles     Float?
   totalMiles     Float?
   revenuePerMile Float? // Calculated: revenue / totalMiles
+  actualMiles    Float? // Actual GPS miles from Samsara
 
   // Status Tracking
   assignedAt  DateTime?
@@ -631,6 +634,7 @@ model LoadSegment {
   segmentMiles Float // Total miles for this segment
   loadedMiles  Float? @default(0) // Loaded miles in this segment
   emptyMiles   Float? @default(0) // Empty miles in this segment
+  actualMiles  Float? // Actual GPS miles from Samsara in this segment
 
   // Timing
   startDate DateTime
@@ -1667,6 +1671,10 @@ model Customer {
   billingEmails  String? // Multiple billing emails (comma-separated)
   billingType    String? // Billing type from Excel
 
+  // Tax Configuration
+  taxRate     Float    @default(0) // Default tax rate percentage (0-100)
+  isTaxExempt Boolean  @default(false)
+
   // QuickBooks
   qbCustomerId String? // QuickBooks customer ID
 
@@ -2074,6 +2082,9 @@ model Settlement {
   year1099       Int? // Tax year for 1099 reporting
 
   notes String?
+
+  // Audit
+  calculationLog Json? // Snapshot of rates/miles used for calculation
 
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
@@ -5503,6 +5514,8 @@ model McNumber {
   // CRM Relations
   leads                 Lead[]
   crmIntegrations       CrmIntegration[]
+  // AI Relations
+  aiAnomalies           AIAnomaly[]
 
   @@unique([companyId, number]) // MC number must be unique per company
   @@index([companyId])
@@ -5788,6 +5801,35 @@ model OrderPaymentType {
 // ============================================
 // DYNAMIC STATUSES
 // ============================================
+
+
+// ============================================
+// AI ANOMALY DETECTION
+// ============================================
+
+model AIAnomaly {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
+  type        String   // FUEL_THEFT_RISK, ROUTE_DEVIATION, etc.
+  severity    String   // LOW, MEDIUM, HIGH, CRITICAL
+  title       String
+  description String
+  metadata    Json?    // Detailed context (coords, distances, etc.)
+  status      String   @default("OPEN") // OPEN, RESOLVED, DISMISSED
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
 
 model DynamicStatus {
   id            String     @id @default(cuid())
@@ -6575,6 +6617,9 @@ model TelegramSettings {
 
   // Emergency keywords (trigger immediate escalation)
   emergencyKeywords String[] @default(["accident", "injured", "fire", "police", "emergency", "crash", "hurt"])
+
+  // Admin Notification
+  adminChatId String? // Telegram Chat ID for admin notifications
 
   // Auto-response templates
   autoAckMessage         String? @default("We received your message. Our team will respond shortly.") // Auto-acknowledgment

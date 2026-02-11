@@ -416,6 +416,10 @@ export interface DataTableProps<TData extends TableData = TableData> {
    * Default: true
    */
   savePreferences?: boolean;
+  /**
+   * Whether to display the table in a compact high-density mode
+   */
+  isCompact?: boolean;
 }
 
 /**

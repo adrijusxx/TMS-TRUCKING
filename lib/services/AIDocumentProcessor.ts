@@ -6,9 +6,24 @@
 import { AIService } from './AIService';
 
 interface DocumentProcessingInput {
-  documentType: 'INVOICE' | 'RECEIPT' | 'SAFETY_DOCUMENT' | 'INSURANCE' | 'MAINTENANCE_RECORD' | 'OTHER';
+  documentType: 'INVOICE' | 'RECEIPT' | 'SAFETY_DOCUMENT' | 'INSURANCE' | 'MAINTENANCE_RECORD' | 'POD' | 'BOL' | 'OTHER';
   text: string;
   fileName?: string;
+}
+
+interface PODExtractionResult {
+  loadNumber?: string;
+  deliveryDate?: string;
+  recipientName?: string;
+  isSigned?: boolean;
+}
+
+interface BOLExtractionResult {
+  loadNumber?: string;
+  pickupDate?: string;
+  shipperName?: string;
+  weight?: number;
+  pieces?: number;
 }
 
 interface InvoiceExtractionResult {
@@ -95,7 +110,8 @@ interface MaintenanceRecordExtractionResult {
 }
 
 type DocumentExtractionResult =
-  | InvoiceExtractionResult
+  | BOLExtractionResult
+  | PODExtractionResult
   | ReceiptExtractionResult
   | SafetyDocumentExtractionResult
   | InsuranceDocumentExtractionResult
@@ -131,6 +147,14 @@ export class AIDocumentProcessor extends AIService {
       case 'MAINTENANCE_RECORD':
         prompt = this.buildMaintenanceRecordPrompt(text, fileName);
         systemPrompt = 'You are an expert at extracting data from maintenance records and repair invoices. Return ONLY valid JSON with maintenance details.';
+        break;
+      case 'POD':
+        prompt = this.buildPODPrompt(text, fileName);
+        systemPrompt = 'You are an expert at extracting data from Proof of Delivery (POD) documents. Return ONLY valid JSON with POD details.';
+        break;
+      case 'BOL':
+        prompt = this.buildBOLPrompt(text, fileName);
+        systemPrompt = 'You are an expert at extracting data from Bill of Lading (BOL) documents. Return ONLY valid JSON with BOL details.';
         break;
       default:
         prompt = this.buildGenericPrompt(text, fileName);
@@ -247,6 +271,28 @@ ${fileName ? `\nFile name: ${fileName}` : ''}
 
 Return ONLY JSON:`;
   }
+  private buildPODPrompt(text: string, fileName?: string): string {
+    return `Extract Proof of Delivery (POD) data. Return JSON with:
+- loadNumber: string (The load ID or reference number)
+- deliveryDate: string (ISO format)
+- recipientName: string (Who signed for the delivery)
+- isSigned: boolean (Check if a signature area contains marks)
+
+Text:
+${this.truncateText(text, 6000)}`;
+  }
+
+  private buildBOLPrompt(text: string, fileName?: string): string {
+    return `Extract Bill of Lading (BOL) data. Return JSON with:
+- loadNumber: string
+- pickupDate: string (ISO format)
+- shipperName: string
+- weight: number
+- pieces: number
+
+Text:
+${this.truncateText(text, 6000)}`;
+  }
 
   private buildGenericPrompt(text: string, fileName?: string): string {
     return `Extract structured data from this document. Identify the document type and extract relevant fields.
@@ -277,7 +323,7 @@ Return JSON with extracted fields. Include a "documentType" field identifying wh
     };
   }> {
     const { prisma } = await import('@/lib/prisma');
-    
+
     // Fetch recent entities for context
     const [recentLoads, recentInvoices, recentDrivers, recentTrucks] = await Promise.all([
       prisma.load.findMany({
@@ -320,14 +366,15 @@ Recent Drivers: ${JSON.stringify(recentDrivers, null, 2)}
 Recent Trucks: ${JSON.stringify(recentTrucks, null, 2)}
 
 Return JSON with:
-- category: string (e.g., 'INVOICE', 'RECEIPT', 'SAFETY_DOCUMENT', 'MAINTENANCE_RECORD', 'OTHER')
+- category: string (e.g., 'INVOICE', 'RECEIPT', 'SAFETY_DOCUMENT', 'MAINTENANCE_RECORD', 'POD', 'BOL', 'OTHER')
 - suggestedEntityType: string (e.g., 'LOAD', 'INVOICE', 'DRIVER', 'TRUCK', 'NONE')
 - suggestedEntityId: string (optional, ID from available entities if match found)
 - confidence: number (0-100)
 - extractedFinancialData?: {
     amount?: number,
     date?: string,
-    vendor?: string
+    vendor?: string,
+    loadNumber?: string
   }`;
 
     const result = await this.callAI<{

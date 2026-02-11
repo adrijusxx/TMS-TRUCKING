@@ -94,6 +94,15 @@ const reports: ReportDef[] = [
         href: '/dashboard/accounting/factoring',
         category: 'financial'
     },
+    {
+        id: 'reconciliation',
+        title: 'Settlement Reconciliation',
+        description: 'Audit report comparing Invoiced Revenue vs Driver Pay.',
+        icon: Calculator,
+        href: '/dashboard/reports/settlement-reconciliation',
+        category: 'financial',
+        new: true
+    },
 
     // Safety
     {

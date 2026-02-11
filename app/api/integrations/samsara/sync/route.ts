@@ -39,26 +39,32 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     // Sync each Samsara driver to our system
+    const samsaraDriverIds = samsaraDrivers.map(d => d.id);
+    const allHosStatuses = await getSamsaraHOSStatuses(samsaraDriverIds);
+    const hosStatusMap = new Map();
+
+    if (allHosStatuses) {
+      allHosStatuses.forEach(status => {
+        hosStatusMap.set(status.driverId, status);
+      });
+    }
+
     for (const samsaraDriver of samsaraDrivers) {
       try {
-        // Try to find driver by license number or create mapping
         const driver = await prisma.driver.findFirst({
           where: {
             companyId: session.user.companyId,
             OR: [
               { licenseNumber: samsaraDriver.licenseNumber || '' },
-              // You could also match by email or other fields
+              { hosRecords: { some: { eldRecordId: samsaraDriver.id, eldProvider: 'Samsara' } } }
             ],
             deletedAt: null,
           },
         });
 
         if (driver) {
-          // Update driver status based on Samsara HOS status
-          const hosStatuses = await getSamsaraHOSStatuses([samsaraDriver.id]);
-          if (hosStatuses && hosStatuses.length > 0) {
-            const currentStatus = hosStatuses[0];
-            
+          const currentStatus = hosStatusMap.get(samsaraDriver.id);
+          if (currentStatus) {
             // Map Samsara status to our DriverStatus
             const statusMap: Record<string, string> = {
               'offDuty': 'OFF_DUTY',
@@ -72,12 +78,18 @@ export async function POST(request: NextRequest) {
 
             await prisma.driver.update({
               where: { id: driver.id },
-              data: { status: newStatus as any },
+              data: { status: newStatus as DriverStatus },
             });
 
             // Create or update HOS record for today
             const today = new Date();
             today.setHours(0, 0, 0, 0);
+
+            // Correct Mapping Note: Samsara authentication logs don't provide total hours.
+            // Using violation/remaining as provisional data until total hours summary is implemented.
+            // TODO: Sum durations from /fleet/hos_logs for absolute accuracy
+            const driveTime = currentStatus.drivingInViolationToday || 0;
+            const onDutyTime = (currentStatus.shiftRemaining || 0) / 60;
 
             const existingRecord = await prisma.hOSRecord.findFirst({
               where: {
@@ -93,9 +105,9 @@ export async function POST(request: NextRequest) {
               await prisma.hOSRecord.update({
                 where: { id: existingRecord.id },
                 data: {
-                  status: newStatus as any,
-                  driveTime: currentStatus.drivingInViolationToday || 0,
-                  onDutyTime: (currentStatus.shiftRemaining || 0) / 60, // Convert minutes to hours
+                  status: newStatus as DriverStatus,
+                  driveTime, // Total hours calculation needed
+                  onDutyTime,
                   weeklyDriveTime: currentStatus.drivingInViolationCycle || 0,
                   weeklyOnDuty: (currentStatus.cycleRemaining || 0) / 60,
                   eldProvider: 'Samsara',
@@ -107,9 +119,9 @@ export async function POST(request: NextRequest) {
                 data: {
                   driverId: driver.id,
                   date: today,
-                  status: newStatus as any,
-                  driveTime: currentStatus.drivingInViolationToday || 0,
-                  onDutyTime: (currentStatus.shiftRemaining || 0) / 60, // Convert minutes to hours
+                  status: newStatus as DriverStatus,
+                  driveTime,
+                  onDutyTime,
                   weeklyDriveTime: currentStatus.drivingInViolationCycle || 0,
                   weeklyOnDuty: (currentStatus.cycleRemaining || 0) / 60,
                   eldProvider: 'Samsara',
@@ -125,6 +137,7 @@ export async function POST(request: NextRequest) {
         errors.push(`Failed to sync driver ${samsaraDriver.name}: ${error.message}`);
       }
     }
+
 
     return NextResponse.json({
       success: true,

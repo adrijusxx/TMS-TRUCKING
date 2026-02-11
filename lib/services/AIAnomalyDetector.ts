@@ -13,6 +13,7 @@ interface AnomalyDetectionInput {
   endDate?: Date;
   driverId?: string;
   truckId?: string;
+  mcNumberId?: string | string[]; // Added MC isolation
 }
 
 interface Anomaly {
@@ -129,6 +130,7 @@ Look for:
         date: { gte: startDate, lte: endDate },
         truck: {
           companyId: input.companyId,
+          mcNumberId: input.mcNumberId ? (Array.isArray(input.mcNumberId) ? { in: input.mcNumberId } : input.mcNumberId) : undefined,
         },
       },
       orderBy: { date: 'desc' },
@@ -169,6 +171,7 @@ Entry ${i + 1}:
         companyId: input.companyId,
         driverId: input.driverId,
         truckId: input.truckId,
+        mcNumberId: input.mcNumberId ? (Array.isArray(input.mcNumberId) ? { in: input.mcNumberId } : input.mcNumberId) : undefined,
         deliveryDate: { gte: startDate, lte: endDate },
         status: { in: ['DELIVERED', 'PAID'] },
       },

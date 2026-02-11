@@ -19,6 +19,8 @@ export const createCustomerSchema = z.object({
   paymentTerms: z.number().int().positive().default(30),
   creditLimit: z.number().nonnegative().optional(),
   mcNumber: z.string().optional(),
+  taxRate: z.number().min(0, 'Tax rate cannot be negative').default(0),
+  isTaxExempt: z.boolean().default(false),
 });
 
 // Simplified schema for quick customer creation (from load form)

@@ -50,9 +50,7 @@ export class LoadCostingManager {
       include: {
         loadExpenses: {
           where: {
-            approvalStatus: {
-              in: ['APPROVED', 'PENDING'],
-            },
+            approvalStatus: 'APPROVED',
           },
         },
         accessorialCharges: {
@@ -138,9 +136,7 @@ export class LoadCostingManager {
       include: {
         loadExpenses: {
           where: {
-            approvalStatus: {
-              in: ['APPROVED', 'PENDING'],
-            },
+            approvalStatus: 'APPROVED',
           },
         },
         accessorialCharges: {

@@ -136,8 +136,6 @@ export class LoadCompletionManager {
       } catch (error: any) {
         console.error('Auto-invoice error:', error);
         // Don't fail the whole completion flow for invoicing error, just log it
-        // or push to errors if strictly required. 
-        // errors.push(`Auto-invoice error: ${error.message}`);
       }
 
       // 5. Update operations metrics
@@ -157,13 +155,11 @@ export class LoadCompletionManager {
       }
 
       // 7. Mark load as ready for settlement if driver assigned
-      // NOTE: Set readyForSettlement even if accounting sync has issues - driver should be paid
       if (load.driverId) {
         await prisma.load.update({
           where: { id: loadId },
           data: {
             readyForSettlement: true,
-            // Also set deliveredAt if not already set
             deliveredAt: load.deliveredAt || new Date(),
           },
         });
@@ -226,11 +222,11 @@ export class LoadCompletionManager {
     });
 
     if (!bolDocument) {
-      warnings.push('Bill of Lading (BOL) not uploaded');
+      missingFields.push('BOL (Missing Document)');
     }
 
     if (!podDocument) {
-      warnings.push('Proof of Delivery (POD) not uploaded');
+      missingFields.push('POD (Missing Document)');
     }
 
     return {
@@ -297,16 +293,6 @@ export class LoadCompletionManager {
    * Send notifications to relevant departments
    */
   private async notifyDepartments(load: any): Promise<void> {
-    // Notify accounting that load is ready for settlement
-    // TODO: Implement notification trigger
-    // await notifyLoadCompleted({
-    //   loadId: load.id,
-    //   loadNumber: load.loadNumber,
-    //   driverId: load.driverId,
-    //   revenue: load.revenue,
-    //   completedAt: load.deliveredAt,
-    // });
-
     // Create activity log
     await prisma.activityLog.create({
       data: {
@@ -347,4 +333,3 @@ export class LoadCompletionManager {
     }
   }
 }
-

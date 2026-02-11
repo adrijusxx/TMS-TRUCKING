@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
 import { Loader2, ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 import BatchInvoiceSelector from './BatchInvoiceSelector';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 import Link from 'next/link';
@@ -17,10 +18,10 @@ export default function CreateBatchFormPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  
+
   // Get preselected invoice IDs from URL params
   const preselectedInvoiceIdsParam = searchParams.get('invoiceIds');
-  const preselectedInvoiceIds = preselectedInvoiceIdsParam 
+  const preselectedInvoiceIds = preselectedInvoiceIdsParam
     ? preselectedInvoiceIdsParam.split(',').filter(Boolean)
     : [];
 
@@ -72,14 +73,18 @@ export default function CreateBatchFormPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['batches'] });
+      toast.success('Batch created successfully');
       router.push(`/dashboard/accounting/batches/${data.data.id}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create batch');
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedInvoiceIds.length === 0) {
-      alert('Please select at least one invoice');
+      toast.warning('Please select at least one invoice');
       return;
     }
 
@@ -164,7 +169,7 @@ export default function CreateBatchFormPage() {
                 excludeInvoiceIds={[]}
               />
             </div>
-            
+
             {selectedInvoiceIds.length > 0 && (
               <div className="border-t pt-4 flex items-center justify-between bg-muted/50 p-4 rounded-lg">
                 <div>

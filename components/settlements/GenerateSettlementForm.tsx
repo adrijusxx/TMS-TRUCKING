@@ -197,6 +197,18 @@ export default function GenerateSettlementForm() {
     // Validate Loads
     const loadsToSettle = availableLoads.filter((l: any) => selectedLoads.has(l.id));
 
+    // Zero-pay guard: warn if any selected load has $0 driver pay
+    const zeroPayLoads = loadsToSettle.filter((l: any) => {
+      const pay = calculateLoadDriverPay(l);
+      return pay <= 0;
+    });
+    if (zeroPayLoads.length > 0) {
+      toast.warning(`${zeroPayLoads.length} load(s) have $0 driver pay`, {
+        description: `Loads: ${zeroPayLoads.map((l: any) => l.loadNumber).join(', ')}. Verify pay configuration before proceeding.`,
+        duration: 8000,
+      });
+    }
+
     // Infer period for validation context (min/max delivery date)
     const dates = loadsToSettle
       .map((l: any) => l.deliveredAt ? new Date(l.deliveredAt).getTime() : 0)

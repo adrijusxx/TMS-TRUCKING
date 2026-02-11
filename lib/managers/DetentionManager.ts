@@ -11,6 +11,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { notifyDetentionDetected, notifyBillingHold } from '@/lib/notifications/triggers';
+import { getTelegramNotificationService } from '../services/TelegramNotificationService';
 
 interface DetentionCheckResult {
   detentionDetected: boolean;
@@ -28,7 +29,7 @@ interface DetentionCheckResult {
 export class DetentionManager {
   private readonly DEFAULT_FREE_TIME_HOURS = 2;
   private readonly DEFAULT_DETENTION_RATE = 50; // $50/hour
-  
+
   /**
    * Get system configuration for detention settings
    */
@@ -57,7 +58,7 @@ export class DetentionManager {
       };
     }
   }
-  
+
   /**
    * Alias for checkDetentionOnDeparture - provides consistent API
    */
@@ -70,7 +71,7 @@ export class DetentionManager {
   ): Promise<DetentionCheckResult> {
     return this.checkDetentionOnDeparture(loadStopId, options);
   }
-  
+
   /**
    * MAIN ENTRY POINT: Called when LoadStop.actualDeparture is updated
    * 
@@ -141,9 +142,9 @@ export class DetentionManager {
 
     // STEP 3: Get scheduled appointment time (earliestArrival or latestArrival)
     // Use earliestArrival as the scheduled appointment time
-    const scheduledAppointmentTime = stop.earliestArrival 
+    const scheduledAppointmentTime = stop.earliestArrival
       ? new Date(stop.earliestArrival)
-      : stop.latestArrival 
+      : stop.latestArrival
         ? new Date(stop.latestArrival)
         : null;
 
@@ -176,9 +177,9 @@ export class DetentionManager {
     }
 
     // STEP 5: Calculate detention hours from billable clock start
-    const totalHours = 
+    const totalHours =
       (actualDepartureTime.getTime() - billableClockStart.getTime()) / (1000 * 60 * 60);
-    
+
     // Get system config for default values
     const systemConfig = await this.getSystemConfig(load.companyId);
 
@@ -188,9 +189,9 @@ export class DetentionManager {
       detentionFreeTimeHours?: number | null;
       detentionRate?: number | null;
     };
-    const freeTimeHours = 
-      options?.freeTimeHours || 
-      customer.detentionFreeTimeHours || 
+    const freeTimeHours =
+      options?.freeTimeHours ||
+      customer.detentionFreeTimeHours ||
       systemConfig.freeTimeHours;
 
     // Calculate billable detention (excess beyond free time)
@@ -288,6 +289,57 @@ export class DetentionManager {
   }
 
   /**
+   * Real-time handler for geofence entry events.
+   * Triggered by LoadLocationTrackingService or Mobile App.
+   */
+  async handleGeofenceEntry(
+    loadStopId: string,
+    arrivalDate: Date = new Date()
+  ): Promise<void> {
+    const stop = await prisma.loadStop.findUnique({
+      where: { id: loadStopId },
+      include: {
+        load: {
+          include: {
+            driver: {
+              include: { user: { select: { firstName: true, lastName: true } } }
+            }
+          }
+        }
+      }
+    });
+
+    if (!stop?.load) return;
+
+    // Calculate the billable clock start (max of arrival and appointment)
+    const scheduledTime = stop.earliestArrival || stop.latestArrival;
+    const billableClockStart = scheduledTime
+      ? new Date(Math.max(arrivalDate.getTime(), new Date(scheduledTime).getTime()))
+      : arrivalDate;
+
+    // Update stop with arrival data
+    await prisma.loadStop.update({
+      where: { id: loadStopId },
+      data: {
+        actualArrival: arrivalDate,
+        detentionClockStart: billableClockStart,
+      }
+    });
+
+    // Notify via Telegram
+    const notificationService = getTelegramNotificationService();
+    const driverName = `${stop.load.driver?.user?.firstName || ''} ${stop.load.driver?.user?.lastName || ''}`.trim();
+
+    await notificationService.notifyDetentionStart({
+      loadNumber: stop.load.loadNumber,
+      location: stop.company || stop.address,
+      driverName: driverName || 'Unknown Driver'
+    });
+
+    console.log(`[DetentionManager] Geofence entry handled for stop ${loadStopId}. Clock starts at ${billableClockStart.toISOString()}`);
+  }
+
+  /**
    * HELPER: Build detention description
    */
   private buildDetentionDescription(
@@ -300,7 +352,7 @@ export class DetentionManager {
   ): string {
     const location = stop.company || stop.address;
     const lateWarning = driverLate ? ' [DRIVER LATE - AT RISK]' : '';
-    
+
     return `Detention: ${detentionHours.toFixed(2)} hours at ${location}${lateWarning}`;
   }
 
@@ -316,7 +368,7 @@ export class DetentionManager {
   ): string {
     let notes = `Auto-detected detention:\n`;
     notes += `- Actual Arrival: ${actualArrival.toISOString()}\n`;
-    
+
     if (scheduledAppointment) {
       notes += `- Scheduled Appointment: ${scheduledAppointment.toISOString()}\n`;
       notes += `- Billable Clock Start: ${billableClockStart.toISOString()} `;
@@ -324,13 +376,13 @@ export class DetentionManager {
     } else {
       notes += `- Billable Clock Start: ${billableClockStart.toISOString()} (No Appointment Set)\n`;
     }
-    
+
     notes += `- Actual Departure: ${actualDeparture.toISOString()}\n`;
-    
+
     if (driverLate) {
       notes += `\n⚠️ WARNING: Driver arrived LATE. Detention may be at risk if broker disputes.`;
     }
-    
+
     return notes;
   }
 
@@ -339,13 +391,13 @@ export class DetentionManager {
    */
   private buildBillingHoldReason(driverLate: boolean, detentionHours: number): string {
     let reason = `Detention charge detected (${detentionHours.toFixed(2)} hours)`;
-    
+
     if (driverLate) {
       reason += ' - ⚠️ DRIVER LATE: Detention may be at risk if broker disputes. Rate Con update required.';
     } else {
       reason += ' - Rate Con update required.';
     }
-    
+
     return reason;
   }
 
@@ -391,8 +443,8 @@ export class DetentionManager {
         billingHoldReason: context.reason, // NEW: Reason field (includes late arrival flag)
         accountingSyncStatus: 'REQUIRES_REVIEW',
         dispatchNotes: `BILLING HOLD (AR): ${context.reason} - Rate Con update required before invoicing.\n` +
-                      `NOTE: Driver settlement (AP) can proceed independently.\n` +
-                      `${new Date().toISOString()}`
+          `NOTE: Driver settlement (AP) can proceed independently.\n` +
+          `${new Date().toISOString()}`
       },
     });
 

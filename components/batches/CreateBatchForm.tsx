@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import BatchInvoiceSelector from './BatchInvoiceSelector';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 
@@ -76,15 +77,19 @@ export default function CreateBatchForm({ open, onOpenChange, preselectedInvoice
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['batches'] });
+      toast.success('Batch created successfully');
       onOpenChange(false);
       router.push(`/dashboard/accounting/batches/${data.data.id}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create batch');
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedInvoiceIds.length === 0) {
-      alert('Please select at least one invoice');
+      toast.warning('Please select at least one invoice');
       return;
     }
 

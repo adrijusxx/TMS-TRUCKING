@@ -29,6 +29,7 @@ import {
   Square,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 interface DeletedItem {
   id: string;
@@ -163,13 +164,14 @@ export default function DeletedItemsCategory() {
 
       const data = await res.json();
       if (data.success) {
+        toast.success(`${type} restored successfully`);
         await loadItems(activeTab);
         await loadSummary();
       } else {
-        alert(`Failed to restore: ${data.error}`);
+        toast.error(`Failed to restore: ${data.error}`);
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast.error(`Error: ${err.message}`);
     } finally {
       setRestoring(null);
     }
@@ -186,8 +188,8 @@ export default function DeletedItemsCategory() {
       const res = await fetch('/api/admin/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          entityType: activeTab, 
+        body: JSON.stringify({
+          entityType: activeTab,
           entityIds: selectedIds,
           bulk: true,
         }),
@@ -197,18 +199,18 @@ export default function DeletedItemsCategory() {
       if (data.success) {
         const { restored, failed, errors } = data.data;
         if (failed > 0 && errors.length > 0) {
-          alert(`Restored ${restored} item(s). ${failed} failed:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+          toast.warning(`Restored ${restored} item(s). ${failed} failed: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}`);
         } else {
-          alert(`Successfully restored ${restored} item(s).`);
+          toast.success(`Successfully restored ${restored} item(s).`);
         }
         setSelectedItems(new Set());
         await loadItems(activeTab);
         await loadSummary();
       } else {
-        alert(`Failed to restore: ${data.error}`);
+        toast.error(`Failed to restore: ${data.error}`);
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast.error(`Error: ${err.message}`);
     } finally {
       setBulkActioning(false);
     }
@@ -229,8 +231,8 @@ export default function DeletedItemsCategory() {
       const res = await fetch('/api/admin/hard-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          entityType: activeTab, 
+        body: JSON.stringify({
+          entityType: activeTab,
           entityIds: selectedIds,
           bulk: true,
         }),
@@ -240,18 +242,18 @@ export default function DeletedItemsCategory() {
       if (data.success) {
         const { deleted, failed, errors } = data.data;
         if (failed > 0 && errors.length > 0) {
-          alert(`Permanently deleted ${deleted} item(s). ${failed} failed:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...' : ''}`);
+          toast.warning(`Permanently deleted ${deleted} item(s). ${failed} failed: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}`);
         } else {
-          alert(`Successfully permanently deleted ${deleted} item(s).`);
+          toast.success(`Successfully permanently deleted ${deleted} item(s).`);
         }
         setSelectedItems(new Set());
         await loadItems(activeTab);
         await loadSummary();
       } else {
-        alert(`Failed to delete: ${data.error}`);
+        toast.error(`Failed to delete: ${data.error}`);
       }
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      toast.error(`Error: ${err.message}`);
     } finally {
       setBulkActioning(false);
     }
@@ -466,11 +468,10 @@ export default function DeletedItemsCategory() {
                         return (
                           <div
                             key={item.id}
-                            className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${
-                              isSelected 
-                                ? 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700' 
+                            className={`flex items-center gap-3 p-3 border rounded-lg transition-colors ${isSelected
+                                ? 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700'
                                 : 'hover:bg-muted/50'
-                            }`}
+                              }`}
                           >
                             <input
                               type="checkbox"

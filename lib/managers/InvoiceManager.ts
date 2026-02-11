@@ -100,16 +100,15 @@ export class InvoiceManager {
           where: { id: factoringCompany.id },
         });
 
-        // Get company address for factoring company (if stored)
-        // For now, use company's address or contact info
+        // Get address from metadata if available
+        const metadata = (factoringCompanyFull?.metadata as any) || {};
+
         const remitToAddress = {
           name: factoringCompany.name,
-          address: factoringCompanyFull?.contactName
-            ? `${factoringCompanyFull.contactName}\n${factoringCompany.name}`
-            : factoringCompany.name,
-          city: '', // FactoringCompany may not have address fields
-          state: '',
-          zip: '',
+          address: metadata.address || factoringCompanyFull?.contactName || factoringCompany.name,
+          city: metadata.city || '',
+          state: metadata.state || '',
+          zip: metadata.zip || '',
           phone: factoringCompany.contactPhone || undefined,
           email: factoringCompany.contactEmail || undefined,
         };
@@ -461,6 +460,8 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
             select: {
               id: true,
               paymentTerms: true,
+              taxRate: true,
+              isTaxExempt: true,
             },
           },
           dispatcher: {
@@ -516,9 +517,18 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
       const load = loads[0]; // Representative load for customer/company info
 
       // 3. Calculate Totals
+      // NOTE: Trucking B2B invoices (carrier ↔ broker) are not subject to sales tax.
+      // If per-customer tax rules are needed in the future, implement a configurable tax rate.
       const subtotal = loads.reduce((sum, l) => sum + (l.revenue || 0), 0);
-      const taxRate = 0.08; // TODO: make configurable
-      const tax = subtotal * taxRate;
+
+      // Calculate Tax based on Customer Settings
+      let tax = 0;
+      // @ts-ignore - Prisma types update may be pending
+      if (!load.customer.isTaxExempt && load.customer.taxRate > 0) {
+        // @ts-ignore
+        tax = subtotal * (load.customer.taxRate / 100);
+      }
+
       const total = subtotal + tax;
 
       // 4. Determine Invoice Number and Due Date
@@ -560,6 +570,12 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
         },
       });
 
+      // 7. Update load statuses to INVOICED
+      await prisma.load.updateMany({
+        where: { id: { in: loadIds } },
+        data: { status: 'INVOICED' },
+      });
+
       // 8. Track usage
       try {
         const companyId = load.companyId;
@@ -574,6 +590,126 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
       console.error('Error generating invoice:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Money Trace Audit: Ensure all finalized Rate Confirmations are either Invoiced or on Billing Hold.
+   * Helps detect revenue leakage (loads that were delivered but never billed).
+   */
+  async checkInvoicingCompleteness(companyId: string, mcNumberId?: string): Promise<{
+    orphanCount: number;
+    orphanLoadNumbers: string[];
+  }> {
+    const loads = await prisma.load.findMany({
+      where: {
+        companyId,
+        mcNumberId,
+        deletedAt: null,
+        status: { in: ['DELIVERED'] }, // Only focus on delivered loads
+        isBillingHold: false,
+        invoices: {
+          none: {} // No invoice exists
+        },
+        rateConfirmation: {
+          isNot: null // Has a rate confirmation
+        }
+      },
+      select: {
+        loadNumber: true
+      }
+    });
+
+    return {
+      orphanCount: loads.length,
+      orphanLoadNumbers: loads.map(l => l.loadNumber)
+    };
+  }
+
+  /**
+   * Financial Parity Audit: Check for Invoiced loads that haven't been settled for the driver.
+   * Ensures drivers are paid for the revenue the company has billed.
+   */
+  async checkSettlementParity(companyId: string, mcNumberId?: string): Promise<{
+    unsettledCount: number;
+    unsettledLoadNumbers: string[];
+  }> {
+    const loads = await prisma.load.findMany({
+      where: {
+        companyId,
+        mcNumberId,
+        deletedAt: null,
+        invoices: {
+          some: {
+            status: { in: ['SENT', 'PAID', 'PARTIAL'] }
+          }
+        },
+        driverId: { not: null },
+        readyForSettlement: true,
+      },
+      select: {
+        id: true,
+        loadNumber: true
+      }
+    });
+
+    // Filter out loads already in settlements
+    const settledLoadIds = await prisma.settlement.findMany({
+      where: { driver: { companyId } },
+      select: { loadIds: true }
+    });
+    const allSettledIds = new Set(settledLoadIds.flatMap(s => s.loadIds));
+    const unsettledLoads = loads.filter(l => !allSettledIds.has(l.id));
+
+    return {
+      unsettledCount: unsettledLoads.length,
+      unsettledLoadNumbers: unsettledLoads.map(l => l.loadNumber)
+    };
+  }
+
+  /**
+   * Detect financial anomalies and revenue leaks for a load
+   */
+  async detectExpenseGaps(loadId: string): Promise<{
+    hasAnomalies: boolean;
+    anomalies: string[];
+  }> {
+    const load = await prisma.load.findUnique({
+      where: { id: loadId },
+      include: {
+        documents: { where: { deletedAt: null } },
+        loadExpenses: true,
+      }
+    });
+
+    if (!load) return { hasAnomalies: false, anomalies: [] };
+
+    const anomalies: string[] = [];
+
+    // 1. Check for missing documents on delivered loads
+    if (load.status === 'DELIVERED') {
+      const hasPOD = load.documents.some(d => d.type === 'POD');
+      if (!hasPOD) {
+        anomalies.push('Load is DELIVERED but missing Proof of Delivery (POD).');
+      }
+    }
+
+    // 2. Check for missing fuel expenses on high mileage loads
+    if (load.totalMiles && load.totalMiles > 300) {
+      const hasFuelExpense = load.loadExpenses.some(e => ['FUEL_ADDITIVE', 'DEF'].includes(e.expenseType));
+      if (!hasFuelExpense) {
+        anomalies.push(`High mileage load (${load.totalMiles.toFixed(0)} mi) has zero registered fuel expenses.`);
+      }
+    }
+
+    // 3. Check for ready-for-settlement but missing revenue
+    if (load.readyForSettlement && (!load.revenue || load.revenue <= 0)) {
+      anomalies.push('Load is marked for settlement but has zero revenue.');
+    }
+
+    return {
+      hasAnomalies: anomalies.length > 0,
+      anomalies
+    };
   }
 }
 

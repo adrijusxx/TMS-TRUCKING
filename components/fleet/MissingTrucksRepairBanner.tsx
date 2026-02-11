@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, Check, Loader2, Wrench, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface MissingTrucksRepairBannerProps {
   currentMcNumberId: string | null;
@@ -43,7 +44,7 @@ export function MissingTrucksRepairBanner({ currentMcNumberId, onRepairComplete 
   const fetchDiagnostics = async () => {
     try {
       setLoading(true);
-      const url = currentMcNumberId 
+      const url = currentMcNumberId
         ? `/api/fleet/device-queue/repair?mcNumberId=${currentMcNumberId}`
         : '/api/fleet/device-queue/repair';
       const response = await fetch(url);
@@ -60,7 +61,7 @@ export function MissingTrucksRepairBanner({ currentMcNumberId, onRepairComplete 
 
   const handleRepair = async () => {
     if (!currentMcNumberId) {
-      alert('Please select an MC Number from the top dropdown first. The new trucks will be assigned to that MC.');
+      toast.warning('Please select an MC Number from the top dropdown first. The new trucks will be assigned to that MC.');
       return;
     }
 
@@ -79,6 +80,7 @@ export function MissingTrucksRepairBanner({ currentMcNumberId, onRepairComplete 
       if (result.success) {
         setRepairResult(result.data);
         setSuccess(true);
+        toast.success(`Created ${result.data.created} trucks, linked ${result.data.linked} devices`);
         // Refresh data after 3 seconds
         setTimeout(() => {
           fetchDiagnostics();
@@ -87,11 +89,11 @@ export function MissingTrucksRepairBanner({ currentMcNumberId, onRepairComplete 
           onRepairComplete?.();
         }, 3000);
       } else {
-        alert(`Repair failed: ${result.error?.message || 'Unknown error'}`);
+        toast.error(`Repair failed: ${result.error?.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Repair failed:', error);
-      alert('Repair failed. Please try again.');
+      toast.error('Repair failed. Please try again.');
     } finally {
       setRepairing(false);
     }
@@ -130,7 +132,7 @@ export function MissingTrucksRepairBanner({ currentMcNumberId, onRepairComplete 
                 {discrepancy > 0 && ` That's ${discrepancy} trucks missing!`}
               </p>
               <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                {currentMcNumberId 
+                {currentMcNumberId
                   ? 'Click "Create Missing Trucks" to fix this. New trucks will be assigned to your current MC.'
                   : '⚠️ First, select a specific MC from the dropdown above (not "All MCs"), then click "Create Missing Trucks".'
                 }
@@ -154,8 +156,8 @@ export function MissingTrucksRepairBanner({ currentMcNumberId, onRepairComplete 
             </div>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               variant="outline"
               onClick={fetchDiagnostics}
               disabled={repairing}
@@ -168,8 +170,8 @@ export function MissingTrucksRepairBanner({ currentMcNumberId, onRepairComplete 
                 Created {repairResult.created}, Linked {repairResult.linked}
               </Button>
             ) : (
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 variant="destructive"
                 onClick={handleRepair}
                 disabled={repairing || !currentMcNumberId}

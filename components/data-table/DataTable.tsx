@@ -100,6 +100,7 @@ export function DataTable<TData extends Record<string, any>>({
   onColumnOrderChange,
   enableColumnReorder = false,
   savePreferences = true,
+  isCompact = false,
 }: DataTableProps<TData>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
@@ -432,7 +433,7 @@ export function DataTable<TData extends Record<string, any>>({
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
+                  <TableRow key={headerGroup.id} className={cn(isCompact && 'h-7')}>
                     {enableColumnReorder ? (
                       <DraggableTableHeader
                         headers={headerGroup.headers}
@@ -447,6 +448,7 @@ export function DataTable<TData extends Record<string, any>>({
                             key={header.id}
                             className={cn(
                               'relative group',
+                              isCompact ? 'py-0 px-2 h-7 text-[10px]' : 'h-10',
                               header.column.getCanResize() && 'resizable',
                               (header.column.columnDef as ExtendedColumnDef<TData>).className
                             )}
@@ -542,7 +544,9 @@ export function DataTable<TData extends Record<string, any>>({
                       <React.Fragment key={row.id}>
                         <TableRow
                           data-state={row.getIsSelected() && 'selected'}
+                          data-compact={isCompact}
                           className={cn(
+                            isCompact ? 'h-7 border-b' : 'h-10 border-b',
                             row.getIsSelected() && 'bg-muted/50',
                             onRowClick && 'cursor-pointer hover:bg-muted/50',
                             // Visual distinction for soft-deleted records
@@ -565,7 +569,13 @@ export function DataTable<TData extends Record<string, any>>({
                           }}
                         >
                           {row.getVisibleCells().map((cell) => (
-                            <TableCell key={cell.id} className={(cell.column.columnDef as ExtendedColumnDef<TData>).className}>
+                            <TableCell
+                              key={cell.id}
+                              className={cn(
+                                (cell.column.columnDef as ExtendedColumnDef<TData>).className,
+                                isCompact && 'py-0 px-2 text-[10px]'
+                              )}
+                            >
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </TableCell>
                           ))}

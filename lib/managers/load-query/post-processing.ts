@@ -4,27 +4,22 @@ import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
  * Calculate statistics from loads
  */
 export function calculateLoadStats(
-    sums: { _sum: Record<string, number | null> },
-    allLoadsForStats: Array<{ totalMiles: number | null; loadedMiles: number | null; emptyMiles: number | null }>
+    sums: { _sum: Record<string, number | null> }
 ) {
     const revenueSum = Number(sums._sum.revenue ?? 0);
     const totalPaySum = Number(sums._sum.totalPay ?? 0);
     const driverPaySum = Number(sums._sum.driverPay ?? 0);
     const totalMilesSum = Number(sums._sum.totalMiles ?? 0);
     const emptyMilesSum = Number(sums._sum.emptyMiles ?? 0);
+    const loadedMilesSum = Number(sums._sum.loadedMiles ?? 0);
     const serviceFeeSum = Number(sums._sum.serviceFee ?? 0);
 
-    // Calculate loaded miles
-    let calculatedLoadedMilesSum = 0;
-    for (const load of allLoadsForStats) {
-        const totalMiles = Number(load.totalMiles ?? 0);
-        const loadedMiles = Number(load.loadedMiles ?? 0);
-        const emptyMiles = Number(load.emptyMiles ?? 0);
-        const calculatedLoadedMiles = loadedMiles > 0 ? loadedMiles : Math.max(totalMiles - emptyMiles, 0);
-        calculatedLoadedMilesSum += calculatedLoadedMiles;
-    }
+    // If loadedMiles is not tracked in half the records, fallback to derivation
+    // In a mature system, loadedMiles should always be set during creation/update
+    const derivedLoadedMiles = loadedMilesSum > 0
+        ? loadedMilesSum
+        : Math.max(totalMilesSum - emptyMilesSum, 0);
 
-    const derivedLoadedMiles = calculatedLoadedMilesSum;
     const rpmLoadedMiles = derivedLoadedMiles > 0 ? revenueSum / derivedLoadedMiles : null;
     const rpmTotalMiles = totalMilesSum > 0 ? revenueSum / totalMilesSum : null;
 

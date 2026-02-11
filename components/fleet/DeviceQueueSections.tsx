@@ -19,6 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { toast } from 'sonner';
 
 interface DeviceQueueItem {
   id: string;
@@ -64,7 +65,7 @@ function categorizeDevices(items: DeviceQueueItem[]) {
     const hasModel = !!device.model;
     const hasYear = !!device.year;
     const isTruck = device.deviceType === 'TRUCK';
-    
+
     // Check if this looks like a gateway/deactivated device (NOT a vehicle)
     const isGatewayOrDeactivated =
       device.name.toLowerCase().includes('deactivated') ||
@@ -72,12 +73,12 @@ function categorizeDevices(items: DeviceQueueItem[]) {
       /^[A-Z0-9]{4}-[A-Z0-9]{3}-[A-Z0-9]{3}$/i.test(device.name) || // Gateway pattern like GHHA-BNJ-SYW
       device.name.toLowerCase().includes('previously paired') ||
       device.name.toLowerCase().includes('unpaired');
-      
+
     if (isGatewayOrDeactivated) {
       gatewaysDeactivated.push(device);
       return;
     }
-    
+
     // Check if name looks generic/random
     const isGenericName =
       /^vehicle\s*\d+$/i.test(device.name) ||
@@ -142,7 +143,7 @@ export function DeviceQueueSections({
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<SelectedItems>({});
   const [bulkActioning, setBulkActioning] = useState(false);
-  
+
   // Only allow actions on PENDING devices
   const canPerformActions = currentStatus === 'PENDING';
 
@@ -168,7 +169,7 @@ export function DeviceQueueSections({
           mcNumberId: currentMcNumberId,
         },
       };
-      
+
       const response = await fetch('/api/fleet/device-queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,14 +184,14 @@ export function DeviceQueueSections({
           const errorData = await response.json();
           const errorMsg = errorData?.error?.message || `Failed to ${action} device`;
           console.error(`Action failed:`, errorMsg);
-          alert(`Error: ${errorMsg}`);
+          toast.error(errorMsg);
         } catch {
-          alert(`Failed to ${action} device. Please try again.`);
+          toast.error(`Failed to ${action} device. Please try again.`);
         }
       }
     } catch (error) {
       console.error('Action failed:', error);
-      alert('Network error. Please try again.');
+      toast.error('Network error. Please try again.');
     } finally {
       setActioningId(null);
     }
@@ -222,9 +223,9 @@ export function DeviceQueueSections({
     setBulkActioning(true);
     let successCount = 0;
     let errorCount = 0;
-    
+
     const errors: string[] = [];
-    
+
     try {
       // Process sequentially to avoid race conditions
       for (const queueId of selectedIds) {
@@ -232,7 +233,7 @@ export function DeviceQueueSections({
           const response = await fetch('/api/fleet/device-queue', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               action: action === 'link' ? 'approve' : action, // Link uses approve endpoint which auto-links
               queueId,
               additionalData: { mcNumberId: currentMcNumberId }, // Include current MC
@@ -258,15 +259,18 @@ export function DeviceQueueSections({
           errors.push(`${queueId}: Network error`);
         }
       }
-      
+
       console.log(`Bulk ${action}: ${successCount} succeeded, ${errorCount} failed`);
       if (errors.length > 0) {
         console.error('Errors:', errors.slice(0, 5).join('\n')); // Show first 5 errors
         // Show alert with error details
-        const errorSummary = errors.length > 3 
-          ? `${errors.slice(0, 3).join('\n')}\n...and ${errors.length - 3} more`
-          : errors.join('\n');
-        alert(`Some operations failed:\n${errorSummary}`);
+        const errorSummary = errors.length > 3
+          ? `${errors.slice(0, 3).join(', ')}... and ${errors.length - 3} more`
+          : errors.join(', ');
+        toast.error(`Some operations failed: ${errorSummary}`);
+      }
+      if (successCount > 0) {
+        toast.success(`${successCount} device(s) ${action === 'reject' ? 'rejected' : 'approved'} successfully`);
       }
       setSelectedItems({});
       onActionComplete();
@@ -329,7 +333,7 @@ export function DeviceQueueSections({
           </div>
         </Card>
       )}
-      
+
       {/* Bulk Actions Bar - Only show for PENDING items */}
       {canPerformActions && items.length > 0 && (
         <Card className="border-2 border-primary/20 bg-primary/5">
@@ -356,8 +360,8 @@ export function DeviceQueueSections({
                     {allSelected
                       ? 'All devices selected'
                       : selectedCount > 0
-                      ? 'Use checkboxes below to select more'
-                      : 'Check "Select All" or individual devices'}
+                        ? 'Use checkboxes below to select more'
+                        : 'Check "Select All" or individual devices'}
                   </p>
                 </div>
               </div>

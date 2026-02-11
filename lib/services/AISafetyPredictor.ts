@@ -10,6 +10,7 @@ interface SafetyPredictionInput {
   driverId?: string;
   truckId?: string;
   companyId: string;
+  mcNumberId?: string; // For isolation
 }
 
 interface SafetyRiskPrediction {
@@ -118,6 +119,13 @@ export class AISafetyPredictor extends AIService {
             orderBy: { date: 'desc' },
             take: 10,
           },
+          faultHistory: {
+            where: {
+              isActive: true,
+              severity: { in: ['high', 'critical'] }
+            },
+            take: 10
+          }
         },
       });
 
@@ -207,6 +215,15 @@ Breakdown ${i + 1}:
 - Date: ${bd.reportedAt.toISOString().split('T')[0]}
 - Priority: ${bd.priority}
 `).join('\n') || 'None'}
+
+ACTIVE CRITICAL/HIGH FAULTS:
+${(truck as any).faultHistory?.map((f: any, i: number) => `
+Fault ${i + 1}:
+- Code: ${f.faultCode}
+- Severity: ${f.severity}
+- Description: ${f.description || 'Unknown'}
+- Reported: ${f.createdAt.toISOString()}
+`).join('\n') || 'None'}
 ` : ''}
 
 Return JSON with:
@@ -222,7 +239,8 @@ Risk factors to consider:
 3. Inspection failure rate
 4. ${driver ? 'Driver experience and performance' : 'Truck age, mileage, and maintenance history'}
 5. Recent trends (improving vs. deteriorating)
-6. Compliance status`;
+6. Compliance status
+7. ACTIVE TELEMATICS FAULTS (Critical faults should heavily weigh toward HIGH or CRITICAL risk)`;
 
     const result = await this.callAI<{ prediction: SafetyRiskPrediction }>(
       prompt,

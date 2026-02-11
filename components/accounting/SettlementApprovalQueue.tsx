@@ -15,6 +15,8 @@ import {
 import { CheckCircle, XCircle, Eye, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 
 interface Settlement {
   id: string;
@@ -45,7 +47,7 @@ export function SettlementApprovalQueue() {
 
   const fetchSettlements = async () => {
     try {
-      const response = await fetch('/api/settlements/pending-approval');
+      const response = await fetch(apiUrl('/api/settlements/pending-approval'));
       const data = await response.json();
 
       if (data.success) {
@@ -53,7 +55,7 @@ export function SettlementApprovalQueue() {
       }
     } catch (error) {
       console.error('Error fetching settlements:', error);
-      alert('Failed to load settlements');
+      toast.error('Failed to load settlements');
     } finally {
       setLoading(false);
     }
@@ -62,7 +64,7 @@ export function SettlementApprovalQueue() {
   const handleApprove = async (settlementId: string) => {
     setProcessingId(settlementId);
     try {
-      const response = await fetch(`/api/settlements/${settlementId}/approve`, {
+      const response = await fetch(apiUrl(`/api/settlements/${settlementId}/approve`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -74,13 +76,13 @@ export function SettlementApprovalQueue() {
       const data = await response.json();
 
       if (data.success) {
-        alert('Settlement approved successfully');
+        toast.success('Settlement approved successfully');
         fetchSettlements();
       } else {
         throw new Error(data.error?.message || 'Failed to approve settlement');
       }
     } catch (error: any) {
-      alert('Error: ' + (error.message || 'Failed to approve settlement'));
+      toast.error(error.message || 'Failed to approve settlement');
     } finally {
       setProcessingId(null);
     }
@@ -92,7 +94,7 @@ export function SettlementApprovalQueue() {
 
     setProcessingId(settlementId);
     try {
-      const response = await fetch(`/api/settlements/${settlementId}/approve`, {
+      const response = await fetch(apiUrl(`/api/settlements/${settlementId}/approve`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,13 +106,13 @@ export function SettlementApprovalQueue() {
       const data = await response.json();
 
       if (data.success) {
-        alert('Settlement rejected successfully');
+        toast.success('Settlement rejected');
         fetchSettlements();
       } else {
         throw new Error(data.error?.message || 'Failed to reject settlement');
       }
     } catch (error: any) {
-      alert('Error: ' + (error.message || 'Failed to reject settlement'));
+      toast.error(error.message || 'Failed to reject settlement');
     } finally {
       setProcessingId(null);
     }

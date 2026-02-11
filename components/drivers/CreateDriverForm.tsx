@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { createDriverSchema, type CreateDriverInput } from '@/lib/validations/driver';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +71,7 @@ export default function CreateDriverForm({
     mutationFn: createDriver,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      toast.success('Driver created successfully');
       if (onSuccess) {
         onSuccess(data.data.id);
       } else {
@@ -78,6 +80,7 @@ export default function CreateDriverForm({
     },
     onError: (err: Error) => {
       setError(err.message);
+      toast.error(err.message || 'Failed to create driver');
     },
   });
 

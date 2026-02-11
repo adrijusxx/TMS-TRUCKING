@@ -150,13 +150,15 @@ export class DiagnosticsService {
               },
             });
 
+            const mappedSeverity = (fault.severity || codeInfo.severity || 'WARNING').toUpperCase();
+
             if (existing) {
               // Update existing record
               await prisma.truckFaultHistory.update({
                 where: { id: existing.id },
                 data: {
                   description: fault.description || dtcInfo?.description || existing.description,
-                  severity: (fault.severity || codeInfo.severity || existing.severity || 'WARNING').toUpperCase(),
+                  severity: mappedSeverity,
                   isActive: fault.active !== false,
                   updatedAt: now,
                 },
@@ -170,7 +172,7 @@ export class DiagnosticsService {
                   companyId: this.companyId,
                   faultCode: fault.code,
                   description: fault.description || dtcInfo?.description,
-                  severity: (fault.severity || codeInfo.severity || 'WARNING').toUpperCase(),
+                  severity: mappedSeverity,
                   source: 'SAMSARA',
                   samsaraFaultId: `${entry.vehicleId}-${fault.code}-${occurredAt.getTime()}`,
                   occurredAt: occurredAt,
@@ -291,7 +293,7 @@ export class DiagnosticsService {
     // If category filter is applied, we need to fetch more and filter in memory
     const needsCategoryFilter = !!category;
     const fetchSize = needsCategoryFilter ? pageSize * 5 : pageSize; // Fetch more if filtering by category
-    
+
     let [rawItems, total] = await Promise.all([
       prisma.truckFaultHistory.findMany({
         where,
@@ -359,7 +361,7 @@ export class DiagnosticsService {
    */
   async getAnalytics(dateFrom?: Date, dateTo?: Date): Promise<DiagnosticsAnalytics> {
     const baseWhere: any = { companyId: this.companyId };
-    
+
     if (dateFrom || dateTo) {
       baseWhere.occurredAt = {};
       if (dateFrom) baseWhere.occurredAt.gte = dateFrom;
@@ -426,7 +428,7 @@ export class DiagnosticsService {
     // Get trend (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const trendData = await prisma.truckFaultHistory.findMany({
       where: {
         ...baseWhere,
@@ -442,7 +444,7 @@ export class DiagnosticsService {
       date.setDate(date.getDate() - i);
       trendMap.set(date.toISOString().split('T')[0], 0);
     }
-    
+
     trendData.forEach(item => {
       const dateStr = item.occurredAt.toISOString().split('T')[0];
       trendMap.set(dateStr, (trendMap.get(dateStr) || 0) + 1);
@@ -456,7 +458,7 @@ export class DiagnosticsService {
     const totalTrucks = await prisma.truck.count({
       where: { companyId: this.companyId, isActive: true, deletedAt: null },
     });
-    
+
     const healthyTrucks = totalTrucks - trucksAffected;
     const criticalPenalty = criticalCount * 10;
     const warningPenalty = warningCount * 3;
@@ -504,7 +506,7 @@ export class DiagnosticsService {
 
     // Fallback: Generate basic info from code pattern
     const codeInfo = categorizeFaultCode(code);
-    
+
     return {
       code: code.toUpperCase(),
       name: `Diagnostic Code ${code}`,

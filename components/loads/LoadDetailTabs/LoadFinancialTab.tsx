@@ -11,7 +11,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { AccountingSyncStatus } from '@prisma/client';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import common from '@/lib/content/common.json';
 
 interface LoadFinancialTabProps {
@@ -38,6 +38,55 @@ export default function LoadFinancialTab({
   const { can } = usePermissions();
   const canEdit = can('loads.edit');
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [isVerifyingMiles, setIsVerifyingMiles] = useState(false);
+
+  const handleVerifyMiles = async () => {
+    if (!load?.id) return;
+
+    setIsVerifyingMiles(true);
+    try {
+      const response = await fetch(apiUrl(`/api/loads/${load.id}/verify-miles`), {
+        method: 'POST',
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to verify miles');
+      }
+
+      if (result.success) {
+        const miles = result.data.miles;
+        const msg = miles > 0
+          ? `Verified actual miles: ${miles.toFixed(1)}`
+          : 'No trips found for this time period';
+
+        toast.success(msg);
+        onLoadRefetch?.();
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to verify miles');
+    } finally {
+      setIsVerifyingMiles(false);
+    }
+  };
+
+  // Data quality warnings on mount
+  useEffect(() => {
+    const warnings: string[] = [];
+    if (load.status === 'DELIVERED' && (!load.revenue || load.revenue <= 0)) {
+      warnings.push('Revenue is $0 on a DELIVERED load.');
+    }
+    if (load.driverId && (load.driverPay === null || load.driverPay === undefined)) {
+      warnings.push('Driver is assigned but driver pay has not been set.');
+    }
+    if (warnings.length > 0) {
+      toast.warning('Financial Data Review', {
+        description: warnings.join(' '),
+        duration: 6000,
+      });
+    }
+  }, [load.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateField = (field: string, value: any) => {
     onFormDataChange({ ...formData, [field]: value });
@@ -286,6 +335,42 @@ export default function LoadFinancialTab({
               </div>
             </div>
           )}
+
+          {/* GPS Mileage Verification */}
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex justify-between items-center mb-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-sm font-medium">Actual GPS Miles (Samsara)</Label>
+                {load.actualMiles && load.totalMiles ? (
+                  <Badge variant={load.actualMiles > load.totalMiles * 1.1 ? 'destructive' : 'secondary'} className="text-[10px] h-5">
+                    {Math.round((load.actualMiles / load.totalMiles) * 100)}% of Billed
+                  </Badge>
+                ) : null}
+              </div>
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleVerifyMiles}
+                  disabled={isVerifyingMiles || !load.truckId}
+                  className="h-7 text-xs"
+                  title={!load.truckId ? "Assign a truck first" : "Fetch actual miles from Samsara"}
+                >
+                  <RefreshCw className={`h-3 w-3 mr-1 ${isVerifyingMiles ? 'animate-spin' : ''}`} />
+                  {load.actualMiles ? 'Re-Verify' : 'Verify Miles'}
+                </Button>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">
+                {load.actualMiles ? `Recorded from GPS history` : 'Not verified yet'}
+              </span>
+              <p className="font-mono text-sm font-medium">
+                {load.actualMiles ? `${load.actualMiles.toFixed(1)} mi` : '—'}
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

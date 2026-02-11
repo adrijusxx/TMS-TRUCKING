@@ -12,6 +12,7 @@ interface BackhaulRecommendationInput {
   deliveryDate: Date;
   equipmentType?: string;
   companyId: string;
+  mcNumberId?: string | string[]; // Added MC isolation
 }
 
 interface BackhaulRecommendation {
@@ -52,6 +53,7 @@ export class AIBackhaulRecommender extends AIService {
     const availableLoads = await prisma.load.findMany({
       where: {
         companyId: input.companyId,
+        mcNumberId: input.mcNumberId ? (Array.isArray(input.mcNumberId) ? { in: input.mcNumberId } : input.mcNumberId) : undefined,
         status: 'PENDING',
         pickupCity: { equals: input.deliveryCity, mode: 'insensitive' },
         pickupState: input.deliveryState,

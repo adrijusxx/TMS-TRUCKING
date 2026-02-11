@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/table';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 interface InvoiceDetailProps {
   invoice: any;
@@ -75,6 +76,21 @@ async function syncInvoiceToQuickBooks(invoiceId: string, realmId?: string) {
 
 export default function InvoiceDetail({ invoice, isSheet = false }: InvoiceDetailProps) {
   const queryClient = useQueryClient();
+
+  // Overdue warning toast on mount
+  useEffect(() => {
+    if (invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && invoice.dueDate) {
+      const dueDate = new Date(invoice.dueDate);
+      const now = new Date();
+      const diffDays = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) {
+        toast.warning(`Invoice is ${diffDays} day${diffDays > 1 ? 's' : ''} overdue`, {
+          description: `Due date was ${formatDate(invoice.dueDate)}. Consider following up with ${invoice.customer?.name || 'the customer'}.`,
+          duration: 8000,
+        });
+      }
+    }
+  }, [invoice.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendEmailMutation = useMutation({
     mutationFn: () => sendInvoiceEmail(invoice.id),
@@ -128,6 +144,7 @@ export default function InvoiceDetail({ invoice, isSheet = false }: InvoiceDetai
           <Button
             variant="outline"
             onClick={() => {
+              toast.info('Downloading PDF...', { duration: 2000 });
               window.open(apiUrl(`/api/invoices/${invoice.id}/pdf`), '_blank');
             }}
           >

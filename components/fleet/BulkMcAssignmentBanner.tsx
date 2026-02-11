@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Check, Loader2, Truck } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface BulkMcAssignmentBannerProps {
   currentMcNumberId: string | null;
@@ -51,7 +52,7 @@ export function BulkMcAssignmentBanner({ currentMcNumberId }: BulkMcAssignmentBa
 
   const handleBulkAssign = async () => {
     if (!currentMcNumberId) {
-      alert('Please select an MC Number from the top dropdown first.');
+      toast.warning('Please select an MC Number from the top dropdown first.');
       return;
     }
 
@@ -69,17 +70,18 @@ export function BulkMcAssignmentBanner({ currentMcNumberId }: BulkMcAssignmentBa
       const result = await response.json();
       if (result.success) {
         setSuccess(true);
+        toast.success('All trucks assigned to current MC successfully');
         // Refresh data after 2 seconds
         setTimeout(() => {
           fetchTrucksWithoutMc();
           setSuccess(false);
         }, 2000);
       } else {
-        alert(`Failed to assign MC: ${result.error?.message || 'Unknown error'}`);
+        toast.error(`Failed to assign MC: ${result.error?.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Bulk assign failed:', error);
-      alert('Failed to assign MC. Please try again.');
+      toast.error('Failed to assign MC. Please try again.');
     } finally {
       setAssigning(false);
     }
@@ -101,7 +103,7 @@ export function BulkMcAssignmentBanner({ currentMcNumberId }: BulkMcAssignmentBa
                 {data.counts.withoutMc} Trucks Without MC Number
               </h3>
               <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                These trucks were synced from Samsara but have no MC Number assigned. 
+                These trucks were synced from Samsara but have no MC Number assigned.
                 They won't appear in truck selection dropdowns until assigned.
               </p>
               <div className="flex gap-2 mt-2">
@@ -124,8 +126,8 @@ export function BulkMcAssignmentBanner({ currentMcNumberId }: BulkMcAssignmentBa
                 Assigned!
               </Button>
             ) : (
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 onClick={handleBulkAssign}
                 disabled={assigning || !currentMcNumberId}
                 title={!currentMcNumberId ? 'Select an MC from the top dropdown first' : `Assign all ${data.counts.withoutMc} trucks to current MC`}

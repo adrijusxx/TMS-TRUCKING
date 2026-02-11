@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { createCustomerSchema, type CreateCustomerInput } from '@/lib/validations/customer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +71,7 @@ export default function CreateCustomerForm({
     mutationFn: createCustomer,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Customer created successfully');
       if (onSuccess) {
         onSuccess(data.data.id);
       } else {
@@ -78,6 +80,7 @@ export default function CreateCustomerForm({
     },
     onError: (err: Error) => {
       setError(err.message);
+      toast.error(err.message || 'Failed to create customer');
     },
   });
 
@@ -294,6 +297,30 @@ export default function CreateCustomerForm({
                   placeholder="100000"
                   {...register('creditLimit', { valueAsNumber: true })}
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="taxRate">Tax Rate (%)</Label>
+                <Input
+                  id="taxRate"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...register('taxRate', { valueAsNumber: true })}
+                />
+              </div>
+              <div className="flex items-center space-x-2 pt-8">
+                <input
+                  type="checkbox"
+                  id="isTaxExempt"
+                  {...register('isTaxExempt')}
+                  className="rounded border-gray-300"
+                />
+                <Label htmlFor="isTaxExempt" className="cursor-pointer">
+                  Tax Exempt
+                </Label>
               </div>
             </div>
 

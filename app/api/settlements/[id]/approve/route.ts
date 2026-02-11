@@ -65,7 +65,7 @@ export async function PATCH(
     }
 
     // Check if already approved/rejected
-    if (settlement.approvalStatus !== 'PENDING') {
+    if (settlement.approvalStatus !== 'PENDING' && settlement.approvalStatus !== 'UNDER_REVIEW') {
       return NextResponse.json(
         {
           success: false,
@@ -94,21 +94,31 @@ export async function PATCH(
 
     // Approve or reject settlement
     const settlementManager = new SettlementManager();
-    const updatedSettlement = await settlementManager.approveSettlement(
-      settlementId,
-      session.user.id,
-      validated.notes || undefined
-    );
+    let updatedSettlement;
 
-    // Update payment details if provided
-    if (validated.approved && (validated.paymentMethod || validated.paymentReference)) {
-      await prisma.settlement.update({
-        where: { id: settlementId },
-        data: {
-          ...(validated.paymentMethod && { paymentMethod: validated.paymentMethod }),
-          ...(validated.paymentReference && { paymentReference: validated.paymentReference }),
-        },
-      });
+    if (validated.approved) {
+      updatedSettlement = await settlementManager.approveSettlement(
+        settlementId,
+        session.user.id,
+        validated.notes || undefined
+      );
+
+      // Update payment details if provided
+      if (validated.paymentMethod || validated.paymentReference) {
+        await prisma.settlement.update({
+          where: { id: settlementId },
+          data: {
+            ...(validated.paymentMethod && { paymentMethod: validated.paymentMethod }),
+            ...(validated.paymentReference && { paymentReference: validated.paymentReference }),
+          },
+        });
+      }
+    } else {
+      updatedSettlement = await settlementManager.rejectSettlement(
+        settlementId,
+        session.user.id,
+        validated.notes || 'Settlement rejected'
+      );
     }
 
     return NextResponse.json({

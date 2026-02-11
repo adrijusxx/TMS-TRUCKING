@@ -16,6 +16,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DollarSign, Loader2, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +51,7 @@ export function DriverAdvanceRequest({ driverId }: { driverId: string }) {
 
   const fetchAdvances = async () => {
     try {
-      const response = await fetch(`/api/advances?driverId=${driverId}`);
+      const response = await fetch(apiUrl(`/api/advances?driverId=${driverId}`));
       const data = await response.json();
 
       if (data.success) {
@@ -67,7 +69,7 @@ export function DriverAdvanceRequest({ driverId }: { driverId: string }) {
     setSubmitting(true);
 
     try {
-      const response = await fetch('/api/advances/request', {
+      const response = await fetch(apiUrl('/api/advances/request'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,16 +82,16 @@ export function DriverAdvanceRequest({ driverId }: { driverId: string }) {
       const data = await response.json();
 
       if (data.success) {
-        alert('Advance request submitted successfully');
+        toast.success('Advance request submitted successfully');
         setDialogOpen(false);
         setAmount('');
         setNotes('');
         fetchAdvances();
       } else {
-        alert('Error: ' + (data.error?.message || 'Failed to submit request'));
+        toast.error(data.error?.message || 'Failed to submit request');
       }
     } catch (error: any) {
-      alert('Error: ' + (error.message || 'Failed to submit request'));
+      toast.error(error.message || 'Failed to submit request');
     } finally {
       setSubmitting(false);
     }

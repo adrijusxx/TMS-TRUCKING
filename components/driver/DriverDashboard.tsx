@@ -100,7 +100,7 @@ export function DriverDashboard() {
         await requestSync('sync-status-update');
         return { offline: true };
       }
-      
+
       const res = await fetch(apiUrl(`/api/mobile/driver/loads/${loadId}/status`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -234,68 +234,72 @@ export function DriverDashboard() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Current Load</CardTitle>
-                <Badge className={statusConfig[stats.currentLoad.status]?.color}>
-                  {statusConfig[stats.currentLoad.status]?.label || stats.currentLoad.status}
+                <Badge className={stats?.currentLoad ? statusConfig[stats.currentLoad.status]?.color : ''}>
+                  {stats?.currentLoad ? (statusConfig[stats.currentLoad.status]?.label || stats.currentLoad.status) : ''}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div>
-                <p className="font-bold text-lg">#{stats.currentLoad.loadNumber}</p>
-                <p className="text-sm text-muted-foreground">{stats.currentLoad.customer.name}</p>
-              </div>
-
-              {/* Route */}
-              <div className="space-y-2 py-2 border-y">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      {stats.currentLoad.pickupCity}, {stats.currentLoad.pickupState}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(stats.currentLoad.pickupDate)}
-                    </p>
+              {stats?.currentLoad && (
+                <>
+                  <div>
+                    <p className="font-bold text-lg">#{stats.currentLoad.loadNumber}</p>
+                    <p className="text-sm text-muted-foreground">{stats.currentLoad.customer.name}</p>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      {stats.currentLoad.deliveryCity}, {stats.currentLoad.deliveryState}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(stats.currentLoad.deliveryDate)}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Actions */}
-              <div className="grid grid-cols-2 gap-2">
-                {nextStatusMap[stats.currentLoad.status] && (
-                  <Button
-                    onClick={handleStatusUpdate}
-                    disabled={updateStatusMutation.isPending}
-                    className="col-span-2"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    {updateStatusMutation.isPending
-                      ? 'Updating...'
-                      : `Mark ${statusConfig[nextStatusMap[stats.currentLoad.status]]?.label}`}
-                  </Button>
-                )}
-                <Button variant="outline" onClick={handleUploadPOD}>
-                  <Camera className="h-4 w-4 mr-2" />
-                  Upload POD
-                </Button>
-                <Link href={`/driver/loads/${stats.currentLoad.id}`} className="contents">
-                  <Button variant="outline">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    Details
-                  </Button>
-                </Link>
-              </div>
+                  {/* Route */}
+                  <div className="space-y-2 py-2 border-y">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {stats.currentLoad.pickupCity}, {stats.currentLoad.pickupState}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(stats.currentLoad.pickupDate)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {stats.currentLoad.deliveryCity}, {stats.currentLoad.deliveryState}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(stats.currentLoad.deliveryDate)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {nextStatusMap[stats.currentLoad.status] && (
+                      <Button
+                        onClick={handleStatusUpdate}
+                        disabled={updateStatusMutation.isPending}
+                        className="col-span-2"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        {updateStatusMutation.isPending
+                          ? 'Updating...'
+                          : `Mark ${statusConfig[nextStatusMap[stats.currentLoad.status]]?.label}`}
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={handleUploadPOD}>
+                      <Camera className="h-4 w-4 mr-2" />
+                      Upload POD
+                    </Button>
+                    <Link href={`/driver/loads/${stats.currentLoad.id}`} className="contents">
+                      <Button variant="outline">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        Details
+                      </Button>
+                    </Link>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -311,6 +315,7 @@ export function DriverDashboard() {
             </CardContent>
           </Card>
         )}
+
 
         {/* Alerts */}
         {(stats?.activeBreakdowns || 0) > 0 && (

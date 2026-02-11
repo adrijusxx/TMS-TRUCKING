@@ -8,10 +8,13 @@ import { TableToolbar } from './TableToolbar';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { ColumnPreferenceManager } from '@/lib/managers/ColumnPreferenceManager';
-import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { ChevronDown } from 'lucide-react';
+import { cn, apiUrl } from '@/lib/utils';
 import { ImportModal } from '@/components/ui/import-modal';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
 import { exportToCSV } from '@/lib/export';
 import type {
   DataTableProps,
@@ -20,7 +23,6 @@ import type {
   UserColumnPreferences,
 } from './types';
 import type { RowSelectionState, SortingState, ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
-import { apiUrl } from '@/lib/utils';
 import { mergePreferences, preferencesToVisibilityState, visibilityStateToPreferences, preferencesToColumnOrder, columnOrderToPreferences } from '@/lib/utils/column-preferences';
 
 interface DataTableWrapperProps<TData extends Record<string, any>> {
@@ -171,6 +173,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   const [isSelectingAll, setIsSelectingAll] = React.useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
   const [columnOrder, setColumnOrder] = React.useState<string[]>([]);
+  const [isCompact, setIsCompact] = React.useState(false);
 
   // Filter columns based on permissions
   const visibleColumns = React.useMemo(() => {
@@ -598,7 +601,20 @@ export function DataTableWrapper<TData extends Record<string, any>>({
           onExport={config.enableExport !== false ? handleExport : undefined}
           enableImport={config.enableImport === true}
           onImport={config.enableImport === true ? handleImport : undefined}
-          toolbarActions={toolbarActions}
+          toolbarActions={
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-8 w-8 p-0", isCompact && "text-primary")}
+                onClick={() => setIsCompact(!isCompact)}
+                title={isCompact ? "Disable Compact View" : "Enable Compact View"}
+              >
+                <ChevronDown className={cn("h-4 w-4 transition-transform", isCompact && "rotate-180")} />
+              </Button>
+              {toolbarActions}
+            </>
+          }
         />
       )}
 
@@ -672,6 +688,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
         onColumnOrderChange={handleColumnOrderChange}
         enableColumnReorder={enableColumnReorder}
         savePreferences={false}
+        isCompact={isCompact}
       />
 
       {/* Import Modal */}

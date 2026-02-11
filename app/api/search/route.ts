@@ -208,7 +208,7 @@ export async function GET(request: NextRequest) {
         loads,
         drivers,
         trucks,
-        trailers: [], // Trailers not implemented in search yet?
+        trailers: [],
         customers,
       },
     });

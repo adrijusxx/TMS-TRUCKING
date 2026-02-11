@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SettlementAuditLog } from './SettlementAuditLog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -691,745 +693,756 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Driver Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Driver
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="font-medium">
-              {settlement.driver?.user?.firstName} {settlement.driver?.user?.lastName}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {settlement.driver?.driverNumber || 'N/A'}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {settlement.driver?.user?.email || 'N/A'}
-            </p>
-            <Link href={`/dashboard/drivers?driverId=${settlement.driverId}`}>
-              <Button variant="ghost" size="sm" className="mt-2">
-                Edit Driver
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Pay Structure - Combined single display */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Pay Structure
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-lg font-semibold">
-              {(() => {
-                const payType = settlement.driver?.payType;
-                const payRate = settlement.driver?.payRate;
-
-                if (!payType || payRate === null || payRate === undefined) {
-                  return <span className="text-muted-foreground">Not Configured</span>;
-                }
-
-                switch (payType) {
-                  case 'PER_MILE':
-                    return `CPM: ${formatCurrency(payRate)}/mile`;
-                  case 'PERCENTAGE':
-                    return `Percentage: ${payRate}%`;
-                  case 'PER_LOAD':
-                    return `Per Load: ${formatCurrency(payRate)}/load`;
-                  case 'HOURLY':
-                    return `Hourly: ${formatCurrency(payRate)}/hour`;
-                  default:
-                    return <span className="text-muted-foreground">{payType}</span>;
-                }
-              })()}
-            </div>
-            {/* Note: perDiem field removed - use recurring transactions instead */}
-          </CardContent>
-        </Card>
-
-        {/* Escrow Information */}
-        {(settlement.driver?.escrowTargetAmount || settlement.driver?.escrowDeductionPerWeek) && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                Escrow / Holdings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {settlement.driver?.escrowTargetAmount && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Target Amount</p>
-                  <p className="font-medium">{formatCurrency(settlement.driver.escrowTargetAmount)}</p>
-                </div>
-              )}
-              {settlement.driver?.escrowDeductionPerWeek && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Deduction Per Week</p>
-                  <p className="font-medium">{formatCurrency(settlement.driver.escrowDeductionPerWeek)}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-sm text-muted-foreground">Current Balance</p>
-                <p className="font-medium">{formatCurrency(settlement.driver?.escrowBalance || 0)}</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Period */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Period
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <p className="text-sm text-muted-foreground">Start Date</p>
-              {isEditing ? (
-                <Input
-                  type="date"
-                  value={editedPeriodStart}
-                  onChange={(e) => setEditedPeriodStart(e.target.value)}
-                />
-              ) : (
-                <p className="font-medium">{formatDate(settlement.periodStart)}</p>
-              )}
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">End Date</p>
-              {isEditing ? (
-                <Input
-                  type="date"
-                  value={editedPeriodEnd}
-                  onChange={(e) => setEditedPeriodEnd(e.target.value)}
-                />
-              ) : (
-                <p className="font-medium">{formatDate(settlement.periodEnd)}</p>
-              )}
-            </div>
-            {settlement.paidDate && (
-              <div>
-                <p className="text-sm text-muted-foreground">Paid Date</p>
-                <p className="font-medium">{formatDate(settlement.paidDate)}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Financial Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Financial Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Gross Pay</span>
-              {isEditing ? (
-                <Input
-                  type="number"
-                  step="0.01"
-                  className="w-32 text-right"
-                  value={editedGrossPay}
-                  onChange={(e) => setEditedGrossPay(e.target.value)}
-                />
-              ) : (
-                <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
-              )}
-            </div>
-
-            <div className="flex justify-between items-center pt-2 border-t mt-2">
-              <span className="text-sm text-muted-foreground">Total Miles</span>
-              <span className="font-medium">
-                {settlement.loads?.reduce((sum: number, load: any) => sum + (load.totalMiles || load.loadedMiles || 0), 0).toLocaleString()} mi
-              </span>
-            </div>
-            <div className="flex justify-between items-center pb-2 border-b mb-2">
-              <span className="text-sm text-muted-foreground">Loaded Miles</span>
-              <span className="font-medium">
-                {settlement.loads?.reduce((sum: number, load: any) => sum + (load.loadedMiles || 0), 0).toLocaleString()} mi
-              </span>
-            </div>
-            {additionsData?.data && additionsData.data.length > 0 && (
-              <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">Additions</span>
-                <span className="font-medium text-green-600">
-                  +{formatCurrency(additionsData.data.reduce((sum: number, a: any) => sum + a.amount, 0))}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Deductions</span>
-              <span className="font-medium text-red-600">
-                -{formatCurrency(settlement.deductions)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Advances</span>
-              <span className="font-medium text-red-600">
-                -{formatCurrency(settlement.advances)}
-              </span>
-            </div>
-            <div className="flex justify-between pt-2 border-t">
-              <span className="font-semibold">Net Pay</span>
-              <span className="text-xl font-bold text-green-600">
-                {formatCurrency(settlement.netPay)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Additions Section */}
-        <Card className="md:col-span-2 lg:col-span-3">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5 text-green-600" />
-                Additions
-              </CardTitle>
-              <Dialog open={isAdditionDialogOpen} onOpenChange={setIsAdditionDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Addition
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="details">Settlement Details</TabsTrigger>
+          <TabsTrigger value="audit">Audit Log</TabsTrigger>
+        </TabsList>
+        <TabsContent value="details">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* Driver Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Driver
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="font-medium">
+                  {settlement.driver?.user?.firstName} {settlement.driver?.user?.lastName}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {settlement.driver?.driverNumber || 'N/A'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {settlement.driver?.user?.email || 'N/A'}
+                </p>
+                <Link href={`/dashboard/drivers?driverId=${settlement.driverId}`}>
+                  <Button variant="ghost" size="sm" className="mt-2">
+                    Edit Driver
                   </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Addition</DialogTitle>
-                    <DialogDescription>
-                      Add a bonus, overtime, incentive, or reimbursement to this settlement
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="additionType">Type *</Label>
-                      <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className={cn(
-                              "w-full justify-between font-normal",
-                              !newAddition.deductionType && "text-muted-foreground"
-                            )}
-                          >
-                            {newAddition.deductionType === 'OTHER' && newAddition.description
-                              ? newAddition.description
-                              : (TRANSACTION_TYPES[newAddition.deductionType as keyof typeof TRANSACTION_TYPES]?.label || "Select type...")}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0" align="start">
-                          <Command>
-                            <CommandInput
-                              placeholder="Search or create type..."
-                              value={searchTerm}
-                              onValueChange={setSearchTerm}
-                            />
-                            <CommandList>
-                              <CommandEmpty>
-                                <Button
-                                  variant="ghost"
-                                  className="w-full text-sm justify-start h-auto py-1.5 px-2 font-normal"
-                                  onClick={async () => {
-                                    const foundKey = Object.keys(TRANSACTION_TYPES).find(key =>
-                                      TRANSACTION_TYPES[key as keyof typeof TRANSACTION_TYPES].label === searchTerm
-                                    );
-                                    if (foundKey) {
-                                      setNewAddition({ ...newAddition, deductionType: foundKey });
-                                      setOpenCombobox(false);
-                                      setSearchTerm('');
-                                      return;
-                                    }
+                </Link>
+              </CardContent>
+            </Card>
 
-                                    await createCustomType(searchTerm, 'addition');
-                                    setNewAddition({ ...newAddition, deductionType: 'OTHER', description: searchTerm });
-                                    setOpenCombobox(false);
-                                    setSearchTerm('');
-                                  }}
-                                >
-                                  Create "{searchTerm}"
-                                </Button>
-                              </CommandEmpty>
-                              {customAdditions.length > 0 && (
-                                <CommandGroup heading="Additions">
-                                  {customAdditions.map((ct) => (
-                                    <CommandItem
-                                      key={ct.id}
-                                      value={ct.name}
-                                      onSelect={() => {
-                                        setNewAddition({
-                                          ...newAddition,
-                                          deductionType: 'OTHER',
-                                          description: ct.name,
-                                        });
-                                        setOpenCombobox(false);
-                                        setSearchTerm('');
-                                      }}
-                                      className="justify-between"
-                                    >
-                                      <div className="flex items-center">
-                                        <Check
-                                          className={cn(
-                                            "mr-2 h-4 w-4",
-                                            (newAddition.deductionType === 'OTHER' && newAddition.description === ct.name)
-                                              ? "opacity-100"
-                                              : "opacity-0"
-                                          )}
-                                        />
-                                        {ct.name}
-                                      </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                                        onClick={(e) => deleteCustomType(e, ct.id)}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              )}
+            {/* Pay Structure - Combined single display */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Pay Structure
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold">
+                  {(() => {
+                    const payType = settlement.driver?.payType;
+                    const payRate = settlement.driver?.payRate;
 
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                    if (!payType || payRate === null || payRate === undefined) {
+                      return <span className="text-muted-foreground">Not Configured</span>;
+                    }
+
+                    switch (payType) {
+                      case 'PER_MILE':
+                        return `CPM: ${formatCurrency(payRate)}/mile`;
+                      case 'PERCENTAGE':
+                        return `Percentage: ${payRate}%`;
+                      case 'PER_LOAD':
+                        return `Per Load: ${formatCurrency(payRate)}/load`;
+                      case 'HOURLY':
+                        return `Hourly: ${formatCurrency(payRate)}/hour`;
+                      default:
+                        return <span className="text-muted-foreground">{payType}</span>;
+                    }
+                  })()}
+                </div>
+                {/* Note: perDiem field removed - use recurring transactions instead */}
+              </CardContent>
+            </Card>
+
+            {/* Escrow Information */}
+            {(settlement.driver?.escrowTargetAmount || settlement.driver?.escrowDeductionPerWeek) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Escrow / Holdings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {settlement.driver?.escrowTargetAmount && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Target Amount</p>
+                      <p className="font-medium">{formatCurrency(settlement.driver.escrowTargetAmount)}</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="addDescription">Description *</Label>
-                      <Input
-                        id="addDescription"
-                        placeholder="e.g., Safety Bonus, Extra Hours"
-                        value={newAddition.description}
-                        onChange={(e) =>
-                          setNewAddition({ ...newAddition, description: e.target.value })
-                        }
-                      />
+                  )}
+                  {settlement.driver?.escrowDeductionPerWeek && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Deduction Per Week</p>
+                      <p className="font-medium">{formatCurrency(settlement.driver.escrowDeductionPerWeek)}</p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="addAmount">Amount *</Label>
-                      <Input
-                        id="addAmount"
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={newAddition.amount}
-                        onChange={(e) =>
-                          setNewAddition({ ...newAddition, amount: e.target.value })
-                        }
-                      />
-                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-muted-foreground">Current Balance</p>
+                    <p className="font-medium">{formatCurrency(settlement.driver?.escrowBalance || 0)}</p>
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAdditionDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        if (newAddition.description && newAddition.amount) {
-                          createAdditionMutation.mutate({
-                            deductionType: newAddition.deductionType,
-                            description: newAddition.description,
-                            amount: parseFloat(newAddition.amount),
-                          });
-                        }
-                      }}
-                      disabled={createAdditionMutation.isPending}
-                    >
-                      {createAdditionMutation.isPending ? 'Adding...' : 'Add Addition'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {(!additionsData?.data || additionsData.data.length === 0) ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No additions added yet. Click "Add Addition" to add one.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {additionsData.data.map((addition: any) => (
-                    <TableRow key={addition.id}>
-                      <TableCell>
-                        {addition.deductionType === 'BONUS' ? 'Bonus' :
-                          addition.deductionType === 'OVERTIME' ? 'Overtime' :
-                            addition.deductionType === 'INCENTIVE' ? 'Incentive' :
-                              addition.deductionType === 'REIMBURSEMENT' ? 'Reimbursement' :
-                                addition.deductionType}
-                      </TableCell>
-                      <TableCell>{addition.description}</TableCell>
-                      <TableCell className="text-right font-medium text-green-600">
-                        +{formatCurrency(addition.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteAdditionMutation.mutate(addition.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
 
-        {/* Status Update */}
-        {isEditing && (
-          <Card className="md:col-span-2 lg:col-span-3">
-            <CardHeader>
-              <CardTitle>Update Settlement</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as SettlementStatus)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PENDING">Pending</SelectItem>
-                    <SelectItem value="APPROVED">Approved</SelectItem>
-                    <SelectItem value="PAID">Paid</SelectItem>
-                    <SelectItem value="DISPUTED">Disputed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Add notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Notes */}
-        {settlement.notes && !isEditing && (
-          <Card className="md:col-span-2 lg:col-span-3">
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm whitespace-pre-wrap">{settlement.notes}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Loads Included */}
-        {settlement.loads && settlement.loads.length > 0 && (
-          <Card className="md:col-span-2 lg:col-span-3">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Loads Included ({settlement.loads.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Load #</TableHead>
-                      <TableHead>Route</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead className="text-right">Driver Pay</TableHead>
-                      <TableHead className="text-right">Distance</TableHead>
-                      <TableHead>Delivered</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {settlement.loads.map((load: any) => (
-                      <TableRow key={load.id}>
-                        <TableCell className="font-medium">
-                          <Link
-                            href={`/dashboard/loads/${load.id}`}
-                            className="text-primary hover:underline"
-                          >
-                            {load.loadNumber}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          {load.pickupCity}, {load.pickupState} → {load.deliveryCity},{' '}
-                          {load.deliveryState}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(load.revenue)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(load.driverPay || 0)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {(load.route?.totalDistance || load.totalMiles || 0) ? `${(load.route?.totalDistance || load.totalMiles || 0)} mi` : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          {load.deliveredAt ? formatDate(load.deliveredAt) : 'N/A'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link href={`/dashboard/loads/${load.id}`}>
-                            <Button variant="ghost" size="sm">
-                              View
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Deductions */}
-        <Card className="md:col-span-2 lg:col-span-3">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                Deductions ({deductions.length})
-              </CardTitle>
-              <Dialog open={isDeductionDialogOpen} onOpenChange={setIsDeductionDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Deduction
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Deduction</DialogTitle>
-                    <DialogDescription>
-                      Add a deduction to this settlement. The settlement totals will be recalculated automatically.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="deductionType">Type</Label>
-                      <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className={cn(
-                              "w-full justify-between font-normal",
-                              !newDeduction.deductionType && "text-muted-foreground"
-                            )}
-                          >
-                            {newDeduction.deductionType === 'OTHER' && newDeduction.description
-                              ? newDeduction.description
-                              : (TRANSACTION_TYPES[newDeduction.deductionType as keyof typeof TRANSACTION_TYPES]?.label || "Select type...")}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[400px] p-0" align="start">
-                          <Command>
-                            <CommandInput
-                              placeholder="Search or create type..."
-                              value={searchTerm}
-                              onValueChange={setSearchTerm}
-                            />
-                            <CommandList>
-                              <CommandEmpty>
-                                <Button
-                                  variant="ghost"
-                                  className="w-full text-sm justify-start h-auto py-1.5 px-2 font-normal"
-                                  onClick={async () => {
-                                    const foundKey = Object.keys(TRANSACTION_TYPES).find(key =>
-                                      TRANSACTION_TYPES[key as keyof typeof TRANSACTION_TYPES].label === searchTerm
-                                    );
-                                    if (foundKey) {
-                                      setNewDeduction({ ...newDeduction, deductionType: foundKey });
-                                      setOpenCombobox(false);
-                                      setSearchTerm('');
-                                      return;
-                                    }
-                                    await createCustomType(searchTerm, 'deduction');
-                                    setNewDeduction({ ...newDeduction, deductionType: 'OTHER', description: searchTerm });
-                                    setOpenCombobox(false);
-                                    setSearchTerm('');
-                                  }}
-                                >
-                                  Create "{searchTerm}"
-                                </Button>
-                              </CommandEmpty>
-                              {customDeductions.length > 0 && (
-                                <CommandGroup heading="Deductions">
-                                  {customDeductions.map((ct) => (
-                                    <CommandItem
-                                      key={ct.id}
-                                      value={ct.name}
-                                      onSelect={() => {
-                                        setNewDeduction({
-                                          ...newDeduction,
-                                          deductionType: 'OTHER',
-                                          description: ct.name,
-                                        });
-                                        setOpenCombobox(false);
-                                        setSearchTerm('');
-                                      }}
-                                      className="justify-between"
-                                    >
-                                      <div className="flex items-center">
-                                        <Check
-                                          className={cn(
-                                            "mr-2 h-4 w-4",
-                                            (newDeduction.deductionType === 'OTHER' && newDeduction.description === ct.name)
-                                              ? "opacity-100"
-                                              : "opacity-0"
-                                          )}
-                                        />
-                                        {ct.name}
-                                      </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                                        onClick={(e) => deleteCustomType(e, ct.id)}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              )}
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Input
-                        id="description"
-                        value={newDeduction.description}
-                        onChange={(e) => setNewDeduction({ ...newDeduction, description: e.target.value })}
-                        placeholder="Enter deduction description"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="amount">Amount</Label>
-                      <Input
-                        id="amount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={newDeduction.amount}
-                        onChange={(e) => setNewDeduction({ ...newDeduction, amount: e.target.value })}
-                        placeholder="0.00"
-                      />
-                    </div>
+            {/* Period */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Period
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Start Date</p>
+                  {isEditing ? (
+                    <Input
+                      type="date"
+                      value={editedPeriodStart}
+                      onChange={(e) => setEditedPeriodStart(e.target.value)}
+                    />
+                  ) : (
+                    <p className="font-medium">{formatDate(settlement.periodStart)}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">End Date</p>
+                  {isEditing ? (
+                    <Input
+                      type="date"
+                      value={editedPeriodEnd}
+                      onChange={(e) => setEditedPeriodEnd(e.target.value)}
+                    />
+                  ) : (
+                    <p className="font-medium">{formatDate(settlement.periodEnd)}</p>
+                  )}
+                </div>
+                {settlement.paidDate && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Paid Date</p>
+                    <p className="font-medium">{formatDate(settlement.paidDate)}</p>
                   </div>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsDeductionDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleAddDeduction}
-                      disabled={createDeductionMutation.isPending}
-                    >
-                      {createDeductionMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        'Add Deduction'
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {deductions.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No deductions added yet. Click "Add Deduction" to add one.
-              </p>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {deductions.map((deduction: any) => (
-                      <TableRow key={deduction.id}>
-                        <TableCell>{deductionTypeLabels[deduction.deductionType] || deduction.deductionType}</TableCell>
-                        <TableCell className="text-right text-red-600">
-                          -{formatCurrency(deduction.amount)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteDeduction(deduction.id)}
-                            disabled={deleteDeductionMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <div className="p-4 bg-muted border-t">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Total Deductions:</span>
-                    <span className="text-lg font-bold text-red-600">
-                      -{formatCurrency(deductions.reduce((sum: number, d: any) => sum + d.amount, 0))}
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Financial Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Financial Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Gross Pay</span>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="w-32 text-right"
+                      value={editedGrossPay}
+                      onChange={(e) => setEditedGrossPay(e.target.value)}
+                    />
+                  ) : (
+                    <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t mt-2">
+                  <span className="text-sm text-muted-foreground">Total Miles</span>
+                  <span className="font-medium">
+                    {settlement.loads?.reduce((sum: number, load: any) => sum + (load.totalMiles || load.loadedMiles || 0), 0).toLocaleString()} mi
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b mb-2">
+                  <span className="text-sm text-muted-foreground">Loaded Miles</span>
+                  <span className="font-medium">
+                    {settlement.loads?.reduce((sum: number, load: any) => sum + (load.loadedMiles || 0), 0).toLocaleString()} mi
+                  </span>
+                </div>
+                {additionsData?.data && additionsData.data.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Additions</span>
+                    <span className="font-medium text-green-600">
+                      +{formatCurrency(additionsData.data.reduce((sum: number, a: any) => sum + a.amount, 0))}
                     </span>
                   </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Deductions</span>
+                  <span className="font-medium text-red-600">
+                    -{formatCurrency(settlement.deductions)}
+                  </span>
                 </div>
-              </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Advances</span>
+                  <span className="font-medium text-red-600">
+                    -{formatCurrency(settlement.advances)}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="font-semibold">Net Pay</span>
+                  <span className="text-xl font-bold text-green-600">
+                    {formatCurrency(settlement.netPay)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Additions Section */}
+            <Card className="md:col-span-2 lg:col-span-3">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-green-600" />
+                    Additions
+                  </CardTitle>
+                  <Dialog open={isAdditionDialogOpen} onOpenChange={setIsAdditionDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Addition
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Addition</DialogTitle>
+                        <DialogDescription>
+                          Add a bonus, overtime, incentive, or reimbursement to this settlement
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="additionType">Type *</Label>
+                          <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !newAddition.deductionType && "text-muted-foreground"
+                                )}
+                              >
+                                {newAddition.deductionType === 'OTHER' && newAddition.description
+                                  ? newAddition.description
+                                  : (TRANSACTION_TYPES[newAddition.deductionType as keyof typeof TRANSACTION_TYPES]?.label || "Select type...")}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0" align="start">
+                              <Command>
+                                <CommandInput
+                                  placeholder="Search or create type..."
+                                  value={searchTerm}
+                                  onValueChange={setSearchTerm}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>
+                                    <Button
+                                      variant="ghost"
+                                      className="w-full text-sm justify-start h-auto py-1.5 px-2 font-normal"
+                                      onClick={async () => {
+                                        const foundKey = Object.keys(TRANSACTION_TYPES).find(key =>
+                                          TRANSACTION_TYPES[key as keyof typeof TRANSACTION_TYPES].label === searchTerm
+                                        );
+                                        if (foundKey) {
+                                          setNewAddition({ ...newAddition, deductionType: foundKey });
+                                          setOpenCombobox(false);
+                                          setSearchTerm('');
+                                          return;
+                                        }
+
+                                        await createCustomType(searchTerm, 'addition');
+                                        setNewAddition({ ...newAddition, deductionType: 'OTHER', description: searchTerm });
+                                        setOpenCombobox(false);
+                                        setSearchTerm('');
+                                      }}
+                                    >
+                                      Create "{searchTerm}"
+                                    </Button>
+                                  </CommandEmpty>
+                                  {customAdditions.length > 0 && (
+                                    <CommandGroup heading="Additions">
+                                      {customAdditions.map((ct) => (
+                                        <CommandItem
+                                          key={ct.id}
+                                          value={ct.name}
+                                          onSelect={() => {
+                                            setNewAddition({
+                                              ...newAddition,
+                                              deductionType: 'OTHER',
+                                              description: ct.name,
+                                            });
+                                            setOpenCombobox(false);
+                                            setSearchTerm('');
+                                          }}
+                                          className="justify-between"
+                                        >
+                                          <div className="flex items-center">
+                                            <Check
+                                              className={cn(
+                                                "mr-2 h-4 w-4",
+                                                (newAddition.deductionType === 'OTHER' && newAddition.description === ct.name)
+                                                  ? "opacity-100"
+                                                  : "opacity-0"
+                                              )}
+                                            />
+                                            {ct.name}
+                                          </div>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                            onClick={(e) => deleteCustomType(e, ct.id)}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  )}
+
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="addDescription">Description *</Label>
+                          <Input
+                            id="addDescription"
+                            placeholder="e.g., Safety Bonus, Extra Hours"
+                            value={newAddition.description}
+                            onChange={(e) =>
+                              setNewAddition({ ...newAddition, description: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="addAmount">Amount *</Label>
+                          <Input
+                            id="addAmount"
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={newAddition.amount}
+                            onChange={(e) =>
+                              setNewAddition({ ...newAddition, amount: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAdditionDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (newAddition.description && newAddition.amount) {
+                              createAdditionMutation.mutate({
+                                deductionType: newAddition.deductionType,
+                                description: newAddition.description,
+                                amount: parseFloat(newAddition.amount),
+                              });
+                            }
+                          }}
+                          disabled={createAdditionMutation.isPending}
+                        >
+                          {createAdditionMutation.isPending ? 'Adding...' : 'Add Addition'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {(!additionsData?.data || additionsData.data.length === 0) ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No additions added yet. Click "Add Addition" to add one.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {additionsData.data.map((addition: any) => (
+                        <TableRow key={addition.id}>
+                          <TableCell>
+                            {addition.deductionType === 'BONUS' ? 'Bonus' :
+                              addition.deductionType === 'OVERTIME' ? 'Overtime' :
+                                addition.deductionType === 'INCENTIVE' ? 'Incentive' :
+                                  addition.deductionType === 'REIMBURSEMENT' ? 'Reimbursement' :
+                                    addition.deductionType}
+                          </TableCell>
+                          <TableCell>{addition.description}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">
+                            +{formatCurrency(addition.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteAdditionMutation.mutate(addition.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Status Update */}
+            {isEditing && (
+              <Card className="md:col-span-2 lg:col-span-3">
+                <CardHeader>
+                  <CardTitle>Update Settlement</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select value={status} onValueChange={(v) => setStatus(v as SettlementStatus)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PENDING">Pending</SelectItem>
+                        <SelectItem value="APPROVED">Approved</SelectItem>
+                        <SelectItem value="PAID">Paid</SelectItem>
+                        <SelectItem value="DISPUTED">Disputed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Add notes..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
-      </div>
+
+            {/* Notes */}
+            {settlement.notes && !isEditing && (
+              <Card className="md:col-span-2 lg:col-span-3">
+                <CardHeader>
+                  <CardTitle>Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap">{settlement.notes}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Loads Included */}
+            {settlement.loads && settlement.loads.length > 0 && (
+              <Card className="md:col-span-2 lg:col-span-3">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Loads Included ({settlement.loads.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Load #</TableHead>
+                          <TableHead>Route</TableHead>
+                          <TableHead className="text-right">Revenue</TableHead>
+                          <TableHead className="text-right">Driver Pay</TableHead>
+                          <TableHead className="text-right">Distance</TableHead>
+                          <TableHead>Delivered</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {settlement.loads.map((load: any) => (
+                          <TableRow key={load.id}>
+                            <TableCell className="font-medium">
+                              <Link
+                                href={`/dashboard/loads/${load.id}`}
+                                className="text-primary hover:underline"
+                              >
+                                {load.loadNumber}
+                              </Link>
+                            </TableCell>
+                            <TableCell>
+                              {load.pickupCity}, {load.pickupState} → {load.deliveryCity},{' '}
+                              {load.deliveryState}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(load.revenue)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(load.driverPay || 0)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {(load.route?.totalDistance || load.totalMiles || 0) ? `${(load.route?.totalDistance || load.totalMiles || 0)} mi` : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              {load.deliveredAt ? formatDate(load.deliveredAt) : 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Link href={`/dashboard/loads/${load.id}`}>
+                                <Button variant="ghost" size="sm">
+                                  View
+                                </Button>
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Deductions */}
+            <Card className="md:col-span-2 lg:col-span-3">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Deductions ({deductions.length})
+                  </CardTitle>
+                  <Dialog open={isDeductionDialogOpen} onOpenChange={setIsDeductionDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Deduction
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Deduction</DialogTitle>
+                        <DialogDescription>
+                          Add a deduction to this settlement. The settlement totals will be recalculated automatically.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="deductionType">Type</Label>
+                          <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !newDeduction.deductionType && "text-muted-foreground"
+                                )}
+                              >
+                                {newDeduction.deductionType === 'OTHER' && newDeduction.description
+                                  ? newDeduction.description
+                                  : (TRANSACTION_TYPES[newDeduction.deductionType as keyof typeof TRANSACTION_TYPES]?.label || "Select type...")}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0" align="start">
+                              <Command>
+                                <CommandInput
+                                  placeholder="Search or create type..."
+                                  value={searchTerm}
+                                  onValueChange={setSearchTerm}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>
+                                    <Button
+                                      variant="ghost"
+                                      className="w-full text-sm justify-start h-auto py-1.5 px-2 font-normal"
+                                      onClick={async () => {
+                                        const foundKey = Object.keys(TRANSACTION_TYPES).find(key =>
+                                          TRANSACTION_TYPES[key as keyof typeof TRANSACTION_TYPES].label === searchTerm
+                                        );
+                                        if (foundKey) {
+                                          setNewDeduction({ ...newDeduction, deductionType: foundKey });
+                                          setOpenCombobox(false);
+                                          setSearchTerm('');
+                                          return;
+                                        }
+                                        await createCustomType(searchTerm, 'deduction');
+                                        setNewDeduction({ ...newDeduction, deductionType: 'OTHER', description: searchTerm });
+                                        setOpenCombobox(false);
+                                        setSearchTerm('');
+                                      }}
+                                    >
+                                      Create "{searchTerm}"
+                                    </Button>
+                                  </CommandEmpty>
+                                  {customDeductions.length > 0 && (
+                                    <CommandGroup heading="Deductions">
+                                      {customDeductions.map((ct) => (
+                                        <CommandItem
+                                          key={ct.id}
+                                          value={ct.name}
+                                          onSelect={() => {
+                                            setNewDeduction({
+                                              ...newDeduction,
+                                              deductionType: 'OTHER',
+                                              description: ct.name,
+                                            });
+                                            setOpenCombobox(false);
+                                            setSearchTerm('');
+                                          }}
+                                          className="justify-between"
+                                        >
+                                          <div className="flex items-center">
+                                            <Check
+                                              className={cn(
+                                                "mr-2 h-4 w-4",
+                                                (newDeduction.deductionType === 'OTHER' && newDeduction.description === ct.name)
+                                                  ? "opacity-100"
+                                                  : "opacity-0"
+                                              )}
+                                            />
+                                            {ct.name}
+                                          </div>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                            onClick={(e) => deleteCustomType(e, ct.id)}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  )}
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Input
+                            id="description"
+                            value={newDeduction.description}
+                            onChange={(e) => setNewDeduction({ ...newDeduction, description: e.target.value })}
+                            placeholder="Enter deduction description"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="amount">Amount</Label>
+                          <Input
+                            id="amount"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={newDeduction.amount}
+                            onChange={(e) => setNewDeduction({ ...newDeduction, amount: e.target.value })}
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsDeductionDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleAddDeduction}
+                          disabled={createDeductionMutation.isPending}
+                        >
+                          {createDeductionMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Adding...
+                            </>
+                          ) : (
+                            'Add Deduction'
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {deductions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No deductions added yet. Click "Add Deduction" to add one.
+                  </p>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {deductions.map((deduction: any) => (
+                          <TableRow key={deduction.id}>
+                            <TableCell>{deductionTypeLabels[deduction.deductionType] || deduction.deductionType}</TableCell>
+                            <TableCell className="text-right text-red-600">
+                              -{formatCurrency(deduction.amount)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteDeduction(deduction.id)}
+                                disabled={deleteDeductionMutation.isPending}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="p-4 bg-muted border-t">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Total Deductions:</span>
+                        <span className="text-lg font-bold text-red-600">
+                          -{formatCurrency(deductions.reduce((sum: number, d: any) => sum + d.amount, 0))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        <TabsContent value="audit">
+          <SettlementAuditLog auditLog={settlement.calculationLog as any} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

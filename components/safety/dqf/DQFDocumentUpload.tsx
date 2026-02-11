@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Upload } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface DQFDocumentUploadProps {
   driverId: string;
@@ -51,8 +52,12 @@ export default function DQFDocumentUpload({ driverId }: DQFDocumentUploadProps) 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dqf', driverId] });
+      toast.success('Document uploaded to DQF successfully');
       setFile(null);
       setDocumentType('');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to upload document');
     }
   });
 
@@ -64,7 +69,7 @@ export default function DQFDocumentUpload({ driverId }: DQFDocumentUploadProps) 
 
   const handleUpload = async () => {
     if (!file || !documentType) {
-      alert('Please select a file and document type');
+      toast.warning('Please select a file and document type');
       return;
     }
 
@@ -91,7 +96,7 @@ export default function DQFDocumentUpload({ driverId }: DQFDocumentUploadProps) 
       await uploadMutation.mutateAsync(linkFormData);
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Failed to upload document');
+      toast.error('Failed to upload document');
     } finally {
       setUploading(false);
     }

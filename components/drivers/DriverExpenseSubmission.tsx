@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FileText, Loader2, Plus, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -63,7 +65,7 @@ export function DriverExpenseSubmission({ driverId }: { driverId: string }) {
         console.log('Uploading receipt:', receipt);
       }
 
-      const response = await fetch(`/api/loads/${loadId}/expenses`, {
+      const response = await fetch(apiUrl(`/api/loads/${loadId}/expenses`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -79,7 +81,7 @@ export function DriverExpenseSubmission({ driverId }: { driverId: string }) {
       const data = await response.json();
 
       if (data.success) {
-        alert('Expense submitted successfully');
+        toast.success('Expense submitted successfully');
         setDialogOpen(false);
         // Reset form
         setLoadId('');
@@ -89,10 +91,10 @@ export function DriverExpenseSubmission({ driverId }: { driverId: string }) {
         setDescription('');
         setReceipt(null);
       } else {
-        alert('Error: ' + (data.error?.message || 'Failed to submit expense'));
+        toast.error(data.error?.message || 'Failed to submit expense');
       }
     } catch (error: any) {
-      alert('Error: ' + (error.message || 'Failed to submit expense'));
+      toast.error(error.message || 'Failed to submit expense');
     } finally {
       setSubmitting(false);
     }

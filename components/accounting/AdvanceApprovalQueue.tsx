@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/table';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
+import { apiUrl } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -66,7 +68,7 @@ export function AdvanceApprovalQueue() {
 
   const fetchAdvances = async () => {
     try {
-      const response = await fetch('/api/advances?status=PENDING');
+      const response = await fetch(apiUrl('/api/advances?status=PENDING'));
       const data = await response.json();
 
       if (data.success) {
@@ -85,7 +87,7 @@ export function AdvanceApprovalQueue() {
 
     setProcessingId(approvalDialog.advance.id);
     try {
-      const response = await fetch(`/api/advances/${approvalDialog.advance.id}/approve`, {
+      const response = await fetch(apiUrl(`/api/advances/${approvalDialog.advance.id}/approve`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,7 +100,7 @@ export function AdvanceApprovalQueue() {
       const data = await response.json();
 
       if (data.success) {
-        alert('Advance approved successfully');
+        toast.success('Advance approved successfully');
         setApprovalDialog({ open: false, advance: null });
         setPaymentReference('');
         fetchAdvances();
@@ -106,7 +108,7 @@ export function AdvanceApprovalQueue() {
         throw new Error(data.error?.message || 'Failed to approve advance');
       }
     } catch (error: any) {
-      alert('Error: ' + (error.message || 'Failed to approve advance'));
+      toast.error(error.message || 'Failed to approve advance');
     } finally {
       setProcessingId(null);
     }
@@ -118,7 +120,7 @@ export function AdvanceApprovalQueue() {
 
     setProcessingId(advanceId);
     try {
-      const response = await fetch(`/api/advances/${advanceId}/approve`, {
+      const response = await fetch(apiUrl(`/api/advances/${advanceId}/approve`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,13 +132,13 @@ export function AdvanceApprovalQueue() {
       const data = await response.json();
 
       if (data.success) {
-        alert('Advance rejected successfully');
+        toast.success('Advance rejected');
         fetchAdvances();
       } else {
         throw new Error(data.error?.message || 'Failed to reject advance');
       }
     } catch (error: any) {
-      alert('Error: ' + (error.message || 'Failed to reject advance'));
+      toast.error(error.message || 'Failed to reject advance');
     } finally {
       setProcessingId(null);
     }

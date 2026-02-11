@@ -129,7 +129,7 @@ function applyStatusFilter(
     const status = statuses[0];
     if (status === 'IN_TRANSIT') {
       where.status = {
-        in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
+        in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
       };
     } else {
       where.status = status;
@@ -138,7 +138,7 @@ function applyStatusFilter(
     const validStatuses: string[] = [];
     for (const status of statuses) {
       if (status === 'IN_TRANSIT') {
-        validStatuses.push('ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY');
+        validStatuses.push('ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY');
       } else {
         validStatuses.push(status);
       }

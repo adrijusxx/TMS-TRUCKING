@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiUrl } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ReconcileFormProps {
   invoiceId: string;
@@ -54,16 +55,20 @@ export default function ReconcileForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['reconciliation'] });
+      toast.success('Payment reconciled successfully');
       onOpenChange(false);
       setReconciledAmount('');
       setNotes('');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to reconcile payment');
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reconciledAmount || parseFloat(reconciledAmount) <= 0) {
-      alert('Please enter a valid amount');
+      toast.warning('Please enter a valid amount');
       return;
     }
 

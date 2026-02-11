@@ -374,6 +374,30 @@ export default function EditCustomerForm({
                                         )}
                                     </div>
                                 </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="taxRate">Tax Rate (%)</Label>
+                                        <Input
+                                            id="taxRate"
+                                            type="number"
+                                            step="0.01"
+                                            {...register('taxRate', { valueAsNumber: true })}
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                    <div className="flex items-center space-x-2 pt-8">
+                                        <input
+                                            type="checkbox"
+                                            id="isTaxExempt"
+                                            {...register('isTaxExempt')}
+                                            className="rounded border-gray-300"
+                                        />
+                                        <Label htmlFor="isTaxExempt" className="cursor-pointer">
+                                            Tax Exempt
+                                        </Label>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
                     </form>
@@ -471,6 +495,6 @@ export default function EditCustomerForm({
                     </Card>
                 </TabsContent>
             </Tabs>
-        </div>
+        </div >
     );
 }

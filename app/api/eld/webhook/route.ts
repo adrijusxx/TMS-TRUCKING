@@ -6,30 +6,26 @@ import { DriverStatus } from '@prisma/client';
 
 // ELD webhook schema - supports both generic and Samsara formats
 const eldWebhookSchema = z.object({
+  // Generic fields
   driverId: z.string().optional(),
   driverNumber: z.string().optional(),
-  samsaraDriverId: z.string().optional(), // Samsara-specific
-  timestamp: z.string().or(z.date()),
+  samsaraDriverId: z.string().optional(),
+  timestamp: z.string().or(z.date()).optional(),
   status: z.enum(['ON_DUTY', 'DRIVING', 'OFF_DUTY', 'SLEEPER_BERTH']).optional(),
-  // Samsara status format
   currentState: z.enum(['offDuty', 'driving', 'onDuty', 'onDutyNotDriving', 'sleeper']).optional(),
   location: z.object({
     latitude: z.number(),
     longitude: z.number(),
     address: z.string().optional(),
   }).optional(),
-  odometer: z.number().optional(),
-  engineHours: z.number().optional(),
-  // Samsara HOS data
-  hosStatuses: z.array(z.object({
-    status: z.string(),
-    shiftStart: z.string().optional(),
-    shiftRemaining: z.number().optional(), // minutes
-    cycleRemaining: z.number().optional(), // minutes
-    drivingInViolationToday: z.number().optional(), // hours
-    drivingInViolationCycle: z.number().optional(), // hours
-  })).optional(),
-  // Add more fields based on ELD provider API
+
+  // Samsara Webhook Event structure (e.g. vehicleFaultCode.detected)
+  type: z.string().optional(),
+  eventTime: z.string().optional(),
+  data: z.any().optional(),
+
+  // Samsara HOS data (sometimes top level)
+  hosStatuses: z.array(z.any()).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -44,35 +40,13 @@ export async function POST(request: NextRequest) {
 
         if (!isValid) {
           return NextResponse.json(
-            {
-              success: false,
-              error: {
-                code: 'INVALID_SIGNATURE',
-                message: 'Invalid webhook signature',
-              },
-            },
+            { success: false, error: { code: 'INVALID_SIGNATURE', message: 'Invalid signature' } },
             { status: 401 }
           );
         }
       } catch (error) {
         return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: 'NOT_CONFIGURED',
-              message: (error as Error).message || 'Samsara webhook secret not configured',
-            },
-          },
-          { status: 401 }
-        );
-      }
-    } else {
-      const authHeader = request.headers.get('authorization');
-      const apiKey = request.headers.get('x-api-key');
-
-      if (!authHeader && !apiKey) {
-        return NextResponse.json(
-          { success: false, error: { code: 'UNAUTHORIZED', message: 'Missing authentication' } },
+          { success: false, error: { code: 'NOT_CONFIGURED', message: 'Secret not configured' } },
           { status: 401 }
         );
       }
@@ -82,72 +56,88 @@ export async function POST(request: NextRequest) {
     try {
       body = JSON.parse(rawBody);
     } catch {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'INVALID_JSON', message: 'Invalid JSON payload' },
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: { code: 'INVALID_JSON', message: 'Invalid JSON' } }, { status: 400 });
     }
 
     const validated = eldWebhookSchema.parse(body);
 
-    // Find driver by driverId, driverNumber, or Samsara ID
-    let driver;
-    if (validated.driverId) {
-      driver = await prisma.driver.findUnique({
-        where: { id: validated.driverId },
-      });
-    } else if (validated.driverNumber) {
-      // Note: driverNumber is company-scoped, webhook doesn't have company context
-      // This will find the first driver with this number across all companies
-      driver = await prisma.driver.findFirst({
-        where: { driverNumber: validated.driverNumber },
-      });
-    } else if (validated.samsaraDriverId) {
-      // Find driver by Samsara ID stored in HOSRecord
-      const hosRecord = await prisma.hOSRecord.findFirst({
-        where: {
-          eldRecordId: validated.samsaraDriverId,
-          eldProvider: 'Samsara',
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (hosRecord) {
-        driver = await prisma.driver.findUnique({
-          where: { id: hosRecord.driverId },
+    // 1. Handle Vehicle Fault Code Events
+    if (validated.type === 'vehicleFaultCode.detected' || validated.type === 'vehicleFaultCode.resolved') {
+      const faultData = validated.data;
+      const vehicle = faultData?.vehicle;
+      const fault = faultData?.faultCode;
+
+      if (vehicle?.id && fault?.code) {
+        const truck = await prisma.truck.findFirst({
+          where: { samsaraId: vehicle.id, deletedAt: null },
         });
+
+        if (truck) {
+          const isActive = validated.type === 'vehicleFaultCode.detected';
+
+          await prisma.truckFaultHistory.upsert({
+            where: {
+              truckId_faultCode_occurredAt: {
+                truckId: truck.id,
+                faultCode: fault.code,
+                occurredAt: new Date(validated.eventTime || new Date()),
+              },
+            },
+            update: {
+              isActive,
+              resolvedAt: isActive ? null : new Date(),
+            },
+            create: {
+              truckId: truck.id,
+              companyId: truck.companyId,
+              faultCode: fault.code,
+              description: fault.description,
+              severity: fault.severity?.toUpperCase(),
+              spnId: fault.spn,
+              fmiId: fault.fmi,
+              isActive,
+              occurredAt: new Date(validated.eventTime || new Date()),
+              source: 'SAMSARA',
+              samsaraVehicleId: vehicle.id,
+            },
+          });
+
+          return NextResponse.json({ success: true, message: 'Fault code processed' });
+        }
       }
     }
 
-    if (!driver) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'NOT_FOUND', message: 'Driver not found' },
-        },
-        { status: 404 }
-      );
+    // 2. Handle HOS/Status Updates
+    // Find driver by driverId, driverNumber, or Samsara ID
+    let driver;
+    const samsaraDriverId = validated.samsaraDriverId || (validated.type?.startsWith('hos') ? validated.data?.driver?.id : null);
+
+    if (validated.driverId) {
+      driver = await prisma.driver.findUnique({ where: { id: validated.driverId } });
+    } else if (validated.driverNumber) {
+      driver = await prisma.driver.findFirst({ where: { driverNumber: validated.driverNumber } });
+    } else if (samsaraDriverId) {
+      driver = await prisma.driver.findFirst({
+        where: {
+          OR: [
+            { licenseNumber: samsaraDriverId },
+            { hosRecords: { some: { eldRecordId: samsaraDriverId, eldProvider: 'Samsara' } } }
+          ]
+        }
+      });
     }
 
-    const timestamp = validated.timestamp instanceof Date
-      ? validated.timestamp
-      : new Date(validated.timestamp);
-    const date = timestamp.toISOString().split('T')[0];
+    if (!driver) {
+      return NextResponse.json({ success: false, error: { code: 'NOT_FOUND', message: 'Driver not found' } }, { status: 404 });
+    }
 
-    // Get or create today's HOS record
-    const todayRecord = await prisma.hOSRecord.findFirst({
-      where: {
-        driverId: driver.id,
-        date: new Date(date),
-      },
-    });
+    const timestamp = validated.timestamp || validated.eventTime || new Date();
+    const tsDate = new Date(timestamp);
+    const dateOnly = new Date(tsDate.getFullYear(), tsDate.getMonth(), tsDate.getDate());
 
-    // Determine driver status from validated data
+    // Determine driver status
     let driverStatus: DriverStatus | undefined = validated.status;
-    if (!driverStatus && validated.currentState) {
-      // Map Samsara status to our DriverStatus
+    if (!driverStatus && (validated.currentState || validated.data?.status)) {
       const statusMap: Record<string, DriverStatus> = {
         'offDuty': DriverStatus.OFF_DUTY,
         'driving': DriverStatus.DRIVING,
@@ -155,97 +145,59 @@ export async function POST(request: NextRequest) {
         'onDutyNotDriving': DriverStatus.ON_DUTY,
         'sleeper': DriverStatus.SLEEPER_BERTH,
       };
-      const currentState = validated.currentState;
-      driverStatus = statusMap[currentState] || DriverStatus.OFF_DUTY;
+      driverStatus = statusMap[validated.currentState || validated.data?.status] || DriverStatus.OFF_DUTY;
     }
 
-    // Update driver status
     if (driverStatus) {
       await prisma.driver.update({
         where: { id: driver.id },
-        data: {
-          status: driverStatus as any,
-        },
+        data: { status: driverStatus as DriverStatus },
       });
     }
 
     // Create or update HOS record
-    const today = new Date(timestamp);
-    today.setHours(0, 0, 0, 0);
-
     const hosData: any = {
       driverId: driver.id,
-      date: today,
+      date: dateOnly,
       status: (driverStatus as any) || 'ON_DUTY',
-      location: validated.location?.address,
-      latitude: validated.location?.latitude,
-      longitude: validated.location?.longitude,
-      eldProvider: validated.samsaraDriverId ? 'Samsara' : undefined,
-      eldRecordId: validated.samsaraDriverId || undefined,
+      location: validated.location?.address || validated.data?.location?.address,
+      latitude: validated.location?.latitude || validated.data?.location?.latitude,
+      longitude: validated.location?.longitude || validated.data?.location?.longitude,
+      eldProvider: 'Samsara',
+      eldRecordId: samsaraDriverId || undefined,
     };
 
-    // Add HOS time data if provided (from Samsara)
-    if (validated.hosStatuses && validated.hosStatuses.length > 0) {
-      const currentHOS = validated.hosStatuses[0];
+    // Correct Mapping: Similar to sync route, caution with total hours
+    const hosStatuses = validated.hosStatuses || validated.data?.hosStatuses;
+    if (hosStatuses && hosStatuses.length > 0) {
+      const currentHOS = hosStatuses[0];
       hosData.driveTime = currentHOS.drivingInViolationToday || 0;
-      hosData.onDutyTime = (currentHOS.shiftRemaining || 0) / 60; // Convert minutes to hours
+      hosData.onDutyTime = (currentHOS.shiftRemaining || 0) / 60;
       hosData.weeklyDriveTime = currentHOS.drivingInViolationCycle || 0;
       hosData.weeklyOnDuty = (currentHOS.cycleRemaining || 0) / 60;
     }
 
-    // Check if record exists for today
     const existingRecord = await prisma.hOSRecord.findFirst({
       where: {
         driverId: driver.id,
-        date: {
-          gte: today,
-          lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
-        },
+        date: dateOnly,
       },
     });
 
     if (existingRecord) {
-      await prisma.hOSRecord.update({
-        where: { id: existingRecord.id },
-        data: hosData,
-      });
+      await prisma.hOSRecord.update({ where: { id: existingRecord.id }, data: hosData });
     } else {
-      await prisma.hOSRecord.create({
-        data: hosData,
-      });
+      await prisma.hOSRecord.create({ data: hosData });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'ELD data received and processed',
-      data: {
-        driverId: driver.id,
-        status: driverStatus,
-      },
-    });
+    return NextResponse.json({ success: true, message: 'Webook processed' });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid webhook data',
-            details: error.issues,
-          },
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', details: error.issues } }, { status: 400 });
     }
-
-    console.error('ELD webhook error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    console.error('Webhook error:', error);
+    return NextResponse.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal error' } }, { status: 500 });
   }
 }
+
 

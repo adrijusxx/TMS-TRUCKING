@@ -21,6 +21,16 @@ import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
 import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
 import { exportToCSV } from '@/lib/export';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface InvoiceData {
   id: string;
@@ -66,6 +76,8 @@ export default function InvoiceListNew() {
 
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = React.useState(false);
+  const [cancelTarget, setCancelTarget] = React.useState<{ id: string; number: string } | null>(null);
+  const [isCancelling, setIsCancelling] = React.useState(false);
 
   const handleViewInvoice = (id: string) => {
     setSelectedInvoiceId(id);
@@ -159,37 +171,13 @@ export default function InvoiceListNew() {
   };
 
   const rowActions = (row: InvoiceData) => {
-    const handleCancel = async () => {
-      if (!confirm('Invoices are financial records and cannot be deleted. Would you like to cancel this invoice instead? This will mark it as CANCELLED status.')) {
-        return;
-      }
-
-      try {
-        const response = await fetch(apiUrl(`/api/invoices/${row.id}`), {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'CANCELLED' }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error?.message || 'Failed to cancel invoice');
-        }
-
-        toast.success('Invoice cancelled successfully');
-        queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to cancel invoice');
-      }
-    };
-
     return (
       <div className="flex items-center gap-2">
         {can('invoices.edit') && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleCancel}
+            onClick={() => setCancelTarget({ id: row.id, number: row.invoiceNumber })}
             className="text-destructive hover:text-destructive"
             title="Cancel Invoice (Financial records cannot be deleted)"
           >
@@ -205,6 +193,29 @@ export default function InvoiceListNew() {
         </Button>
       </div>
     );
+  };
+
+  const handleCancelInvoice = async () => {
+    if (!cancelTarget) return;
+    setIsCancelling(true);
+    try {
+      const response = await fetch(apiUrl(`/api/invoices/${cancelTarget.id}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED' }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to cancel invoice');
+      }
+      toast.success(`Invoice ${cancelTarget.number} cancelled successfully`);
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel invoice');
+    } finally {
+      setIsCancelling(false);
+      setCancelTarget(null);
+    }
   };
 
   return (
@@ -310,6 +321,28 @@ export default function InvoiceListNew() {
         isOpen={isSheetOpen}
         onClose={() => setIsSheetOpen(false)}
       />
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Invoice</AlertDialogTitle>
+            <AlertDialogDescription>
+              Invoices are financial records and cannot be deleted. This will mark invoice <strong>{cancelTarget?.number}</strong> as CANCELLED. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs" disabled={isCancelling}>Keep Invoice</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelInvoice}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 h-8 text-xs"
+              disabled={isCancelling}
+            >
+              {isCancelling ? 'Cancelling...' : 'Yes, Cancel Invoice'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

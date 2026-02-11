@@ -8,9 +8,12 @@
 import { prisma } from '@/lib/prisma';
 import { getSamsaraVehicleLocations } from '@/lib/integrations/samsara';
 import { LoadStatus } from '@prisma/client';
+import { DetentionManager } from '../managers/DetentionManager';
 
 // Geofence radius in km (default: 0.5km / ~500m)
 const DEFAULT_GEOFENCE_RADIUS_KM = 0.5;
+// Buffer for leaving geofence to prevent drift flip-flopping (e.g. 1.2x radius)
+const EXIT_RADIUS_MULTIPLIER = 1.2;
 
 interface TruckLocation {
     vehicleId: string;
@@ -87,26 +90,25 @@ function isTruckNearStop(
 function determineNextStatus(
     currentStatus: LoadStatus,
     nearPickup: boolean,
-    nearDelivery: boolean
+    nearDelivery: boolean,
+    approachingPickup: boolean,
+    approachingDelivery: boolean
 ): LoadStatus | null {
     // Status transition logic based on location
     switch (currentStatus) {
         case 'ASSIGNED':
         case 'EN_ROUTE_PICKUP':
-            if (nearPickup) return 'AT_PICKUP';
+            if (approachingPickup) return 'AT_PICKUP';
             break;
         case 'AT_PICKUP':
         case 'LOADED':
-            // If truck left pickup area and is now near delivery
-            if (nearDelivery) return 'AT_DELIVERY';
-            // If truck left pickup area but not at delivery yet
+            if (approachingDelivery) return 'AT_DELIVERY';
+            // Use nearPickup (with exit buffer) to decide if we've left
             if (!nearPickup) return 'EN_ROUTE_DELIVERY';
             break;
         case 'EN_ROUTE_DELIVERY':
-            if (nearDelivery) return 'AT_DELIVERY';
+            if (approachingDelivery) return 'AT_DELIVERY';
             break;
-        // AT_DELIVERY -> DELIVERED requires manual confirmation (POD)
-        // DELIVERED and beyond are not auto-updated
     }
     return null;
 }
@@ -199,7 +201,8 @@ export class LoadLocationTrackingService {
     private async updateLoadStatus(
         loadId: string,
         newStatus: LoadStatus,
-        location?: { latitude: number; longitude: number }
+        location?: { latitude: number; longitude: number },
+        stopId?: string
     ): Promise<boolean> {
         try {
             await prisma.$transaction([
@@ -221,6 +224,13 @@ export class LoadLocationTrackingService {
                     },
                 }),
             ]);
+
+            // If we arrived at a stop, trigger detention tracking
+            if (stopId && (newStatus === 'AT_PICKUP' || newStatus === 'AT_DELIVERY')) {
+                const detentionManager = new DetentionManager();
+                await detentionManager.handleGeofenceEntry(stopId);
+            }
+
             return true;
         } catch (error) {
             console.error(`[LoadLocationTracking] Failed to update load ${loadId}:`, error);
@@ -301,40 +311,50 @@ export class LoadLocationTrackingService {
 
                 let nearPickup = false;
                 let nearDelivery = false;
+                let approachingPickup = false;
+                let approachingDelivery = false;
 
                 // Check proximity to pickup
                 if (pickupStop && pickupStop.city && pickupStop.state) {
-                    // Geocode pickup address
-                    const pickupCoords = await this.geocodeAddress(
-                        '', pickupStop.city, pickupStop.state
-                    );
+                    const pickupCoords = await this.geocodeAddress('', pickupStop.city, pickupStop.state);
                     if (pickupCoords) {
-                        nearPickup = isTruckNearStop(
-                            truckLat, truckLng,
-                            pickupCoords.lat, pickupCoords.lng,
-                            this.geofenceRadiusKm
-                        );
+                        const dist = haversineDistance(truckLat, truckLng, pickupCoords.lat, pickupCoords.lng);
+                        approachingPickup = dist <= this.geofenceRadiusKm;
+                        nearPickup = dist <= (this.geofenceRadiusKm * EXIT_RADIUS_MULTIPLIER);
                     }
                 }
 
                 // Check proximity to delivery
                 if (deliveryStop && deliveryStop.city && deliveryStop.state) {
-                    const deliveryCoords = await this.geocodeAddress(
-                        '', deliveryStop.city, deliveryStop.state
-                    );
+                    const deliveryCoords = await this.geocodeAddress('', deliveryStop.city, deliveryStop.state);
                     if (deliveryCoords) {
-                        nearDelivery = isTruckNearStop(
-                            truckLat, truckLng,
-                            deliveryCoords.lat, deliveryCoords.lng,
-                            this.geofenceRadiusKm
-                        );
+                        const dist = haversineDistance(truckLat, truckLng, deliveryCoords.lat, deliveryCoords.lng);
+                        approachingDelivery = dist <= this.geofenceRadiusKm;
+                        nearDelivery = dist <= (this.geofenceRadiusKm * EXIT_RADIUS_MULTIPLIER);
                     }
                 }
 
                 // Determine status change based on proximity
-                const newStatus = determineNextStatus(load.currentStatus, nearPickup, nearDelivery);
+                const newStatus = determineNextStatus(
+                    load.currentStatus,
+                    nearPickup,
+                    nearDelivery,
+                    approachingPickup,
+                    approachingDelivery
+                );
                 if (newStatus && newStatus !== load.currentStatus) {
-                    const success = await this.updateLoadStatus(load.loadId, newStatus, { latitude: truckLat, longitude: truckLng });
+                    // Identify which stop ID to update
+                    let targetStopId: string | undefined;
+                    if (newStatus === 'AT_PICKUP' && pickupStop) targetStopId = pickupStop.id;
+                    if (newStatus === 'AT_DELIVERY' && deliveryStop) targetStopId = deliveryStop.id;
+
+                    const success = await this.updateLoadStatus(
+                        load.loadId,
+                        newStatus,
+                        { latitude: truckLat, longitude: truckLng },
+                        targetStopId
+                    );
+
                     if (success) {
                         updated++;
                         console.log(`[LoadLocationTracking] Updated ${load.loadNumber}: ${load.currentStatus} -> ${newStatus}`);

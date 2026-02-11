@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     applyQueryFilters(where, params);
 
     // 6. Execute queries
-    const [loads, total, sums, allLoadsForStats] = await Promise.all([
+    const [loads, total, sums] = await Promise.all([
       prisma.load.findMany({
         where,
         select: loadListSelect,
@@ -78,17 +78,14 @@ export async function GET(request: NextRequest) {
           driverPay: true,
           totalMiles: true,
           emptyMiles: true,
+          loadedMiles: true,
           serviceFee: true,
         },
-      }),
-      prisma.load.findMany({
-        where,
-        select: { totalMiles: true, loadedMiles: true, emptyMiles: true },
       }),
     ]);
 
     // 7. Calculate statistics
-    const stats = calculateLoadStats(sums, allLoadsForStats);
+    const stats = calculateLoadStats(sums);
 
     // 8. Add document status to loads
     const loadsWithDocumentStatus = addDocumentStatus(loads);
