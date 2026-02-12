@@ -21,9 +21,15 @@ export async function GET(request: Request) {
         const mcWhere = await McStateManager.buildMcNumberWhereClause(session, request);
         const baseWhere = { ...mcWhere, deletedAt: null };
 
+        // Create specific where clauses
+        const customerWhere = {
+            companyId: session.user.companyId,
+            deletedAt: null
+        };
+
         // Fetch all counts in parallel for performance
         const [customers, drivers, trucks, trailers, loads] = await Promise.all([
-            prisma.customer.count({ where: baseWhere }),
+            prisma.customer.count({ where: customerWhere }),
             prisma.driver.count({ where: { ...baseWhere, isActive: true } }),
             prisma.truck.count({ where: baseWhere }),
             prisma.trailer.count({ where: baseWhere }),
