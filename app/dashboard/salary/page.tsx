@@ -7,7 +7,7 @@ export default function SalaryPage() {
     <SubscriptionGate module="ACCOUNTING">
       <Breadcrumb items={[
         { label: 'Accounting', href: '/dashboard/accounting' },
-        { label: 'Salary', href: '/dashboard/salary' }
+        { label: 'Settlements', href: '/dashboard/settlements' }
       ]} />
       <SalaryModuleLayout />
     </SubscriptionGate>

@@ -613,7 +613,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/settlements">
             <Button variant="ghost" size="icon">
@@ -624,7 +624,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
             <h1 className="text-3xl font-bold">{settlement.settlementNumber}</h1>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           <Badge variant="outline" className={statusColors[settlement.status as SettlementStatus]}>
             {formatStatus(settlement.status)}
           </Badge>
@@ -699,7 +699,7 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           <TabsTrigger value="audit">Audit Log</TabsTrigger>
         </TabsList>
         <TabsContent value="details">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {/* Driver Information */}
             <Card>
               <CardHeader>

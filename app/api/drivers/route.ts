@@ -212,6 +212,10 @@ export async function GET(request: NextRequest) {
         { user: { firstName: { contains: search, mode: 'insensitive' } } },
         { user: { lastName: { contains: search, mode: 'insensitive' } } },
         { user: { email: { contains: search, mode: 'insensitive' } } },
+        { user: { phone: { contains: search, mode: 'insensitive' } } },
+        { currentTruck: { truckNumber: { contains: search, mode: 'insensitive' } } },
+        { currentTrailer: { trailerNumber: { contains: search, mode: 'insensitive' } } },
+        { homeTerminal: { contains: search, mode: 'insensitive' } },
       ];
 
       if (where.OR && Array.isArray(where.OR)) {

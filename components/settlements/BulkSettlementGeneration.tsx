@@ -291,7 +291,7 @@ export default function BulkSettlementGeneration() {
                     <ul className="list-disc list-inside text-sm">
                       {result.errors.slice(0, 5).map((error: { companyId: string; driverId?: string; error: string }, idx: number) => (
                         <li key={idx}>
-                          {error.driverId ? `Driver ${error.driverId}: ` : ''}
+                          {error.driverId ? 'Driver error: ' : ''}
                           {error.error}
                         </li>
                       ))}

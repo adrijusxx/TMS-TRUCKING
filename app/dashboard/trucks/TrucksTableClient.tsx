@@ -15,7 +15,7 @@ import type { BulkEditField } from '@/components/data-table/types';
 import { TruckStatus } from '@prisma/client';
 import { Plus, Upload, Download } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface TruckData {
   id: string;
@@ -48,6 +48,22 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
   const [selectedTruckId, setSelectedTruckId] = React.useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // Deep linking support
+  React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    }
+
+    const truckIdFromUrl = searchParams.get('truckId');
+    if (truckIdFromUrl) {
+      setSelectedTruckId(truckIdFromUrl);
+      setSheetMode(can('trucks.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
 
   const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
     setSheetMode(mode);
@@ -59,6 +75,28 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
     queryClient.invalidateQueries({ queryKey: ['trucks'] });
     router.refresh();
   }, [queryClient, router]);
+
+  const handleImport = React.useCallback(() => {
+    const trigger = document.querySelector('[data-import-trigger="trucks"]') as HTMLButtonElement;
+    if (trigger) trigger.click();
+  }, []);
+
+  // Deep linking support
+  React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    } else if (action === 'import') {
+      handleImport();
+    }
+
+    const truckIdFromUrl = searchParams.get('truckId');
+    if (truckIdFromUrl) {
+      setSelectedTruckId(truckIdFromUrl);
+      setSheetMode(can('trucks.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
 
 
 
@@ -187,6 +225,15 @@ export function TrucksTableClient({ data }: TrucksTableClientProps) {
         truckId={selectedTruckId}
         onSuccess={handleUpdate}
       />
+
+      <div className="hidden">
+        <ImportSheet
+          entityType="trucks"
+          onImportComplete={handleUpdate}
+        >
+          <button data-import-trigger="trucks" type="button" />
+        </ImportSheet>
+      </div>
     </>
   );
 }

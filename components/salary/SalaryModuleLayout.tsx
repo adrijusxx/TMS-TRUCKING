@@ -14,11 +14,11 @@ const SalaryReportTab = React.lazy(() => import('./tabs/SalaryReportTab'));
 const DriverBalancesTab = React.lazy(() => import('./tabs/DriverBalancesTab'));
 
 const SALARY_TABS = [
-    { id: 'pending', label: 'Pending settlements', icon: Clock },
-    { id: 'batches', label: 'Salary batches', icon: FileText },
-    { id: 'statements', label: 'Driver statements', icon: Users },
-    { id: 'report', label: 'Salary report', icon: BarChart3 },
-    { id: 'balances', label: 'Driver balances', icon: Wallet },
+    { id: 'pending', label: 'Pending', icon: Clock },
+    { id: 'batches', label: 'Batches', icon: FileText },
+    { id: 'statements', label: 'All Settlements', icon: Users },
+    { id: 'report', label: 'Reports', icon: BarChart3 },
+    { id: 'balances', label: 'Balances', icon: Wallet },
 ] as const;
 
 type SalaryTabId = typeof SALARY_TABS[number]['id'];
@@ -45,7 +45,7 @@ export default function SalaryModuleLayout() {
         <div className="space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold tracking-tight">Salary</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">Settlements</h1>
             </div>
 
             {/* Tabs */}

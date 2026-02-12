@@ -51,6 +51,13 @@ export async function POST(request: NextRequest) {
         const validated = createBatchSchema.parse(body);
         const periodStart = new Date(validated.periodStart);
         const periodEnd = new Date(validated.periodEnd);
+
+        // Ensure the end date includes the full day (e.g. 23:59:59)
+        // This prevents loads delivered on the last day from being excluded due to time boundaries.
+        if (periodEnd.getUTCHours() === 0 && periodEnd.getUTCMinutes() === 0) {
+            periodEnd.setUTCHours(23, 59, 59, 999);
+        }
+
         const notes = validated.notes;
 
         // 1. Create the Batch Header
@@ -94,24 +101,34 @@ export async function POST(request: NextRequest) {
                 const loadCount = await prisma.load.count({
                     where: {
                         driverId: driver.id,
-                        OR: [
-                            {
-                                deliveredAt: {
-                                    gte: periodStart,
-                                    lte: periodEnd,
-                                },
-                            },
-                            {
-                                deliveredAt: null,
-                                updatedAt: {
-                                    gte: periodStart,
-                                    lte: periodEnd,
-                                },
-                            },
-                        ],
-                        status: { in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] },
-                        readyForSettlement: true,
+                        companyId: session.user.companyId,
                         deletedAt: null,
+                        status: { in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] },
+                        AND: [
+                            {
+                                OR: [
+                                    {
+                                        deliveredAt: {
+                                            gte: periodStart,
+                                            lte: periodEnd,
+                                        },
+                                    },
+                                    {
+                                        deliveredAt: null,
+                                        updatedAt: {
+                                            gte: periodStart,
+                                            lte: periodEnd,
+                                        },
+                                    },
+                                ],
+                            },
+                            {
+                                OR: [
+                                    { readyForSettlement: true },
+                                    { status: { in: ['INVOICED', 'PAID'] } }
+                                ],
+                            }
+                        ],
                     }
                 });
 

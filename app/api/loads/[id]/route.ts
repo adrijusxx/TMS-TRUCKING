@@ -628,10 +628,9 @@ export async function PATCH(
       emitLoadStatusChanged(load.id, validated.status, load);
       emitDispatchUpdated({ type: 'load_status_changed', loadId: load.id, status: validated.status });
 
-      // CRITICAL: Trigger load completion workflow when status is DELIVERED
-      // We do this even if status didn't change, to allow "retrying" the completion flows (sync to accounting, readyForSettlement)
-      // just by saving the load again.
-      if (validated.status === 'DELIVERED') {
+      // CRITICAL: Trigger load completion workflow when status is DELIVERED or advanced
+      const completionStatuses = ['DELIVERED', 'INVOICED', 'PAID', 'READY_TO_BILL', 'BILLING_HOLD'];
+      if (validated.status && completionStatuses.includes(validated.status)) {
         try {
           const completionManager = new LoadCompletionManager();
           completionResult = await completionManager.handleLoadCompletion(load.id);

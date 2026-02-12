@@ -79,7 +79,7 @@ export default function CreateBatchForm({ open, onOpenChange, preselectedInvoice
       queryClient.invalidateQueries({ queryKey: ['batches'] });
       toast.success('Batch created successfully');
       onOpenChange(false);
-      router.push(`/dashboard/accounting/batches/${data.data.id}`);
+      router.push(`/dashboard/batches/${data.data.id}`);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to create batch');

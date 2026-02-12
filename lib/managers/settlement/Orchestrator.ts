@@ -30,16 +30,33 @@ export class SettlementOrchestrator {
             status: { in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] as LoadStatus[] },
         };
 
+        const andConditions: any[] = [];
+
         if (loadIds && loadIds.length > 0) {
             loadWhere.id = { in: loadIds };
         } else {
-            loadWhere.OR = [
-                { deliveredAt: { gte: periodStart, lte: periodEnd } },
-                { deliveredAt: null, updatedAt: { gte: periodStart, lte: periodEnd } },
-            ];
+            andConditions.push({
+                OR: [
+                    { deliveredAt: { gte: periodStart, lte: periodEnd } },
+                    { deliveredAt: null, updatedAt: { gte: periodStart, lte: periodEnd } },
+                ]
+            });
         }
 
-        if (!forceIncludeNotReady) loadWhere.readyForSettlement = true;
+        // Safety: If it's invoiced/paid, it's definitely ready for settlement regardless of the flag.
+        // This handles cases where loads were imported as invoiced or skipped the completion manager.
+        if (!forceIncludeNotReady) {
+            andConditions.push({
+                OR: [
+                    { readyForSettlement: true },
+                    { status: { in: ['INVOICED', 'PAID'] } }
+                ]
+            });
+        }
+
+        if (andConditions.length > 0) {
+            loadWhere.AND = andConditions;
+        }
 
         const loads = await prisma.load.findMany({
             where: loadWhere,

@@ -57,6 +57,7 @@ interface ImportStep {
     borderColor: string;
     countKey: keyof OnboardingStats['counts'];
     completionKey: keyof OnboardingStats['completion'];
+    importHref: string;
 }
 
 const IMPORT_STEPS: ImportStep[] = [
@@ -73,6 +74,7 @@ const IMPORT_STEPS: ImportStep[] = [
         borderColor: 'border-blue-500/30',
         countKey: 'customers',
         completionKey: 'hasCustomers',
+        importHref: '/dashboard/customers?action=import',
     },
     {
         id: 'drivers',
@@ -80,13 +82,14 @@ const IMPORT_STEPS: ImportStep[] = [
         description: 'Your driver roster',
         whyItMatters: 'Required to dispatch loads',
         icon: Users,
-        href: '/dashboard/fleet?tab=drivers',
-        addHref: '/dashboard/fleet?tab=drivers&action=new',
+        href: '/dashboard/drivers',
+        addHref: '/dashboard/drivers?action=new',
         color: 'text-green-400',
         bgColor: 'bg-green-500/10',
         borderColor: 'border-green-500/30',
         countKey: 'drivers',
         completionKey: 'hasDrivers',
+        importHref: '/dashboard/drivers?action=import',
     },
     {
         id: 'trucks',
@@ -94,13 +97,14 @@ const IMPORT_STEPS: ImportStep[] = [
         description: 'Fleet vehicles',
         whyItMatters: 'Required to assign equipment to loads',
         icon: Truck,
-        href: '/dashboard/fleet?tab=trucks',
-        addHref: '/dashboard/fleet?tab=trucks&action=new',
+        href: '/dashboard/trucks',
+        addHref: '/dashboard/trucks?action=new',
         color: 'text-purple-400',
         bgColor: 'bg-purple-500/10',
         borderColor: 'border-purple-500/30',
         countKey: 'trucks',
         completionKey: 'hasTrucks',
+        importHref: '/dashboard/trucks?action=import',
     },
     {
         id: 'trailers',
@@ -108,13 +112,14 @@ const IMPORT_STEPS: ImportStep[] = [
         description: 'Trailer equipment',
         whyItMatters: 'Optional but recommended for tracking',
         icon: Package,
-        href: '/dashboard/fleet?tab=trailers',
-        addHref: '/dashboard/fleet?tab=trailers&action=new',
+        href: '/dashboard/trailers',
+        addHref: '/dashboard/trailers?action=new',
         color: 'text-orange-400',
         bgColor: 'bg-orange-500/10',
         borderColor: 'border-orange-500/30',
         countKey: 'trailers',
         completionKey: 'hasTrailers',
+        importHref: '/dashboard/trailers?action=import',
     },
     {
         id: 'loads',
@@ -129,6 +134,7 @@ const IMPORT_STEPS: ImportStep[] = [
         borderColor: 'border-cyan-500/30',
         countKey: 'loads',
         completionKey: 'hasLoads',
+        importHref: '/dashboard/loads?action=import',
     },
 ];
 
@@ -281,13 +287,20 @@ export function ImportTutorial() {
                             <div
                                 key={step.id}
                                 className={cn(
-                                    "rounded-lg border transition-all p-2.5",
+                                    "rounded-lg border transition-all p-2.5 cursor-pointer",
                                     isCompleted
-                                        ? "border-green-500/30 bg-green-500/5"
+                                        ? "border-green-500/30 bg-green-500/5 hover:border-green-500/50"
                                         : isRecommended
-                                            ? `${step.borderColor} ${step.bgColor} ring-1 ring-purple-500/30`
+                                            ? `${step.borderColor} ${step.bgColor} ring-1 ring-purple-500/30 hover:border-purple-400/50`
                                             : "border-slate-700/50 bg-slate-800/30 hover:border-slate-600"
                                 )}
+                                onClick={() => {
+                                    if (isCompleted) {
+                                        router.push(step.href);
+                                    } else {
+                                        router.push(step.importHref);
+                                    }
+                                }}
                             >
                                 <div className="flex items-center gap-3">
                                     {/* Step number / Check */}
@@ -330,28 +343,16 @@ export function ImportTutorial() {
                                     {/* Actions */}
                                     <div className="flex items-center gap-1 shrink-0">
                                         {!isCompleted && (
-                                            <>
-                                                <Link href={step.addHref}>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 text-slate-400 hover:text-white hover:bg-slate-700"
-                                                        title="Add new"
-                                                    >
-                                                        <Plus className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </Link>
-                                                <Link href={step.href}>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 text-slate-400 hover:text-white hover:bg-slate-700"
-                                                        title="Import CSV"
-                                                    >
-                                                        <Upload className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </Link>
-                                            </>
+                                            <Link href={step.importHref} onClick={(e) => e.stopPropagation()}>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 text-slate-400 hover:text-white hover:bg-slate-700"
+                                                    title="Import CSV"
+                                                >
+                                                    <Upload className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </Link>
                                         )}
                                         {isCompleted && (
                                             <Link href={step.href}>

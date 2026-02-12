@@ -3,13 +3,23 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Loader2, ChevronDown, ChevronUp, Truck, MapPin, DollarSign, TrendingUp } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, Truck, MapPin, DollarSign, TrendingUp, Fuel, Wrench } from 'lucide-react';
 import { apiUrl, formatCurrency, cn } from '@/lib/utils';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+
+interface ProjectedCosts {
+  fuelCost: number;
+  maintenanceCost: number;
+  fixedCosts: number;
+  totalOpCost: number;
+  netProfit: number;
+  avgProfitPerLoad: number;
+  metricsConfigured: boolean;
+}
 
 interface LoadStatistics {
   totalLoads: number;
@@ -19,6 +29,8 @@ interface LoadStatistics {
   totalRevenue: number;
   totalDriverPay: number;
   totalProfit: number;
+  totalFuelAdvance: number;
+  totalLoadExpenses: number;
   averageMilesPerLoad: number;
   averageRevenuePerLoad: number;
   averageProfitPerLoad: number;
@@ -26,6 +38,7 @@ interface LoadStatistics {
   rpmLoadedMiles?: number | null;
   rpmEmptyMiles?: number | null;
   rpmTotalMiles?: number | null;
+  projected?: ProjectedCosts;
 }
 
 async function fetchLoadStatistics(): Promise<LoadStatistics> {
@@ -37,7 +50,7 @@ async function fetchLoadStatistics(): Promise<LoadStatistics> {
 
 export default function LoadStatisticsCard() {
   const [isOpen, setIsOpen] = React.useState(false);
-  
+
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ['load-statistics'],
     queryFn: fetchLoadStatistics,
@@ -62,14 +75,15 @@ export default function LoadStatisticsCard() {
   }
 
   const rpm = stats.rpmTotalMiles ?? (stats.totalMiles > 0 ? stats.totalRevenue / stats.totalMiles : 0);
+  const hasProjected = stats.projected?.metricsConfigured;
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="bg-muted/30 rounded-md border">
         {/* Compact Header Row - Always Visible */}
         <CollapsibleTrigger asChild>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className="w-full h-auto py-1.5 px-3 flex items-center justify-between hover:bg-muted/50"
           >
             <div className="flex items-center gap-4 flex-wrap text-xs">
@@ -79,22 +93,22 @@ export default function LoadStatisticsCard() {
                 <span className="text-muted-foreground">Loads:</span>
                 <span className="font-semibold">{stats.totalLoads.toLocaleString()}</span>
               </div>
-              
+
               {/* Total Miles */}
               <div className="flex items-center gap-1.5">
                 <MapPin className="h-3 w-3 text-muted-foreground" />
                 <span className="text-muted-foreground">Miles:</span>
                 <span className="font-semibold">{stats.totalMiles.toLocaleString()}</span>
               </div>
-              
+
               {/* Revenue */}
               <div className="flex items-center gap-1.5">
                 <DollarSign className="h-3 w-3 text-muted-foreground" />
                 <span className="text-muted-foreground">Revenue:</span>
                 <span className="font-semibold">{formatCurrency(stats.totalRevenue)}</span>
               </div>
-              
-              {/* Profit */}
+
+              {/* Profit (Actual) */}
               <div className="flex items-center gap-1.5">
                 <TrendingUp className="h-3 w-3 text-muted-foreground" />
                 <span className="text-muted-foreground">Profit:</span>
@@ -105,7 +119,20 @@ export default function LoadStatisticsCard() {
                   {formatCurrency(stats.totalProfit)}
                 </span>
               </div>
-              
+
+              {/* Projected Net Profit (if configured) */}
+              {hasProjected && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Proj:</span>
+                  <span className={cn(
+                    "font-semibold",
+                    (stats.projected?.netProfit || 0) >= 0 ? "text-green-600" : "text-red-600"
+                  )}>
+                    {formatCurrency(stats.projected?.netProfit || 0)}
+                  </span>
+                </div>
+              )}
+
               {/* RPM */}
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">RPM:</span>
@@ -117,71 +144,108 @@ export default function LoadStatisticsCard() {
                 </span>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-1 text-muted-foreground ml-2">
               <span className="text-[10px]">{isOpen ? 'Less' : 'More'}</span>
               {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </div>
           </Button>
         </CollapsibleTrigger>
-        
+
         {/* Expanded Details */}
         <CollapsibleContent>
-          <div className="px-3 pb-2 pt-1 border-t grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-2 text-xs">
-            {/* Loaded Miles */}
-            <div>
-              <span className="text-muted-foreground">Loaded Miles:</span>
-              <span className="font-medium ml-1">{stats.loadedMiles.toLocaleString()}</span>
-            </div>
-            
-            {/* Empty Miles */}
-            <div>
-              <span className="text-muted-foreground">Empty Miles:</span>
-              <span className="font-medium ml-1">{stats.emptyMiles.toLocaleString()}</span>
-            </div>
-            
-            {/* Utilization */}
-            <div>
-              <span className="text-muted-foreground">Utilization:</span>
-              <span className="font-medium ml-1">{stats.utilizationRate.toFixed(1)}%</span>
-            </div>
-            
-            {/* Avg Miles/Load */}
-            <div>
-              <span className="text-muted-foreground">Avg Miles:</span>
-              <span className="font-medium ml-1">{stats.averageMilesPerLoad.toLocaleString()}/load</span>
-            </div>
-            
-            {/* Avg Revenue/Load */}
-            <div>
-              <span className="text-muted-foreground">Avg Revenue:</span>
-              <span className="font-medium ml-1">{formatCurrency(stats.averageRevenuePerLoad)}/load</span>
-            </div>
-            
-            {/* Driver Pay */}
-            <div>
-              <span className="text-muted-foreground">Driver Pay:</span>
-              <span className="font-medium ml-1">{formatCurrency(stats.totalDriverPay)}</span>
-            </div>
-            
-            {/* RPM Loaded */}
-            {stats.rpmLoadedMiles !== null && stats.rpmLoadedMiles !== undefined && (
+          <div className="px-3 pb-2 pt-1 border-t space-y-2">
+            {/* Row 1: Miles & Utilization */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-1 text-xs">
               <div>
-                <span className="text-muted-foreground">RPM Loaded:</span>
-                <span className="font-medium ml-1">${stats.rpmLoadedMiles.toFixed(2)}</span>
+                <span className="text-muted-foreground">Loaded Miles:</span>
+                <span className="font-medium ml-1">{stats.loadedMiles.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Empty Miles:</span>
+                <span className="font-medium ml-1">{stats.emptyMiles.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Utilization:</span>
+                <span className="font-medium ml-1">{stats.utilizationRate.toFixed(1)}%</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Avg Miles:</span>
+                <span className="font-medium ml-1">{stats.averageMilesPerLoad.toLocaleString()}/load</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Avg Revenue:</span>
+                <span className="font-medium ml-1">{formatCurrency(stats.averageRevenuePerLoad)}/load</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Driver Pay:</span>
+                <span className="font-medium ml-1">{formatCurrency(stats.totalDriverPay)}</span>
+              </div>
+              {stats.rpmLoadedMiles !== null && stats.rpmLoadedMiles !== undefined && (
+                <div>
+                  <span className="text-muted-foreground">RPM Loaded:</span>
+                  <span className="font-medium ml-1">${stats.rpmLoadedMiles.toFixed(2)}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Avg Profit:</span>
+                <span className={cn(
+                  "font-medium ml-1",
+                  stats.averageProfitPerLoad >= 0 ? "text-green-600" : "text-red-600"
+                )}>
+                  {formatCurrency(stats.averageProfitPerLoad)}/load
+                </span>
+              </div>
+            </div>
+
+            {/* Row 2: Projected Costs (if configured) */}
+            {hasProjected && stats.projected && (
+              <div className="border-t pt-1.5">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Projected Op Costs (from Settings)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-1 text-xs">
+                  <div className="flex items-center gap-1">
+                    <Fuel className="h-3 w-3 text-amber-500" />
+                    <span className="text-muted-foreground">Fuel:</span>
+                    <span className="font-medium">{formatCurrency(stats.projected.fuelCost)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Wrench className="h-3 w-3 text-blue-500" />
+                    <span className="text-muted-foreground">Maint:</span>
+                    <span className="font-medium">{formatCurrency(stats.projected.maintenanceCost)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Fixed:</span>
+                    <span className="font-medium ml-1">{formatCurrency(stats.projected.fixedCosts)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Total Op Cost:</span>
+                    <span className="font-medium ml-1 text-red-500">{formatCurrency(stats.projected.totalOpCost)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Proj Net:</span>
+                    <span className={cn(
+                      "font-medium ml-1",
+                      stats.projected.netProfit >= 0 ? "text-green-600" : "text-red-600"
+                    )}>
+                      {formatCurrency(stats.projected.netProfit)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Proj Avg:</span>
+                    <span className={cn(
+                      "font-medium ml-1",
+                      stats.projected.avgProfitPerLoad >= 0 ? "text-green-600" : "text-red-600"
+                    )}>
+                      {formatCurrency(stats.projected.avgProfitPerLoad)}/load
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
-            
-            {/* Avg Profit/Load */}
-            <div>
-              <span className="text-muted-foreground">Avg Profit:</span>
-              <span className={cn(
-                "font-medium ml-1",
-                stats.averageProfitPerLoad >= 0 ? "text-green-600" : "text-red-600"
-              )}>
-                {formatCurrency(stats.averageProfitPerLoad)}/load
-              </span>
-            </div>
           </div>
         </CollapsibleContent>
       </div>

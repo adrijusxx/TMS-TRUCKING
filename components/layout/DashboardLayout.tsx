@@ -75,6 +75,7 @@ import FleetHeaderNav from '@/components/fleet/FleetHeaderNav';
 import LoadHeaderNav from '@/components/loads/LoadHeaderNav';
 import HRHeaderNav from '@/components/hr/HRHeaderNav';
 import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
+import AnalyticsHeaderNav from '@/components/analytics/AnalyticsHeaderNav';
 import AIAssistantChat from '@/components/ai/AIAssistantChat';
 import { ImportTutorial } from '@/components/onboarding/ImportTutorial';
 
@@ -99,6 +100,7 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
   { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },
   { name: 'Recruitment', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, permission: 'analytics.view' },
   { name: 'Reports', href: '/dashboard/reports', icon: ChartBar, permission: 'departments.reports.view' },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'departments.settings.view' },
 ];
@@ -289,11 +291,9 @@ export default function DashboardLayout({
   // Check if we're in Accounting section
   const isAccountingSection = pathname?.startsWith('/dashboard/invoices') ||
     pathname?.startsWith('/dashboard/settlements') ||
-    pathname?.startsWith('/dashboard/salary') ||
     pathname?.startsWith('/dashboard/customers') ||
     pathname?.startsWith('/dashboard/vendors') ||
     pathname?.startsWith('/dashboard/locations') ||
-    pathname?.startsWith('/dashboard/analytics') ||
     pathname?.startsWith('/dashboard/automation') ||
     pathname?.startsWith('/dashboard/accounting') ||
     pathname?.startsWith('/dashboard/batches');
@@ -302,6 +302,11 @@ export default function DashboardLayout({
 
   // Check if we're in CRM section
   const isCRMSection = pathname?.startsWith('/dashboard/crm');
+
+  // Check if we're in Analytics section
+  const isAnalyticsSection = pathname?.startsWith('/dashboard/analytics');
+
+
 
 
 
@@ -729,14 +734,21 @@ export default function DashboardLayout({
                 <div className="h-6 w-px bg-border flex-shrink-0" />
               </>
             )}
+            {isAnalyticsSection && (
+              <>
+                <AnalyticsHeaderNav />
+                <div className="h-6 w-px bg-border flex-shrink-0" />
+              </>
+            )}
+
 
             <div className="flex-1 min-w-0" />
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
               <McViewSelector />
-              <div className="h-6 w-px bg-border" />
+              <div className="hidden sm:block h-6 w-px bg-border" />
               <GlobalSearch />
-              <FontSizeToggle />
-              <ThemeToggle />
+              <div className="hidden sm:block"><FontSizeToggle /></div>
+              <div className="hidden sm:block"><ThemeToggle /></div>
               <NotificationBell />
               {/* AI Assistant Toggle in Header */}
               <TooltipProvider delayDuration={300}>
@@ -762,7 +774,7 @@ export default function DashboardLayout({
         </header>
 
         {/* Page content */}
-        <main className="p-3 lg:p-4">{children}</main>
+        <main className="p-2 sm:p-3 lg:p-4">{children}</main>
         <AIAssistantChat
           isOpen={isAiChatOpen}
           onOpenChange={setIsAiChatOpen}

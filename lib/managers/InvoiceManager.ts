@@ -570,10 +570,13 @@ Any questions regarding this invoice should be directed to ${factoringCompany.na
         },
       });
 
-      // 7. Update load statuses to INVOICED
+      // 7. Update load statuses to INVOICED and mark as ready for settlement
       await prisma.load.updateMany({
         where: { id: { in: loadIds } },
-        data: { status: 'INVOICED' },
+        data: {
+          status: 'INVOICED',
+          readyForSettlement: true // If it's being invoiced, it must be ready for settlement
+        },
       });
 
       // 8. Track usage

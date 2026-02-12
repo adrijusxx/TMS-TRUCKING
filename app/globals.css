@@ -236,6 +236,46 @@
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
+/* --- Mobile / Smartphone Optimizations --- */
+@media (max-width: 640px) {
+  /* Larger touch targets for interactive elements */
+  button,
+  a,
+  [role="button"],
+  input[type="checkbox"],
+  select {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  /* Safe area insets for notched phones */
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Hide scrollbars on horizontal scroll containers */
+  .overflow-x-auto {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .overflow-x-auto::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tighter spacing for mobile */
+  .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+
+  /* Reduce card padding on mobile */
+  .card-header {
+    padding: 0.75rem !important;
+  }
+  .card-content {
+    padding: 0.75rem !important;
+  }
+}
+
 @layer base {
   :root {
     --base-font-size: 1rem;

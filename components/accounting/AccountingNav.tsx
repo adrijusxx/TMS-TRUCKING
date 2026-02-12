@@ -15,6 +15,7 @@ import {
   Sliders,
   Receipt,
   Fuel,
+  Users,
 } from 'lucide-react';
 import {
   SIDEBAR_WIDTHS,
@@ -35,8 +36,14 @@ const navigationItems = [
     description: 'Customer billing and invoices',
   },
   {
-    name: 'Salary',
-    href: '/dashboard/salary',
+    name: 'Customers',
+    href: '/dashboard/customers',
+    icon: Users,
+    description: 'Manage customers and contacts',
+  },
+  {
+    name: 'Settlements',
+    href: '/dashboard/settlements',
     icon: CreditCard,
     description: 'Driver settlements and pay',
   },

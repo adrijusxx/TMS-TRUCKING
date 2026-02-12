@@ -34,6 +34,7 @@ interface DataTableToolbarProps<TData> {
    */
   onColumnOrderChange?: (order: string[]) => void;
   savePreferences?: boolean;
+  searchPlaceholder?: string;
 }
 
 /**
@@ -48,6 +49,7 @@ export function DataTableToolbar<TData extends Record<string, any>>({
   entityType,
   onColumnOrderChange,
   savePreferences,
+  searchPlaceholder,
 }: DataTableToolbarProps<TData>) {
   const globalFilter = table.getState().globalFilter as string;
   const [searchValue, setSearchValue] = React.useState(globalFilter || '');
@@ -88,7 +90,7 @@ export function DataTableToolbar<TData extends Record<string, any>>({
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder={`Filter by ${filterKey}...`}
+            placeholder={searchPlaceholder || `Filter by ${filterKey}...`}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             className="pl-10 pr-10"

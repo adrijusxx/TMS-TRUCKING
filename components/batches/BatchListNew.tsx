@@ -155,7 +155,7 @@ export default function BatchListNew() {
           </Button>
         </>
       )}
-      <Link href={`/dashboard/accounting/batches/${row.id}`}>
+      <Link href={`/dashboard/batches/${row.id}`}>
         <Button variant="ghost" size="sm">
           View
         </Button>
@@ -188,7 +188,7 @@ export default function BatchListNew() {
             </ExportDialog>
           )}
           {can('batches.create') && (
-            <Button size="sm" onClick={() => router.push('/dashboard/accounting/batches/new')}>
+            <Button size="sm" onClick={() => router.push('/dashboard/batches/new')}>
               <Plus className="h-4 w-4 mr-2" />
               New Batch
             </Button>

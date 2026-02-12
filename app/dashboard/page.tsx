@@ -181,16 +181,16 @@ export default async function DashboardPage() {
     ];
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <Breadcrumb items={[{ label: 'Dashboard' }]} />
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-xl sm:text-3xl font-bold">Dashboard</h1>
         </div>
 
         {/* Overview Statistics Section */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold mb-1">Overview</h2>
+            <h2 className="text-base sm:text-xl font-semibold mb-1">Overview</h2>
             <p className="text-sm text-muted-foreground">Key metrics at a glance</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -215,7 +215,7 @@ export default async function DashboardPage() {
         {/* Quick Actions Section */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold mb-1">Quick Actions</h2>
+            <h2 className="text-base sm:text-xl font-semibold mb-1">Quick Actions</h2>
             <p className="text-sm text-muted-foreground">Common tasks and shortcuts</p>
           </div>
           <div className="grid gap-4 md:grid-cols-1">
@@ -226,7 +226,7 @@ export default async function DashboardPage() {
         {/* Loads & Operations Section */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold mb-1">Loads & Operations</h2>
+            <h2 className="text-base sm:text-xl font-semibold mb-1">Loads & Operations</h2>
             <p className="text-sm text-muted-foreground">Current loads and operational status</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -238,7 +238,7 @@ export default async function DashboardPage() {
         {/* Financial Performance Section */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold mb-1">Financial Performance</h2>
+            <h2 className="text-base sm:text-xl font-semibold mb-1">Financial Performance</h2>
             <p className="text-sm text-muted-foreground">Revenue trends and financial metrics</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -250,7 +250,7 @@ export default async function DashboardPage() {
         {/* Fleet & Personnel Performance Section */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold mb-1">Fleet & Personnel Performance</h2>
+            <h2 className="text-base sm:text-xl font-semibold mb-1">Fleet & Personnel Performance</h2>
             <p className="text-sm text-muted-foreground">Driver and truck performance metrics</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -262,7 +262,7 @@ export default async function DashboardPage() {
         {/* Customer Performance Section */}
         <section className="space-y-4">
           <div>
-            <h2 className="text-xl font-semibold mb-1">Customer Performance</h2>
+            <h2 className="text-base sm:text-xl font-semibold mb-1">Customer Performance</h2>
             <p className="text-sm text-muted-foreground">Customer metrics and relationship insights</p>
           </div>
           <div className="grid gap-4">
@@ -274,7 +274,7 @@ export default async function DashboardPage() {
         {session.user?.role === 'ADMIN' && (
           <section className="space-y-4 mt-8 border-t pt-6">
             <div>
-              <h2 className="text-xl font-semibold mb-1">Activity Feed</h2>
+              <h2 className="text-base sm:text-xl font-semibold mb-1">Activity Feed</h2>
               <p className="text-sm text-muted-foreground">Recent system activity and user actions</p>
             </div>
             <div className="grid gap-4">

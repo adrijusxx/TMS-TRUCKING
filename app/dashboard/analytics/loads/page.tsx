@@ -6,7 +6,7 @@ import { LoadProfitabilityChart } from '@/components/analytics/LoadProfitability
 import { DriverPerformanceTable } from '@/components/analytics/DriverPerformanceTable';
 import { CustomerAnalysisReport } from '@/components/analytics/CustomerAnalysisReport';
 import { ExpenseTrendChart } from '@/components/analytics/ExpenseTrendChart';
-import { RouteEfficiencyAnalysis } from '@/components/analytics/RouteEfficiencyAnalysis';
+import RouteEfficiencyAnalysis from '@/components/analytics/RouteEfficiencyAnalysis';
 import { SettlementForecastChart } from '@/components/analytics/SettlementForecastChart';
 
 export default function LoadAnalyticsPage() {

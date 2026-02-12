@@ -6,6 +6,7 @@ import {
   Receipt,
   Sliders,
   Fuel,
+  Users,
 } from 'lucide-react';
 
 /**
@@ -25,8 +26,14 @@ export const accountingNavigationSections = [
         description: 'Customer billing, aging, reconciliation, and invoice management.',
       },
       {
-        name: 'Salary',
-        href: '/dashboard/salary',
+        name: 'Customers',
+        href: '/dashboard/customers',
+        icon: Users,
+        description: 'Manage customers, contacts, and billing terms.',
+      },
+      {
+        name: 'Settlements',
+        href: '/dashboard/settlements',
         icon: CreditCard,
         description: 'Driver settlements, batches, reports, and balance tracking.',
       },

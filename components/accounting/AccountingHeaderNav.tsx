@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { accountingNavigationSections } from '@/lib/accounting-navigation-config';
-import { ChevronDown, Menu } from 'lucide-react';
+import { ChevronDown, Menu, Users } from 'lucide-react';
 
 // Color scheme icon colors
 const colorClasses: Record<string, string> = {

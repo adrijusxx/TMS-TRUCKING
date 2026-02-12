@@ -1,6 +1,6 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, CreditCard, Receipt, Fuel, Building2, Sliders } from 'lucide-react';
+import { FileText, CreditCard, Receipt, Fuel, Building2, Sliders, Users } from 'lucide-react';
 import Link from 'next/link';
 
 const accountingPages = [
@@ -12,8 +12,15 @@ const accountingPages = [
     color: 'text-blue-600',
   },
   {
-    name: 'Salary',
-    href: '/dashboard/salary',
+    name: 'Customers',
+    href: '/dashboard/customers',
+    icon: Users,
+    description: 'Manage customers, contacts, and terms',
+    color: 'text-indigo-600',
+  },
+  {
+    name: 'Settlements',
+    href: '/dashboard/settlements',
     icon: CreditCard,
     description: 'Driver settlements, batches, and reports',
     color: 'text-green-600',

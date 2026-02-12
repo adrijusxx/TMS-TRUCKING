@@ -22,14 +22,17 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       return null;
     }
 
+    // Analytics pages - handled by header navigation
+    if (pathname.startsWith('/dashboard/analytics')) {
+      return null;
+    }
+
     // Accounting pages - handled by header navigation
     if (pathname.startsWith('/dashboard/invoices') ||
       pathname.startsWith('/dashboard/settlements') ||
-      pathname.startsWith('/dashboard/salary') ||
       pathname.startsWith('/dashboard/customers') ||
       pathname.startsWith('/dashboard/vendors') ||
       pathname.startsWith('/dashboard/locations') ||
-      pathname.startsWith('/dashboard/analytics') ||
       pathname.startsWith('/dashboard/automation') ||
       pathname.startsWith('/dashboard/accounting') ||
       pathname.startsWith('/dashboard/batches')) {

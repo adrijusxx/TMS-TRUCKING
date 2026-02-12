@@ -39,6 +39,13 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
 
   // Deep linking support
   React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    } else if (action === 'import') {
+      handleImport();
+    }
+
     const driverIdFromUrl = searchParams.get('driverId');
     if (driverIdFromUrl) {
       setSelectedDriverId(driverIdFromUrl);
@@ -230,7 +237,8 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
         rowActions={rowActions}
         onRowClick={(row) => openSheet(can('drivers.edit') ? 'edit' : 'view', row.id)}
         emptyMessage="No drivers found"
-        filterKey="lastName"
+        searchPlaceholder="Search by name, email, phone, truck #, driver #..."
+        filterKey="firstName,lastName,email,phone,driverNumber,currentTruck.truckNumber"
         onDeleteSelected={handleDeleteSelected}
         onExportSelected={handleExportSelected}
         entityType="drivers"
@@ -243,6 +251,15 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
         driverId={selectedDriverId}
         onSuccess={handleUpdate}
       />
+
+      <div className="hidden">
+        <ImportSheet
+          entityType="drivers"
+          onImportComplete={handleUpdate}
+        >
+          <button data-import-trigger="drivers" type="button" />
+        </ImportSheet>
+      </div>
     </>
   );
 }

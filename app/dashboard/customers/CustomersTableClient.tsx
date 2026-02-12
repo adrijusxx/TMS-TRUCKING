@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DataTable } from '@/components/data-table/DataTable';
 import { createCustomerColumns } from './columns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -46,6 +46,24 @@ export function CustomersTableClient({ data }: CustomersTableClientProps) {
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // Deep linking support
+  React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    } else if (action === 'import') {
+      handleImport();
+    }
+
+    const customerIdFromUrl = searchParams.get('customerId');
+    if (customerIdFromUrl) {
+      setSelectedCustomerId(customerIdFromUrl);
+      setSheetMode(can('customers.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
 
   const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
     setSheetMode(mode);

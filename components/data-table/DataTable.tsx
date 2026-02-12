@@ -101,6 +101,7 @@ export function DataTable<TData extends Record<string, any>>({
   enableColumnReorder = false,
   savePreferences = true,
   isCompact = false,
+  searchPlaceholder,
 }: DataTableProps<TData>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
@@ -297,31 +298,33 @@ export function DataTable<TData extends Record<string, any>>({
         const rowData = row.original as any;
         const searchValue = String(filterValue).toLowerCase();
 
-        // Try to get value from the specified filterKey path
-        let value: any;
+        // Support multiple filter keys (comma-separated)
+        const filterKeys = filterKey.split(',').map(k => k.trim());
 
-        // Guard against non-string filterKey
-        if (typeof filterKey === 'string' && filterKey.includes('.')) {
-          // Handle nested paths like 'user.lastName'
-          const keys = filterKey.split('.');
-          value = keys.reduce((obj: any, key) => obj?.[key], rowData);
-        } else {
-          // Direct property access
-          value = rowData[filterKey];
-        }
+        return filterKeys.some(key => {
+          let value: any;
 
-        // If value is found, check if it matches
-        if (value !== undefined && value !== null) {
-          if (typeof value === 'string') {
-            return value.toLowerCase().includes(searchValue);
+          // Guard against non-string key
+          if (typeof key === 'string' && key.includes('.')) {
+            // Handle nested paths like 'user.lastName' or 'currentTruck.truckNumber'
+            const keys = key.split('.');
+            value = keys.reduce((obj: any, k) => obj?.[k], rowData);
+          } else {
+            // Direct property access
+            value = rowData[key];
           }
-          if (typeof value === 'number') {
-            return String(value).includes(searchValue);
+
+          // If value is found, check if it matches
+          if (value !== undefined && value !== null) {
+            if (typeof value === 'string') {
+              return value.toLowerCase().includes(searchValue);
+            }
+            if (typeof value === 'number') {
+              return String(value).includes(searchValue);
+            }
           }
-        }
-        // If filterKey value not found or doesn't match, return false
-        // (Don't fallback to searching all values - be specific to the filterKey)
-        return false;
+          return false;
+        });
       }
       : undefined,
     state: {
@@ -418,6 +421,7 @@ export function DataTable<TData extends Record<string, any>>({
             entityType={entityType}
             onColumnOrderChange={setColumnOrder}
             savePreferences={savePreferences}
+            searchPlaceholder={searchPlaceholder}
           />
         )}
 
@@ -651,7 +655,7 @@ export function DataTable<TData extends Record<string, any>>({
 
         {/* Pagination */}
         {!controlledPagination || controlledPagination.totalCount !== undefined ? (
-          <div className="flex items-center justify-between px-1 py-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
             <div className="flex items-center gap-1">
               <p className="text-[11px] text-muted-foreground">
                 {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
@@ -663,10 +667,11 @@ export function DataTable<TData extends Record<string, any>>({
               </p>
             </div>
             <div className="flex items-center gap-1">
+              {/* First page - hidden on mobile */}
               <Button
                 variant="outline"
                 size="sm"
-                className="h-6 w-6 p-0"
+                className="hidden sm:flex h-6 w-6 p-0"
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}
               >
@@ -681,7 +686,8 @@ export function DataTable<TData extends Record<string, any>>({
               >
                 <ChevronLeft className="h-3 w-3" />
               </Button>
-              <div className="flex items-center gap-1">
+              {/* Page number input - hidden on very small screens */}
+              <div className="hidden sm:flex items-center gap-1">
                 <span className="text-[11px]">Page</span>
                 <Input
                   type="number"
@@ -696,6 +702,10 @@ export function DataTable<TData extends Record<string, any>>({
                 />
                 <span className="text-[11px]">of {table.getPageCount()}</span>
               </div>
+              {/* Mobile-only simple page indicator */}
+              <span className="sm:hidden text-[11px] text-muted-foreground px-1">
+                {table.getState().pagination.pageIndex + 1}/{table.getPageCount()}
+              </span>
               <Button
                 variant="outline"
                 size="sm"
@@ -705,10 +715,11 @@ export function DataTable<TData extends Record<string, any>>({
               >
                 <ChevronRight className="h-3 w-3" />
               </Button>
+              {/* Last page - hidden on mobile */}
               <Button
                 variant="outline"
                 size="sm"
-                className="h-6 w-6 p-0"
+                className="hidden sm:flex h-6 w-6 p-0"
                 onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                 disabled={!table.getCanNextPage()}
               >

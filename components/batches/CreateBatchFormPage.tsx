@@ -74,7 +74,7 @@ export default function CreateBatchFormPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['batches'] });
       toast.success('Batch created successfully');
-      router.push(`/dashboard/accounting/batches/${data.data.id}`);
+      router.push(`/dashboard/batches/${data.data.id}`);
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to create batch');
@@ -108,7 +108,7 @@ export default function CreateBatchFormPage() {
             Select invoices to group into a batch for processing
           </p>
         </div>
-        <Link href="/dashboard/accounting/batches">
+        <Link href="/dashboard/batches">
           <Button variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Batches
@@ -187,7 +187,7 @@ export default function CreateBatchFormPage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3">
-          <Link href="/dashboard/accounting/batches">
+          <Link href="/dashboard/batches">
             <Button type="button" variant="outline">
               Cancel
             </Button>

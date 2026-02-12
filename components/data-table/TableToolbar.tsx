@@ -345,7 +345,7 @@ export function TableToolbar({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-96 max-h-[600px] overflow-y-auto" align="start">
+            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-96 max-h-[600px] overflow-y-auto" align="start">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">Advanced Filters</h4>

@@ -420,6 +420,10 @@ export interface DataTableProps<TData extends TableData = TableData> {
    * Whether to display the table in a compact high-density mode
    */
   isCompact?: boolean;
+  /**
+   * Custom placeholder text for the global search input
+   */
+  searchPlaceholder?: string;
 }
 
 /**

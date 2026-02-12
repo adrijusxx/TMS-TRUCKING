@@ -389,6 +389,65 @@ export class LoadCostingManager {
 
     return breakdowns;
   }
+
+  /**
+   * Calculate projected profit based on fleet-wide averages
+   */
+  async calculateProjectedProfit(loadId: string): Promise<{
+    projectedFuel: number;
+    projectedMaintenance: number;
+    projectedTotalCost: number;
+    projectedNetProfit: number;
+    projectedMargin: number;
+  }> {
+    const load = await prisma.load.findUnique({
+      where: { id: loadId },
+      include: {
+        company: {
+          include: {
+            systemConfig: true,
+          },
+        },
+      },
+    });
+
+    if (!load || !load.company.systemConfig) {
+      throw new Error('Load or system configuration not found');
+    }
+
+    const config = load.company.systemConfig;
+    const totalMiles = load.totalMiles || load.loadedMiles || 0;
+
+    // 1. Projected Fuel Cost
+    const fuelPrice = config.averageFuelPrice || 0;
+    const mpg = config.averageMpg || 1; // Avoid division by zero
+    const projectedFuel = (totalMiles / mpg) * fuelPrice;
+
+    // 2. Projected Maintenance Cost
+    const projectedMaintenance = totalMiles * (config.maintenanceCpm || 0);
+
+    // 3. Fixed Costs (Daily)
+    // We assume 1 day for a typical load if not multi-day
+    const fixedCosts = config.fixedCostPerDay || 0;
+
+    // 4. Actual/Committed Costs
+    const driverPay = load.driverPay || 0;
+
+    // Total Projected Cost
+    const projectedTotalCost = projectedFuel + projectedMaintenance + fixedCosts + driverPay;
+
+    // Projected Net Profit
+    const projectedNetProfit = load.revenue - projectedTotalCost;
+    const projectedMargin = load.revenue > 0 ? (projectedNetProfit / load.revenue) * 100 : 0;
+
+    return {
+      projectedFuel,
+      projectedMaintenance,
+      projectedTotalCost,
+      projectedNetProfit,
+      projectedMargin,
+    };
+  }
 }
 
 

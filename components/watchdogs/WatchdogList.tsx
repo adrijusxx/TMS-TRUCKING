@@ -405,7 +405,7 @@ export default function WatchdogList() {
                         {formatCurrency(batch.totalAmount)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/dashboard/accounting/batches/${batch.id}`}>
+                        <Link href={`/dashboard/batches/${batch.id}`}>
                           <Button variant="ghost" size="sm">
                             View <ExternalLink className="h-3 w-3 ml-1" />
                           </Button>

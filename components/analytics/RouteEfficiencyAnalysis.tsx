@@ -16,7 +16,7 @@ interface RouteEfficiency {
   efficiency: 'high' | 'medium' | 'low';
 }
 
-export function RouteEfficiencyAnalysis() {
+export default function RouteEfficiencyAnalysis() {
   const [routes, setRoutes] = useState<RouteEfficiency[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,40 +26,14 @@ export function RouteEfficiencyAnalysis() {
 
   const fetchRouteEfficiency = async () => {
     try {
-      // TODO: Implement API endpoint
-      const mockData: RouteEfficiency[] = [
-        {
-          routeName: 'Los Angeles → Dallas',
-          totalLoads: 45,
-          avgMiles: 1380,
-          deadheadMiles: 120,
-          deadheadPercentage: 8.7,
-          avgRevenue: 3200,
-          revenuePerMile: 2.32,
-          efficiency: 'high',
-        },
-        {
-          routeName: 'Chicago → Atlanta',
-          totalLoads: 38,
-          avgMiles: 715,
-          deadheadMiles: 95,
-          deadheadPercentage: 13.3,
-          avgRevenue: 1850,
-          revenuePerMile: 2.59,
-          efficiency: 'high',
-        },
-        {
-          routeName: 'New York → Miami',
-          totalLoads: 32,
-          avgMiles: 1280,
-          deadheadMiles: 256,
-          deadheadPercentage: 20.0,
-          avgRevenue: 2900,
-          revenuePerMile: 2.27,
-          efficiency: 'medium',
-        },
-      ];
-      setRoutes(mockData);
+      const response = await fetch('/api/analytics/lanes');
+      const result = await response.json();
+
+      if (result.success && Array.isArray(result.data)) {
+        setRoutes(result.data);
+      } else {
+        console.error('Failed to fetch lane data:', result);
+      }
     } catch (error) {
       console.error('Error fetching route efficiency:', error);
     } finally {
@@ -142,13 +116,12 @@ export function RouteEfficiencyAnalysis() {
                   </td>
                   <td className="p-3 text-right">
                     <span
-                      className={`font-medium ${
-                        route.deadheadPercentage < 10
-                          ? 'text-green-600'
-                          : route.deadheadPercentage < 15
+                      className={`font-medium ${route.deadheadPercentage < 10
+                        ? 'text-green-600'
+                        : route.deadheadPercentage < 15
                           ? 'text-yellow-600'
                           : 'text-red-600'
-                      }`}
+                        }`}
                     >
                       {route.deadheadPercentage.toFixed(1)}%
                     </span>

@@ -43,7 +43,12 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
     };
 
-    // 6. Calculate statistics - fetch all required fields
+    // 6. Fetch operational metrics for projections
+    const systemConfig = await prisma.systemConfig.findUnique({
+      where: { companyId: session.user.companyId },
+    });
+
+    // 7. Calculate statistics - fetch all required fields
     const loads = await prisma.load.findMany({
       where,
       select: {
@@ -53,6 +58,8 @@ export async function GET(request: NextRequest) {
         revenue: true,
         driverPay: true,
         profit: true,
+        fuelAdvance: true,
+        totalExpenses: true,
         segments: {
           select: {
             loadedMiles: true,
@@ -71,12 +78,16 @@ export async function GET(request: NextRequest) {
     let totalRevenue = 0;
     let totalDriverPay = 0;
     let totalProfit = 0;
+    let totalFuelAdvance = 0;
+    let totalLoadExpenses = 0;
 
     loads.forEach((load) => {
       // Add revenue, driverPay, profit
       totalRevenue += load.revenue || 0;
       totalDriverPay += load.driverPay || 0;
-      
+      totalFuelAdvance += load.fuelAdvance || 0;
+      totalLoadExpenses += load.totalExpenses || 0;
+
       // Calculate profit: use stored profit if available, otherwise revenue - driverPay
       if (load.profit !== null && load.profit !== undefined) {
         totalProfit += load.profit;
@@ -94,7 +105,7 @@ export async function GET(request: NextRequest) {
         // Use direct loadedMiles field
         loadedMiles += load.loadedMiles;
       }
-      
+
       if (load.emptyMiles !== null && load.emptyMiles !== undefined && load.emptyMiles > 0) {
         // Use direct emptyMiles field
         emptyMiles += load.emptyMiles;
@@ -102,7 +113,7 @@ export async function GET(request: NextRequest) {
         // Calculate empty miles as total - loaded (only if we have loadedMiles)
         emptyMiles += loadTotalMiles - load.loadedMiles;
       }
-      
+
       // Check segments as fallback if no direct fields
       if ((!load.loadedMiles || load.loadedMiles === 0) && load.segments && load.segments.length > 0) {
         let segmentLoadedMiles = 0;
@@ -135,6 +146,21 @@ export async function GET(request: NextRequest) {
     const rpmEmptyMiles = emptyMiles > 0 ? totalRevenue / emptyMiles : null;
     const rpmTotalMiles = totalMiles > 0 ? totalRevenue / totalMiles : null;
 
+    // Projected operational costs from SystemConfig metrics
+    const fuelPrice = systemConfig?.averageFuelPrice || 0;
+    const mpg = systemConfig?.averageMpg || 1;
+    const maintenanceCpm = systemConfig?.maintenanceCpm || 0;
+    const fixedCostPerDay = systemConfig?.fixedCostPerDay || 0;
+
+    const projectedFuelCost = mpg > 0 ? (totalMiles / mpg) * fuelPrice : 0;
+    const projectedMaintenanceCost = totalMiles * maintenanceCpm;
+    // Estimate days: assume average load takes 1 day per 500 miles
+    const estimatedDays = totalMiles > 0 ? Math.ceil(totalMiles / 500) : totalLoads;
+    const projectedFixedCosts = estimatedDays * fixedCostPerDay;
+    const projectedTotalOpCost = projectedFuelCost + projectedMaintenanceCost + projectedFixedCosts;
+    const projectedNetProfit = totalRevenue - totalDriverPay - projectedTotalOpCost;
+    const projectedAvgProfitPerLoad = totalLoads > 0 ? projectedNetProfit / totalLoads : 0;
+
     const statistics = {
       totalLoads,
       totalMiles,
@@ -143,6 +169,8 @@ export async function GET(request: NextRequest) {
       totalRevenue,
       totalDriverPay,
       totalProfit,
+      totalFuelAdvance: Math.round(totalFuelAdvance * 100) / 100,
+      totalLoadExpenses: Math.round(totalLoadExpenses * 100) / 100,
       averageMilesPerLoad: Math.round(averageMilesPerLoad),
       averageRevenuePerLoad: Math.round(averageRevenuePerLoad * 100) / 100,
       averageProfitPerLoad: Math.round(averageProfitPerLoad * 100) / 100,
@@ -150,6 +178,16 @@ export async function GET(request: NextRequest) {
       rpmLoadedMiles: rpmLoadedMiles ? Math.round(rpmLoadedMiles * 100) / 100 : null,
       rpmEmptyMiles: rpmEmptyMiles ? Math.round(rpmEmptyMiles * 100) / 100 : null,
       rpmTotalMiles: rpmTotalMiles ? Math.round(rpmTotalMiles * 100) / 100 : null,
+      // Projected costs from operational metrics
+      projected: {
+        fuelCost: Math.round(projectedFuelCost * 100) / 100,
+        maintenanceCost: Math.round(projectedMaintenanceCost * 100) / 100,
+        fixedCosts: Math.round(projectedFixedCosts * 100) / 100,
+        totalOpCost: Math.round(projectedTotalOpCost * 100) / 100,
+        netProfit: Math.round(projectedNetProfit * 100) / 100,
+        avgProfitPerLoad: Math.round(projectedAvgProfitPerLoad * 100) / 100,
+        metricsConfigured: fuelPrice > 0 || maintenanceCpm > 0,
+      },
     };
 
     return NextResponse.json({

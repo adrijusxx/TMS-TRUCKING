@@ -13,6 +13,10 @@ const systemConfigSchema = z.object({
   factoringCompanyAddress: z.string().optional().nullable(),
   payDriverOnFuelSurcharge: z.boolean().optional(),
   companyFuelTaxRate: z.number().min(0).max(100).optional().nullable(),
+  averageFuelPrice: z.number().min(0).optional(),
+  averageMpg: z.number().min(0).optional(),
+  maintenanceCpm: z.number().min(0).optional(),
+  fixedCostPerDay: z.number().min(0).optional(),
 });
 
 /**
@@ -80,12 +84,12 @@ export async function PATCH(request: NextRequest) {
     const role = session.user.role as 'ADMIN' | 'ACCOUNTANT' | 'DISPATCHER' | 'DRIVER' | 'CUSTOMER';
     if (role !== 'ADMIN' && role !== 'ACCOUNTANT') {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: { 
-            code: 'FORBIDDEN', 
-            message: 'Only administrators and accountants can update system configuration' 
-          } 
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only administrators and accountants can update system configuration'
+          }
         },
         { status: 403 }
       );

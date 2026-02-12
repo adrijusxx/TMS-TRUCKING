@@ -6288,6 +6288,12 @@ model SystemConfig {
   payDriverOnFuelSurcharge Boolean @default(false) // Toggle: "Pay Driver % on FSC?"
   companyFuelTaxRate       Float? // Percentage (e.g., 8.5%)
 
+  // Operational Metrics (for Projections — Class 8 industry defaults)
+  averageFuelPrice Float? @default(3.65)  // $/gal (national avg)
+  averageMpg       Float? @default(6.5)   // MPG (Class 8 range: 5.5-7.5)
+  maintenanceCpm   Float? @default(0.18)  // $/mile
+  fixedCostPerDay  Float? @default(85)    // $/day (insurance, ELD, overhead)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

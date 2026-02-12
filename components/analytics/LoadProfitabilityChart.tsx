@@ -33,38 +33,14 @@ export function LoadProfitabilityChart() {
 
   const fetchLoadProfitability = async () => {
     try {
-      // TODO: Implement API endpoint
-      // For now, using mock data
-      const mockData: LoadProfitability[] = [
-        {
-          loadNumber: 'L-2025-001',
-          revenue: 3500,
-          totalCost: 2800,
-          profit: 700,
-          profitMargin: 20,
-          customer: 'ABC Logistics',
-          deliveredAt: '2025-11-20',
-        },
-        {
-          loadNumber: 'L-2025-002',
-          revenue: 4200,
-          totalCost: 3600,
-          profit: 600,
-          profitMargin: 14.3,
-          customer: 'XYZ Freight',
-          deliveredAt: '2025-11-21',
-        },
-        {
-          loadNumber: 'L-2025-003',
-          revenue: 2800,
-          totalCost: 2400,
-          profit: 400,
-          profitMargin: 14.3,
-          customer: 'Global Shipping',
-          deliveredAt: '2025-11-22',
-        },
-      ];
-      setLoads(mockData);
+      const response = await fetch(`/api/analytics/load-profitability?days=${timeRange}`);
+      const result = await response.json();
+
+      if (result.success && Array.isArray(result.data)) {
+        setLoads(result.data);
+      } else {
+        console.error('Failed to fetch load profitability:', result);
+      }
     } catch (error) {
       console.error('Error fetching load profitability:', error);
     } finally {

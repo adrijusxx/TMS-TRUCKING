@@ -1,229 +1,206 @@
 import { NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
-import { hasPermission } from '@/lib/permissions';
+import { buildMcNumberWhereClause, buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
 import { hasPermissionAsync } from '@/lib/server-permissions';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-
     if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check analytics permission (use database-backed check)
     const role = (session.user as any)?.role || 'CUSTOMER';
     if (!(await hasPermissionAsync(role, 'analytics.view'))) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
+    const loadMcWhere = await buildMcNumberWhereClause(session, request);
     const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('startDate')
-      ? new Date(searchParams.get('startDate')!)
-      : new Date(new Date().setDate(new Date().getDate() - 30));
-    const endDate = searchParams.get('endDate')
-      ? new Date(searchParams.get('endDate')!)
-      : new Date();
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const groupBy = searchParams.get('groupBy') || 'customer'; // customer, lane
 
-    // Build MC filter - Load uses mcNumberId
-    const loadMcWhere = await buildMcNumberWhereClause(session, request);
+    const dateFilter: any = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
 
-    // Get all loads in date range - include ALL loads, not just completed ones
     const loads = await prisma.load.findMany({
       where: {
         ...loadMcWhere,
         deletedAt: null,
-        OR: [
-          { pickupDate: { gte: startDate, lte: endDate } },
-          { deliveryDate: { gte: startDate, lte: endDate } },
-          { deliveredAt: { gte: startDate, lte: endDate } },
-        ],
+        pickupDate: dateFilter,
+        status: { in: ['DELIVERED', 'BILLING_HOLD', 'READY_TO_BILL', 'INVOICED', 'PAID'] }
       },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        driver: {
-          select: {
-            id: true,
-            payType: true,
-            payRate: true,
-          },
-        },
-      },
+      select: {
+        id: true,
+        revenue: true,
+        driverPay: true,
+        totalExpenses: true, // Should include fuel, maintenance, etc. allocated to load
+        profit: true,
+        totalMiles: true,
+        customer: { select: { id: true, name: true } },
+        pickupState: true,
+        deliveryState: true,
+      }
     });
 
-    if (groupBy === 'customer') {
-      // Group by customer
-      const customerProfitability = loads.reduce((acc, load) => {
-        const customerId = load.customerId;
-        const customerName = load.customer.name;
+    const groupMap = new Map<string, any>();
 
-        if (!acc[customerId]) {
-          acc[customerId] = {
-            customerId,
-            customerName,
-            totalLoads: 0,
-            totalRevenue: 0,
-            totalDriverPay: 0,
-            totalExpenses: 0,
-            totalProfit: 0,
-            averageProfitPerLoad: 0,
-          };
-        }
+    for (const load of loads) {
+      let key = '';
+      let name = '';
 
-        // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
-        let calculatedDriverPay = load.driverPay || 0;
-        if (!calculatedDriverPay && load.driver) {
-          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
-          if (load.driver.payType === 'PER_MILE' && miles > 0) {
-            calculatedDriverPay = miles * load.driver.payRate;
-          } else if (load.driver.payType === 'PER_LOAD') {
-            calculatedDriverPay = load.driver.payRate;
-          } else if (load.driver.payType === 'PERCENTAGE') {
-            calculatedDriverPay = (load.revenue || 0) * (load.driver.payRate / 100);
-          } else if (load.driver.payType === 'HOURLY') {
-            const estimatedHours = miles > 0 ? miles / 50 : 10;
-            calculatedDriverPay = estimatedHours * load.driver.payRate;
-          }
-        }
+      if (groupBy === 'customer') {
+        key = load.customer?.id || 'Unknown';
+        name = load.customer?.name || 'Unknown Customer';
+      } else if (groupBy === 'lane') {
+        key = `${load.pickupState || '?'} -> ${load.deliveryState || '?'}`;
+        name = key;
+      }
 
-        acc[customerId].totalLoads += 1;
-        acc[customerId].totalRevenue += Number(load.revenue) || 0;
-        acc[customerId].totalDriverPay += calculatedDriverPay;
-        acc[customerId].totalExpenses += Number(load.expenses) || 0;
-        acc[customerId].totalProfit +=
-          (Number(load.revenue) || 0) - calculatedDriverPay - (Number(load.expenses) || 0);
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          id: key,
+          name: name,
+          revenue: 0,
+          cost: 0,
+          profit: 0,
+          loads: 0,
+          miles: 0
+        });
+      }
 
-        return acc;
-      }, {} as Record<string, any>);
+      const item = groupMap.get(key);
+      const rev = Number(load.revenue || 0);
+      const pay = Number(load.driverPay || 0);
+      const exp = Number(load.totalExpenses || 0);
+      const prof = Number(load.profit || 0);
 
-      // Calculate averages
-      Object.values(customerProfitability).forEach((customer: any) => {
-        customer.averageProfitPerLoad =
-          customer.totalLoads > 0
-            ? customer.totalProfit / customer.totalLoads
-            : 0;
-      });
+      // Recalculate profit if needed or trust DB
+      // const calcProfit = rev - pay - exp;
 
-      const results = Object.values(customerProfitability)
-        .map((customer: any) => ({
-          ...customer,
-          totalProfit: parseFloat(customer.totalProfit.toFixed(2)),
-          averageProfitPerLoad: parseFloat(customer.averageProfitPerLoad.toFixed(2)),
-        }))
-        .sort((a: any, b: any) => b.totalProfit - a.totalProfit);
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          groupBy: 'customer',
-          results,
-          summary: {
-            totalCustomers: results.length,
-            totalProfit: results.reduce((sum: number, r: any) => sum + r.totalProfit, 0),
-            averageProfitPerCustomer: results.length > 0
-              ? results.reduce((sum: number, r: any) => sum + r.totalProfit, 0) / results.length
-              : 0,
-          },
-        },
-      });
-    } else {
-      // Group by lane (origin-destination pair)
-      const laneProfitability = loads.reduce((acc, load) => {
-        const lane = `${load.pickupCity}, ${load.pickupState} → ${load.deliveryCity}, ${load.deliveryState}`;
-
-        if (!acc[lane]) {
-          acc[lane] = {
-            lane,
-            origin: `${load.pickupCity}, ${load.pickupState}`,
-            destination: `${load.deliveryCity}, ${load.deliveryState}`,
-            totalLoads: 0,
-            totalRevenue: 0,
-            totalDriverPay: 0,
-            totalExpenses: 0,
-            totalProfit: 0,
-            averageProfitPerLoad: 0,
-          };
-        }
-
-        // Calculate driver pay: use load.driverPay if set, otherwise calculate from current driver payRate
-        let calculatedDriverPay = load.driverPay || 0;
-        if (!calculatedDriverPay && load.driver) {
-          const miles = load.totalMiles || load.loadedMiles || load.emptyMiles || 0;
-          if (load.driver.payType === 'PER_MILE' && miles > 0) {
-            calculatedDriverPay = miles * load.driver.payRate;
-          } else if (load.driver.payType === 'PER_LOAD') {
-            calculatedDriverPay = load.driver.payRate;
-          } else if (load.driver.payType === 'PERCENTAGE') {
-            calculatedDriverPay = (load.revenue || 0) * (load.driver.payRate / 100);
-          } else if (load.driver.payType === 'HOURLY') {
-            const estimatedHours = miles > 0 ? miles / 50 : 10;
-            calculatedDriverPay = estimatedHours * load.driver.payRate;
-          }
-        }
-
-        acc[lane].totalLoads += 1;
-        acc[lane].totalRevenue += Number(load.revenue) || 0;
-        acc[lane].totalDriverPay += calculatedDriverPay;
-        acc[lane].totalExpenses += Number(load.expenses) || 0;
-        acc[lane].totalProfit +=
-          (Number(load.revenue) || 0) - calculatedDriverPay - (Number(load.expenses) || 0);
-
-        return acc;
-      }, {} as Record<string, any>);
-
-      // Calculate averages
-      Object.values(laneProfitability).forEach((lane: any) => {
-        lane.averageProfitPerLoad =
-          lane.totalLoads > 0 ? lane.totalProfit / lane.totalLoads : 0;
-      });
-
-      const results = Object.values(laneProfitability)
-        .map((lane: any) => ({
-          ...lane,
-          totalProfit: parseFloat(lane.totalProfit.toFixed(2)),
-          averageProfitPerLoad: parseFloat(lane.averageProfitPerLoad.toFixed(2)),
-        }))
-        .sort((a: any, b: any) => b.totalProfit - a.totalProfit);
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          groupBy: 'lane',
-          results,
-          summary: {
-            totalLanes: results.length,
-            totalProfit: results.reduce((sum: number, r: any) => sum + r.totalProfit, 0),
-            averageProfitPerLane: results.length > 0
-              ? results.reduce((sum: number, r: any) => sum + r.totalProfit, 0) / results.length
-              : 0,
-          },
-        },
-      });
+      item.revenue += rev;
+      item.cost += (pay + exp);
+      item.profit += prof;
+      item.loads++;
+      item.miles += Number(load.totalMiles || 0);
     }
-  } catch (error) {
-    console.error('Profitability analysis error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+
+    // --- Fixed Costs Calculation ---
+    // Fetch active asset counts to estimate fixed costs
+    const [trucks, trailers] = await Promise.all([
+      prisma.truck.findMany({
+        where: {
+          companyId: session.user.companyId,
+          status: { in: ['AVAILABLE', 'IN_USE', 'MAINTENANCE', 'MAINTENANCE_DUE', 'NEEDS_REPAIR', 'OUT_OF_SERVICE'] },
+          deletedAt: null
+        },
+        select: { year: true }
+      }),
+      prisma.trailer.count({
+        where: {
+          companyId: session.user.companyId,
+          isActive: true, // Use isActive flag for trailers
+          deletedAt: null
+        }
+      })
+    ]);
+
+    // 1. Truck Payments (Dynamic based on year)
+    let monthlyTruckPayments = 0;
+    trucks.forEach(t => {
+      // Estimates: 2025+ ($3.2k), 2022+ ($2.2k), 2019+ ($1.4k), Older ($800 maint/pay)
+      if (t.year >= 2025) monthlyTruckPayments += 3200;
+      else if (t.year >= 2022) monthlyTruckPayments += 2200;
+      else if (t.year >= 2019) monthlyTruckPayments += 1400;
+      else monthlyTruckPayments += 800;
+    });
+
+    // 2. Trailer Payments & Other Fixed Costs
+    const monthlyTrailerPayments = trailers * 800; // Est $800/mo
+    const fleetSize = trucks.length || 1;
+
+    // 3. Staff Salaries (Lean Estimates)
+    // Dispatch (1:7 trucks), Safety (1:50), Accounting (1:40), FleetMgr (1:50)
+    const estDispatchers = Math.ceil(fleetSize / 7);
+    const estSafety = Math.ceil(fleetSize / 50);
+    const estAccounting = Math.ceil(fleetSize / 40);
+    const estFleetMgr = Math.ceil(fleetSize / 50);
+
+    const monthlySalaries =
+      (estDispatchers * 5000) +
+      (estSafety * 4500) +
+      (estAccounting * 4000) +
+      (estFleetMgr * 5500);
+
+    const monthlyInsurance = fleetSize * 1200; // ~$1200/truck
+    const monthlySoftware = fleetSize * 150;   // TMS, ELD, etc.
+
+    const totalMonthlyFixedCosts =
+      monthlyTruckPayments +
+      monthlyTrailerPayments +
+      monthlySalaries +
+      monthlyInsurance +
+      monthlySoftware;
+
+    // Calculate Daily Fixed Cost and scale to the analysis period
+    const dailyFixedCost = totalMonthlyFixedCosts / 30;
+
+    // Determine days in period (default 30)
+    const daysInPeriod = startDate && endDate
+      ? Math.max(1, (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24))
+      : 30;
+
+    const totalPeriodFixedCost = dailyFixedCost * daysInPeriod;
+    const totalLoads = loads.length || 1;
+
+    const result = Array.from(groupMap.values()).map(item => {
+      // Allocate fixed costs based on load count share
+      const allocationFactor = item.loads / totalLoads;
+      const allocatedFixedCost = totalPeriodFixedCost * allocationFactor;
+      const netProfit = item.profit - allocatedFixedCost;
+
+      return {
+        ...item,
+        margin: item.revenue > 0 ? (item.profit / item.revenue) * 100 : 0,
+        rpm: item.miles > 0 ? item.revenue / item.miles : 0,
+        // Net financials
+        allocatedFixedCost: Math.round(allocatedFixedCost),
+        netProfit: netProfit,
+        netMargin: item.revenue > 0 ? (netProfit / item.revenue) * 100 : 0
+      };
+    }).sort((a, b) => b.netProfit - a.netProfit); // Sort by Net Profit
+
+    // Return extended data with summary
+    return NextResponse.json({
+      success: true,
+      data: {
+        breakdown: result,
+        summary: {
+          periodDays: Math.round(daysInPeriod),
+          totalRevenue: loads.reduce((s, l) => s + Number(l.revenue || 0), 0),
+          totalGrossProfit: loads.reduce((s, l) => s + Number(l.profit || 0), 0),
+          totalFixedCosts: Math.round(totalPeriodFixedCost),
+          totalNetProfit: loads.reduce((s, l) => s + Number(l.profit || 0), 0) - totalPeriodFixedCost,
+          details: {
+            monthlyTruckPayments,
+            monthlyTrailerPayments,
+            monthlySalaries,
+            monthlyInsurance,
+            estStaff: {
+              dispatchers: estDispatchers,
+              safety: estSafety,
+              accounting: estAccounting
+            }
+          }
+        }
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Profitability analytics error:', error);
+    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

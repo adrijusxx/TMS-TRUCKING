@@ -14,7 +14,7 @@ import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import type { BulkEditField } from '@/components/data-table/types';
 import { Plus, Upload, Download } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface TrailerData {
   id: string;
@@ -50,6 +50,22 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
   const [selectedTrailerId, setSelectedTrailerId] = React.useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // Deep linking support
+  React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    }
+
+    const trailerIdFromUrl = searchParams.get('trailerId');
+    if (trailerIdFromUrl) {
+      setSelectedTrailerId(trailerIdFromUrl);
+      setSheetMode(can('trailers.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
 
   const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
     setSheetMode(mode);
@@ -61,6 +77,28 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
     queryClient.invalidateQueries({ queryKey: ['trailers'] });
     router.refresh();
   }, [queryClient, router]);
+
+  const handleImport = React.useCallback(() => {
+    const trigger = document.querySelector('[data-import-trigger="trailers"]') as HTMLButtonElement;
+    if (trigger) trigger.click();
+  }, []);
+
+  // Deep linking support
+  React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    } else if (action === 'import') {
+      handleImport();
+    }
+
+    const trailerIdFromUrl = searchParams.get('trailerId');
+    if (trailerIdFromUrl) {
+      setSelectedTrailerId(trailerIdFromUrl);
+      setSheetMode(can('trailers.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
 
 
 
@@ -196,6 +234,15 @@ export function TrailersTableClient({ data }: TrailersTableClientProps) {
         trailerId={selectedTrailerId}
         onSuccess={handleUpdate}
       />
+
+      <div className="hidden">
+        <ImportSheet
+          entityType="trailers"
+          onImportComplete={handleUpdate}
+        >
+          <button data-import-trigger="trailers" type="button" />
+        </ImportSheet>
+      </div>
     </>
   );
 }

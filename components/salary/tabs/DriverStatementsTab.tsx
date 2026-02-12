@@ -11,7 +11,7 @@ export default function DriverStatementsTab() {
     return (
         <div className="space-y-4">
             <div className="text-sm text-muted-foreground mb-2">
-                View and manage individual driver settlement statements. Click on a row to view details.
+                View and manage all driver settlements. Click on a row to view details.
             </div>
             <SettlementListNew />
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Plus, Upload, Download, Edit, Sparkles } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
@@ -88,6 +88,22 @@ export default function LoadListNew() {
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
   const [initialCreateData, setInitialCreateData] = React.useState<any>(undefined);
+  const searchParams = useSearchParams();
+
+  // Deep linking support
+  React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    }
+
+    const loadIdFromUrl = searchParams.get('loadId');
+    if (loadIdFromUrl) {
+      setSelectedLoadId(loadIdFromUrl);
+      setSheetMode(can('loads.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
 
   const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
     setSheetMode(mode);
@@ -206,6 +222,28 @@ export default function LoadListNew() {
   };
 
 
+  const handleImport = React.useCallback(() => {
+    const trigger = document.querySelector('[data-import-trigger="loads"]') as HTMLButtonElement;
+    if (trigger) trigger.click();
+  }, []);
+
+  // Deep linking support
+  React.useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'new') {
+      openSheet('create');
+    } else if (action === 'import') {
+      handleImport();
+    }
+
+    const loadIdFromUrl = searchParams.get('loadId');
+    if (loadIdFromUrl) {
+      setSelectedLoadId(loadIdFromUrl);
+      setSheetMode(can('loads.edit') ? 'edit' : 'view');
+      setSheetOpen(true);
+    }
+  }, [searchParams, can]);
+
   return (
     <div className="space-y-2">
       {/* Statistics Card - Moved to top */}
@@ -300,6 +338,18 @@ export default function LoadListNew() {
         loadId={selectedLoadId}
         initialData={initialCreateData}
       />
+
+      <div className="hidden">
+        <ImportSheet
+          entityType="loads"
+          onImportComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ['loads'] });
+            toast.success('Import completed successfully');
+          }}
+        >
+          <button data-import-trigger="loads" type="button" />
+        </ImportSheet>
+      </div>
     </div>
   );
 }

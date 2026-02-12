@@ -41,7 +41,7 @@ export default function ProfitabilityAnalysis() {
     queryFn: () => fetchProfitability(groupBy, startDate, endDate),
   });
 
-  const results = data?.data?.results || [];
+  const results = data?.data?.breakdown || [];
   const summary = data?.data?.summary;
 
   return (
@@ -90,44 +90,46 @@ export default function ProfitabilityAnalysis() {
 
       {/* Summary */}
       {summary && (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(summary.totalRevenue)}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Gross Profit</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{formatCurrency(summary.totalGrossProfit)}</div>
+              <p className="text-xs text-muted-foreground">Before fixed expenses</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Est. Fixed Costs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.totalFixedCosts)}</div>
+              <p className="text-xs text-muted-foreground">Trucks, Salaries, Insurance</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(summary.totalProfit)}
+              <div className={`text-2xl font-bold ${summary.totalNetProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(summary.totalNetProfit)}
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total {groupBy === 'customer' ? 'Customers' : 'Lanes'}
-              </CardTitle>
-              {groupBy === 'customer' ? (
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {summary[groupBy === 'customer' ? 'totalCustomers' : 'totalLanes']}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average Profit</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(summary.averageProfitPerCustomer || summary.averageProfitPerLane || 0)}
-              </div>
+              <p className="text-xs text-muted-foreground">Actual Bottom Line</p>
             </CardContent>
           </Card>
         </div>
@@ -157,7 +159,7 @@ export default function ProfitabilityAnalysis() {
                   'Avg Profit/Load': formatCurrencyForExport(item.averageProfitPerLoad),
                 }))}
                 filename={`profitability-${groupBy}-${startDate}-${endDate}`}
-                headers={groupBy === 'customer' 
+                headers={groupBy === 'customer'
                   ? ['Customer', 'Total Loads', 'Total Revenue', 'Total Driver Pay', 'Total Expenses', 'Total Profit', 'Avg Profit/Load']
                   : ['Lane', 'Total Loads', 'Total Revenue', 'Total Driver Pay', 'Total Expenses', 'Total Profit', 'Avg Profit/Load']}
               />
@@ -179,22 +181,22 @@ export default function ProfitabilityAnalysis() {
                     {groupBy === 'customer' ? (
                       <>
                         <TableHead>Customer</TableHead>
-                        <TableHead className="text-right">Total Loads</TableHead>
-                        <TableHead className="text-right">Total Revenue</TableHead>
-                        <TableHead className="text-right">Total Driver Pay</TableHead>
-                        <TableHead className="text-right">Total Expenses</TableHead>
-                        <TableHead className="text-right">Total Profit</TableHead>
-                        <TableHead className="text-right">Avg Profit/Load</TableHead>
+                        <TableHead className="text-right">Loads</TableHead>
+                        <TableHead className="text-right">Revenue</TableHead>
+                        <TableHead className="text-right">Gross Profit</TableHead>
+                        <TableHead className="text-right">Est. Fixed Costs</TableHead>
+                        <TableHead className="text-right">Net Profit</TableHead>
+                        <TableHead className="text-right">Net Margin</TableHead>
                       </>
                     ) : (
                       <>
                         <TableHead>Lane</TableHead>
-                        <TableHead className="text-right">Total Loads</TableHead>
-                        <TableHead className="text-right">Total Revenue</TableHead>
-                        <TableHead className="text-right">Total Driver Pay</TableHead>
-                        <TableHead className="text-right">Total Expenses</TableHead>
-                        <TableHead className="text-right">Total Profit</TableHead>
-                        <TableHead className="text-right">Avg Profit/Load</TableHead>
+                        <TableHead className="text-right">Loads</TableHead>
+                        <TableHead className="text-right">Revenue</TableHead>
+                        <TableHead className="text-right">Gross Profit</TableHead>
+                        <TableHead className="text-right">Est. Fixed Costs</TableHead>
+                        <TableHead className="text-right">Net Profit</TableHead>
+                        <TableHead className="text-right">Net Margin</TableHead>
                       </>
                     )}
                   </TableRow>
@@ -216,21 +218,20 @@ export default function ProfitabilityAnalysis() {
                           </div>
                         </TableCell>
                       )}
-                      <TableCell className="text-right">{item.totalLoads}</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(item.totalRevenue)}
-                      </TableCell>
-                      <TableCell className="text-right text-red-600">
-                        -{formatCurrency(item.totalDriverPay)}
-                      </TableCell>
-                      <TableCell className="text-right text-red-600">
-                        -{formatCurrency(item.totalExpenses)}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-green-600">
-                        {formatCurrency(item.totalProfit)}
+                      <TableCell className="text-right">{item.loads}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.revenue)}</TableCell>
+                      <TableCell className="text-right text-blue-600">{formatCurrency(item.profit)}</TableCell>
+                      <TableCell className="text-right text-orange-600">-{formatCurrency(item.allocatedFixedCost)}</TableCell>
+                      <TableCell className={`text-right font-bold ${item.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatCurrency(item.netProfit)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(item.averageProfitPerLoad)}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.netMargin >= 10 ? 'bg-green-100 text-green-800' :
+                            item.netMargin >= 0 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                          }`}>
+                          {item.netMargin?.toFixed(1)}%
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
