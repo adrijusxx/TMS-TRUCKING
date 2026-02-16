@@ -526,6 +526,14 @@ export async function PATCH(
       (validated.emptyMiles !== undefined && validated.emptyMiles !== existingLoad.emptyMiles)
     );
 
+    // Auto-calculate Revenue Per Mile if relevant fields change
+    const effectiveRevenue = validated.revenue !== undefined ? validated.revenue : existingLoad.revenue;
+    const effectiveTotalMiles = validated.totalMiles !== undefined ? validated.totalMiles : existingLoad.totalMiles;
+
+    if (effectiveRevenue !== undefined && effectiveTotalMiles !== undefined && effectiveTotalMiles > 0) {
+      updateData.revenuePerMile = Number((effectiveRevenue / effectiveTotalMiles).toFixed(2));
+    }
+
     if (shouldRecalculatePay && effectiveDriverId) {
       const driver = await prisma.driver.findUnique({
         where: { id: effectiveDriverId },

@@ -33,9 +33,14 @@ export class LoadImporter extends BaseImporter {
                 const locations = LoadRowMapper.mapRowLocations(row, this.getValue.bind(this), columnMapping);
                 const financial = LoadRowMapper.mapFinancials(row, this.getValue.bind(this), columnMapping);
                 const dates = LoadRowMapper.mapDates(row, this.getValue.bind(this), columnMapping);
+                const details = LoadRowMapper.mapDetails(row, this.getValue.bind(this), columnMapping);
 
                 // 2. Entity Resolution (JIT)
-                const customerId = await entityService.resolveCustomer(locations.pickup.location, maps.customerMap, previewOnly, importBatchId);
+                // Customer Resolution: Try explicit Customer column first, then fallback to Pickup Location
+                const customerNameRaw = this.getValue(row, 'customerName', columnMapping, ['Customer', 'customer', 'Broker', 'broker', 'Bill To', 'bill_to']);
+                const customerName = customerNameRaw || locations.pickup.location;
+
+                const customerId = await entityService.resolveCustomer(customerName, maps.customerMap, previewOnly, importBatchId);
                 const driverId = await entityService.resolveDriver(this.getVal(row, 'driverId', columnMapping), maps.driverMap, previewOnly, importBatchId);
                 const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId);
                 const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId);
@@ -66,7 +71,7 @@ export class LoadImporter extends BaseImporter {
                 }
 
                 const loadData = this.buildLoadObject(row, rowNum, {
-                    ...locations, ...financial, ...dates, driverPay,
+                    ...locations, ...financial, ...dates, ...details, driverPay,
                     customerId, driverId, truckId, trailerId,
                     mcNumberId: maps.defaultMcId,
                     dispatcherId: dispatcherId,
@@ -150,7 +155,12 @@ export class LoadImporter extends BaseImporter {
             createdById: this.userId,
             status: context.status || LoadStatus.PENDING,
             loadType: context.loadType || LoadType.FTL,
-            equipmentType: EquipmentType.DRY_VAN,
+            equipmentType: context.equipmentType || EquipmentType.DRY_VAN,
+
+            // New Fields
+            commodity: context.commodity,
+            shipmentId: context.shipmentId,
+            dispatchNotes: context.dispatchNotes,
         };
     }
 

@@ -46,14 +46,19 @@ export class LoadRowMapper {
      * Parse financial and distance numbers from row
      */
     static mapFinancials(row: any, getValue: Function, mapping?: Record<string, string>) {
-        const revenue = parseImportNumber(getValue(row, 'revenue', mapping, ['Load pay', 'Load Pay', 'Revenue', 'revenue', 'Pay', 'pay', 'Rate', 'rate', 'Gross', 'gross', 'Total Amount', 'total_amount', 'Line Haul', 'line_haul'])) || 0;
-        let driverPay = parseImportNumber(getValue(row, 'driverPay', mapping, ['Total pay', 'Total Pay', 'total_pay', 'Driver Pay', 'driver_pay']));
+        // Revenue Mapping: prioritize explicit "Total" or "Gross" over ambiguous "Rate"
+        const revenue = parseImportNumber(getValue(row, 'revenue', mapping, ['Load Pay', 'Load pay', 'Total Pay', 'Total pay', 'Gross', 'gross', 'Revenue', 'revenue', 'Line Haul', 'line_haul', 'Rate', 'rate', 'Amount', 'amount', 'Total Amount'])) || 0;
+
+        let driverPay = parseImportNumber(getValue(row, 'driverPay', mapping, ['Driver Pay', 'driver_pay', 'Driver Rate', 'driver_rate', 'Carrier Pay', 'carrier_pay']));
         if (driverPay === null) driverPay = 0;
 
-        const totalMiles = parseImportNumber(getValue(row, 'totalMiles', mapping, ['Total miles', 'Total Miles', 'total_miles', 'Miles', 'miles', 'Distance', 'distance', 'Trip Miles', 'trip_miles'])) || 0;
-        const emptyMiles = parseImportNumber(getValue(row, 'emptyMiles', mapping, ['Empty miles', 'Empty Miles', 'empty_miles'])) || 0;
-        const loadedMilesCol = parseImportNumber(getValue(row, 'loadedMiles', mapping, ['Loaded miles', 'Loaded Miles', 'loaded_miles'])) || 0;
-        const weight = parseImportNumber(getValue(row, 'weight', mapping, ['Weight', 'weight'])) || 1;
+        const totalMiles = parseImportNumber(getValue(row, 'totalMiles', mapping, ['Total Miles', 'Total miles', 'total_miles', 'Miles', 'miles', 'Billed Miles', 'billed_miles', 'Trip Miles', 'trip_miles', 'Distance', 'distance'])) || 0;
+        const emptyMiles = parseImportNumber(getValue(row, 'emptyMiles', mapping, ['Empty Miles', 'Empty miles', 'empty_miles', 'Deadhead', 'deadhead'])) || 0;
+        const loadedMilesCol = parseImportNumber(getValue(row, 'loadedMiles', mapping, ['Loaded Miles', 'Loaded miles', 'loaded_miles'])) || 0;
+        const weight = parseImportNumber(getValue(row, 'weight', mapping, ['Weight', 'weight', 'Lbs', 'lbs'])) || 1;
+
+        // Explicit RPM from CSV
+        const importedRPM = parseImportNumber(getValue(row, 'revenuePerMile', mapping, ['Revenue Per Mile', 'revenue_per_mile', 'RPM', 'rpm', 'Rate Per Mile', 'Rate/Mile'])) || 0;
 
         // Calculate missing loaded miles if possible
         let finalLoadedMiles = loadedMilesCol;
@@ -63,31 +68,78 @@ export class LoadRowMapper {
 
         const finalTotalMiles = (finalLoadedMiles + emptyMiles) > 0 ? (finalLoadedMiles + emptyMiles) : totalMiles;
 
-        revenue,
+        // Calculation Fallbacks
+        let finalRevenue = revenue;
+        let finalRPM = 0;
+
+        // 1. Calculate RPM from Revenue / Miles
+        if (finalRevenue > 0 && finalTotalMiles > 0) {
+            finalRPM = Number((finalRevenue / finalTotalMiles).toFixed(2));
+        }
+        // 2. Fallback: Use Imported RPM
+        else if (importedRPM > 0) {
+            finalRPM = importedRPM;
+            // 3. Reverse Calculate Revenue if missing
+            if (finalRevenue === 0 && finalTotalMiles > 0) {
+                finalRevenue = Number((importedRPM * finalTotalMiles).toFixed(2));
+            }
+        }
+
+        return {
+            revenue: finalRevenue,
             driverPay,
             totalMiles: finalTotalMiles,
-                loadedMiles: finalLoadedMiles,
-                    emptyMiles,
-                    weight,
-                    revenuePerMile: finalTotalMiles > 0 ? Number((revenue / finalTotalMiles).toFixed(2)) : 0
-    };
-}
+            loadedMiles: finalLoadedMiles,
+            emptyMiles,
+            weight,
+            revenuePerMile: finalRPM
+        };
+    }
 
     /**
      * Parse dates from row
      */
-    static mapDates(row: any, getValue: Function, mapping ?: Record<string, string>) {
-    const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date']));
-    const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date']));
+    static mapDates(row: any, getValue: Function, mapping?: Record<string, string>) {
+        const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date']));
+        const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date']));
 
-    const finalPickupDate = pickupDate || new Date();
-    const finalDeliveryDate = deliveryDate || new Date(finalPickupDate.getTime() + 24 * 60 * 60 * 1000);
+        const finalPickupDate = pickupDate || new Date();
+        const finalDeliveryDate = deliveryDate || new Date(finalPickupDate.getTime() + 24 * 60 * 60 * 1000);
 
-    return {
-        pickupDate: finalPickupDate,
-        deliveryDate: finalDeliveryDate,
-        pickupDateRaw: pickupDate,
-        deliveryDateRaw: deliveryDate
-    };
-}
+        return {
+            pickupDate: finalPickupDate,
+            deliveryDate: finalDeliveryDate,
+            pickupDateRaw: pickupDate,
+            deliveryDateRaw: deliveryDate
+        };
+    }
+
+    /**
+     * Parse additional details (Commodity, Ref#, Notes, Equipment)
+     */
+    static mapDetails(row: any, getValue: Function, mapping?: Record<string, string>) {
+        const commodity = getValue(row, 'commodity', mapping, ['Commodity', 'commodity', 'Cargo', 'cargo', 'Item', 'item']);
+        const shipmentId = getValue(row, 'shipmentId', mapping, ['Ref', 'Ref#', 'Reference', 'PO', 'PO#', 'BOL', 'bol', 'Shipment ID', 'shipment_id']);
+        const dispatchNotes = getValue(row, 'dispatchNotes', mapping, ['Notes', 'notes', 'Instructions', 'instructions', 'Comments', 'comments']);
+
+        // Equipment Type Mapping
+        const equipStr = getValue(row, 'equipmentType', mapping, ['Equipment', 'equipment', 'Trailer Type', 'trailer_type']);
+        let equipmentType = 'DRY_VAN'; // Default
+
+        if (equipStr) {
+            const e = String(equipStr).toUpperCase();
+            if (e.includes('REEFER') || e.includes('FRIDGE') || e.includes('TEMP')) equipmentType = 'REEFER';
+            else if (e.includes('FLAT') || e.includes('BED')) equipmentType = 'FLATBED';
+            else if (e.includes('STEP')) equipmentType = 'STEP_DECK';
+            else if (e.includes('POWER')) equipmentType = 'POWER_ONLY';
+            else if (e.includes('BOX') || e.includes('STRAIGHT')) equipmentType = 'BOX_TRUCK';
+        }
+
+        return {
+            commodity: commodity ? String(commodity).trim() : undefined,
+            shipmentId: shipmentId ? String(shipmentId).trim() : undefined,
+            dispatchNotes: dispatchNotes ? String(dispatchNotes).trim() : undefined,
+            equipmentType
+        };
+    }
 }

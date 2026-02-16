@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, StopType } from '@prisma/client';
 import { importLoadSchema } from '@/lib/validations/load';
 
 /**
@@ -71,57 +71,233 @@ export class LoadPersistenceService {
     }
 
     private async executeCreateBatch(loads: any[], importBatchId?: string) {
-        const BATCH_SIZE = 100;
         let count = 0;
         const errors: any[] = [];
 
+        // Use a transaction for the entire batch to ensure data integrity
+        // We handle one by one inside the loop but grouped in a large transaction if possible, 
+        // or just map over them. Since we need to create stops for EACH load, 
+        // a simple createMany is not sufficient.
+
+        // We will process in chunks to avoid massive transactions
+        const BATCH_SIZE = 50;
+
         for (let i = 0; i < loads.length; i += BATCH_SIZE) {
             const batch = loads.slice(i, i + BATCH_SIZE);
-            const valid = batch.map(d => {
-                try {
-                    const { mcNumber, stops, ...rest } = importLoadSchema.parse(d);
-                    return { ...rest, companyId: this.companyId, importBatchId };
-                } catch (e: any) {
-                    errors.push({ row: 0, error: `Validation failed: ${e.message}` });
-                    return null;
-                }
-            }).filter(Boolean);
 
-            if (valid.length > 0) {
-                await this.prisma.load.createMany({ data: valid as any, skipDuplicates: true });
-                count += valid.length;
+            try {
+                await this.prisma.$transaction(async (tx) => {
+                    for (const data of batch) {
+                        try {
+                            const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
+                            const cleanData = { ...rest, companyId: this.companyId, importBatchId };
+
+                            // 1. Create Load
+                            const newLoad = await tx.load.create({
+                                data: cleanData as any
+                            });
+
+                            // 2. Create Pickup Stop
+                            await tx.loadStop.create({
+                                data: {
+                                    loadId: newLoad.id,
+                                    stopType: 'PICKUP',
+                                    sequence: 1,
+                                    company: cleanData.pickupLocation || cleanData.pickupCompany || 'Shipper',
+                                    address: cleanData.pickupAddress || `${cleanData.pickupCity}, ${cleanData.pickupState}`,
+                                    city: cleanData.pickupCity || 'Unknown',
+                                    state: cleanData.pickupState || 'XX',
+                                    zip: cleanData.pickupZip || '00000',
+                                    earliestArrival: cleanData.pickupDate,
+                                    latestArrival: cleanData.pickupDate, // Or add window if available
+                                    notes: cleanData.dispatchNotes
+                                }
+                            });
+
+                            // 3. Create Delivery Stop
+                            await tx.loadStop.create({
+                                data: {
+                                    loadId: newLoad.id,
+                                    stopType: 'DELIVERY',
+                                    sequence: 2,
+                                    company: cleanData.deliveryLocation || cleanData.deliveryCompany || 'Consignee',
+                                    address: cleanData.deliveryAddress || `${cleanData.deliveryCity}, ${cleanData.deliveryState}`,
+                                    city: cleanData.deliveryCity || 'Unknown',
+                                    state: cleanData.deliveryState || 'XX',
+                                    zip: cleanData.deliveryZip || '00000',
+                                    earliestArrival: cleanData.deliveryDate,
+                                    latestArrival: cleanData.deliveryDate,
+                                    notes: cleanData.dispatchNotes
+                                }
+                            });
+
+                            count++;
+                        } catch (err: any) {
+                            // If one fails in the transaction block, it might roll back the whole block 
+                            // if we don't catch it. 
+                            // However, we want strict transaction for Load+Stops.
+                            // If we want partial success of the BATCH, we should not wrap the whole loop in one transaction.
+                            // BUT, for performance, we want batching.
+                            // Strategy: We will wrap EACH Load+Stops creation in its own small promise 
+                            // inside the transaction array? No, $transaction takes an array of promises.
+                            // But here we need dependent creates (Load ID needed for Stops).
+                            // So we cannot use $transaction([createLoad, createStop]) easily for batch.
+
+                            // fallback: we are inside an async handler. valid pattern:
+                            throw err; // Re-throw to be caught by outer try/catch or handle per item?
+                        }
+                    }
+                });
+            } catch (batchError) {
+                // If the batch transaction fails, we fallback to individual processing
+                // to save as many as possible
+                for (const data of batch) {
+                    try {
+                        const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
+                        const cleanData = { ...rest, companyId: this.companyId, importBatchId };
+
+                        await this.prisma.$transaction(async (tx) => {
+                            const newLoad = await tx.load.create({ data: cleanData as any });
+
+                            await tx.loadStop.create({
+                                data: {
+                                    loadId: newLoad.id,
+                                    stopType: 'PICKUP',
+                                    sequence: 1,
+                                    company: cleanData.pickupLocation || cleanData.pickupCompany || 'Shipper',
+                                    address: cleanData.pickupAddress || `${cleanData.pickupCity}, ${cleanData.pickupState}`,
+                                    city: cleanData.pickupCity || 'Unknown',
+                                    state: cleanData.pickupState || 'XX',
+                                    zip: cleanData.pickupZip || '00000',
+                                    earliestArrival: cleanData.pickupDate,
+                                    latestArrival: cleanData.pickupDate,
+                                    notes: cleanData.dispatchNotes
+                                }
+                            });
+
+                            await tx.loadStop.create({
+                                data: {
+                                    loadId: newLoad.id,
+                                    stopType: 'DELIVERY',
+                                    sequence: 2,
+                                    company: cleanData.deliveryLocation || cleanData.deliveryCompany || 'Consignee',
+                                    address: cleanData.deliveryAddress || `${cleanData.deliveryCity}, ${cleanData.deliveryState}`,
+                                    city: cleanData.deliveryCity || 'Unknown',
+                                    state: cleanData.deliveryState || 'XX',
+                                    zip: cleanData.deliveryZip || '00000',
+                                    earliestArrival: cleanData.deliveryDate,
+                                    latestArrival: cleanData.deliveryDate,
+                                    notes: cleanData.dispatchNotes
+                                }
+                            });
+                        });
+                        count++;
+                    } catch (singleErr: any) {
+                        errors.push({ row: 0, error: `Create failed: ${singleErr.message}` });
+                    }
+                }
             }
         }
         return { count, errors };
     }
 
     private async executeUpdateBatch(loads: any[]) {
-        const BATCH_SIZE = 50;
+        const BATCH_SIZE = 20; // Reduce batch size for complex transactions
         let count = 0;
         const errors: any[] = [];
 
         for (let i = 0; i < loads.length; i += BATCH_SIZE) {
             const batch = loads.slice(i, i + BATCH_SIZE);
-            try {
-                await this.prisma.$transaction(
-                    batch.map(u => {
-                        const { id, ...data } = u;
-                        const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
-                        return this.prisma.load.update({ where: { id }, data: { ...rest, deletedAt: null } as any });
-                    })
-                );
-                count += batch.length;
-            } catch (e: any) {
-                // Fallback individual if transaction fails
-                for (const u of batch) {
-                    try {
-                        const { id, ...data } = u;
-                        const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
-                        await this.prisma.load.update({ where: { id }, data: { ...rest, deletedAt: null } as any });
-                        count++;
-                    } catch (err: any) {
-                        errors.push({ row: 0, error: `Update failed for ${u.loadNumber}: ${err.message}` });
-                    }
+
+            // Should prompt for transaction
+            for (const u of batch) {
+                try {
+                    const { id, ...data } = u;
+                    const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
+                    // Ensure we have valid dates and locations
+                    const cleanData = { ...rest, companyId: this.companyId };
+
+                    await this.prisma.$transaction(async (tx) => {
+                        // 1. Update Load
+                        const updatedLoad = await tx.load.update({
+                            where: { id },
+                            data: { ...cleanData, deletedAt: null } as any
+                        });
+
+                        // 2. Manage Stops
+                        // Check if stops exist
+                        const existingStops = await tx.loadStop.findMany({
+                            where: { loadId: id },
+                            orderBy: { sequence: 'asc' }
+                        });
+
+                        if (existingStops.length === 0) {
+                            // CREATE stops if none exist
+                            await tx.loadStop.create({
+                                data: {
+                                    loadId: id,
+                                    stopType: 'PICKUP',
+                                    sequence: 1,
+                                    company: cleanData.pickupLocation || cleanData.pickupCompany || 'Shipper',
+                                    address: cleanData.pickupAddress || `${cleanData.pickupCity}, ${cleanData.pickupState}`,
+                                    city: cleanData.pickupCity || 'Unknown',
+                                    state: cleanData.pickupState || 'XX',
+                                    zip: cleanData.pickupZip || '00000',
+                                    earliestArrival: cleanData.pickupDate,
+                                    latestArrival: cleanData.pickupDate,
+                                    notes: cleanData.dispatchNotes
+                                }
+                            });
+
+                            await tx.loadStop.create({
+                                data: {
+                                    loadId: id,
+                                    stopType: 'DELIVERY',
+                                    sequence: 2,
+                                    company: cleanData.deliveryLocation || cleanData.deliveryCompany || 'Consignee',
+                                    address: cleanData.deliveryAddress || `${cleanData.deliveryCity}, ${cleanData.deliveryState}`,
+                                    city: cleanData.deliveryCity || 'Unknown',
+                                    state: cleanData.deliveryState || 'XX',
+                                    zip: cleanData.deliveryZip || '00000',
+                                    earliestArrival: cleanData.deliveryDate,
+                                    latestArrival: cleanData.deliveryDate,
+                                    notes: cleanData.dispatchNotes
+                                }
+                            });
+                        } else {
+                            // UPDATE existing stops to match new header data (optional but good for consistency)
+                            // We only update the first pickup and last delivery to avoid messing up multi-stop loads
+                            const firstPickup = existingStops.find(s => s.stopType === 'PICKUP' && s.sequence === 1);
+                            const lastDelivery = existingStops.find(s => s.stopType === 'DELIVERY' && s.sequence === Math.max(...existingStops.map(s => s.sequence)));
+
+                            if (firstPickup) {
+                                await tx.loadStop.update({
+                                    where: { id: firstPickup.id },
+                                    data: {
+                                        city: cleanData.pickupCity || undefined,
+                                        state: cleanData.pickupState || undefined,
+                                        earliestArrival: cleanData.pickupDate || undefined,
+                                        notes: cleanData.dispatchNotes || undefined
+                                    }
+                                });
+                            }
+
+                            if (lastDelivery) {
+                                await tx.loadStop.update({
+                                    where: { id: lastDelivery.id },
+                                    data: {
+                                        city: cleanData.deliveryCity || undefined,
+                                        state: cleanData.deliveryState || undefined,
+                                        earliestArrival: cleanData.deliveryDate || undefined,
+                                        notes: cleanData.dispatchNotes || undefined
+                                    }
+                                });
+                            }
+                        }
+                    });
+                    count++;
+                } catch (err: any) {
+                    errors.push({ row: 0, error: `Update failed for ${u.loadNumber}: ${err.message}` });
                 }
             }
         }

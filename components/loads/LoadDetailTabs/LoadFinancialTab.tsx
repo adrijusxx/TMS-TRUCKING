@@ -329,9 +329,17 @@ export default function LoadFinancialTab({
             <div className="mt-4 pt-4 border-t">
               <div className="flex justify-between items-center">
                 <Label className="text-sm text-muted-foreground">Revenue Per Mile</Label>
-                <p className="font-medium text-sm">
-                  {formatCurrency(load.revenuePerMile)}/mi
-                </p>
+                <div className="text-right">
+                  <p className="font-medium text-sm">
+                    {formatCurrency(load.revenuePerMile)}/mi
+                  </p>
+                  {/* Show dynamic calc if editing */}
+                  {canEdit && formData.revenue && formData.totalMiles && (
+                    <p className="text-[10px] text-muted-foreground">
+                      (Est: {formatCurrency(formData.revenue / formData.totalMiles)}/mi)
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           )}
