@@ -61,8 +61,8 @@ export class TrailerImporter extends BaseImporter {
             const rowNum = i + 1;
 
             try {
-                const trailerNumber = this.getValue(row, 'trailerNumber', columnMapping, ['Trailer Number', 'trailer_number', 'unit_number']);
-                const vin = this.getValue(row, 'vin', columnMapping, ['VIN', 'vin']);
+                const trailerNumber = this.getValue(row, 'trailerNumber', columnMapping, ['Trailer Number', 'trailer_number', 'unit_number', 'Trailer', 'trailer', 'Trailer ID', 'trailer_id', 'Unit #', 'Unit ID']);
+                const vin = this.getValue(row, 'vin', columnMapping, ['VIN', 'vin', 'Serial Number', 'serial_number', 'Serial', 'serial']);
 
                 if (!trailerNumber) {
                     errors.push(this.error(rowNum, 'Trailer number is required', 'Trailer Number'));
@@ -123,10 +123,10 @@ export class TrailerImporter extends BaseImporter {
                     mcNumberId: resolvedMcId,
                     trailerNumber: finalTrailerNumber,
                     vin: finalVin,
-                    make: this.getValue(row, 'make', columnMapping, ['Make', 'make']) || 'Unknown',
+                    make: this.getValue(row, 'make', columnMapping, ['Make', 'make', 'Manufacturer', 'Brand']) || 'Unknown',
                     model: this.getValue(row, 'model', columnMapping, ['Model', 'model']) || 'Unknown',
-                    year: parseInt(String(this.getValue(row, 'year', columnMapping, ['Year', 'year']) || '0')) || new Date().getFullYear(),
-                    licensePlate: this.getValue(row, 'licensePlate', columnMapping, ['License Plate', 'license_plate']) || 'UNKNOWN',
+                    year: parseInt(String(this.getValue(row, 'year', columnMapping, ['Year', 'year', 'Yr', 'yr']) || '0')) || new Date().getFullYear(),
+                    licensePlate: this.getValue(row, 'licensePlate', columnMapping, ['License Plate', 'license_plate', 'Plate', 'Tag', 'Registration']) || 'UNKNOWN',
                     state: stateParsed.state || 'XX',
                     type: trailerType,
                     status: status,
@@ -144,7 +144,15 @@ export class TrailerImporter extends BaseImporter {
 
 
                 if (existsInDb && updateExisting) {
-                    trailersToUpdate.push({ ...trailerData, id: trailerIdMap.get(trailerNumber) || trailerIdMap.get(vin || '') });
+                    // FIX: Use lowercased key for lookup to ensure we find the ID
+                    const existingId = trailerIdMap.get(trailerNumber.toLowerCase().trim()) || trailerIdMap.get(vin?.toLowerCase().trim() || '');
+                    if (existingId) {
+                        trailersToUpdate.push({ ...trailerData, id: existingId });
+                    } else {
+                        // Logic fallback: If we thought it existed but can't find ID, warn and skip/create?
+                        // For safety, let's treat as create effectively or log error
+                        errors.push(this.error(rowNum, `Update failed: Could not find ID for existing trailer ${trailerNumber}`, 'Database Error'));
+                    }
                 } else {
                     trailersToCreate.push(trailerData);
                 }
@@ -234,10 +242,11 @@ export class TrailerImporter extends BaseImporter {
         // Fallback to AI
         try {
             const result = await this.aiService.callAI(`Map this trailer type to one of: DRY_VAN, REEFER, FLATBED, TANKER. Input: "${value}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false
+                systemPrompt: "Return ONLY the enum value as a plain string, no JSON, no markdown.",
+                jsonMode: false,
+                temperature: 0
             });
-            const mapped = String(result.data).toUpperCase().trim() as EquipmentType;
+            const mapped = String(result.data).replace(/['"`]/g, '').toUpperCase().trim() as EquipmentType;
             if (Object.values(EquipmentType).includes(mapped)) return mapped;
         } catch (e) {
             console.error('[TrailerImporter] AI type mapping failed', e);

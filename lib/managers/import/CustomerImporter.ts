@@ -34,8 +34,8 @@ export class CustomerImporter extends BaseImporter {
             const rowNum = i + 1;
 
             try {
-                let finalName = this.getValue(row, 'name', columnMapping, ['Company name', 'Company Name', 'name', 'customer_name', 'Customer']);
-                const customerNumber = this.getValue(row, 'customerNumber', columnMapping, ['Customer Number', 'customer_number']) || this.getPlaceholder('CUST', rowNum);
+                let finalName = this.getValue(row, 'name', columnMapping, ['Company name', 'Company Name', 'name', 'customer_name', 'Customer', 'Bill To', 'bill_to', 'Sold To', 'sold_to', 'Company', 'company']);
+                const customerNumber = this.getValue(row, 'customerNumber', columnMapping, ['Customer Number', 'customer_number', 'Customer ID', 'customer_id', 'Account #', 'account_number']) || this.getPlaceholder('CUST', rowNum);
 
                 if (!finalName) {
                     finalName = `Unknown Customer (${customerNumber})`;

@@ -1,46 +1,55 @@
 
+import "dotenv/config";
 import { PrismaClient } from '@prisma/client';
+import { getRdsDatabaseUrl, verifyAwsConnectivity } from '@/lib/secrets/aws-secrets-manager';
 
 async function main() {
     console.log('---------------------------------------------------------');
-    console.log('🔍 PRISMA CONNECTION DIAGNOSTIC TOOL');
+    console.log('🔍 PRISMA & AWS CONNECTION DIAGNOSTIC TOOL');
     console.log('---------------------------------------------------------');
-    console.log(`[INFO] NODE_ENV: ${process.env.NODE_ENV}`);
 
-    // Mask DB URL
-    const dbUrl = process.env.DATABASE_URL || '';
+    // 1. Check AWS Connectivity First
+    console.log('[INFO] Checking AWS SDK connectivity...');
+    const awsStatus = await verifyAwsConnectivity();
+    console.log(`[INFO] AWS Secrets Access: ${awsStatus.secrets ? '✅ OK' : '❌ FAILED'}`);
+    console.log(`[INFO] AWS RDS Secret Configured: ${awsStatus.rdsReady ? '✅ OK' : '⚠️ Missing env'}`);
+
+    // 2. Determine which DB URL to use
+    let dbUrl = process.env.DATABASE_URL || '';
+
+    if (awsStatus.rdsReady && awsStatus.secrets) {
+        console.log('[INFO] Detected AWS Secret configuration. Attempting to fetch RDS URL...');
+        try {
+            const rdsUrl = await getRdsDatabaseUrl();
+            console.log('[SUCCESS] Successfully retrieved DB URL from AWS Secrets Manager.');
+            dbUrl = rdsUrl;
+        } catch (err: any) {
+            console.warn('[WARN] Failed to fetch secret-based URL, falling back to local .env');
+            console.warn(`[REASON] ${err.message}`);
+        }
+    }
+
     const maskedUrl = dbUrl.replace(/:([^@]+)@/, ':****@');
-    console.log(`[INFO] DATABASE_URL: ${maskedUrl}`);
+    console.log(`[INFO] TARGET DATABASE: ${maskedUrl}`);
 
     if (!dbUrl) {
-        console.error('[ERROR] DATABASE_URL is missing!');
+        console.error('[ERROR] No DATABASE_URL available via .env or AWS Secrets!');
         process.exit(1);
     }
 
     console.log('[INFO] Initializing PrismaClient...');
     const prisma = new PrismaClient({
-        log: ['query', 'info', 'warn', 'error'],
+        datasources: { db: { url: dbUrl } },
+        log: ['error'], // Keep logs quiet for this test
     });
 
     try {
-        console.log('[INFO] Attempting to connect to database...');
+        console.log('[INFO] Attempting to connect...');
         await prisma.$connect();
-        console.log('[SUCCESS] Successfully connected to the database!');
+        console.log('[SUCCESS] Successfully established database connection!');
 
-        // Test a simple read
-        console.log('[INFO] Running simple query (SELECT 1)...');
-        // Note: $queryRaw`SELECT 1` works on Postgres/MySQL
-        try {
-            await prisma.$queryRaw`SELECT 1`;
-            console.log('[SUCCESS] Query execution successful.');
-        } catch (queryError) {
-            console.error('[warn] Query failed (might be permissions), but connection worked.');
-            console.error(queryError);
-        }
-
-        // Check Company Count
         const count = await prisma.company.count();
-        console.log(`[INFO] Found ${count} companies in the database.`);
+        console.log(`[INFO] Query Check: Found ${count} companies.`);
 
     } catch (e: any) {
         console.error('---------------------------------------------------------');

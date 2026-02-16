@@ -61,8 +61,8 @@ export class TruckImporter extends BaseImporter {
             const rowNum = i + 1;
 
             try {
-                const truckNumber = this.getValue(row, 'truckNumber', columnMapping, ['Unit number', 'Truck Number', 'truck_number']);
-                const vin = this.getValue(row, 'vin', columnMapping, ['VIN', 'vin']);
+                const truckNumber = this.getValue(row, 'truckNumber', columnMapping, ['Unit number', 'Truck Number', 'truck_number', 'Truck', 'truck', 'Truck ID', 'truck_id', 'Unit #', 'unit_number', 'Unit ID']);
+                const vin = this.getValue(row, 'vin', columnMapping, ['VIN', 'vin', 'Serial Number', 'serial_number', 'Serial', 'serial']);
 
                 if (!truckNumber) {
                     errors.push(this.error(rowNum, 'Truck number is required', 'Truck Number'));
@@ -124,10 +124,10 @@ export class TruckImporter extends BaseImporter {
                     mcNumberId: resolvedMcId,
                     truckNumber: finalTruckNumber,
                     vin: finalVin,
-                    make: this.getValue(row, 'make', columnMapping, ['Make', 'make']) || 'Unknown',
+                    make: this.getValue(row, 'make', columnMapping, ['Make', 'make', 'Manufacturer', 'Brand']) || 'Unknown',
                     model: this.getValue(row, 'model', columnMapping, ['Model', 'model']) || 'Unknown',
-                    year: parseInt(String(this.getValue(row, 'year', columnMapping, ['Year', 'year']) || '0')) || new Date().getFullYear(),
-                    licensePlate: this.getValue(row, 'licensePlate', columnMapping, ['License Plate', 'license_plate']) || 'UNKNOWN',
+                    year: parseInt(String(this.getValue(row, 'year', columnMapping, ['Year', 'year', 'Yr', 'yr']) || '0')) || new Date().getFullYear(),
+                    licensePlate: this.getValue(row, 'licensePlate', columnMapping, ['License Plate', 'license_plate', 'Plate', 'Tag', 'Registration']) || 'UNKNOWN',
                     state: stateParsed.state || 'XX',
                     equipmentType: eqType,
                     status: status,
@@ -238,10 +238,11 @@ export class TruckImporter extends BaseImporter {
         // Fallback to AI status mapping if it's very messy
         try {
             const result = await this.aiService.callAI(`Map this truck status to one of: AVAILABLE, IN_USE, MAINTENANCE, OUT_OF_SERVICE, INACTIVE. Input: "${value}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false
+                systemPrompt: "Return ONLY the enum value as a plain string, no JSON, no markdown.",
+                jsonMode: false,
+                temperature: 0
             });
-            const mapped = String(result.data).toUpperCase().trim() as TruckStatus;
+            const mapped = String(result.data).replace(/['"`]/g, '').toUpperCase().trim() as TruckStatus;
             if (Object.values(TruckStatus).includes(mapped)) return mapped;
         } catch (e) {
             console.error('[TruckImporter] AI status mapping failed', e);
@@ -264,10 +265,11 @@ export class TruckImporter extends BaseImporter {
         // Fallback to AI
         try {
             const result = await this.aiService.callAI(`Map this equipment type to one of: DRY_VAN, REEFER, FLATBED, STEP_DECK, TANKER. Input: "${value}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false
+                systemPrompt: "Return ONLY the enum value as a plain string, no JSON, no markdown.",
+                jsonMode: false,
+                temperature: 0
             });
-            const mapped = String(result.data).toUpperCase().trim() as EquipmentType;
+            const mapped = String(result.data).replace(/['"`]/g, '').toUpperCase().trim() as EquipmentType;
             if (Object.values(EquipmentType).includes(mapped)) return mapped;
         } catch (e) {
             console.error('[TruckImporter] AI equipment mapping failed', e);

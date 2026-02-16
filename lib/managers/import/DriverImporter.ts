@@ -81,8 +81,17 @@ export class DriverImporter extends BaseImporter {
 
                 // Allow empty email -> auto-generate
                 let email = String(this.getValue(row, 'email', columnMapping, ['Email', 'email']) || '').toLowerCase().trim();
-                let firstName = this.getValue(row, 'firstName', columnMapping, ['First Name', 'first_name', 'Name']);
-                let lastName = this.getValue(row, 'lastName', columnMapping, ['Last Name', 'last_name']) || '';
+                let firstName = this.getValue(row, 'firstName', columnMapping, ['First Name', 'first_name', 'Name', 'name', 'Driver Name', 'driver_name', 'Full Name']);
+                let lastName = this.getValue(row, 'lastName', columnMapping, ['Last Name', 'last_name', 'Surname', 'surname']) || '';
+
+                // Smart Name Splitting if firstName contains spaces and lastName is empty
+                if (firstName && !lastName && firstName.trim().includes(' ')) {
+                    const parts = firstName.trim().split(/\s+/);
+                    if (parts.length > 1) {
+                        firstName = parts[0];
+                        lastName = parts.slice(1).join(' ');
+                    }
+                }
 
                 // FINAL FALLBACK: If still no driverNumber, generate one from names
                 if (!driverNumber && firstName) {
@@ -177,13 +186,13 @@ export class DriverImporter extends BaseImporter {
                 const payRate = parseFloat(String(this.getValue(row, 'payRate', columnMapping, ['Pay Rate', 'pay_rate', 'Rate']) || '0').replace(/[^0-9.]/g, '')) || 0;
 
                 // DEFAULTS for Required Fields (Prisma Constraints)
-                let licenseNumber = this.getValue(row, 'licenseNumber', columnMapping, ['License Number', 'license_number', 'CDL#']);
+                let licenseNumber = this.getValue(row, 'licenseNumber', columnMapping, ['License Number', 'license_number', 'CDL#', 'CDL Number', 'License #', 'CDL']);
                 if (!licenseNumber) {
                     licenseNumber = 'PENDING';
                     warnings.push(this.warning(rowNum, 'License Number missing, defaulted to PENDING', 'licenseNumber'));
                 }
 
-                let licenseState = normalizeState(this.getValue(row, 'licenseState', columnMapping, ['License State', 'license_state', 'CDL State']));
+                let licenseState = normalizeState(this.getValue(row, 'licenseState', columnMapping, ['License State', 'license_state', 'CDL State', 'License ST']));
                 if (!licenseState || licenseState === 'XX') {
                     licenseState = 'XX';
                     warnings.push(this.warning(rowNum, 'License State missing, defaulted to XX', 'licenseState'));

@@ -39,7 +39,8 @@ export async function GET(request: NextRequest) {
         truck: {
           companyId: session.user.companyId
         },
-        ...loadMcWhere
+        // Fix: Exclude companyId from loadMcWhere as FuelEntry doesn't have it directly
+        ...(loadMcWhere.mcNumberId ? { mcNumberId: loadMcWhere.mcNumberId } : {})
       },
       include: {
         truck: true
