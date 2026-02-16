@@ -40,16 +40,38 @@ export class LoadImporter extends BaseImporter {
                 const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId);
                 const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId);
 
-                // 3. Anomaly Detection
+                // 3. AI Smart Mapping (Status & Type)
+                const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'Current Status']);
+                const status = await this.mapLoadStatusSmart(statusStr);
+
+                const typeStr = this.getValue(row, 'loadType', columnMapping, ['Load Type', 'load_type', 'Type', 'size', 'Size']);
+                const loadType = await this.mapLoadTypeSmart(typeStr);
+
+                // 4. Anomaly Detection
                 const { suspicious, anomalies } = LoadAnomalyDetector.detect({ ...financial, profit: financial.revenue - financial.driverPay }, updateExisting);
                 const { driverPay } = LoadAnomalyDetector.autoCorrect({ ...financial, defaultPayRate: 0.65 });
 
-                // 4. Construct Load Object
+                // 5. Construct Load Object
+                const dispatcherNameRaw = this.getValue(row, 'dispatcherId', columnMapping, ['Dispatcher', 'dispatcher', 'Dispatch', 'Agent'])?.toLowerCase().trim();
+                let dispatcherId = maps.dispatcherMap.get(dispatcherNameRaw);
+
+                // Fallback: Try partial match on First Name if full name fails
+                if (!dispatcherId && dispatcherNameRaw) {
+                    for (const [key, id] of maps.dispatcherMap.entries()) {
+                        if (key.includes(dispatcherNameRaw) || dispatcherNameRaw.includes(key)) {
+                            dispatcherId = id;
+                            break;
+                        }
+                    }
+                }
+
                 const loadData = this.buildLoadObject(row, rowNum, {
                     ...locations, ...financial, ...dates, driverPay,
                     customerId, driverId, truckId, trailerId,
                     mcNumberId: maps.defaultMcId,
-                    dispatcherId: maps.dispatcherMap.get(this.getVal(row, 'dispatcherId', columnMapping)?.toLowerCase())
+                    dispatcherId: dispatcherId,
+                    status,
+                    loadType
                 }, columnMapping);
 
                 preparedLoads.push({ data: loadData, suspiciousPay: suspicious, anomalies, rowIndex: rowNum });
@@ -112,21 +134,22 @@ export class LoadImporter extends BaseImporter {
             loadedMiles: context.loadedMiles,
             emptyMiles: context.emptyMiles,
             weight: context.weight,
-            pickupCity: context.pickup.city,
-            pickupState: context.pickup.state,
-            pickupZip: context.pickup.zip,
-            pickupLocation: context.pickup.location,
-            deliveryCity: context.delivery.city,
-            deliveryState: context.delivery.state,
-            deliveryZip: context.delivery.zip,
-            deliveryLocation: context.delivery.location,
+            revenuePerMile: context.revenuePerMile,
+            pickupCity: context.pickupCity,
+            pickupState: context.pickupState,
+            pickupZip: context.pickupZip,
+            pickupLocation: context.pickupLocation,
+            deliveryCity: context.deliveryCity,
+            deliveryState: context.deliveryState,
+            deliveryZip: context.deliveryZip,
+            deliveryLocation: context.deliveryLocation,
             pickupDate: context.pickupDate,
             deliveryDate: context.deliveryDate,
             mcNumberId: context.mcNumberId,
             companyId: this.companyId,
             createdById: this.userId,
-            status: LoadStatus.PENDING,
-            loadType: LoadType.FTL,
+            status: context.status || LoadStatus.PENDING,
+            loadType: context.loadType || LoadType.FTL,
             equipmentType: EquipmentType.DRY_VAN,
         };
     }
@@ -141,5 +164,58 @@ export class LoadImporter extends BaseImporter {
             preview: loads.slice(0, 100).map(l => ({ ...l.data, suspiciousPay: l.suspiciousPay })),
             summary: { total, created: loads.length, updated: 0, skipped: 0, errors: errors.length }
         };
+    }
+
+    private async mapLoadStatusSmart(val: any): Promise<LoadStatus> {
+        if (!val) return LoadStatus.PENDING;
+        const v = String(val).toUpperCase();
+
+        if (v.includes('PENDING') || v.includes('OPEN') || v.includes('AVAILABLE')) return LoadStatus.PENDING;
+        if (v.includes('ASSIGNED') || v.includes('COVERED') || v.includes('DISPATCHED')) return LoadStatus.ASSIGNED;
+        if (v.includes('PICK') || v.includes('LOADING')) return LoadStatus.AT_PICKUP;
+        if (v.includes('TRANSIT') || v.includes('ROUTE')) return LoadStatus.EN_ROUTE_DELIVERY;
+        if (v.includes('DELIVERED') || v.includes('COMPLETED') || v.includes('DONE')) return LoadStatus.DELIVERED;
+        if (v.includes('INVOICE') || v.includes('BILLED')) return LoadStatus.INVOICED;
+        if (v.includes('PAID')) return LoadStatus.PAID;
+        if (v.includes('CANCEL')) return LoadStatus.CANCELLED;
+
+        // AI Fallback
+        try {
+            const result = await this.aiService.callAI(`Map load status to one of: PENDING, ASSIGNED, EN_ROUTE_PICKUP, AT_PICKUP, LOADED, EN_ROUTE_DELIVERY, AT_DELIVERY, DELIVERED, INVOICED, PAID, CANCELLED. Input: "${val}"`, {
+                systemPrompt: "Return ONLY the enum value.",
+                jsonMode: false,
+                temperature: 0
+            });
+            const mapped = String(result.data).toUpperCase().trim() as LoadStatus;
+            if (Object.values(LoadStatus).includes(mapped)) return mapped;
+        } catch (e) {
+            console.error('[LoadImporter] AI status mapping failed', e);
+        }
+
+        return LoadStatus.PENDING;
+    }
+
+    private async mapLoadTypeSmart(val: any): Promise<LoadType> {
+        if (!val) return LoadType.FTL;
+        const v = String(val).toUpperCase();
+
+        if (v.includes('LTL') || v.includes('PARTIAL') || v.includes('LESS')) return LoadType.LTL;
+        if (v.includes('FTL') || v.includes('FULL') || v.includes('VAN')) return LoadType.FTL;
+        if (v.includes('INTERMODAL') || v.includes('RAIL') || v.includes('CONTAINER')) return LoadType.INTERMODAL;
+
+        // AI Fallback
+        try {
+            const result = await this.aiService.callAI(`Map load type to one of: FTL, LTL, PARTIAL, INTERMODAL. Input: "${val}"`, {
+                systemPrompt: "Return ONLY the enum value.",
+                jsonMode: false,
+                temperature: 0
+            });
+            const mapped = String(result.data).toUpperCase().trim() as LoadType;
+            if (Object.values(LoadType).includes(mapped)) return mapped;
+        } catch (e) {
+            console.error('[LoadImporter] AI type mapping failed', e);
+        }
+
+        return LoadType.FTL;
     }
 }

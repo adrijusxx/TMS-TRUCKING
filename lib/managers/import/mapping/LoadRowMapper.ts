@@ -63,31 +63,31 @@ export class LoadRowMapper {
 
         const finalTotalMiles = (finalLoadedMiles + emptyMiles) > 0 ? (finalLoadedMiles + emptyMiles) : totalMiles;
 
-        return {
-            revenue,
+        revenue,
             driverPay,
             totalMiles: finalTotalMiles,
-            loadedMiles: finalLoadedMiles,
-            emptyMiles,
-            weight
-        };
-    }
+                loadedMiles: finalLoadedMiles,
+                    emptyMiles,
+                    weight,
+                    revenuePerMile: finalTotalMiles > 0 ? Number((revenue / finalTotalMiles).toFixed(2)) : 0
+    };
+}
 
     /**
      * Parse dates from row
      */
-    static mapDates(row: any, getValue: Function, mapping?: Record<string, string>) {
-        const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date']));
-        const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date']));
+    static mapDates(row: any, getValue: Function, mapping ?: Record<string, string>) {
+    const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date']));
+    const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date']));
 
-        const finalPickupDate = pickupDate || new Date();
-        const finalDeliveryDate = deliveryDate || new Date(finalPickupDate.getTime() + 24 * 60 * 60 * 1000);
+    const finalPickupDate = pickupDate || new Date();
+    const finalDeliveryDate = deliveryDate || new Date(finalPickupDate.getTime() + 24 * 60 * 60 * 1000);
 
-        return {
-            pickupDate: finalPickupDate,
-            deliveryDate: finalDeliveryDate,
-            pickupDateRaw: pickupDate,
-            deliveryDateRaw: deliveryDate
-        };
-    }
+    return {
+        pickupDate: finalPickupDate,
+        deliveryDate: finalDeliveryDate,
+        pickupDateRaw: pickupDate,
+        deliveryDateRaw: deliveryDate
+    };
+}
 }

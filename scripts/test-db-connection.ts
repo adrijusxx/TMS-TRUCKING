@@ -1,7 +1,7 @@
-
-import "dotenv/config";
+import * as path from 'path';
+require('dotenv').config({ path: path.join(process.cwd(), '.env.local') });
 import { PrismaClient } from '@prisma/client';
-import { getRdsDatabaseUrl, verifyAwsConnectivity } from '@/lib/secrets/aws-secrets-manager';
+import { getRdsDatabaseUrl, verifyAwsConnectivity } from '../lib/secrets/aws-secrets-manager';
 
 async function main() {
     console.log('---------------------------------------------------------');
