@@ -280,4 +280,3 @@ export async function syncCustomerToQuickBooks(
   console.warn('syncCustomerToQuickBooks not fully implemented');
   return null;
 }
-

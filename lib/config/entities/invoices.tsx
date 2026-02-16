@@ -319,4 +319,3 @@ export const getInvoicesTableConfig = (onView?: (id: string) => void) => createE
 });
 
 export const invoicesTableConfig = getInvoicesTableConfig();
-

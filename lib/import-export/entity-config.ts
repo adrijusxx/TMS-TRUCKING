@@ -13,83 +13,41 @@ const entityConfigs: Record<string, EntityConfig> = {
   trucks: {
     label: 'Trucks',
     fields: [
-      // Required Fields
-      { key: 'unit_number', label: 'Unit Number *', required: true },
-      { key: 'vin', label: 'VIN *', required: true },
-
-      // Vehicle Details
-      { key: 'make', label: 'Make' },
-      { key: 'model', label: 'Model' },
-      { key: 'year', label: 'Year' },
-
-      // License & Registration
-      { key: 'plate_number', label: 'Plate Number' },
-      { key: 'state', label: 'License State' },
-      { key: 'registration_expiry_date', label: 'Registration Expiry Date' },
-
-      // Inspection & Insurance
-      { key: 'annual_inspection_expiry_date', label: 'Annual Inspection Expiry Date' },
-      { key: 'insurance_expiry_date', label: 'Insurance Expiry Date' },
-
-      // MC Number & Ownership
-      { key: 'mc_number', label: 'MC Number' },
-      { key: 'ownership', label: 'Ownership' },
-      { key: 'owner_name', label: 'Owner Name' },
-
-      // Assignments
-      { key: 'operator_(driver)', label: 'Operator (Driver)' },
-      { key: 'trailer', label: 'Trailer' },
-
-      // Status
-      { key: 'status', label: 'Status' },
-      { key: 'fleet_status', label: 'Fleet Status' },
-
-      // Additional
-      { key: 'odometer', label: 'Odometer' },
-      { key: 'tags', label: 'Tags' },
-      { key: 'notes', label: 'Notes' },
-      { key: 'toll_tag_number', label: 'Toll Tag Number' },
-      { key: 'fuel_card', label: 'Fuel Card' },
-      { key: 'warnings', label: 'Warnings' },
+      { key: 'truckNumber', label: 'Truck/Unit Number *', required: true, suggestedCsvHeaders: ['Unit #', 'Unit number', 'Unit Number', 'Truck Number', 'truck_number', 'Truck', 'truck', 'Truck ID', 'Unit ID'] },
+      { key: 'vin', label: 'VIN', suggestedCsvHeaders: ['VIN', 'vin', 'Serial Number', 'serial_number', 'Serial'] },
+      { key: 'make', label: 'Make', suggestedCsvHeaders: ['Make', 'make', 'Manufacturer', 'Brand'] },
+      { key: 'model', label: 'Model', suggestedCsvHeaders: ['Model', 'model'] },
+      { key: 'year', label: 'Year', suggestedCsvHeaders: ['Year', 'year', 'Yr'] },
+      { key: 'licensePlate', label: 'License Plate', suggestedCsvHeaders: ['License Plate', 'license_plate', 'Plate', 'Plate Number', 'Tag', 'Registration'] },
+      { key: 'state', label: 'State', suggestedCsvHeaders: ['State', 'state', 'License State', 'Registration State'] },
+      { key: 'equipmentType', label: 'Equipment Type', suggestedCsvHeaders: ['Equipment Type', 'equipment_type', 'Type'] },
+      { key: 'registrationExpiry', label: 'Registration Expiry', suggestedCsvHeaders: ['Registration Expiry', 'registration_expiry', 'Reg Exp'] },
+      { key: 'insuranceExpiry', label: 'Insurance Expiry', suggestedCsvHeaders: ['Insurance Expiry', 'insurance_expiry', 'Ins Exp'] },
+      { key: 'inspectionExpiry', label: 'Inspection Expiry', suggestedCsvHeaders: ['Inspection Expiry', 'inspection_expiry', 'Insp Exp', 'Annual Inspection Expiry'] },
+      { key: 'odometerReading', label: 'Odometer', suggestedCsvHeaders: ['Odometer', 'odometer', 'Mileage'] },
+      { key: 'capacity', label: 'Capacity', suggestedCsvHeaders: ['Capacity', 'capacity', 'Max Weight'] },
+      { key: 'status', label: 'Status', suggestedCsvHeaders: ['Status', 'status', 'Fleet Status'] },
+      { key: 'driverId', label: 'Driver', suggestedCsvHeaders: ['Driver', 'driver', 'Assigned Driver', 'Operator'] },
+      { key: 'mcNumberId', label: 'MC Number', suggestedCsvHeaders: ['MC Number', 'mc_number', 'MC'] },
     ],
   },
   trailers: {
     label: 'Trailers',
     fields: [
-      // Required Fields
-      { key: 'unit_number', label: 'Unit Number *', required: true },
-      { key: 'make', label: 'Make *', required: true },
-      { key: 'model', label: 'Model *', required: true },
-
-      // Vehicle Details
-      { key: 'vin', label: 'VIN' },
-      { key: 'year', label: 'Year' },
-      { key: 'type', label: 'Type' },
-
-      // License & Registration
-      { key: 'plate_number', label: 'Plate Number' },
-      { key: 'state', label: 'State' },
-      { key: 'registration_expiry_date', label: 'Registration Expiry Date' },
-
-      // MC Number & Ownership
-      { key: 'mc_number', label: 'MC Number' },
-      { key: 'ownership', label: 'Ownership' },
-      { key: 'owner_name', label: 'Owner Name' },
-
-      // Assignments
-      { key: 'assigned_truck', label: 'Assigned Truck' },
-      { key: 'operator_(driver)', label: 'Operator (Driver)' },
-
-      // Status
-      { key: 'status', label: 'Status' },
-      { key: 'fleet_status', label: 'Fleet Status' },
-
-      // Inspection & Insurance
-      { key: 'annual_inspection_expiry_date', label: 'Annual Inspection Expiry Date' },
-      { key: 'insurance_expiry_date', label: 'Insurance Expiry Date' },
-
-      // Additional
-      { key: 'tags', label: 'Tags' },
+      { key: 'trailerNumber', label: 'Trailer/Unit Number *', required: true, suggestedCsvHeaders: ['Unit #', 'Unit number', 'Unit Number', 'Trailer Number', 'trailer_number', 'Trailer', 'trailer', 'Trailer ID', 'Unit ID'] },
+      { key: 'vin', label: 'VIN', suggestedCsvHeaders: ['VIN', 'vin', 'Serial Number', 'serial_number'] },
+      { key: 'make', label: 'Make', suggestedCsvHeaders: ['Make', 'make', 'Manufacturer', 'Brand'] },
+      { key: 'model', label: 'Model', suggestedCsvHeaders: ['Model', 'model'] },
+      { key: 'year', label: 'Year', suggestedCsvHeaders: ['Year', 'year', 'Yr'] },
+      { key: 'trailerType', label: 'Trailer Type', suggestedCsvHeaders: ['Trailer Type', 'trailer_type', 'Type', 'Equipment Type'] },
+      { key: 'licensePlate', label: 'License Plate', suggestedCsvHeaders: ['License Plate', 'license_plate', 'Plate', 'Tag', 'Registration'] },
+      { key: 'state', label: 'State', suggestedCsvHeaders: ['State', 'state', 'Registration State'] },
+      { key: 'registrationExpiry', label: 'Registration Expiry', suggestedCsvHeaders: ['Registration Expiry', 'registration_expiry', 'Reg Exp'] },
+      { key: 'insuranceExpiry', label: 'Insurance Expiry', suggestedCsvHeaders: ['Insurance Expiry', 'insurance_expiry', 'Ins Exp'] },
+      { key: 'inspectionExpiry', label: 'Inspection Expiry', suggestedCsvHeaders: ['Inspection Expiry', 'inspection_expiry', 'Insp Exp'] },
+      { key: 'status', label: 'Status', suggestedCsvHeaders: ['Status', 'status', 'Fleet Status'] },
+      { key: 'driverId', label: 'Driver', suggestedCsvHeaders: ['Driver', 'driver', 'Assigned Driver', 'Operator'] },
+      { key: 'mcNumberId', label: 'MC Number', suggestedCsvHeaders: ['MC Number', 'mc_number', 'MC'] },
     ],
   },
   loads: {

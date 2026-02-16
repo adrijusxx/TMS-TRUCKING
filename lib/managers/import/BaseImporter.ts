@@ -148,8 +148,14 @@ export abstract class BaseImporter {
 
     /**
      * Gets a value from a row, respecting column mapping if provided.
+     * If the row already has the system field as a key (pre-mapped data, e.g. from registration),
+     * return it so importers work without columnMapping.
      */
     protected getValue(row: any, systemField: string, mapping: Record<string, string> | undefined, synonyms: string[]): any {
+        const direct = row?.[systemField];
+        if (direct !== undefined && direct !== null && direct !== '') {
+            return direct;
+        }
 
         if (mapping) {
             // Find which CSV header(s) map to this system field

@@ -125,6 +125,34 @@ export default function ImportPage({
 
         setColumnMapping(autoMapping);
         setCurrentStep('matching');
+        // Auto-run AI mapping in background and merge into mapping (unmapped columns only)
+        const excelCols = Object.keys(result.data[0] || {});
+        const unmappedCols = excelCols.filter((c: string) => !autoMapping[c]);
+        if (unmappedCols.length > 0) {
+          fetch(apiUrl('/api/import-export/smart-map'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              csvHeaders: unmappedCols,
+              systemFields: deduplicatedFields.map((f: { key: string }) => f.key),
+            }),
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (!data?.mapping) return;
+              const aiMapping = data.mapping as Record<string, string>;
+              setColumnMapping((prev) => {
+                const next = { ...prev };
+                Object.entries(aiMapping).forEach(([excelCol, systemField]) => {
+                  if (typeof systemField === 'string' && unmappedCols.includes(excelCol) && deduplicatedFields.some((f: { key: string }) => f.key === systemField)) {
+                    next[excelCol] = systemField;
+                  }
+                });
+                return next;
+              });
+            })
+            .catch(() => {});
+        }
       } else {
         toast.error(`Found ${result.errors?.length || 0} validation errors`);
       }
@@ -745,7 +773,7 @@ export default function ImportPage({
                           <tr key={i}>
                             {Object.entries(columnMapping).filter(([_, target]) => target).map(([src, target]) => (
                               <td key={`${i}-${src}`} className="px-4 py-3 text-sm whitespace-nowrap">
-                                {String(row[src] || row[String(src).trim().toLowerCase().replace(/\s+/g, '_')] || '')}
+                                {String(row[target] ?? '')}
                               </td>
                             ))}
                           </tr>

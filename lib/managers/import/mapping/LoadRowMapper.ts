@@ -46,8 +46,11 @@ export class LoadRowMapper {
      * Parse financial and distance numbers from row
      */
     static mapFinancials(row: any, getValue: Function, mapping?: Record<string, string>) {
-        // 1. Try to find a "Total" or "Gross" amount first (Most accurate)
-        const grossRevenue = parseImportNumber(getValue(row, 'revenue', mapping, ['Total Amount', 'total_amount', 'Gross', 'gross', 'Total Pay', 'Total pay', 'Load Pay', 'Load pay'])) || 0;
+        // 1. Try to find revenue from any of the UI-mapped keys (revenue, totalPay, loadPay)
+        const revenueVal = parseImportNumber(getValue(row, 'revenue', mapping, ['Total Amount', 'total_amount', 'Gross', 'gross', 'Total Pay', 'Total pay', 'Load Pay', 'Load pay'])) || 0;
+        const totalPayVal = parseImportNumber(getValue(row, 'totalPay', mapping, [])) || 0;
+        const loadPayVal = parseImportNumber(getValue(row, 'loadPay', mapping, [])) || 0;
+        const grossRevenue = revenueVal > 0 ? revenueVal : (totalPayVal > 0 ? totalPayVal : loadPayVal);
 
         // 2. Look for components if Gross is missing
         const lineHaul = parseImportNumber(getValue(row, 'lineHaul', mapping, ['Line Haul', 'line_haul', 'Flat Rate', 'flat_rate', 'Rate', 'rate', 'Amount', 'amount'])) || 0;

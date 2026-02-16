@@ -302,7 +302,7 @@ export default function ColumnMappingDialog({
               disabled={isMapping}
             >
               <Sparkles className={isMapping ? "h-4 w-4 text-purple-500 animate-spin" : "h-4 w-4 text-purple-500"} />
-              {isMapping ? 'Analyzing...' : 'Smart Map (AI)'}
+              {isMapping ? 'Analyzing...' : 'Refine with AI'}
             </Button>
 
             <div className="flex gap-2">

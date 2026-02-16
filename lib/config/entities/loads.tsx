@@ -281,12 +281,11 @@ const columns: ExtendedColumnDef<LoadData>[] = [
   {
     id: 'revenue',
     accessorKey: 'revenue',
-    header: 'Rate',
+    header: 'Revenue',
     cell: ({ row }) => formatCurrency(row.original.revenue),
     defaultVisible: true,
-    // Rate is NOT editable - financial safety
     filterType: 'number',
-    tooltip: 'Total rate charged to the customer for this load (from Rate Confirmation).',
+    tooltip: 'Total load pay / revenue for this load; used for RPM and analytics.',
   },
   {
     id: 'customer',
