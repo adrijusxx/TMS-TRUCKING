@@ -151,6 +151,7 @@ export default function LoadDetailsTab({
                     onValueChange={(value) => updateField('dispatcherId', value)}
                     placeholder="Search..."
                     className="h-7 text-xs"
+                    defaultDispatcher={load.dispatcher}
                   />
                 </div>
               </>
@@ -172,7 +173,7 @@ export default function LoadDetailsTab({
                   <div>
                     <Label className="text-xs text-muted-foreground">Driver</Label>
                     <p className="text-xs font-medium">
-                      {load.driver.user.firstName} {load.driver.user.lastName}
+                      {load.driver.user?.firstName || 'Unknown'} {load.driver.user?.lastName || 'Driver'}
                     </p>
                   </div>
                 )}
@@ -180,7 +181,7 @@ export default function LoadDetailsTab({
                   <div>
                     <Label className="text-xs text-muted-foreground">Co-Driver</Label>
                     <p className="text-xs font-medium">
-                      {load.coDriver.user.firstName} {load.coDriver.user.lastName}
+                      {load.coDriver.user?.firstName || 'Unknown'} {load.coDriver.user?.lastName || 'Driver'}
                     </p>
                   </div>
                 )}

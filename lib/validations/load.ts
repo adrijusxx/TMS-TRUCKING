@@ -449,7 +449,29 @@ const baseLoadSchema = z.object({
     },
     z.number().nonnegative().optional().nullable()
   ),
+  stopsCount: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return null;
+      const n = parseInt(String(val));
+      return isNaN(n) ? null : n;
+    },
+    z.number().int().nonnegative().optional().nullable()
+  ),
+  totalPay: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return null;
+      const n = parseFloat(String(val));
+      return isNaN(n) ? null : n;
+    },
+    z.number().nonnegative().optional().nullable()
+  ),
+  lastUpdate: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.string().or(z.date()).optional().nullable()
+  ),
+  onTimeDelivery: z.boolean().optional().nullable(),
 });
+
 
 // Create schema with superRefine validation for creation
 export const createLoadSchema = baseLoadSchema.superRefine((data, ctx) => {
@@ -883,9 +905,9 @@ export const importLoadSchema = baseLoadSchema
     pickupCity: z.string().optional(),
     deliveryLocation: z.string().optional(),
     deliveryAddress: z.string().optional(),
-    deliveryCity: z.string().optional(),
-    pickupDate: z.string().or(z.date()).optional(),
-    deliveryDate: z.string().or(z.date()).optional(),
+    deliveryCity: z.string().optional().nullable(),
+    pickupDate: z.preprocess((val) => (val === '' || val === null ? undefined : val), z.string().or(z.date()).optional().nullable()),
+    deliveryDate: z.preprocess((val) => (val === '' || val === null ? undefined : val), z.string().or(z.date()).optional().nullable()),
   })
   .passthrough(); // Allow any additional fields
 

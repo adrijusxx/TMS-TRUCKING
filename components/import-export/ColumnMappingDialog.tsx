@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { deduplicateSystemFields, type SystemField } from '@/lib/import-export/field-utils';
 
 interface ColumnMappingDialogProps {
@@ -40,44 +40,127 @@ export default function ColumnMappingDialog({
 }: ColumnMappingDialogProps) {
   const [mapping, setMapping] = useState<Record<string, string>>(initialMapping);
   const [autoMapped, setAutoMapped] = useState<Set<string>>(new Set());
-  
+
   // Deduplicate system fields to prevent duplicate options in dropdowns
   const deduplicatedFields = useMemo(() => {
     return deduplicateSystemFields(systemFields);
   }, [systemFields]);
 
-  // Auto-map columns on open
-  useEffect(() => {
-    if (open && excelColumns.length > 0) {
-      const newMapping: Record<string, string> = { ...initialMapping };
-      const newAutoMapped = new Set<string>();
+  /* -------------------------------------------------------------------------- */
+  /*                            AI & SMART MAPPING                              */
+  /* -------------------------------------------------------------------------- */
 
-      excelColumns.forEach((excelCol) => {
-        if (newMapping[excelCol]) return; // Already mapped
+  const [isMapping, setIsMapping] = useState(false);
 
-        const normalizedExcel = excelCol.toLowerCase().trim().replace(/[_\s-]/g, '');
-        
-        // Try to find matching system field (using deduplicated fields)
-        for (const field of deduplicatedFields) {
-          const normalizedField = field.key.toLowerCase().replace(/[_\s-]/g, '');
-          
-          // Exact match or contains
-          if (
-            normalizedExcel === normalizedField ||
-            normalizedExcel.includes(normalizedField) ||
-            normalizedField.includes(normalizedExcel)
-          ) {
-            newMapping[excelCol] = field.key;
-            newAutoMapped.add(excelCol);
-            break;
-          }
-        }
+  // Levenshtein distance for fuzzy matching (Local fallback)
+  const levenshtein = (a: string, b: string) => {
+    const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        matrix[i][j] = b[i - 1] === a[j - 1]
+          ? matrix[i - 1][j - 1]
+          : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+      }
+    }
+    return matrix[b.length][a.length];
+  };
+
+  const runSmartMapping = async () => {
+    setIsMapping(true);
+    const newMapping: Record<string, string> = { ...mapping };
+    const newAutoMapped = new Set<string>(autoMapped);
+
+    // 1. Prepare unmapped columns for AI
+    const unmappedColumns = excelColumns.filter(col => !newMapping[col]);
+
+    if (unmappedColumns.length === 0) {
+      setIsMapping(false);
+      return; // Nothing to do
+    }
+
+    try {
+      // 2. Try AI Mapping First (Server-Side)
+      const response = await fetch('/api/import-export/smart-map', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csvHeaders: unmappedColumns,
+          systemFields: deduplicatedFields.map(f => f.key)
+        })
       });
 
-      setMapping(newMapping);
-      setAutoMapped(newAutoMapped);
+      if (response.ok) {
+        const data = await response.json();
+        const aiMapping = data.mapping || {};
+
+        Object.entries(aiMapping).forEach(([excelCol, systemField]) => {
+          if (typeof systemField === 'string' && unmappedColumns.includes(excelCol) && deduplicatedFields.some(f => f.key === systemField)) {
+            newMapping[excelCol] = systemField;
+            newAutoMapped.add(excelCol);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("AI Mapping failed, falling back to local fuzzy match", error);
     }
-  }, [open, excelColumns, deduplicatedFields, initialMapping]);
+
+    // 3. Run Local Fuzzy Match (Cleanup / Fallback)
+    excelColumns.forEach((excelCol) => {
+      if (newMapping[excelCol]) return; // Already mapped (by AI or manually)
+
+      const normalizedExcel = excelCol.toLowerCase().trim().replace(/[_\s-.]/g, '');
+
+      // Direct match
+      for (const field of deduplicatedFields) {
+        const normalizedField = field.key.toLowerCase().replace(/[_\s-.]/g, '');
+        if (
+          normalizedExcel === normalizedField ||
+          normalizedExcel.includes(normalizedField) ||
+          normalizedField.includes(normalizedExcel)
+        ) {
+          newMapping[excelCol] = field.key;
+          newAutoMapped.add(excelCol);
+          return;
+        }
+      }
+
+      // Fuzzy match
+      let bestMatch = null;
+      let minDistance = Infinity;
+
+      for (const field of deduplicatedFields) {
+        const normalizedField = field.key.toLowerCase().replace(/[_\s-.]/g, '');
+        const distance = levenshtein(normalizedExcel, normalizedField);
+        const threshold = Math.max(4, Math.floor(normalizedField.length * 0.4));
+
+        if (distance <= threshold && distance < minDistance) {
+          minDistance = distance;
+          bestMatch = field.key;
+        }
+      }
+
+      if (bestMatch) {
+        newMapping[excelCol] = bestMatch;
+        newAutoMapped.add(excelCol);
+      }
+    });
+
+    setMapping(newMapping);
+    setAutoMapped(newAutoMapped);
+    setIsMapping(false);
+  };
+
+  // Auto-map columns on open using standard logic (trigger smart map)
+  useEffect(() => {
+    if (open && excelColumns.length > 0) {
+      // Small timeout to allow render
+      const timeout = setTimeout(() => {
+        runSmartMapping();
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [open, excelColumns, deduplicatedFields]);
 
   const handleMappingChange = (excelColumn: string, systemField: string) => {
     setMapping((prev) => ({
@@ -125,9 +208,12 @@ export default function ColumnMappingDialog({
                 </>
               )}
             </div>
-            <Badge variant="outline">
-              {Object.keys(mapping).length} of {excelColumns.length} columns mapped
-            </Badge>
+            <div className="flex gap-2 items-center">
+              {isMapping && <span className="text-xs text-purple-600 animate-pulse">AI Mapping...</span>}
+              <Badge variant="outline">
+                {Object.keys(mapping).length} of {excelColumns.length} columns mapped
+              </Badge>
+            </div>
           </div>
 
           {/* Column Mappings */}
@@ -145,7 +231,7 @@ export default function ColumnMappingDialog({
                 : null;
               const isRequired = fieldInfo?.required;
               const isAutoMapped = autoMapped.has(excelCol);
-              
+
               // Get available fields for this dropdown (exclude already mapped fields from other columns)
               const otherMappedFields = new Set(
                 Object.entries(mapping)
@@ -178,8 +264,9 @@ export default function ColumnMappingDialog({
                   </Select>
                   <div className="flex items-center gap-2">
                     {isAutoMapped && (
-                      <Badge variant="secondary" className="text-xs">
-                        Auto
+                      <Badge variant="secondary" className="text-xs gap-1">
+                        <Sparkles className="h-3 w-3 text-purple-500" />
+                        Smart Mapped
                       </Badge>
                     )}
                     {isRequired && (
@@ -206,20 +293,32 @@ export default function ColumnMappingDialog({
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
+          <div className="flex justify-between items-center pt-4 border-t gap-2">
             <Button
-              onClick={handleComplete}
-              disabled={unmappedRequired.length > 0}
+              variant="outline"
+              onClick={runSmartMapping}
+              type="button"
+              className="gap-2"
+              disabled={isMapping}
             >
-              Apply Mapping
+              <Sparkles className={isMapping ? "h-4 w-4 text-purple-500 animate-spin" : "h-4 w-4 text-purple-500"} />
+              {isMapping ? 'Analyzing...' : 'Smart Map (AI)'}
             </Button>
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleComplete}
+                disabled={unmappedRequired.length > 0}
+              >
+                Apply Mapping
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-

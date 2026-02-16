@@ -104,6 +104,10 @@ export async function GET(request: NextRequest) {
       if (load.loadedMiles !== null && load.loadedMiles !== undefined && load.loadedMiles > 0) {
         // Use direct loadedMiles field
         loadedMiles += load.loadedMiles;
+      } else if (loadTotalMiles > 0) {
+        // Fallback: Use total - empty if loaded is missing
+        const calculatedLoaded = Math.max(0, loadTotalMiles - (load.emptyMiles || 0));
+        loadedMiles += calculatedLoaded;
       }
 
       if (load.emptyMiles !== null && load.emptyMiles !== undefined && load.emptyMiles > 0) {

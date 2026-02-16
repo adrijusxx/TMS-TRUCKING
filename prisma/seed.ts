@@ -922,7 +922,7 @@ async function main() {
           calculationType: (i === 2 ? 'PERCENTAGE' : 'FIXED') as any,
           amount: i === 2 ? undefined : 100 * i,
           percentage: i === 2 ? 5 : undefined,
-          frequency: 'PER_SETTLEMENT' as any,
+          deductionFrequency: 'PER_SETTLEMENT' as any,
           isActive: true,
         },
       });

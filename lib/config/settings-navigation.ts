@@ -172,6 +172,13 @@ export function getSettingsNavigationCategories(baseSettingsPath: string): NavCa
           category: 'Data Management',
           adminOnly: true
         },
+        {
+          name: 'Data Reconciliation',
+          href: '/dashboard/import-export/reconcile',
+          icon: Database, // Re-using Database icon or similar
+          category: 'Data Management',
+          adminOnly: true
+        },
       ],
     },
     {

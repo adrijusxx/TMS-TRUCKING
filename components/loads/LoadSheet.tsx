@@ -70,10 +70,16 @@ export default function LoadSheet({ open, onOpenChange, mode, loadId, initialDat
         enabled: open && (mode === 'edit' || mode === 'view'),
     });
 
+    const mergeCurrent = (current: any, available: any[]) => {
+        if (!current) return available;
+        if (available.find((item: any) => item.id === current.id)) return available;
+        return [current, ...available];
+    };
+
     const load = loadData?.data;
-    const availableDrivers = driversData?.data || [];
-    const availableTrucks = trucksData?.data || [];
-    const availableTrailers = trailersData?.data || [];
+    const availableDrivers = mergeCurrent(load?.driver, driversData?.data || []);
+    const availableTrucks = mergeCurrent(load?.truck, trucksData?.data || []);
+    const availableTrailers = mergeCurrent(load?.trailer, trailersData?.data || []);
 
     const handleSuccess = () => {
         onOpenChange(false);

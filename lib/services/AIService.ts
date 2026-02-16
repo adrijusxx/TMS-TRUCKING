@@ -69,7 +69,7 @@ export class AIService {
    * Make a call to OpenAI API
    * Uses GPT-4o-mini for fast, cost-effective responses
    */
-  protected async callAI<T = unknown>(
+  public async callAI<T = unknown>(
     userPrompt: string,
     options: AICallOptions = {}
   ): Promise<AICallResult<T>> {

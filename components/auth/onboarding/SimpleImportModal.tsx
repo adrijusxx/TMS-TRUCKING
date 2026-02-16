@@ -4,6 +4,7 @@ import { useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Upload, X, FileSpreadsheet, AlertCircle, CheckCircle2, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ImportEntity } from '@/lib/validations/onboarding';
 import { ColumnMapper, applyMapping, ENTITY_FIELDS } from './ColumnMapper';
 import * as XLSX from 'xlsx';
@@ -12,7 +13,7 @@ interface SimpleImportModalProps {
     isOpen: boolean;
     onClose: () => void;
     entityType: ImportEntity;
-    onImport: (data: any[]) => void;
+    onImport: (data: any[], options?: { updateExisting: boolean }) => void;
 }
 
 // Duplicate detection configuration per entity type
@@ -69,8 +70,8 @@ function detectDuplicates(data: any[], entityType: string): { duplicates: Set<nu
 // Sample templates for download
 const TEMPLATES: Record<ImportEntity, string> = {
     drivers: 'firstName,lastName,email,phone,licenseNumber,licenseState,licenseExpiry,medicalCardExpiry,payRate\nJohn,Doe,john@example.com,555-0101,CDL123456,TX,2025-01-01,2025-01-01,0.55',
-    trucks: 'truckNumber,vin,make,model,year,licensePlate,state\n101,1M8GDM9A,Freightliner,Cascadia,2022,P12345,TX',
-    trailers: 'trailerNumber,vin,make,year,licensePlate,type\n5301,1TRAILER,Wabash,2021,T54321,Dry Van',
+    trucks: 'truckNumber,vin,make,model,year,licensePlate,state,equipmentType,odometerReading,registrationExpiry,inspectionExpiry\n101,1M8GDM9A,Freightliner,Cascadia,2022,P12345,TX,DRY_VAN,150000,2025-12-31,2025-12-31',
+    trailers: 'trailerNumber,vin,make,model,year,licensePlate,state,type,registrationExpiry,inspectionExpiry\n5301,1TRAILER,Wabash,53FT,2021,T54321,TX,DRY_VAN,2025-12-31,2025-12-31',
     customers: 'name,email,phone,address,city,state,zip\nAcme Brokers,brokers@acme.com,555-9999,123 Main St,Dallas,TX,75001',
     loads: 'loadNumber,customerRef,rate,originCity,originState,destCity,destState,pickupDate,deliveryDate\nL-1001,REF-555,1500,Dallas,TX,Chicago,IL,2024-02-01,2024-02-03',
     invoices: 'invoiceNumber,loadNumber,amount,dueDate,status\nINV-1001,L-1001,1500,2024-03-01,Unpaid',
@@ -86,6 +87,7 @@ export function SimpleImportModal({ isOpen, onClose, entityType, onImport }: Sim
     const [rawData, setRawData] = useState<any[]>([]);
     const [mappedData, setMappedData] = useState<any[]>([]);
     const [sourceColumns, setSourceColumns] = useState<string[]>([]);
+    const [updateExisting, setUpdateExisting] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -165,7 +167,7 @@ export function SimpleImportModal({ isOpen, onClose, entityType, onImport }: Sim
 
     const handleSave = () => {
         if (mappedData.length > 0) {
-            onImport(mappedData);
+            onImport(mappedData, { updateExisting });
             onClose();
             resetState();
         }
@@ -177,6 +179,7 @@ export function SimpleImportModal({ isOpen, onClose, entityType, onImport }: Sim
         setRawData([]);
         setMappedData([]);
         setSourceColumns([]);
+        setUpdateExisting(false);
         setError(null);
     };
 
@@ -296,6 +299,26 @@ export function SimpleImportModal({ isOpen, onClose, entityType, onImport }: Sim
                         <div className="flex items-center gap-2 text-sm text-green-400">
                             <CheckCircle2 className="h-4 w-4" />
                             <span>{mappedData.length} records ready to import</span>
+                        </div>
+
+                        <div className="flex items-start space-x-2 p-3 rounded-md bg-slate-800/50 border border-slate-700">
+                            <Checkbox
+                                id="update-existing-modal"
+                                checked={updateExisting}
+                                onCheckedChange={(checked) => setUpdateExisting(checked === true)}
+                                className="mt-1 border-slate-600"
+                            />
+                            <div className="grid gap-1.5 leading-none">
+                                <label
+                                    htmlFor="update-existing-modal"
+                                    className="text-sm font-medium leading-none text-slate-200"
+                                >
+                                    Update existing records
+                                </label>
+                                <p className="text-xs text-slate-400">
+                                    Merge data with existing records instead of creating duplicates.
+                                </p>
+                            </div>
                         </div>
 
                         {/* Duplicate Warnings */}

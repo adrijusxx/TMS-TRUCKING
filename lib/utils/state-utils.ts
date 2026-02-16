@@ -20,5 +20,6 @@ export const normalizeState = (state: string | null | undefined): string | null 
         VIRGINIA: 'VA', WASHINGTON: 'WA', 'WEST VIRGINIA': 'WV', WISCONSIN: 'WI', WYOMING: 'WY',
     };
 
+    if (trimmed === 'N/A' || trimmed === 'NA' || trimmed === 'NONE' || trimmed === 'UNKNOWN') return null;
     return stateMap[trimmed] || (trimmed.length > 2 ? trimmed.slice(0, 2) : trimmed);
 };

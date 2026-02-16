@@ -4,9 +4,11 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Step1AccountDetails } from './Step1AccountDetails';
 import { Step2CompanyDetails } from './Step2CompanyDetails';
+import { Step3ImportData } from './Step3ImportData';
 import { Step4PlanSelection } from './Step4PlanSelection';
 import type {
     OnboardingStep2Input,
+    OnboardingStep3Input,
     OnboardingStep4Input,
 } from '@/lib/validations/onboarding';
 import { Truck, ArrowLeft } from 'lucide-react';
@@ -29,12 +31,13 @@ interface Step1Data {
 interface OnboardingData {
     step1?: Step1Data;
     step2?: OnboardingStep2Input;
-    step3?: OnboardingStep4Input; // Plan selection is now step 3
+    step3?: OnboardingStep3Input;
 }
 
 const STEPS = [
     { label: 'Account', description: 'Your details' },
     { label: 'Company', description: 'Business info' },
+    { label: 'Import', description: 'Quick start' },
     { label: 'Plan', description: 'Get started' },
 ];
 
@@ -63,7 +66,16 @@ export function OnboardingWizard() {
     // ---------------------------------------------------------------------------
     const handleStep2Complete = useCallback((data: OnboardingStep2Input) => {
         setOnboardingData(prev => ({ ...prev, step2: data }));
-        setCurrentStep(3); // Go directly to Plan selection
+        setCurrentStep(3);
+        setError(null);
+    }, []);
+
+    // ---------------------------------------------------------------------------
+    // STEP 3: Import Data (Optional)
+    // ---------------------------------------------------------------------------
+    const handleStep3Complete = useCallback((data: OnboardingStep3Input) => {
+        setOnboardingData(prev => ({ ...prev, step3: data }));
+        setCurrentStep(4);
         setError(null);
     }, []);
 
@@ -97,6 +109,9 @@ export function OnboardingWizard() {
                     phone: onboardingData.step2.phone,
                     // Plan selection
                     plan: data.plan,
+                    // Imported data if any
+                    importedData: onboardingData.step3?.importedData,
+                    skipImport: onboardingData.step3?.skipImport ?? true,
                 }),
             });
 
@@ -236,6 +251,13 @@ export function OnboardingWizard() {
                     )}
 
                     {currentStep === 3 && (
+                        <Step3ImportData
+                            onComplete={handleStep3Complete}
+                            isLoading={isSubmitting}
+                        />
+                    )}
+
+                    {currentStep === 4 && (
                         <Step4PlanSelection
                             onComplete={handlePlanComplete}
                             isLoading={isSubmitting}

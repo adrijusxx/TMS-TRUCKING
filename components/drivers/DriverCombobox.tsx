@@ -100,7 +100,7 @@ export default function DriverCombobox({
         >
           {selectedDriver ? (
             <span className="truncate">
-              {selectedDriver.user.firstName} {selectedDriver.user.lastName} (#{selectedDriver.driverNumber})
+              {selectedDriver.user?.firstName || 'Unknown'} {selectedDriver.user?.lastName || 'Driver'} (#{selectedDriver.driverNumber})
             </span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
@@ -164,7 +164,7 @@ export default function DriverCombobox({
                       />
                       <div className="flex flex-col">
                         <span className="font-medium text-xs">
-                          {driver.user.firstName} {driver.user.lastName}
+                          {driver.user?.firstName || 'Unknown'} {driver.user?.lastName || 'Driver'}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           #{driver.driverNumber}

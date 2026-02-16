@@ -32,10 +32,10 @@ async function main() {
     console.log(`   User: ${secret.username}`);
     console.log(`   Database: ${dbname}`);
 
-    console.log("⚠️  WARNING: This will completely RESET the AWS database (drop all data and seed)!");
-    console.log("🚀 Running prisma migrate reset...");
+    console.log("⚠️  WARNING: This will completely RESET the AWS database (drop all data and sync schema)!");
+    console.log("🚀 Running prisma db push --force-reset...");
 
-    execSync("npx prisma@6.19.0 migrate reset --force", {
+    execSync("npx prisma@6.19.0 db push --force-reset", {
         stdio: "inherit",
         env: process.env
     });

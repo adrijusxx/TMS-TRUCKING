@@ -176,7 +176,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'lastName', label: 'Last Name', required: true, suggestedCsvHeaders: ['Last Name', 'last_name', 'LastName'] },
       { key: 'email', label: 'Email', required: true },
       { key: 'phone', label: 'Phone', suggestedCsvHeaders: ['Phone', 'phone', 'contact_number', 'Contact Number'] },
-      { key: 'driverNumber', label: 'Driver Number', suggestedCsvHeaders: ['Driver Number', 'driver_number', 'Driver ID', 'driver_id'] },
+      { key: 'driverNumber', label: 'Driver Phone Number', suggestedCsvHeaders: ['Driver Phone Number', 'Driver Number', 'driver_number', 'Driver ID', 'driver_id', 'contact_number', 'Contact Number'] },
       { key: 'licenseNumber', label: 'License Number' },
       { key: 'licenseState', label: 'License State' },
       { key: 'licenseExpiry', label: 'License Expiry', suggestedCsvHeaders: ['License Expiry', 'license_expiry', 'CDL Expiry'] },

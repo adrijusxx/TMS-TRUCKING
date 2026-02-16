@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { OnboardingStep3Input, ImportEntity } from '@/lib/validations/onboarding';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Upload, Truck, Users, Package, Building2, SkipForward, Check, FileBox, FileText, DollarSign, ChevronRight, Info } from 'lucide-react';
+import { ArrowRight, Upload, Truck, Users, Package, Building2, SkipForward, Check, FileBox, FileText, DollarSign, ChevronRight, Info, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SimpleImportModal } from './SimpleImportModal';
 
@@ -104,12 +104,35 @@ export function Step3ImportData({ onComplete, isLoading }: Step3ImportDataProps)
         setImportModalOpen(true);
     };
 
-    const handleImport = (data: any[]) => {
+    const handleImport = (data: any[], options?: { updateExisting: boolean }) => {
         if (activeEntity) {
-            setImportedData(prev => ({
-                ...prev,
-                [activeEntity]: [...(prev[activeEntity] || []), ...data]
-            }));
+            setImportedData(prev => {
+                const existing = prev[activeEntity] || [];
+
+                if (options?.updateExisting) {
+                    // Primitive deduplication based on common keys
+                    const uniqueKey = activeEntity === 'loads' ? 'loadNumber' :
+                        activeEntity === 'drivers' ? 'email' :
+                            activeEntity === 'trucks' ? 'truckNumber' :
+                                activeEntity === 'trailers' ? 'trailerNumber' : 'name';
+
+                    const merged = [...existing];
+                    data.forEach(newRow => {
+                        const idx = merged.findIndex(r => r[uniqueKey] === newRow[uniqueKey]);
+                        if (idx >= 0) {
+                            merged[idx] = { ...merged[idx], ...newRow };
+                        } else {
+                            merged.push(newRow);
+                        }
+                    });
+                    return { ...prev, [activeEntity]: merged };
+                }
+
+                return {
+                    ...prev,
+                    [activeEntity]: [...existing, ...data]
+                };
+            });
         }
     };
 
@@ -223,7 +246,17 @@ export function Step3ImportData({ onComplete, isLoading }: Step3ImportDataProps)
                                     )}
 
                                     {/* Actions */}
-                                    <div className="flex justify-end">
+                                    <div className="flex justify-between items-center">
+                                        {importStep.step > 1 ? (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 text-xs text-slate-400 hover:text-white"
+                                                onClick={() => setExpandedStep(importStep.step - 1)}
+                                            >
+                                                Previous
+                                            </Button>
+                                        ) : <div />}
                                         <Button
                                             size="sm"
                                             className="h-8 text-xs bg-purple-600 hover:bg-purple-500"
@@ -239,12 +272,18 @@ export function Step3ImportData({ onComplete, isLoading }: Step3ImportDataProps)
                 })}
             </div>
 
-            {/* Info Box */}
-            <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700 mb-5">
-                <p className="text-xs text-slate-400">
-                    <span className="text-purple-400 font-medium">💡 Tip:</span> You can always import data later from
-                    Settings → Import/Export
-                </p>
+            {/* Help/Documentation Section */}
+            <div className="mt-4 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 mb-6">
+                <div className="flex items-center gap-2 mb-2 text-blue-400">
+                    <AlertCircle className="h-4 w-4" />
+                    <h4 className="text-sm font-semibold uppercase tracking-wider">Help & Instructions</h4>
+                </div>
+                <div className="space-y-2 text-xs text-slate-400">
+                    <p>• <strong className="text-slate-300">File Formats:</strong> We support .csv, .xlsx, and .xls files.</p>
+                    <p>• <strong className="text-slate-300">Smart Mapping:</strong> Match your columns to our system. If it misses any, you can manually map them.</p>
+                    <p>• <strong className="text-slate-300">Zero-Failure Policy:</strong> Missing fields like VIN or Expiry dates will be auto-filled with secure placeholders.</p>
+                    <p>• <strong className="text-slate-300">Finish Later:</strong> You can always import more data later from Settings → Import/Export.</p>
+                </div>
             </div>
 
             {/* Action Buttons */}

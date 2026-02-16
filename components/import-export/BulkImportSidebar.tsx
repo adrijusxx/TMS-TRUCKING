@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, AlertCircle, CheckCircle2, X, Loader2, Settings2, Trash2, ArrowRight, Download, Copy, AlertTriangle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle2, X, Loader2, Settings2, Trash2, ArrowRight, Download, Copy, AlertTriangle, Sparkles, Save, CornerDownLeft } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
@@ -23,7 +23,26 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import ImportFieldWarnings from './ImportFieldWarnings';
+import { useQueryClient } from '@tanstack/react-query'; // Added useQueryClient
+import { useQuery } from '@tanstack/react-query'; // Ensure useQuery is imported
+
+interface AIAnalysisResult {
+    summary: string;
+    tips: string[];
+    confidence: 'High' | 'Medium' | 'Low';
+    suggestedMapping?: Record<string, string>;
+}
 
 interface BulkImportSidebarProps {
     entityType: string;
@@ -47,6 +66,10 @@ export default function BulkImportSidebar({
     const [activeStep, setActiveStep] = useState<number>(1);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // AI Analysis State
+    const [aiAnalysis, setAiAnalysis] = useState<AIAnalysisResult | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+
     const [importProgress, setImportProgress] = useState<{
         status: 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
         message: string;
@@ -63,6 +86,9 @@ export default function BulkImportSidebar({
     const [importDetails, setImportDetails] = useState<{
         created: any[];
         errors: Array<{ row: number; field: string; error: string }>;
+        createdCount?: number;
+        updatedCount?: number;
+        errorsCount?: number;
     } | null>(null);
 
     // Preview mode state
@@ -76,6 +102,17 @@ export default function BulkImportSidebar({
         warnings: any[];
     } | null>(null);
 
+
+    // Logs for accurate progress
+    const [logs, setLogs] = useState<string[]>([]);
+    const logsEndRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll logs
+    useEffect(() => {
+        if (logsEndRef.current) {
+            logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [logs]);
 
     // Derived
     const systemFields = useMemo(() => {
@@ -98,6 +135,101 @@ export default function BulkImportSidebar({
     const unmappedRequired = useMemo(() => {
         return validation?.missingRequiredFields.filter(f => f.severity === 'error') || [];
     }, [validation]);
+
+    // AI Analysis Mutation
+    const analyzeFileMutation = useMutation({
+        mutationFn: async (data: { headers: string[], sample: any[] }) => {
+            const res = await fetch(apiUrl('/api/import-export/analyze-file'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    headers: data.headers,
+                    sampleData: data.sample,
+                    entityType
+                })
+            });
+            if (!res.ok) throw new Error('Analysis failed');
+            return await res.json() as AIAnalysisResult;
+        },
+        onSuccess: (data) => {
+            setAiAnalysis(data);
+            if (data.suggestedMapping) {
+                setColumnMapping(prev => ({ ...prev, ...data.suggestedMapping }));
+                toast.success('AI applied smart mappings');
+            }
+        },
+        onError: () => {
+            // Silently fail or just log, don't block user
+            console.warn('AI analysis failed');
+        }
+    });
+
+    const queryClient = useQueryClient();
+    const [mappingName, setMappingName] = useState("");
+    const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+
+    // Fetch Saved Mappings
+    const { data: savedMappings } = useQuery({
+        queryKey: ['import-mappings', entityType],
+        queryFn: async () => {
+            const res = await fetch(apiUrl(`/api/import/mappings?entityType=${entityType}`));
+            if (!res.ok) throw new Error('Failed to fetch mappings');
+            return await res.json() as { id: string, name: string, mapping: Record<string, string> }[];
+        },
+        enabled: activeStep === 2, // Fetch only when needed
+    });
+
+    // Save Mapping Mutation
+    const saveMappingMutation = useMutation({
+        mutationFn: async (name: string) => {
+            const res = await fetch(apiUrl('/api/import/mappings'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    entityType,
+                    mapping: columnMapping
+                })
+            });
+            if (!res.ok) throw new Error('Failed to save mapping');
+            return await res.json();
+        },
+        onSuccess: () => {
+            toast.success('Mapping saved successfully');
+            queryClient.invalidateQueries({ queryKey: ['import-mappings', entityType] });
+            setIsSaveDialogOpen(false);
+            setMappingName("");
+        },
+        onError: (err: any) => toast.error(err.message)
+    });
+
+    const handleLoadMapping = (mappingId: string) => {
+        const mapping = savedMappings?.find(m => m.id === mappingId);
+        if (mapping) {
+            setColumnMapping(mapping.mapping);
+            toast.success(`Applied mapping profile: ${mapping.name}`);
+        }
+    };
+
+    const handleDownloadTemplate = async () => {
+        try {
+            const response = await fetch(apiUrl(`/api/import/template?entityType=${entityType}`));
+            if (!response.ok) throw new Error('Failed to download template');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${entityType}_template.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.success('Template downloaded');
+        } catch (error) {
+            toast.error('Failed to download template');
+        }
+    };
 
 
     // File Handling
@@ -175,7 +307,14 @@ export default function BulkImportSidebar({
                     }
                 });
                 setColumnMapping(autoMap);
-                setActiveStep(2); // Move to mapping step automatically
+
+                // Trigger AI Analysis
+                analyzeFileMutation.mutate({
+                    headers: Object.keys(result.data[0]),
+                    sample: result.data.slice(0, 5)
+                });
+
+                // setActiveStep(2); // Do not auto-advance, let user see options first
             }
 
         } catch (err: any) {
@@ -194,6 +333,7 @@ export default function BulkImportSidebar({
         setUpdateExisting(false); // Reset this option too
         setImportDetails(null);
         setPreviewData(null); // Reset preview data
+        setAiAnalysis(null); // Reset AI data
         setImportProgress({ status: 'idle', message: '', progress: 0 });
         // Do NOT reset MC Number as user likely wants to keep it
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -267,101 +407,164 @@ export default function BulkImportSidebar({
         }
     });
 
-    // Import Mutation
+    // Import Mutation (Chunked)
     const importMutation = useMutation({
         mutationFn: async () => {
-            if (!selectedFile || !importResult) throw new Error("No file");
+            if (!selectedFile || !importResult?.data) throw new Error("No data");
 
-            setImportProgress({ status: 'uploading', message: 'Uploading...', progress: 10 });
+            setImportProgress({ status: 'uploading', message: 'Starting import...', progress: 0 });
             setImportDetails(null);
+            setLogs([]); // Clear logs
 
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            formData.append('columnMapping', JSON.stringify(columnMapping));
-            formData.append('fixedValues', JSON.stringify(fixedValues));
-            formData.append('mcNumberId', selectedMcNumberId);
-            formData.append('updateExisting', updateExisting.toString());
-
-            // Handle updateExisting logic for drivers
-            if (entityType === 'drivers' && updateExisting) {
-                formData.append('importMode', 'upsert');
+            const BATCH_SIZE = 500;
+            const totalRows = importResult.data.length;
+            const chunks = [];
+            for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+                chunks.push(importResult.data.slice(i, i + BATCH_SIZE));
             }
 
-            setImportProgress({ status: 'processing', message: 'Processing...', progress: 30 });
+            let totalCreated = 0;
+            let totalUpdated = 0;
+            let totalErrors = 0;
+            const allCreatedItems: any[] = [];
+            const allErrorItems: any[] = [];
 
-            const endpoint = entityType === 'invoices' ? '/api/invoices/import' : `/api/import-export/${entityType}`;
+            setLogs(prev => [...prev, `Starting import of ${totalRows} rows in ${chunks.length} batches...`]);
 
-            // Simulation of progress for better UX
-            const progressInterval = setInterval(() => {
-                setImportProgress(prev => {
-                    if (prev.progress >= 90) return prev;
-                    return { ...prev, progress: prev.progress + 5 };
-                });
-            }, 500);
-
-            try {
-                const res = await fetch(apiUrl(endpoint), { method: 'POST', body: formData });
-                clearInterval(progressInterval);
-
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error?.message || 'Import failed');
-
-                const summary = data.data;
-                const createdCount = summary.created ?? summary.details?.created?.length ?? 0;
-                const updatedCount = summary.updated ?? 0;
-                const errorsCount = summary.errors ?? summary.details?.errors?.length ?? 0;
-
-                const createdItems = summary.details?.created ?? (Array.isArray(summary.created) ? summary.created : []);
-                const errorItems = summary.details?.errors ?? [];
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
+                const batchNum = i + 1;
 
                 setImportProgress({
-                    status: 'complete',
-                    message: `Complete: ${createdCount} created, ${updatedCount} updated, ${errorsCount} errors`,
-                    progress: 100,
-                    created: createdCount,
-                    updated: updatedCount,
-                    errors: errorsCount
+                    status: 'processing',
+                    message: `Processing batch ${batchNum}/${chunks.length}...`,
+                    progress: Math.round(((i) / chunks.length) * 100)
                 });
 
-                setImportDetails({
-                    created: createdItems,
-                    errors: errorItems
-                });
+                try {
+                    const res = await fetch(apiUrl(entityType === 'invoices' ? '/api/invoices/import' : `/api/import-export/${entityType}`), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            data: chunk,
+                            columnMapping,
+                            fixedValues,
+                            mcNumberId: selectedMcNumberId,
+                            updateExisting,
+                            importMode: (entityType === 'drivers' && updateExisting) ? 'upsert' : undefined,
+                            currentMcNumber: selectedMcNumberId // Legacy support
+                        })
+                    });
 
-                return { ...data, errorItems, createdItems, createdCount, updatedCount, errorsCount };
-            } catch (err) {
-                clearInterval(progressInterval);
-                throw err;
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error?.message || `Batch ${batchNum} failed`);
+
+                    const summary = data.data;
+                    const created = summary.created ?? summary.details?.created?.length ?? 0;
+                    const updated = summary.updated ?? 0;
+                    const errors = summary.errors ?? summary.details?.errors?.length ?? 0;
+
+                    totalCreated += created;
+                    totalUpdated += updated;
+                    totalErrors += errors;
+
+                    if (summary.details?.created) allCreatedItems.push(...summary.details.created);
+                    if (summary.details?.errors) {
+                        // Adjust row numbers to match global index
+                        const batchErrors = summary.details.errors.map((e: any) => ({
+                            ...e,
+                            row: e.row === 0 ? 0 : e.row + (i * BATCH_SIZE) // Approximate row adjustment if 0 not returned
+                        }));
+                        allErrorItems.push(...batchErrors);
+                    }
+
+                    setLogs(prev => [...prev, `✅ Batch ${batchNum}: ${created} created, ${updated} updated, ${errors} errors`]);
+
+                } catch (err: any) {
+                    setLogs(prev => [...prev, `❌ Batch ${batchNum} Failed: ${err.message}`]);
+                    // Don't stop entire import, just log error? Or throw?
+                    // Usually better to fail fast on network errors, but continue on data errors.
+                    // If fetch failed (network), we might want to stop or retry.
+                    // For now, we log and continue, but mark as error count?
+                    totalErrors += chunk.length;
+                    allErrorItems.push({ row: i * BATCH_SIZE, field: 'BATCH', error: `Batch failed: ${err.message}` });
+                }
             }
+
+            setImportProgress({
+                status: 'complete',
+                message: `Complete: ${totalCreated} created, ${totalUpdated} updated, ${totalErrors} errors`,
+                progress: 100,
+                created: totalCreated,
+                updated: totalUpdated,
+                errors: totalErrors
+            });
+
+            setImportDetails({
+                created: allCreatedItems,
+                errors: allErrorItems,
+                createdCount: totalCreated,
+                updatedCount: totalUpdated,
+                errorsCount: totalErrors
+            });
+
+            setLogs(prev => [...prev, `🏁 Import Complete!`]);
+
+            return { createdCount: totalCreated, updatedCount: totalUpdated, errorsCount: totalErrors, errorItems: allErrorItems, createdItems: allCreatedItems };
         },
         onSuccess: (data) => {
             const { createdCount, updatedCount, errorsCount, errorItems, createdItems } = data;
 
             if (createdCount > 0 || updatedCount > 0) {
                 const action = updatedCount > 0 ? (createdCount > 0 ? 'Imported & Updated' : 'Updated') : 'Imported';
-                const count = createdCount + updatedCount;
-
                 if (errorsCount > 0) {
-                    const errorSummary = generateErrorSummary(errorItems);
-                    toast.warning(`${action} ${count} records. ${errorsCount} failed.`, {
-                        description: `Issues: ${errorSummary}. Check the list below for details.`,
-                        duration: 8000,
-                    });
+                    toast.warning(`${action} some records with ${errorsCount} errors.`);
                 } else {
-                    toast.success(`${action} ${count} records successfully.`);
+                    toast.success(`${action} all records successfully.`);
                     if (onImportComplete) onImportComplete(createdItems);
-                    if (onClose) setTimeout(onClose, 1500); // Only close automatically if purely successful
+                    // if (onClose) setTimeout(onClose, 2000); // Keep open to show logs
                 }
             } else {
-                const errorSummary = generateErrorSummary(errorItems);
-                toast.error(`Import failed. ${errorsCount} errors found.`, {
-                    description: `Top issues: ${errorSummary}. Check the list below for details.`,
-                    duration: 8000,
-                });
+                toast.error(`Import failed. ${errorsCount} errors found.`);
             }
         },
         onError: (err: any) => {
             setImportProgress({ status: 'error', message: err.message, progress: 0 });
+            toast.error(err.message);
+        }
+    });
+
+    // AI Mapping Mutation
+    const aiMappingMutation = useMutation({
+        mutationFn: async () => {
+            if (!importResult?.data?.[0]) throw new Error("No data to map");
+
+            const headers = Object.keys(importResult.data[0]);
+
+            const res = await fetch(apiUrl('/api/import-export/ai-mapping'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ headers, entityType })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'AI Mapping failed');
+
+            return data.mapping;
+        },
+        onSuccess: (newMapping) => {
+            if (newMapping && Object.keys(newMapping).length > 0) {
+                // Merge with existing, AI takes precedence or maybe just fill missing?
+                // Let's overwrite for now as user explicitly asked for AI help
+                // But maybe keep user manual selections? 
+                // "Auto-Map" usually implies "Do it for me".
+                setColumnMapping(prev => ({ ...prev, ...newMapping }));
+                toast.success(`AI mapped ${Object.keys(newMapping).length} columns`);
+            } else {
+                toast.info('AI could not find any confident mappings');
+            }
+        },
+        onError: (err: any) => {
             toast.error(err.message);
         }
     });
@@ -389,6 +592,14 @@ export default function BulkImportSidebar({
 
                         {(activeStep === 1 || !selectedFile) && (
                             <div className="space-y-4 ml-8">
+                                {/* Template Download Link */}
+                                <div className="flex justify-end">
+                                    <Button variant="link" size="sm" className="text-xs h-auto p-0 text-muted-foreground hover:text-primary flex items-center gap-1" onClick={handleDownloadTemplate}>
+                                        <Download className="w-3 h-3" />
+                                        Download CSV Template
+                                    </Button>
+                                </div>
+
                                 {/* MC Selection */}
                                 <div className="space-y-1">
                                     <Label className="text-xs">Assign to MC Number (Applies to all rows if not in file)</Label>
@@ -424,8 +635,8 @@ export default function BulkImportSidebar({
                                     </div>
                                 )}
 
-                                {/* Update Existing Option (Drivers only) */}
-                                {entityType === 'drivers' && selectedFile && (
+                                {/* Update Existing Option (Drivers & Loads & Assets) */}
+                                {(entityType === 'drivers' || entityType === 'loads' || entityType === 'trucks' || entityType === 'trailers') && selectedFile && (
                                     <div className="flex items-start space-x-2 pt-2">
                                         <Checkbox
                                             id="update-existing"
@@ -446,14 +657,66 @@ export default function BulkImportSidebar({
                                     </div>
                                 )}
 
-                                {selectedFile && importResult && (
-                                    <Button className="w-full" onClick={() => setActiveStep(2)}>
-                                        Next: Map Columns <ArrowRight className="w-4 h-4 ml-2" />
-                                    </Button>
+                                {selectedFile && (
+                                    <div className="flex justify-end pt-2">
+                                        <Button
+                                            onClick={() => setActiveStep(2)}
+                                            className="gap-2"
+                                            disabled={!importResult || isProcessing}
+                                        >
+                                            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Next Step'}
+                                            {!isProcessing && <ArrowRight className="w-4 h-4 ml-2" />}
+                                        </Button>
+                                    </div>
                                 )}
                             </div>
                         )}
                     </section>
+
+                    {/* AI Advisor Section */}
+                    {selectedFile && (analyzeFileMutation.isPending || aiAnalysis) && activeStep === 1 && (
+                        <section className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-lg p-4 space-y-3 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-full shrink-0">
+                                    <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                </div>
+                                <div className="space-y-2 flex-1">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-semibold text-sm text-indigo-900 dark:text-indigo-100">AI Import Advisor</h4>
+                                        {aiAnalysis?.confidence && (
+                                            <Badge variant="secondary" className="text-[10px] bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
+                                                {aiAnalysis.confidence} Confidence
+                                            </Badge>
+                                        )}
+                                    </div>
+
+                                    {analyzeFileMutation.isPending ? (
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                            Analyzing file structure and data quality...
+                                        </div>
+                                    ) : aiAnalysis ? (
+                                        <>
+                                            <p className="text-sm text-indigo-800 dark:text-indigo-200 leading-relaxed">
+                                                {aiAnalysis.summary}
+                                            </p>
+
+                                            {aiAnalysis.tips && aiAnalysis.tips.length > 0 && (
+                                                <div className="bg-white/50 dark:bg-black/20 rounded p-3 text-xs space-y-1.5">
+                                                    {aiAnalysis.tips.map((tip, idx) => (
+                                                        <div key={idx} className="flex gap-2">
+                                                            <span className="text-indigo-500">•</span>
+                                                            <span className="text-indigo-900 dark:text-indigo-100">{tip}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : null}
+                                </div>
+                            </div>
+                        </section>
+                    )}
 
                     {/* Step 2: Mapping */}
                     {selectedFile && importResult && (
@@ -473,6 +736,76 @@ export default function BulkImportSidebar({
 
                             {activeStep === 2 && (
                                 <div className="space-y-4 ml-8">
+                                    {/* Saved Mappings & AI Toolbar */}
+                                    <div className="flex items-center justify-between gap-2">
+                                        {/* Saved Mappings Selector */}
+                                        <div className="flex-1 min-w-0">
+                                            <Select onValueChange={handleLoadMapping}>
+                                                <SelectTrigger className="h-8 text-xs w-full">
+                                                    <SelectValue placeholder="Load Saved Mapping..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none" disabled className="text-muted-foreground text-xs">select a profile...</SelectItem>
+                                                    {savedMappings?.map(m => (
+                                                        <SelectItem key={m.id} value={m.id} className="text-xs">{m.name}</SelectItem>
+                                                    ))}
+                                                    {(!savedMappings || savedMappings.length === 0) && (
+                                                        <div className="p-2 text-xs text-muted-foreground text-center">No saved profiles</div>
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Save Current Mapping */}
+                                        <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+                                            <DialogTrigger asChild>
+                                                <Button variant="outline" size="sm" className="h-8 px-2 text-xs gap-1" disabled={Object.keys(columnMapping).length === 0}>
+                                                    <Save className="w-3 h-3" />
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-[425px]">
+                                                <DialogHeader>
+                                                    <DialogTitle>Save Mapping Profile</DialogTitle>
+                                                    <DialogDescription>
+                                                        Save your current column configuration to reuse later.
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="grid gap-4 py-4">
+                                                    <div className="grid grid-cols-4 items-center gap-4">
+                                                        <Label htmlFor="name" className="text-right">
+                                                            Name
+                                                        </Label>
+                                                        <Input
+                                                            id="name"
+                                                            value={mappingName}
+                                                            onChange={(e) => setMappingName(e.target.value)}
+                                                            className="col-span-3"
+                                                            placeholder="e.g., TQL Load Sheet"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <DialogFooter>
+                                                    <Button onClick={() => saveMappingMutation.mutate(mappingName)} disabled={!mappingName}>Save Profile</Button>
+                                                </DialogFooter>
+                                            </DialogContent>
+                                        </Dialog>
+
+                                        {/* AI Auto-Map Button */}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-950/30"
+                                            onClick={() => aiMappingMutation.mutate()}
+                                            disabled={aiMappingMutation.isPending}
+                                        >
+                                            {aiMappingMutation.isPending ? (
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                                <Sparkles className="w-3 h-3" />
+                                            )}
+                                            AI Auto-Map
+                                        </Button>
+                                    </div>
                                     {/* Alerts & Quick Actions */}
                                     {unmappedRequired.length > 0 && (
                                         <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-md border border-yellow-200 dark:border-yellow-800 space-y-3">
@@ -819,13 +1152,13 @@ export default function BulkImportSidebar({
                                 <div className="grid grid-cols-3 gap-2 text-center">
                                     <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
                                         <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                                            {importDetails.created.length}
+                                            {(importDetails.createdCount ?? 0) + (importDetails.updatedCount ?? 0)}
                                         </p>
                                         <p className="text-xs text-green-600 dark:text-green-400 font-medium">Synced</p>
                                     </div>
                                     <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
                                         <p className="text-2xl font-bold text-red-700 dark:text-red-300">
-                                            {importDetails.errors.length}
+                                            {importDetails.errorsCount ?? importDetails.errors.length}
                                         </p>
                                         <p className="text-xs text-red-600 dark:text-red-400 font-medium">Failed</p>
                                     </div>
@@ -881,26 +1214,33 @@ export default function BulkImportSidebar({
                         </section>
                     )}
 
-                    {/* Progress Status (Only show when running, hide when showing results) */}
-                    {importProgress.status !== 'idle' && !importDetails && (
-                        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t">
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-xs">
-                                    <span className={importProgress.status === 'error' ? 'text-destructive' : 'text-muted-foreground'}>
-                                        {importProgress.message}
-                                    </span>
-                                    <span>{importProgress.progress}%</span>
-                                </div>
-                                <Progress
-                                    value={importProgress.progress}
-                                    className={`h-2 ${importProgress.status === 'error' ? '[&>div]:bg-destructive' : ''}`}
-                                />
-                            </div>
-                        </div>
-                    )}
+                    {/* Log Console (Moved to outer scope) */}
 
                 </div>
             </ScrollArea>
+
+            {/* Log Console (Pinned to bottom) */}
+            {(importProgress.status !== 'idle' || logs.length > 0) && !importDetails && (
+                <div className="border-t shadow-lg flex flex-col max-h-[200px] shrink-0">
+                    {/* Header / Progress Bar */}
+                    <div className="px-4 py-2 bg-muted/50 border-b flex items-center justify-between">
+                        <span className="text-xs font-semibold flex items-center gap-2">
+                            {importProgress.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                            {importProgress.message}
+                        </span>
+                        <span className="text-xs font-mono">{importProgress.progress}%</span>
+                    </div>
+                    <Progress value={importProgress.progress} className="h-1 rounded-none" />
+
+                    {/* Logs Area */}
+                    <div className="flex-1 p-4 overflow-y-auto bg-black text-green-400 font-mono text-xs space-y-1 h-32">
+                        {logs.map((log, i) => (
+                            <div key={i}>{log}</div>
+                        ))}
+                        <div ref={logsEndRef} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

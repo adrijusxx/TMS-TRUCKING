@@ -21,9 +21,9 @@ model User {
   firstName      String
   lastName       String
   phone          String?
-  nickname       String?   // Display name / preferred name (e.g., for dispatchers)
+  nickname       String? // Display name / preferred name (e.g., for dispatchers)
   tags           String[]  @default([]) // User tags (e.g., REMOTE, ON-SITE, FULL-TIME, PART-TIME)
-  notes          String?   // Additional notes about the user
+  notes          String? // Additional notes about the user
   role           UserRole
   companyId      String // Primary/default company
   company        Company   @relation(fields: [companyId], references: [id])
@@ -37,65 +37,68 @@ model User {
   deletedAt      DateTime?
 
   // Onboarding
-  onboardingStep     Int       @default(1)    // Current step in registration wizard (1-4)
-  onboardingComplete Boolean   @default(false) // Has completed full onboarding
+  onboardingStep     Int     @default(1) // Current step in registration wizard (1-4)
+  onboardingComplete Boolean @default(false) // Has completed full onboarding
 
   // VoIP Integration (Yokomobile)
-  voipConfig         Json?     // Stores per-user VoIP settings: { username, password, answerDevice, enabled }
+  voipConfig Json? // Stores per-user VoIP settings: { username, password, answerDevice, enabled }
 
   // Relations for driver-specific data
-  drivers                    Driver[]
-  activityLogs               ActivityLog[]
-  notificationPreferences    NotificationPreferences?
-  inventoryTransactions      InventoryTransaction[]
-  createdBatches             InvoiceBatch[]
-  createdPayments            Payment[]
-  reconciliations            Reconciliation[]
-  dispatchedLoads            Load[]                   @relation("LoadDispatcher")
-  createdLoads               Load[]                   @relation("LoadCreatedBy")
+  drivers                 Driver[]
+  activityLogs            ActivityLog[]
+  notificationPreferences NotificationPreferences?
+  inventoryTransactions   InventoryTransaction[]
+  createdBatches          InvoiceBatch[]
+  createdPayments         Payment[]
+  reconciliations         Reconciliation[]
+  dispatchedLoads         Load[]                   @relation("LoadDispatcher")
+  createdLoads            Load[]                   @relation("LoadCreatedBy")
 
-  assignedDrivers            Driver[]                 @relation("DriverDispatcher")
-  hrManagedDrivers           Driver[]                 @relation("DriverHRManager")
-  safetyManagedDrivers       Driver[]                 @relation("DriverSafetyManager")
-  driverComments             DriverComment[]          @relation("DriverCommentCreator")
-  createdCommunications      Communication[]          @relation("CommunicationCreator")
+  assignedDrivers            Driver[]               @relation("DriverDispatcher")
+  hrManagedDrivers           Driver[]               @relation("DriverHRManager")
+  safetyManagedDrivers       Driver[]               @relation("DriverSafetyManager")
+  driverComments             DriverComment[]        @relation("DriverCommentCreator")
+  createdCommunications      Communication[]        @relation("CommunicationCreator")
   userCompanies              UserCompany[] // Multi-company access
-  createdProjects            Project[]                @relation("ProjectCreator")
-  assignedProjects           Project[]                @relation("ProjectAssignee")
-  createdTasks               Task[]                   @relation("TaskCreator")
-  assignedTasks              Task[]                   @relation("TaskAssignee")
+  createdProjects            Project[]              @relation("ProjectCreator")
+  assignedProjects           Project[]              @relation("ProjectAssignee")
+  createdTasks               Task[]                 @relation("TaskCreator")
+  assignedTasks              Task[]                 @relation("TaskAssignee")
   breakdownAssignments       BreakdownAssignment[] // Breakdown case assignments
   // Accounting Relations
-  shortPayApprovedInvoices   Invoice[]                @relation("ShortPayApprover")
-  writeOffInvoices           Invoice[]                @relation("WriteOffBy")
+  shortPayApprovedInvoices   Invoice[]              @relation("ShortPayApprover")
+  writeOffInvoices           Invoice[]              @relation("WriteOffBy")
   approvedAccessorialCharges AccessorialCharge[]
   matchedRateConfirmations   RateConfirmation[]
-  onCallShifts               OnCallShift[]            @relation("OnCallShifts")
-  createdOnCallShifts        OnCallShift[]            @relation("OnCallShiftCreator")
+  onCallShifts               OnCallShift[]          @relation("OnCallShifts")
+  createdOnCallShifts        OnCallShift[]          @relation("OnCallShiftCreator")
   // New Accounting Relations
-  approvedSettlements        Settlement[]             @relation("SettlementApprover")
-  approvedAdvances           DriverAdvance[]          @relation("AdvanceApprover")
-  approvedExpenses           LoadExpense[]            @relation("ExpenseApprover")
-  settlementApprovals        SettlementApproval[]     @relation("SettlementApprovalHistory")
+  approvedSettlements        Settlement[]           @relation("SettlementApprover")
+  approvedAdvances           DriverAdvance[]        @relation("AdvanceApprover")
+  approvedExpenses           LoadExpense[]          @relation("ExpenseApprover")
+  settlementApprovals        SettlementApproval[]   @relation("SettlementApprovalHistory")
   createdSalaryBatches       SalaryBatch[]
   // AI Relations
-  reviewedAISuggestions      AISuggestion[]           @relation("AISuggestionReviewer")
-  appliedAISuggestions       AISuggestion[]           @relation("AISuggestionApplier")
+  reviewedAISuggestions      AISuggestion[]         @relation("AISuggestionReviewer")
+  appliedAISuggestions       AISuggestion[]         @relation("AISuggestionApplier")
   // User Preferences
   columnPreferences          UserColumnPreference[]
   // Samsara Integration
   reviewedSamsaraDevices     SamsaraDeviceQueue[]
   resolvedFaults             TruckFaultHistory[]
   // Fleet Vendors
-  createdVendors             Vendor[]              @relation("VendorCreatedBy")
+  createdVendors             Vendor[]               @relation("VendorCreatedBy")
   auditLogs                  AuditLog[]
   // CRM Relations
-  assignedLeads              Lead[]                @relation("LeadAssignee")
-  createdLeads               Lead[]                @relation("LeadCreator")
-  leadNotes                  LeadNote[]            @relation("LeadNoteCreator")
-  leadActivities             LeadActivity[]        @relation("LeadActivityCreator")
-  uploadedLeadDocuments      LeadDocument[]        @relation("LeadDocumentUploader")
+  assignedLeads              Lead[]                 @relation("LeadAssignee")
+  createdLeads               Lead[]                 @relation("LeadCreator")
+  leadNotes                  LeadNote[]             @relation("LeadNoteCreator")
+  leadActivities             LeadActivity[]         @relation("LeadActivityCreator")
+  uploadedLeadDocuments      LeadDocument[]         @relation("LeadDocumentUploader")
 
+  // Import Features
+  importMappingProfiles ImportMappingProfile[] @relation("UserImportProfiles")
+  importBatches         ImportBatch[]          @relation("UserImportBatches")
 
   @@index([companyId])
   @@index([email])
@@ -162,24 +165,23 @@ model Company {
 
   // SaaS / Subscription
   stripeCustomerId   String?
-  subscriptionStatus SubscriptionStatus @default(FREE)
+  subscriptionStatus SubscriptionStatus  @default(FREE)
   subscription       Subscription?
   quickBooksSettings QuickBooksSettings?
   samsaraSettings    SamsaraSettings?
 
   // Subscription Tier & Limits
-  trialEndsAt        DateTime?              // When 14-day Pro trial expires
+  trialEndsAt        DateTime? // When 14-day Pro trial expires
   truckLimit         Int       @default(999) // 1 for owner-operator tier
   onboardingComplete Boolean   @default(false) // Has completed data import onboarding
   isReadOnly         Boolean   @default(false) // True if downgraded to Core (trial expired)
 
   deletedAt DateTime?
 
-
   // Relations
-  users                     User[]
-  userCompanies             UserCompany[]
-  loads                     Load[]
+  users         User[]
+  userCompanies UserCompany[]
+  loads         Load[]
 
   drivers                   Driver[]
   trucks                    Truck[]
@@ -250,37 +252,86 @@ model Company {
   policeReports             PoliceReport[]
   accountingSettings        AccountingSettings?
 
-  witnessStatements         WitnessStatement[]
-  csascores                 CSAScore[]
-  fmcsacompliance           FMCSACompliance?
-  dataQSubmissions          DataQSubmission[]
-  insurancePolicies         InsurancePolicy[]
-  cargoClaims               CargoClaim[]
-  propertyDamages           PropertyDamage[]
-  lossRuns                  LossRun[]
-  safetyMeetings            SafetyMeeting[]
-  safetyPolicies            SafetyPolicy[]
-  safetyCampaigns           SafetyCampaign[]
-  safetyRecognitions        SafetyRecognition[]
+  witnessStatements      WitnessStatement[]
+  csascores              CSAScore[]
+  fmcsacompliance        FMCSACompliance?
+  dataQSubmissions       DataQSubmission[]
+  insurancePolicies      InsurancePolicy[]
+  cargoClaims            CargoClaim[]
+  propertyDamages        PropertyDamage[]
+  lossRuns               LossRun[]
+  safetyMeetings         SafetyMeeting[]
+  safetyPolicies         SafetyPolicy[]
+  safetyCampaigns        SafetyCampaign[]
+  safetyRecognitions     SafetyRecognition[]
   // AI Relations
-  aiSuggestions             AISuggestion[]             @relation("AISuggestions")
-  trainingMaterials         TrainingMaterial[]
-  complianceAlerts          ComplianceAlert[]
-  insuranceClaims           InsuranceClaim[]
-  companySettings           CompanySettings?
-  customFields              CustomField[]
-  systemConfig              SystemConfig?
+  aiSuggestions          AISuggestion[]          @relation("AISuggestions")
+  trainingMaterials      TrainingMaterial[]
+  complianceAlerts       ComplianceAlert[]
+  insuranceClaims        InsuranceClaim[]
+  companySettings        CompanySettings?
+  customFields           CustomField[]
+  systemConfig           SystemConfig?
   // Samsara Integration
-  samsaraDeviceQueue        SamsaraDeviceQueue[]
-  truckFaultHistory         TruckFaultHistory[]
-  knowledgeBaseDocuments    KnowledgeBaseDocument[]
-  apiKeys                   ApiKeyConfig[]
-  salaryBatches             SalaryBatch[]
+  samsaraDeviceQueue     SamsaraDeviceQueue[]
+  truckFaultHistory      TruckFaultHistory[]
+  knowledgeBaseDocuments KnowledgeBaseDocument[]
+  apiKeys                ApiKeyConfig[]
+  salaryBatches          SalaryBatch[]
   // CRM Relations
-  leads                     Lead[]
-  integrationSettings       IntegrationSettings?
+  leads                  Lead[]
+  integrationSettings    IntegrationSettings?
   // AI Relations
-  aiAnomalies               AIAnomaly[]
+  aiAnomalies            AIAnomaly[]
+
+  // Import Features
+  importMappingProfiles ImportMappingProfile[]
+  importBatches         ImportBatch[]
+}
+
+// ============================================
+// IMPORT FEATURES
+// ============================================
+
+model ImportMappingProfile {
+  id         String   @id @default(cuid())
+  name       String
+  entityType String // 'driver', 'load', 'customer', etc.
+  mapping    Json // { "CSV Header": "systemField" }
+  userId     String
+  user       User     @relation("UserImportProfiles", fields: [userId], references: [id])
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, entityType])
+  @@index([companyId, entityType])
+}
+
+model ImportBatch {
+  id          String   @id @default(cuid())
+  entityType  String
+  status      String // 'COMPLETED', 'ROLLED_BACK'
+  recordCount Int
+  filename    String?
+  userId      String
+  user        User     @relation("UserImportBatches", fields: [userId], references: [id])
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations to created entities
+  loads     Load[]
+  drivers   Driver[]
+  trucks    Truck[]
+  trailers  Trailer[]
+  customers Customer[]
+  vendors   Vendor[]
+  locations Location[]
+
+  @@index([companyId, entityType])
 }
 
 // ============================================
@@ -432,6 +483,11 @@ model Load {
   driverAdvances     DriverAdvance[]
   loadExpenses       LoadExpense[]
 
+  // Batch Import Tracking
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  @@unique([companyId, loadNumber])
   @@index([companyId])
   @@index([customerId])
   @@index([driverId])
@@ -449,7 +505,6 @@ model Load {
   @@index([companyId, mcNumberId, createdAt])
   @@index([companyId, driverId, status])
   @@index([companyId, status, createdAt])
-  @@unique([companyId, loadNumber])
 }
 
 model LoadStop {
@@ -512,7 +567,6 @@ model LoadStop {
 }
 
 // ============================================
-
 
 enum StopType {
   PICKUP
@@ -776,10 +830,10 @@ model Driver {
   onTimePercentage Float  @default(100)
 
   // Pay
-  payType      PayType @default(PER_MILE)
-  payRate      Float
+  payType PayType @default(PER_MILE)
+  payRate Float
 
-  payTo        String? // Who to pay to (e.g., company name)
+  payTo String? // Who to pay to (e.g., company name)
 
   // Deduction Configuration
   escrowBalance          Float  @default(0) // Current escrow balance (read-only, calculated)
@@ -790,9 +844,9 @@ model Driver {
   // Warnings
   warnings String?
 
-  isActive  Boolean   @default(true)
-  aiAutoReply Boolean  @default(false) // Toggle for AI auto-responses to this driver
-  
+  isActive    Boolean @default(true)
+  aiAutoReply Boolean @default(false) // Toggle for AI auto-responses to this driver
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
@@ -801,6 +855,9 @@ model Driver {
   deletedAt DateTime?
 
   // Relations
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
   loads                     Load[]
   coDriverLoads             Load[]                    @relation("CoDriver")
   loadSegments              LoadSegment[]
@@ -845,6 +902,8 @@ model Driver {
   iftaEntries               IFTAEntry[]
   telegramMapping           TelegramDriverMapping? // Telegram integration
 
+  @@unique([userId, companyId])
+  @@unique([companyId, driverNumber])
   @@index([companyId])
   @@index([status])
   @@index([employeeStatus])
@@ -854,8 +913,6 @@ model Driver {
   @@index([currentTrailerId])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
-  @@unique([userId, companyId])
-  @@unique([companyId, driverNumber])
 }
 
 model DriverTruckHistory {
@@ -1077,11 +1134,15 @@ model Truck {
   warnings   String? // Warnings field
 
   maintenanceSchedules MaintenanceSchedule[]
-  
-  isActive  Boolean   @default(true)
-  
+
+  isActive Boolean @default(true)
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
+
+  // Batch Import Tracking
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1109,14 +1170,14 @@ model Truck {
   maintenanceRecords  MaintenanceRecord[]
   iftaEntries         IFTAEntry[]
 
+  @@unique([companyId, truckNumber])
+  @@unique([companyId, vin])
   @@index([companyId])
   @@index([status])
   @@index([truckNumber])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
   @@index([samsaraId])
-  @@unique([companyId, truckNumber])
-  @@unique([companyId, vin])
 }
 
 // ============================================
@@ -1173,22 +1234,24 @@ model Trailer {
   deletedAt DateTime?
 
   // Relations
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
   loads                 Load[]
   driverTrailerHistory  DriverTrailerHistory[]
   currentDriverTrailers Driver[]               @relation("CurrentTrailer")
   breakdowns            Breakdown[]
+  // Migration metadata - stores unmapped fields from source TMS
+  metadata              Json?
 
+  @@unique([companyId, trailerNumber])
+  @@unique([companyId, vin])
   @@index([companyId])
   @@index([trailerNumber])
-  // Migration metadata - stores unmapped fields from source TMS
-  metadata Json?
-
   @@index([assignedTruckId])
   @@index([mcNumberId])
   @@index([companyId, mcNumberId])
   @@index([samsaraId])
-  @@unique([companyId, trailerNumber])
-  @@unique([companyId, vin])
 }
 
 model FuelEntry {
@@ -1215,8 +1278,8 @@ model FuelEntry {
   receiptNumber String? // Vendor receipt number (external)
   notes         String?
 
-  vendor    String?
-  state     String? // State/Province where fuel was purchased
+  vendor String?
+  state  String? // State/Province where fuel was purchased
 
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
@@ -1281,6 +1344,7 @@ model MaintenanceRecord {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([companyId, maintenanceNumber])
   @@index([truckId])
   @@index([date])
   @@index([nextServiceDate])
@@ -1288,7 +1352,6 @@ model MaintenanceRecord {
   @@index([vendorId])
   @@index([status])
   @@index([maintenanceNumber])
-  @@unique([companyId, maintenanceNumber])
 }
 
 model MaintenanceSchedule {
@@ -1302,7 +1365,7 @@ model MaintenanceSchedule {
   intervalMiles   Int             @default(0)
   intervalMonths  Int             @default(0)
   active          Boolean         @default(true)
-  
+
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -1383,7 +1446,7 @@ model Breakdown {
   latitude        Float?
   longitude       Float?
   odometerReading Float
-  
+
   // Telematics Payload (Phase 2 & 3 support)
   telematicsSnapshot Json? // Stores full vehicle state (location, fuel, faults) at creation time
 
@@ -1460,6 +1523,7 @@ model Breakdown {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  @@unique([companyId, breakdownNumber])
   @@index([companyId])
   @@index([truckId])
   @@index([loadId])
@@ -1469,7 +1533,6 @@ model Breakdown {
   @@index([status])
   @@index([breakdownType])
   @@index([reportedAt])
-  @@unique([companyId, breakdownNumber])
 }
 
 enum BreakdownType {
@@ -1587,9 +1650,10 @@ model Communication {
   updatedAt DateTime @updatedAt
 
   // Relations
-  aiResponseLogs AIResponseLog[] // AI analysis logs for this communication
+  aiResponseLogs    AIResponseLog[] // AI analysis logs for this communication
   telegramMessageId Int? // Telegram message ID for tracking
 
+  @@unique([companyId, ticketNumber])
   @@index([companyId])
   @@index([breakdownId])
   @@index([driverId])
@@ -1599,7 +1663,6 @@ model Communication {
   @@index([createdAt])
   @@index([telegramChatId])
   @@index([ticketNumber])
-  @@unique([companyId, ticketNumber])
 }
 
 enum CommunicationChannel {
@@ -1672,8 +1735,8 @@ model Customer {
   billingType    String? // Billing type from Excel
 
   // Tax Configuration
-  taxRate     Float    @default(0) // Default tax rate percentage (0-100)
-  isTaxExempt Boolean  @default(false)
+  taxRate     Float   @default(0) // Default tax rate percentage (0-100)
+  isTaxExempt Boolean @default(false)
 
   // QuickBooks
   qbCustomerId String? // QuickBooks customer ID
@@ -1719,8 +1782,8 @@ model Customer {
   detentionFreeTimeHours Float? // Customer-specific free time (hours) before detention charges apply
   detentionRate          Float? // Customer-specific detention rate ($/hour)
 
-  isActive  Boolean   @default(true)
-  
+  isActive Boolean @default(true)
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
@@ -1734,7 +1797,10 @@ model Customer {
   preferredPaymentMethod PaymentMethod?
 
   // Relations
-  loads          Load[]
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
+  loads Load[]
 
   invoices       Invoice[]
   contacts       CustomerContact[]
@@ -1742,13 +1808,13 @@ model Customer {
   invoiceBatches InvoiceBatch[]
   tariffs        Tariff[]
 
+  @@unique([companyId, customerNumber])
   @@index([companyId])
   @@index([customerNumber])
   @@index([creditHold])
   @@index([factoringCompanyId])
   @@index([mcNumber])
   @@index([companyId, mcNumber])
-  @@unique([companyId, customerNumber])
 }
 
 // ============================================
@@ -2010,6 +2076,7 @@ model Invoice {
   accessorialCharges AccessorialCharge[]
   rateConfirmation   RateConfirmation?
 
+  @@unique([companyId, invoiceNumber])
   @@index([companyId])
   @@index([customerId])
   @@index([status])
@@ -2029,7 +2096,6 @@ model Invoice {
   @@index([customerId, status, createdAt])
   @@index([status, createdAt])
   @@index([mcNumber, status])
-  @@unique([companyId, invoiceNumber])
 }
 
 enum InvoiceStatus {
@@ -2129,7 +2195,7 @@ model SalaryBatch {
 
   batchNumber String
   status      SalaryBatchStatus @default(OPEN)
-  
+
   periodStart DateTime
   periodEnd   DateTime
 
@@ -2175,7 +2241,7 @@ model SettlementDeduction {
   settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
 
   deductionType DeductionType
-  category      String?    // "addition" | "deduction"
+  category      String? // "addition" | "deduction"
   description   String
   amount        Float
 
@@ -2406,11 +2472,11 @@ model DeductionRule {
 
   // Conditions
   minGrossPay Float? // Only apply if gross pay exceeds this
-  
+
   // Stop Limit / Goal
   goalAmount    Float? // Total target amount to collect (e.g. $1000 Escrow)
   currentAmount Float  @default(0) // Amount collected so far
-  maxAmount   Float? // Cap the deduction at this amount
+  maxAmount     Float? // Cap the deduction at this amount
 
   isActive Boolean @default(true)
 
@@ -2635,13 +2701,13 @@ model InvoiceBatch {
   items    InvoiceBatchItem[]
   invoices Invoice[]
 
+  @@unique([companyId, batchNumber])
   @@index([companyId])
   @@index([postStatus])
   @@index([batchNumber])
   @@index([createdById])
   @@index([factoringCompanyId])
   @@index([customerId])
-  @@unique([companyId, batchNumber])
 }
 
 model InvoiceBatchItem {
@@ -2886,8 +2952,8 @@ model FactoringCompany {
   contactEmail String?
   contactPhone String?
 
-  isActive  Boolean  @default(true)
-  
+  isActive Boolean @default(true)
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
@@ -3050,20 +3116,20 @@ model RateConfirmation {
 // ============================================
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String   // User who performed action
-  user        User     @relation(fields: [userId], references: [id])
-  
-  action      String   // CREATE_COMPANY, EDIT_USER, etc.
-  entityType  String   // Company, User, McNumber, etc.
-  entityId    String?  // ID of affected entity
-  metadata    Json?    // Detailed changes or context
-  
-  ipAddress   String?
-  userAgent   String?
-  
-  createdAt   DateTime @default(now())
-  
+  id     String @id @default(cuid())
+  userId String // User who performed action
+  user   User   @relation(fields: [userId], references: [id])
+
+  action     String // CREATE_COMPANY, EDIT_USER, etc.
+  entityType String // Company, User, McNumber, etc.
+  entityId   String? // ID of affected entity
+  metadata   Json? // Detailed changes or context
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
   @@index([userId])
   @@index([action])
   @@index([entityType])
@@ -3221,13 +3287,13 @@ model Inspection {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  @@unique([companyId, inspectionNumber])
   @@index([companyId])
   @@index([truckId])
   @@index([driverId])
   @@index([inspectionType])
   @@index([inspectionDate])
   @@index([status])
-  @@unique([companyId, inspectionNumber])
 }
 
 enum InspectionType {
@@ -3297,10 +3363,10 @@ model InventoryItem {
   // Relations
   transactions InventoryTransaction[]
 
+  @@unique([companyId, itemNumber])
   @@index([companyId])
   @@index([itemNumber])
   @@index([category])
-  @@unique([companyId, itemNumber])
 }
 
 model InventoryTransaction {
@@ -3377,11 +3443,11 @@ model Vendor {
   phone   String?
   email   String?
   website String?
-  
+
   // Location Data (Phase 3)
-  latitude    Float?
-  longitude   Float?
-  services    String[] @default([]) // e.g. ["TIRE", "TOWING", "ENGINE"]
+  latitude  Float?
+  longitude Float?
+  services  String[] @default([]) // e.g. ["TIRE", "TOWING", "ENGINE"]
 
   // Billing
   billingAddress String?
@@ -3411,17 +3477,20 @@ model Vendor {
   specialties String? // Specialties (e.g., "Engine, Transmission, Brakes")
 
   // Relations
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
+
   contacts           VendorContact[]
   inventoryItems     InventoryItem[]
   transactions       InventoryTransaction[]
   expenses           LoadExpense[]
   factoringBatches   FactoringBatch[]
   maintenanceRecords MaintenanceRecord[]
-  createdBy          User?    @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  createdBy          User?                  @relation("VendorCreatedBy", fields: [createdById], references: [id])
   createdById        String?
 
-  isActive  Boolean   @default(true)
-  
+  isActive Boolean @default(true)
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
@@ -3429,10 +3498,10 @@ model Vendor {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  @@unique([companyId, vendorNumber])
   @@index([companyId])
   @@index([vendorNumber])
   @@index([createdById])
-  @@unique([companyId, vendorNumber])
 }
 
 enum VendorType {
@@ -3504,20 +3573,24 @@ model Location {
   deliveryCount Int @default(0)
 
   // Status
-  isActive  Boolean   @default(true)
-  
+  isActive Boolean @default(true)
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
+
+  // Batch Import Tracking
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id])
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  @@unique([companyId, locationNumber])
   @@index([companyId])
   @@index([locationNumber])
   @@index([type])
   @@index([city, state])
-  @@unique([companyId, locationNumber])
 }
 
 enum LocationType {
@@ -5472,25 +5545,25 @@ model McNumber {
   number       String // MC number value
 
   // Branding & Contact Info for this MC
-  logoUrl      String?
-  address      String?
-  city         String?
-  state        String?
-  zip          String?
-  email        String?
-  website      String?
-  branding     Json?    // Stores colors, invoice terms, email signature, etc.
+  logoUrl  String?
+  address  String?
+  city     String?
+  state    String?
+  zip      String?
+  email    String?
+  website  String?
+  branding Json? // Stores colors, invoice terms, email signature, etc.
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   // Relations
-  users                 User[] // Users assigned to this MC number
-  drivers               Driver[] // Drivers assigned to this MC number
-  trucks                Truck[] // Trucks assigned to this MC number
-  trailers              Trailer[] // Trailers assigned to this MC number
-  loads                 Load[] // Loads assigned to this MC number
+  users    User[] // Users assigned to this MC number
+  drivers  Driver[] // Drivers assigned to this MC number
+  trucks   Truck[] // Trucks assigned to this MC number
+  trailers Trailer[] // Trailers assigned to this MC number
+  loads    Load[] // Loads assigned to this MC number
 
   paymentConfigurations PaymentConfiguration[]
   orderPaymentTypes     OrderPaymentType[]
@@ -5802,28 +5875,27 @@ model OrderPaymentType {
 // DYNAMIC STATUSES
 // ============================================
 
-
 // ============================================
 // AI ANOMALY DETECTION
 // ============================================
 
 model AIAnomaly {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
   mcNumberId  String?
   mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
-  type        String   // FUEL_THEFT_RISK, ROUTE_DEVIATION, etc.
-  severity    String   // LOW, MEDIUM, HIGH, CRITICAL
+  type        String // FUEL_THEFT_RISK, ROUTE_DEVIATION, etc.
+  severity    String // LOW, MEDIUM, HIGH, CRITICAL
   title       String
   description String
-  metadata    Json?    // Detailed context (coords, distances, etc.)
-  status      String   @default("OPEN") // OPEN, RESOLVED, DISMISSED
+  metadata    Json? // Detailed context (coords, distances, etc.)
+  status      String    @default("OPEN") // OPEN, RESOLVED, DISMISSED
   resolvedAt  DateTime?
   resolvedBy  String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
   @@index([type])
@@ -6069,13 +6141,13 @@ model Project {
   createdBy    User            @relation("ProjectCreator", fields: [createdById], references: [id])
   priority     ProjectPriority @default(MEDIUM)
   isActive     Boolean         @default(true)
-  
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  deletedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   // Relations
   tasks Task[]
@@ -6117,13 +6189,13 @@ model Task {
   estimatedHours Float?
   actualHours    Float?
   isActive       Boolean      @default(true)
-  
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  deletedAt      DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@index([projectId])
   @@index([status])
@@ -6289,10 +6361,10 @@ model SystemConfig {
   companyFuelTaxRate       Float? // Percentage (e.g., 8.5%)
 
   // Operational Metrics (for Projections — Class 8 industry defaults)
-  averageFuelPrice Float? @default(3.65)  // $/gal (national avg)
-  averageMpg       Float? @default(6.5)   // MPG (Class 8 range: 5.5-7.5)
-  maintenanceCpm   Float? @default(0.18)  // $/mile
-  fixedCostPerDay  Float? @default(85)    // $/day (insurance, ELD, overhead)
+  averageFuelPrice Float? @default(3.65) // $/gal (national avg)
+  averageMpg       Float? @default(6.5) // MPG (Class 8 range: 5.5-7.5)
+  maintenanceCpm   Float? @default(0.18) // $/mile
+  fixedCostPerDay  Float? @default(85) // $/day (insurance, ELD, overhead)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -6311,8 +6383,8 @@ model IntegrationSettings {
 
   // Google Sheets Integration
   googleServiceAccountEmail      String?
-  googleServiceAccountPrivateKey String?  @db.Text  // PEM key can be long
-  googleSheetsEnabled            Boolean  @default(false)
+  googleServiceAccountPrivateKey String? @db.Text // PEM key can be long
+  googleSheetsEnabled            Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -6546,14 +6618,14 @@ model DiagnosticCodeReference {
 
 // Telegram session storage (encrypted)
 model TelegramSession {
-  id             String    @id @default(cuid())
-  sessionData    String    @db.Text // Encrypted session string
-  phoneNumber    String?
-  isActive       Boolean   @default(true)
-  lastConnected  DateTime?
-  connectionError String?  @db.Text
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  sessionData     String    @db.Text // Encrypted session string
+  phoneNumber     String?
+  isActive        Boolean   @default(true)
+  lastConnected   DateTime?
+  connectionError String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([isActive])
 }
@@ -6565,10 +6637,10 @@ model TelegramDriverMapping {
   driver       Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
   aiAutoReply  Boolean  @default(false)
   telegramId   String   @unique // Telegram user ID (numeric)
-  username     String?  // Telegram username (optional)
-  phoneNumber  String?  // Phone number linked to Telegram
-  firstName    String?  // Telegram first name
-  lastName     String?  // Telegram last name
+  username     String? // Telegram username (optional)
+  phoneNumber  String? // Phone number linked to Telegram
+  firstName    String? // Telegram first name
+  lastName     String? // Telegram last name
   registeredAt DateTime @default(now())
   isActive     Boolean  @default(true)
 
@@ -6583,15 +6655,15 @@ model AIResponseLog {
   communicationId String?
   communication   Communication? @relation(fields: [communicationId], references: [id])
 
-  messageContent  String         @db.Text
+  messageContent  String    @db.Text
   aiAnalysis      Json // Store full AI analysis (breakdown detection, entities, urgency, etc.)
   confidence      Float // 0-1 confidence score
-  wasAutoSent     Boolean        @default(false)
-  requiresReview  Boolean        @default(false)
+  wasAutoSent     Boolean   @default(false)
+  requiresReview  Boolean   @default(false)
   reviewedBy      String?
   reviewedAt      DateTime?
-  responseContent String?        @db.Text // AI-generated response
-  actualResponse  String?        @db.Text // Actual response sent (may be edited by staff)
+  responseContent String?   @db.Text // AI-generated response
+  actualResponse  String?   @db.Text // Actual response sent (may be edited by staff)
 
   createdAt DateTime @default(now())
 
@@ -6612,7 +6684,7 @@ model TelegramSettings {
   requireStaffApproval Boolean @default(true)
 
   // AI configuration
-  confidenceThreshold Float @default(0.8) // 0-1, minimum confidence to auto-respond
+  confidenceThreshold Float  @default(0.8) // 0-1, minimum confidence to auto-respond
   aiProvider          String @default("OPENAI") // OPENAI | GEMINI
 
   // Business hours
@@ -6643,39 +6715,39 @@ model TelegramSettings {
 // ============================================
 
 model KnowledgeBaseDocument {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  
-  title       String
-  filename    String
-  fileType    String   // 'PDF', 'TEXT', etc.
-  fileSize    Int
-  url         String   // Storage URL (local or blob)
-  
-  status      String   @default("PENDING") // PENDING, PROCESSING, READY, FAILED
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  title    String
+  filename String
+  fileType String // 'PDF', 'TEXT', etc.
+  fileSize Int
+  url      String // Storage URL (local or blob)
+
+  status       String  @default("PENDING") // PENDING, PROCESSING, READY, FAILED
   errorMessage String?
   metadata     Json?
-  
-  chunks      DocumentChunk[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+
+  chunks DocumentChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([companyId])
 }
 
 model DocumentChunk {
-  id          String   @id @default(cuid())
-  documentId  String
-  document    KnowledgeBaseDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  
-  content     String   // The text content
-  chunkIndex  Int      // Order in document
-  embedding   Float[]  // Vector embedding (handled as float array in JS)
-  
-  createdAt   DateTime @default(now())
-  
+  id         String                @id @default(cuid())
+  documentId String
+  document   KnowledgeBaseDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  content    String // The text content
+  chunkIndex Int // Order in document
+  embedding  Float[] // Vector embedding (handled as float array in JS)
+
+  createdAt DateTime @default(now())
+
   @@index([documentId])
 }
 
@@ -6684,99 +6756,98 @@ model DocumentChunk {
 // ============================================
 
 model SamsaraSettings {
-  id                String   @id @default(cuid())
-  companyId         String   @unique
-  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  apiToken          String   // Encrypted API token
-  autoSyncDrivers   Boolean  @default(false)
-  autoSyncVehicles  Boolean  @default(false)
-  syncIntervalMinutes Int    @default(60)
-  
-  lastSyncAt        DateTime?
-  lastSyncStatus    String?  // SUCCESS, FAILURE
-  lastSyncError     String?
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  apiToken            String // Encrypted API token
+  autoSyncDrivers     Boolean @default(false)
+  autoSyncVehicles    Boolean @default(false)
+  syncIntervalMinutes Int     @default(60)
+
+  lastSyncAt     DateTime?
+  lastSyncStatus String? // SUCCESS, FAILURE
+  lastSyncError  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
 
 model QuickBooksSettings {
-  id                String   @id @default(cuid())
-  companyId         String   @unique
-  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  realmId           String   @unique
-  qboEnvironment    String   @default("SANDBOX") // SANDBOX, PRODUCTION
-  
-  autoSyncInvoices  Boolean  @default(false)
-  autoSyncCustomers Boolean  @default(false)
-  
-  accessToken       String?  // Encrypted
-  refreshToken      String?  // Encrypted
-  tokenExpiry       DateTime?
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  realmId        String @unique
+  qboEnvironment String @default("SANDBOX") // SANDBOX, PRODUCTION
+
+  autoSyncInvoices  Boolean @default(false)
+  autoSyncCustomers Boolean @default(false)
+
+  accessToken  String? // Encrypted
+  refreshToken String? // Encrypted
+  tokenExpiry  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
 }
-
 
 // ============================================
 // SAAS / SUBSCRIPTION MODELS
 // ============================================
 
 model Subscription {
-  id               String   @id @default(cuid())
-  companyId        String   @unique
-  company          Company  @relation(fields: [companyId], references: [id])
-  
-  planId           String   // e.g. "starter-free", "pro-monthly"
-  status           SubscriptionStatus
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id])
+
+  planId             String // e.g. "starter-free", "pro-monthly"
+  status             SubscriptionStatus
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  cancelAtPeriodEnd  Boolean  @default(false)
-  
+  cancelAtPeriodEnd  Boolean            @default(false)
+
   stripeSubscriptionId String? @unique
-  
+
   // Super Admin Manual Override
-  manualOverride       Boolean  @default(false) // If true, Super Admin manually controls this subscription
-  manualModules        SubscriptionModule[] @default([]) // Modules manually enabled by Super Admin
-  
+  manualOverride Boolean              @default(false) // If true, Super Admin manually controls this subscription
+  manualModules  SubscriptionModule[] @default([]) // Modules manually enabled by Super Admin
+
   // Usage-Based Limits (null = unlimited)
-  usageBased           Boolean  @default(true)   // Enable usage tracking for this subscription
-  loadsLimit           Int?     // Monthly loads limit
-  invoicesLimit        Int?     // Monthly invoices limit
-  settlementsLimit     Int?     // Monthly settlements limit
-  documentsLimit       Int?     // Monthly document AI scans limit
-  driversLimit         Int?     // Max drivers allowed
-  trucksLimit          Int?     // Max trucks allowed (replaces Company.truckLimit)
-  
-  addOns           SubscriptionAddOn[]
-  usageRecords     UsageRecord[]
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  usageBased       Boolean @default(true) // Enable usage tracking for this subscription
+  loadsLimit       Int? // Monthly loads limit
+  invoicesLimit    Int? // Monthly invoices limit
+  settlementsLimit Int? // Monthly settlements limit
+  documentsLimit   Int? // Monthly document AI scans limit
+  driversLimit     Int? // Max drivers allowed
+  trucksLimit      Int? // Max trucks allowed (replaces Company.truckLimit)
+
+  addOns       SubscriptionAddOn[]
+  usageRecords UsageRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
   @@index([status])
 }
 
 model SubscriptionAddOn {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   subscriptionId String
   subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  
-  module         SubscriptionModule
-  isActive       Boolean  @default(true)
-  
+
+  module   SubscriptionModule
+  isActive Boolean            @default(true)
+
   stripeSubscriptionItemId String?
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([subscriptionId, module])
   @@index([subscriptionId])
@@ -6789,10 +6860,10 @@ enum SubscriptionStatus {
   UNPAID
   INCOMPLETE
   INCOMPLETE_EXPIRED
-  TRIALING         // 14-day Pro trial (full access)
-  FREE             // Legacy free tier (deprecated)
-  OWNER_OPERATOR   // Free tier: 1 truck limit, core features only
-  CORE_READONLY    // Downgraded trial: read-only, no new entries
+  TRIALING // 14-day Pro trial (full access)
+  FREE // Legacy free tier (deprecated)
+  OWNER_OPERATOR // Free tier: 1 truck limit, core features only
+  CORE_READONLY // Downgraded trial: read-only, no new entries
 }
 
 enum SubscriptionModule {
@@ -6812,26 +6883,26 @@ enum ApiKeyScope {
 }
 
 model ApiKeyConfig {
-  id          String      @id @default(cuid())
-  provider    String      // e.g., "SAMSARA", "TELEGRAM", "QUICKBOOKS"
-  scope       ApiKeyScope @default(GLOBAL)
-  
-  companyId   String?
-  company     Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  mcNumberId  String?
-  mcNumber    McNumber?   @relation(fields: [mcNumberId], references: [id], onDelete: Cascade)
-  
-  configKey   String      // e.g., "API_TOKEN", "CLIENT_ID", "CLIENT_SECRET"
-  configValue String      // Encrypted value
-  
+  id       String      @id @default(cuid())
+  provider String // e.g., "SAMSARA", "TELEGRAM", "QUICKBOOKS"
+  scope    ApiKeyScope @default(GLOBAL)
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id], onDelete: Cascade)
+
+  configKey   String // e.g., "API_TOKEN", "CLIENT_ID", "CLIENT_SECRET"
+  configValue String // Encrypted value
+
   description String?
-  isActive    Boolean     @default(true)
-  
-  metadata    Json?       // Additional fields like expiry, permissions, etc.
-  
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  isActive    Boolean @default(true)
+
+  metadata Json? // Additional fields like expiry, permissions, etc.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([provider, scope, companyId, mcNumberId, configKey])
   @@index([provider])
@@ -6846,24 +6917,24 @@ model ApiKeyConfig {
 
 // CRM Integration Settings
 model CrmIntegration {
-  id        String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Link to MC Number (each MC can have its own lead flow)
   mcNumberId String
   mcNumber   McNumber @relation(fields: [mcNumberId], references: [id])
-  
-  type      String   @default("GOOGLE_SHEETS") // GOOGLE_SHEETS, FACEBOOK, etc.
-  enabled   Boolean  @default(false)
-  
+
+  type    String  @default("GOOGLE_SHEETS") // GOOGLE_SHEETS, FACEBOOK, etc.
+  enabled Boolean @default(false)
+
   // Configuration JSON
   // For Google Sheets: { sheetId: "...", columnMapping: {...}, lastImportedRow: 123 }
-  config    Json?
-  
+  config Json?
+
   lastSyncAt DateTime?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@unique([mcNumberId, type])
   @@index([mcNumberId])
 }
@@ -6906,63 +6977,63 @@ enum LeadActivityType {
 }
 
 model Lead {
-  id            String       @id @default(cuid())
-  leadNumber    String       // CRM-001, CRM-002, etc.
-  companyId     String
-  company       Company      @relation(fields: [companyId], references: [id])
-  mcNumberId    String?      // Multi-MC support
-  mcNumber      McNumber?    @relation(fields: [mcNumberId], references: [id])
+  id         String    @id @default(cuid())
+  leadNumber String // CRM-001, CRM-002, etc.
+  companyId  String
+  company    Company   @relation(fields: [companyId], references: [id])
+  mcNumberId String? // Multi-MC support
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
 
   // Personal Information
-  firstName     String
-  lastName      String
-  email         String?
-  phone         String
-  address       String?
-  city          String?
-  state         String?
-  zip           String?
-  dateOfBirth   DateTime?
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String
+  address     String?
+  city        String?
+  state       String?
+  zip         String?
+  dateOfBirth DateTime?
 
   // CDL Information
   cdlNumber     String?
-  cdlClass      String?      // A, B, C
+  cdlClass      String? // A, B, C
   cdlExpiration DateTime?
-  endorsements  String[]     // H, N, T, P, S, X
+  endorsements  String[] // H, N, T, P, S, X
 
   // Experience
-  yearsExperience    Int?
-  previousEmployers  String?
-  freightTypes       String[]
+  yearsExperience   Int?
+  previousEmployers String?
+  freightTypes      String[]
 
   // Status & Assignment
-  status        LeadStatus   @default(NEW)
-  priority      LeadPriority @default(WARM)
-  source        LeadSource   @default(OTHER)
-  assignedToId  String?
-  assignedTo    User?        @relation("LeadAssignee", fields: [assignedToId], references: [id])
-  tags          String[]
+  status       LeadStatus   @default(NEW)
+  priority     LeadPriority @default(WARM)
+  source       LeadSource   @default(OTHER)
+  assignedToId String?
+  assignedTo   User?        @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  tags         String[]
 
   // AI Scoring (future)
-  aiScore           Float?
-  aiScoreSummary    String?
-  aiScoreUpdatedAt  DateTime?
+  aiScore          Float?
+  aiScoreSummary   String?
+  aiScoreUpdatedAt DateTime?
 
   // Import Metadata - stores extra fields from Facebook forms, spreadsheets, etc.
-  metadata  Json?
+  metadata Json?
 
   // Timestamps
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  deletedAt        DateTime?
-  lastContactedAt  DateTime?
-  createdById      String
-  createdBy        User      @relation("LeadCreator", fields: [createdById], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  lastContactedAt DateTime?
+  createdById     String
+  createdBy       User      @relation("LeadCreator", fields: [createdById], references: [id])
 
   // Relations
-  notes       LeadNote[]
-  activities  LeadActivity[]
-  documents   LeadDocument[]
+  notes      LeadNote[]
+  activities LeadActivity[]
+  documents  LeadDocument[]
 
   @@unique([companyId, leadNumber])
   @@index([companyId])
@@ -7008,7 +7079,7 @@ model LeadDocument {
   id             String    @id @default(cuid())
   leadId         String
   lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  documentType   String    // CDL_LICENSE, MEDICAL_CARD, MVR, APPLICATION, etc.
+  documentType   String // CDL_LICENSE, MEDICAL_CARD, MVR, APPLICATION, etc.
   fileName       String
   fileUrl        String
   fileSize       Int
@@ -7028,21 +7099,21 @@ model LeadDocument {
 // ============================================
 
 model UsageRecord {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   subscriptionId String
   subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  
-  periodStart    DateTime // Start of billing period (1st of month)
-  periodEnd      DateTime // End of billing period (last day of month)
-  
+
+  periodStart DateTime // Start of billing period (1st of month)
+  periodEnd   DateTime // End of billing period (last day of month)
+
   // Usage Counters
   loadsCreated         Int @default(0)
   invoicesGenerated    Int @default(0)
   settlementsGenerated Int @default(0)
   documentsProcessed   Int @default(0)
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([subscriptionId, periodStart])
   @@index([subscriptionId])
@@ -7058,7 +7129,6 @@ enum UsageMetric {
 
 /**
  * Accounting Settings
- * 
  * Stores company-specific accounting preferences including
  * settlement validation rules (strict vs. flexible mode)
  */
@@ -7071,10 +7141,10 @@ model AccountingSettings {
   settlementValidationMode SettlementValidationMode @default(FLEXIBLE)
 
   // Settlement Validation Rules (Optional - can be toggled)
-  requirePodUploaded              Boolean @default(false)
-  requireReadyForSettlementFlag   Boolean @default(false)
-  requireDeliveredDate            Boolean @default(true)
-  requireMcNumberMatch            Boolean @default(true)
+  requirePodUploaded            Boolean @default(false)
+  requireReadyForSettlementFlag Boolean @default(false)
+  requireDeliveredDate          Boolean @default(true)
+  requireMcNumberMatch          Boolean @default(true)
 
   // Warning Settings
   warnOnMissingPod         Boolean @default(true)
@@ -7100,9 +7170,9 @@ model AccountingSettings {
 }
 
 enum SettlementValidationMode {
-  STRICT   // All validations required
+  STRICT // All validations required
   FLEXIBLE // Only DELIVERED status required
-  CUSTOM   // User-defined rules
+  CUSTOM // User-defined rules
 }
 
 // Add this relation to the Company model:

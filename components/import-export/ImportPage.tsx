@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -12,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft, Upload, FileText, Download, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -26,8 +28,11 @@ interface ImportPageProps {
   entityType: string;
   entityLabel: string;
   systemFields: Array<{ key: string; label: string; required?: boolean }>;
-  backUrl: string;
+  backUrl?: string; // Optional if onBack provided
   exampleFileUrl?: string;
+  onComplete?: () => void;
+  onBack?: () => void;
+  hideHeader?: boolean;
 }
 
 type ImportStep = 'upload' | 'matching' | 'preview';
@@ -38,11 +43,14 @@ export default function ImportPage({
   systemFields,
   backUrl,
   exampleFileUrl,
+  onComplete,
+  onBack,
+  hideHeader = false,
 }: ImportPageProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
-  
+
   // Deduplicate system fields to prevent duplicate options
   const deduplicatedFields = deduplicateSystemFields(systemFields);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -50,12 +58,15 @@ export default function ImportPage({
   const [isProcessing, setIsProcessing] = useState(false);
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [selectedMcNumberId, setSelectedMcNumberId] = useState<string>('');
+  const [updateExisting, setUpdateExisting] = useState<boolean>(false);
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [importProgress, setImportProgress] = useState<number>(0);
   const [importStatus, setImportStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const [errorLog, setErrorLog] = useState<Array<{ row: number; field?: string; error: string }>>([]);
+  const [successCount, setSuccessCount] = useState(0);
 
   // Fetch MC numbers for selection
   const { data: mcNumbersData } = useQuery({
@@ -195,7 +206,7 @@ export default function ImportPage({
       } else if (selectedMc.number) {
         mcNumberValue = selectedMc.number.toString().trim();
       }
-      
+
       // Validate that we got a numeric MC number, not a company name
       if (!mcNumberValue || mcNumberValue.length > 10 || isNaN(Number(mcNumberValue))) {
         console.error('[ImportPage] Invalid MC number value:', {
@@ -206,7 +217,7 @@ export default function ImportPage({
         });
         throw new Error(`Invalid MC number value: ${mcNumberValue}. Expected a numeric MC number, not a company name.`);
       }
-      
+
       // Debug: Log what we're sending
       console.log('[ImportPage] MC selection:', {
         selectedMcNumberId,
@@ -218,11 +229,16 @@ export default function ImportPage({
       // Reset progress
       setImportProgress(0);
       setImportStatus('Preparing import...');
+      setErrorLog([]);
 
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('columnMapping', JSON.stringify(columnMapping));
       formData.append('mcNumber', mcNumberValue);
+      formData.append('updateExisting', updateExisting.toString());
+      if (entityType === 'drivers' && updateExisting) {
+        formData.append('importMode', 'upsert');
+      }
 
       const totalRows = importResult.data?.length || 0;
       let processedRows = 0;
@@ -234,7 +250,7 @@ export default function ImportPage({
         processedRows = Math.min(processedRows + Math.max(1, Math.floor(totalRows / 50)), totalRows);
         const estimatedProgress = Math.min(95, Math.round((processedRows / totalRows) * 100));
         setImportProgress(estimatedProgress);
-        
+
         if (estimatedProgress < 30) {
           setImportStatus('Reading file data...');
         } else if (estimatedProgress < 60) {
@@ -269,18 +285,36 @@ export default function ImportPage({
         throw error;
       }
     },
-    onSuccess: (data) => {
-      const created = data.data?.created || 0;
-      const errors = data.data?.errors || 0;
-      
-      toast.success(`Successfully imported ${created} ${entityLabel.toLowerCase()}`);
-      if (errors > 0) {
-        toast.warning(`${errors} rows had errors and were skipped`);
+    onSuccess: (data: any) => {
+      // The API returns the result in data.data
+      const importResult = data?.data || data;
+
+      // Get counts from summary
+      const createdCount = importResult?.created ?? 0;
+
+      // Get detailed arrays from the 'details' object if it exists
+      const detailedErrors = importResult?.details?.errors || [];
+      const detailedCreated = importResult?.details?.created || [];
+
+      setSuccessCount(createdCount || detailedCreated.length);
+
+      if (detailedErrors.length > 0) {
+        setErrorLog(detailedErrors);
+        toast.warning(`${detailedErrors.length} rows were skipped due to errors.`);
+        setImportStatus('Completed with errors');
+        return;
       }
-      
-      // Redirect back after a short delay
+
+      const finalSuccessCount = createdCount || detailedCreated.length;
+      toast.success(`Successfully imported ${finalSuccessCount} ${entityLabel.toLowerCase()}`);
+
+      // Only redirect if NO errors
       setTimeout(() => {
-        router.push(backUrl);
+        if (onComplete) {
+          onComplete();
+        } else if (backUrl) {
+          router.push(backUrl);
+        }
       }, 2000);
     },
     onError: (error: Error) => {
@@ -321,16 +355,21 @@ export default function ImportPage({
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
       {/* Header */}
-      <div className="mb-8">
-        <Button
-          variant="ghost"
-          onClick={() => router.push(backUrl)}
-          className="mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-      </div>
+      {!hideHeader && (
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (onBack) onBack();
+              else if (backUrl) router.push(backUrl);
+            }}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </div>
+      )}
 
       {/* Step Indicator */}
       <div className="mb-8">
@@ -339,13 +378,12 @@ export default function ImportPage({
             {/* Step 1: Upload */}
             <div className="flex items-center gap-3 flex-1">
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                  currentStep === 'upload'
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : currentStep === 'matching' || currentStep === 'preview'
+                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep === 'upload'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : currentStep === 'matching' || currentStep === 'preview'
                     ? 'bg-green-500 text-white border-green-500'
                     : 'bg-muted border-muted-foreground/20'
-                }`}
+                  }`}
               >
                 {currentStep === 'upload' ? (
                   '1'
@@ -367,13 +405,12 @@ export default function ImportPage({
             {/* Step 2: Matching */}
             <div className="flex items-center gap-3 flex-1">
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                  currentStep === 'matching'
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : currentStep === 'preview'
+                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep === 'matching'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : currentStep === 'preview'
                     ? 'bg-green-500 text-white border-green-500'
                     : 'bg-muted border-muted-foreground/20'
-                }`}
+                  }`}
               >
                 {currentStep === 'preview' ? (
                   <CheckCircle2 className="h-5 w-5" />
@@ -395,11 +432,10 @@ export default function ImportPage({
             {/* Step 3: Preview */}
             <div className="flex items-center gap-3 flex-1">
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                  currentStep === 'preview'
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-muted border-muted-foreground/20'
-                }`}
+                className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${currentStep === 'preview'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted border-muted-foreground/20'
+                  }`}
               >
                 3
               </div>
@@ -496,6 +532,25 @@ export default function ImportPage({
               </Select>
             </div>
 
+            <div className="flex items-start space-x-2 pt-2">
+              <Checkbox
+                id="update-existing"
+                checked={updateExisting}
+                onCheckedChange={(checked) => setUpdateExisting(checked === true)}
+              />
+              <div className="grid gap-1.5 leading-none">
+                <label
+                  htmlFor="update-existing"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Update existing records
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  If checked, existing records with matching IDs/emails will be updated instead of skipped.
+                </p>
+              </div>
+            </div>
+
             <div>
               <div className="flex items-center justify-between mb-4">
                 <Label className="text-base font-semibold">Column Mapping</Label>
@@ -573,128 +628,137 @@ export default function ImportPage({
         {/* Step 3: Preview */}
         {currentStep === 'preview' && (
           <div className="space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold">Preview Data</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Showing first 10 rows of {importResult?.data?.length || 0} total rows
-                  </p>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {Object.keys(columnMapping).length} mapped column(s)
-                </div>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Preview Data</h2>
+              <div className="space-x-2">
+                {errorLog.length > 0 ? (
+                  <Button onClick={() => {
+                    if (onComplete) onComplete();
+                    else if (backUrl) router.push(backUrl);
+                  }}>
+                    Continue Anyway
+                  </Button>
+                ) : (
+                  <Button onClick={handleImport} disabled={importMutation.isPending || importMutation.isSuccess}>
+                    {importMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      'Run Import'
+                    )}
+                  </Button>
+                )}
               </div>
-              
-              {/* Mapped Columns Summary */}
-              {Object.keys(columnMapping).length > 0 && (
-                <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-                  <div className="text-xs font-medium mb-2 text-muted-foreground">Mapped Columns:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(columnMapping).map(([excelCol, systemField]) => {
-                      const field = deduplicatedFields.find(f => f.key === systemField);
-                      return (
-                        <div
-                          key={excelCol}
-                          className="text-xs bg-background border px-2 py-1 rounded flex items-center gap-1"
-                        >
-                          <span className="font-medium text-muted-foreground">{excelCol}</span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="font-medium">{field?.label || systemField}</span>
-                        </div>
-                      );
-                    })}
+            </div>
+
+            {/* IMPORT STATUS / PROGRESS */}
+            {(importMutation.isPending || importStatus) && (
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>{importStatus}</span>
+                  <span>{importProgress}%</span>
+                </div>
+                <Progress value={importProgress} className="h-2" />
+              </div>
+            )}
+
+            {/* ERROR LOG / RESULTS SUMMARY */}
+            {errorLog.length > 0 ? (
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="bg-green-50 border-green-200">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-green-700 flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5" />
+                        Success
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-800">{successCount}</div>
+                      <p className="text-xs text-green-600">Records created successfully</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-red-50 border-red-200">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-red-700 flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5" />
+                        Failed
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-red-800">{errorLog.length}</div>
+                      <p className="text-xs text-red-600">Rows skipped due to errors</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="border-red-200">
+                  <CardHeader>
+                    <CardTitle className="text-red-800 text-lg">Error Log</CardTitle>
+                    <CardDescription>The following rows could not be imported. Please fix the file and re-import these rows.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-[300px] overflow-y-auto border rounded-md">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            <th className="p-2 text-left w-[80px]">Row #</th>
+                            <th className="p-2 text-left">Error Message</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {errorLog.map((err, idx) => (
+                            <tr key={idx} className="hover:bg-muted/50">
+                              <td className="p-2 font-mono text-xs text-muted-foreground">{err.row}</td>
+                              <td className="p-2 text-red-600 font-medium">{err.error}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              !importStatus.includes('Completed') && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                    <span>Mapped Columns: {Object.keys(columnMapping).length}</span>
+                    <span>Total Rows: {importResult?.data?.length || 0}</span>
+                  </div>
+
+                  <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                    <table className="min-w-full divide-y divide-border">
+                      <thead className="bg-muted">
+                        <tr>
+                          {Object.entries(columnMapping).filter(([_, target]) => target).map(([src, target]) => (
+                            <th key={src} className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              {systemFields.find(f => f.key === target)?.label || target}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="bg-card divide-y divide-border">
+                        {previewData.map((row, i) => (
+                          <tr key={i}>
+                            {Object.entries(columnMapping).filter(([_, target]) => target).map(([src, target]) => (
+                              <td key={`${i}-${src}`} className="px-4 py-3 text-sm whitespace-nowrap">
+                                {String(row[src] || row[String(src).trim().toLowerCase().replace(/\s+/g, '_')] || '')}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              )}
-              
-              <div className="border rounded-lg overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr>
-                      {/* Only show mapped columns in preview */}
-                      {Object.entries(columnMapping).map(([excelCol, systemField]) => {
-                        const field = deduplicatedFields.find(f => f.key === systemField);
-                        return (
-                          <th key={systemField} className="px-4 py-2 text-left font-medium">
-                            <div className="flex flex-col">
-                              <span>{field?.label || systemField}</span>
-                              <span className="text-xs font-normal text-muted-foreground">{excelCol}</span>
-                            </div>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewData.map((row, idx) => (
-                      <tr key={idx} className="border-t">
-                        {Object.values(columnMapping).map((systemField) => (
-                          <td key={systemField} className="px-4 py-2">
-                            {row[systemField]?.toString() || '-'}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {importResult?.errors && importResult.errors.length > 0 && (
-              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="h-5 w-5 text-destructive" />
-                  <span className="font-semibold text-destructive">
-                    {importResult.errors.length} validation errors found
-                  </span>
-                </div>
-                <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto">
-                  {importResult.errors.slice(0, 5).map((error: any, idx: number) => (
-                    <div key={idx} className="mb-1">
-                      Row {error.row}: {error.error}
-                    </div>
-                  ))}
-                  {importResult.errors.length > 5 && (
-                    <div>... and {importResult.errors.length - 5} more errors</div>
-                  )}
-                </div>
-              </div>
+              )
             )}
-
-            {/* Progress Bar */}
-            {importMutation.isPending && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{importStatus || 'Importing...'}</span>
-                  <span className="text-muted-foreground">{importProgress}%</span>
-                </div>
-                <Progress value={importProgress} className="w-full" />
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setCurrentStep('matching')}>
-                Back
-              </Button>
-              <Button
-                onClick={handleImport}
-                disabled={importMutation.isPending || !selectedMcNumberId}
-              >
-                {importMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Importing...
-                  </>
-                ) : (
-                  'Import Data'
-                )}
-              </Button>
-            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
-

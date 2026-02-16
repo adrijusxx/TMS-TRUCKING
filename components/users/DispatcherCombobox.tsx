@@ -33,6 +33,12 @@ interface DispatcherComboboxProps {
     placeholder?: string;
     className?: string;
     disabled?: boolean;
+    defaultDispatcher?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        role?: string;
+    };
 }
 
 async function fetchStaff(search?: string) {
@@ -50,6 +56,7 @@ export default function DispatcherCombobox({
     placeholder = 'Select dispatcher...',
     className,
     disabled,
+    defaultDispatcher,
 }: DispatcherComboboxProps) {
     const [open, setOpen] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -67,7 +74,7 @@ export default function DispatcherCombobox({
         ['DISPATCHER', 'ADMIN', 'SUPER_ADMIN'].includes(u.role)
     );
 
-    const selectedUser = staff.find((u) => u.id === value);
+    const selectedUser = staff.find((u) => u.id === value) || (value === defaultDispatcher?.id ? (defaultDispatcher as StaffUser) : undefined);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>

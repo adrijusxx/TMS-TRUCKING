@@ -143,8 +143,8 @@ const STORAGE_KEY = 'tms_import_tutorial_dismissed';
 export function ImportTutorial() {
     const { data: session } = useSession();
     const router = useRouter();
-    const [isDismissed, setIsDismissed] = useState(true);
-    const [isMinimized, setIsMinimized] = useState(false);
+    const [isDismissed, setIsDismissed] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
     const [stats, setStats] = useState<OnboardingStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -188,38 +188,47 @@ export function ImportTutorial() {
     }, []);
 
     const handleDismiss = () => {
-        localStorage.setItem(STORAGE_KEY, 'true');
         setIsDismissed(true);
+        localStorage.setItem(STORAGE_KEY, 'true');
     };
 
     const handleMinimize = () => {
         setIsMinimized(!isMinimized);
     };
 
-    // Don't render if dismissed or no session
-    if (isDismissed || !session?.user) {
+    // Don't render if dismissed, no session, or already complete
+    if (isDismissed || !session?.user || stats?.isComplete) {
         return null;
     }
 
     const progress = stats?.progressPercent ?? 0;
     const completedCount = stats ? Object.values(stats.completion).filter(Boolean).length : 0;
 
-    // Minimized view - compact floating badge
+    // Minimized view - compact floating button
     if (isMinimized) {
         return (
-            <div
-                className="fixed bottom-4 right-4 z-50 bg-slate-900 border border-purple-500/30 rounded-lg p-3 shadow-lg cursor-pointer hover:border-purple-500/50 transition-colors"
-                onClick={handleMinimize}
+            <button
+                className={cn(
+                    "fixed bottom-6 right-6 z-50 h-12 px-5 rounded-full shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 flex items-center justify-center gap-3",
+                    stats?.isComplete
+                        ? "bg-green-500 hover:bg-green-600 shadow-green-500/20"
+                        : "bg-purple-600 hover:bg-purple-700 shadow-purple-500/30 animate-pulse-slow"
+                )}
+                onClick={() => router.push('/dashboard/onboarding')}
+                title="Go to Onboarding"
             >
-                <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-purple-400" />
-                    <span className="text-sm text-white font-medium">Setup Guide</span>
-                    <div className="flex items-center gap-1">
-                        <span className="text-xs text-slate-400">({completedCount}/5)</span>
-                        {stats?.isComplete && <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />}
+                {stats?.isComplete ? (
+                    <CheckCircle2 className="h-5 w-5 text-white" />
+                ) : (
+                    <div className="relative">
+                        <Sparkles className="h-5 w-5 text-white" />
+                        <span className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center border-2 border-purple-600">
+                            {5 - completedCount}
+                        </span>
                     </div>
-                </div>
-            </div>
+                )}
+                <span className="font-semibold text-white text-sm">Onboarding</span>
+            </button>
         );
     }
 

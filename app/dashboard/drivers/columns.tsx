@@ -33,7 +33,7 @@ export interface DriverData {
     lastName: string;
     email: string;
     phone: string | null;
-  };
+  } | null;
   // HR Fields
   employeeStatus?: string;
   driverType?: string;
@@ -70,18 +70,22 @@ export function createDriverColumns(
     {
       id: 'name',
       header: 'Name',
-      cell: ({ row }) => (
-        <div
-          className="font-medium text-primary hover:underline cursor-pointer"
-          onClick={() => onEdit(row.original.id)}
-        >
-          {row.original.user.firstName} {row.original.user.lastName}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const user = row.original.user;
+        const displayName = user ? `${user.firstName} ${user.lastName}` : `Unlinked Driver (${row.original.driverNumber})`;
+        return (
+          <div
+            className="font-medium text-primary hover:underline cursor-pointer"
+            onClick={() => onEdit(row.original.id)}
+          >
+            {displayName}
+          </div>
+        );
+      },
       defaultVisible: true,
       enableSorting: true,
       // Create a custom accessor for sorting by name
-      accessorFn: (row: DriverData) => `${row.user.firstName} ${row.user.lastName}`,
+      accessorFn: (row: DriverData) => row.user ? `${row.user.firstName} ${row.user.lastName}` : row.driverNumber,
     },
     {
       id: 'phone',
@@ -89,7 +93,7 @@ export function createDriverColumns(
       header: 'Phone',
       cell: ({ row }) => (
         <span className="text-sm truncate max-w-[120px] block">
-          {row.original.user.phone || row.original.phone || '-'}
+          {row.original.user?.phone || row.original.phone || '-'}
         </span>
       ),
       defaultVisible: true,
@@ -100,7 +104,7 @@ export function createDriverColumns(
       header: 'Email',
       cell: ({ row }) => (
         <span className="text-sm truncate max-w-[180px] block text-muted-foreground">
-          {row.original.user.email || row.original.email || '-'}
+          {row.original.user?.email || row.original.email || '-'}
         </span>
       ),
       defaultVisible: true,
