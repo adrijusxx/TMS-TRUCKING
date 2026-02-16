@@ -46,16 +46,28 @@ export class LoadRowMapper {
      * Parse financial and distance numbers from row
      */
     static mapFinancials(row: any, getValue: Function, mapping?: Record<string, string>) {
-        // Revenue Mapping: prioritize explicit "Total" or "Gross" over ambiguous "Rate"
-        const revenue = parseImportNumber(getValue(row, 'revenue', mapping, ['Load Pay', 'Load pay', 'Total Pay', 'Total pay', 'Gross', 'gross', 'Revenue', 'revenue', 'Line Haul', 'line_haul', 'Rate', 'rate', 'Amount', 'amount', 'Total Amount'])) || 0;
+        // 1. Try to find a "Total" or "Gross" amount first (Most accurate)
+        const grossRevenue = parseImportNumber(getValue(row, 'revenue', mapping, ['Total Amount', 'total_amount', 'Gross', 'gross', 'Total Pay', 'Total pay', 'Load Pay', 'Load pay'])) || 0;
 
+        // 2. Look for components if Gross is missing
+        const lineHaul = parseImportNumber(getValue(row, 'lineHaul', mapping, ['Line Haul', 'line_haul', 'Flat Rate', 'flat_rate', 'Rate', 'rate', 'Amount', 'amount'])) || 0;
+        const fsc = parseImportNumber(getValue(row, 'fsc', mapping, ['FSC', 'fsc', 'Fuel', 'fuel', 'Fuel Surcharge', 'fuel_surcharge', 'fsc_amount'])) || 0;
+        const accessorials = parseImportNumber(getValue(row, 'accessorials', mapping, ['Accessorials', 'accessorials', 'Other', 'other', 'Detention', 'detention', 'Lumper', 'lumper'])) || 0;
+
+        // Determine Final Revenue
+        // If Gross exists and is significantly different from components, we might want to prioritize it.
+        // But if Gross is 0, we definitely sum the components.
+        let finalRevenue = grossRevenue > 0 ? grossRevenue : (lineHaul + fsc + accessorials);
+
+        // Map Driver Pay
         let driverPay = parseImportNumber(getValue(row, 'driverPay', mapping, ['Driver Pay', 'driver_pay', 'Driver Rate', 'driver_rate', 'Carrier Pay', 'carrier_pay']));
         if (driverPay === null) driverPay = 0;
 
-        const totalMiles = parseImportNumber(getValue(row, 'totalMiles', mapping, ['Total Miles', 'Total miles', 'total_miles', 'Miles', 'miles', 'Billed Miles', 'billed_miles', 'Trip Miles', 'trip_miles', 'Distance', 'distance'])) || 0;
+        // Map Miles
+        const totalMiles = parseImportNumber(getValue(row, 'totalMiles', mapping, ['Total Miles', 'Total miles', 'total_miles', 'Miles', 'miles', 'Billed Miles', 'billed_miles', 'Trip Miles', 'trip_miles', 'Paid Miles', 'paid_miles', 'Distance', 'distance', 'Odometer', 'odometer'])) || 0;
         const emptyMiles = parseImportNumber(getValue(row, 'emptyMiles', mapping, ['Empty Miles', 'Empty miles', 'empty_miles', 'Deadhead', 'deadhead'])) || 0;
         const loadedMilesCol = parseImportNumber(getValue(row, 'loadedMiles', mapping, ['Loaded Miles', 'Loaded miles', 'loaded_miles'])) || 0;
-        const weight = parseImportNumber(getValue(row, 'weight', mapping, ['Weight', 'weight', 'Lbs', 'lbs'])) || 1;
+        const weight = parseImportNumber(getValue(row, 'weight', mapping, ['Weight', 'weight', 'Lbs', 'lbs', 'Gross Weight'])) || 1;
 
         // Explicit RPM from CSV
         const importedRPM = parseImportNumber(getValue(row, 'revenuePerMile', mapping, ['Revenue Per Mile', 'revenue_per_mile', 'RPM', 'rpm', 'Rate Per Mile', 'Rate/Mile'])) || 0;
@@ -68,8 +80,7 @@ export class LoadRowMapper {
 
         const finalTotalMiles = (finalLoadedMiles + emptyMiles) > 0 ? (finalLoadedMiles + emptyMiles) : totalMiles;
 
-        // Calculation Fallbacks
-        let finalRevenue = revenue;
+        // RPM Logic
         let finalRPM = 0;
 
         // 1. Calculate RPM from Revenue / Miles

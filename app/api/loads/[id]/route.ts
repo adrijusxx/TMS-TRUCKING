@@ -530,7 +530,7 @@ export async function PATCH(
     const effectiveRevenue = validated.revenue !== undefined ? validated.revenue : existingLoad.revenue;
     const effectiveTotalMiles = validated.totalMiles !== undefined ? validated.totalMiles : existingLoad.totalMiles;
 
-    if (effectiveRevenue !== undefined && effectiveTotalMiles !== undefined && effectiveTotalMiles > 0) {
+    if (effectiveRevenue != null && effectiveTotalMiles != null && effectiveTotalMiles > 0) {
       updateData.revenuePerMile = Number((effectiveRevenue / effectiveTotalMiles).toFixed(2));
     }
 
