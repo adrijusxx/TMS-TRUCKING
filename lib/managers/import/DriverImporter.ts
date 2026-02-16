@@ -40,6 +40,12 @@ export class DriverImporter extends BaseImporter {
         ]);
 
         const driverIdMap = new Map(existingDrivers.map(d => [d.driverNumber.toLowerCase().trim(), d]));
+        // NEW: Map User ID to Driver ID to prevent (userId, companyId) constraint violations
+        const userIdToDriverMap = new Map<string, typeof existingDrivers[0]>();
+        existingDrivers.forEach(d => {
+            if (d.userId) userIdToDriverMap.set(d.userId, d);
+        });
+
         const userIdMap = new Map(existingUsers.map(u => [u.email.toLowerCase().trim(), u]));
         const mcIdMap = new Map(mcNumbers.map(mc => [mc.number?.trim(), mc.id]));
         const defaultMcId = mcNumbers.find(mc => mc.isDefault)?.id || mcNumbers[0]?.id;
@@ -109,13 +115,24 @@ export class DriverImporter extends BaseImporter {
                 const existingDriver = driverIdMap.get(driverKey);
                 const existingUser = userIdMap.get(email);
 
-                const exists = !!existingDriver || !!existingUser;
+                // CONSTRAINT CHECK: Does this user already have a driver profile (even if number differs)?
+                let userExistingDriver = existingUser ? userIdToDriverMap.get(existingUser.id) : null;
+
+                // If we found a driver by number, use that.
+                // If not, but we found a driver by USER ID, use that (this is the "Rename/Update" case).
+                const targetDriver = existingDriver || userExistingDriver;
+
+                const exists = !!targetDriver || !!existingUser;
 
                 if (exists && !updateExisting) {
-                    const existsInDB = !!existingDriver ? 'Driver' : 'User';
+                    const existsInDB = !!targetDriver ? 'Driver' : 'User';
                     console.log(`[DriverImporter] Skipping Row ${rowNum}: ${existsInDB} already exists in database (${driverKey})`);
                     errors.push(this.error(rowNum, `${existsInDB} already exists in database`, 'Database Duplicate'));
                     continue;
+                }
+
+                if (userExistingDriver && !existingDriver && updateExisting) {
+                    console.log(`[DriverImporter] Row ${rowNum}: User ${email} already has driver ${userExistingDriver.driverNumber}. Will update to new number ${driverNumber}.`);
                 }
 
                 console.log(`[DriverImporter] Queueing Row ${rowNum} for ${updateExisting && exists ? 'Update' : 'Creation'}: ${driverNumber}`);
@@ -227,9 +244,9 @@ export class DriverImporter extends BaseImporter {
                 if (exists && updateExisting) {
                     driversToUpdate.push({
                         ...driverData,
-                        driverId: existingDriver?.id,
-                        userId: existingUser?.id || existingDriver?.userId,
-                        isReactivate: !!(existingDriver?.deletedAt || existingUser?.deletedAt)
+                        driverId: targetDriver?.id, // Use resolved target driver (either by number or by user)
+                        userId: existingUser?.id || targetDriver?.userId,
+                        isReactivate: !!(targetDriver?.deletedAt || existingUser?.deletedAt)
                     });
                 } else {
                     driversToCreate.push(driverData);
