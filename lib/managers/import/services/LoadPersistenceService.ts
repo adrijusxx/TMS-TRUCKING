@@ -80,123 +80,64 @@ export class LoadPersistenceService {
         // a simple createMany is not sufficient.
 
         // We will process in chunks to avoid massive transactions
-        const BATCH_SIZE = 50;
+        const BATCH_SIZE = 20;
 
         for (let i = 0; i < loads.length; i += BATCH_SIZE) {
             const batch = loads.slice(i, i + BATCH_SIZE);
 
-            try {
-                await this.prisma.$transaction(async (tx) => {
-                    for (const data of batch) {
-                        try {
-                            const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
-                            const cleanData = { ...rest, companyId: this.companyId, importBatchId };
+            // Process each load in its own transaction for robustness
+            // This prevents a single slow save from killing the whole batch
+            await Promise.all(batch.map(async (data) => {
+                try {
+                    const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
+                    const cleanData = { ...rest, companyId: this.companyId, importBatchId };
 
-                            // 1. Create Load
-                            const newLoad = await tx.load.create({
-                                data: cleanData as any
-                            });
-
-                            // 2. Create Pickup Stop
-                            await tx.loadStop.create({
-                                data: {
-                                    loadId: newLoad.id,
-                                    stopType: 'PICKUP',
-                                    sequence: 1,
-                                    company: cleanData.pickupLocation || cleanData.pickupCompany || 'Shipper',
-                                    address: cleanData.pickupAddress || `${cleanData.pickupCity}, ${cleanData.pickupState}`,
-                                    city: cleanData.pickupCity || 'Unknown',
-                                    state: cleanData.pickupState || 'XX',
-                                    zip: cleanData.pickupZip || '00000',
-                                    earliestArrival: cleanData.pickupDate,
-                                    latestArrival: cleanData.pickupDate, // Or add window if available
-                                    notes: cleanData.dispatchNotes
-                                }
-                            });
-
-                            // 3. Create Delivery Stop
-                            await tx.loadStop.create({
-                                data: {
-                                    loadId: newLoad.id,
-                                    stopType: 'DELIVERY',
-                                    sequence: 2,
-                                    company: cleanData.deliveryLocation || cleanData.deliveryCompany || 'Consignee',
-                                    address: cleanData.deliveryAddress || `${cleanData.deliveryCity}, ${cleanData.deliveryState}`,
-                                    city: cleanData.deliveryCity || 'Unknown',
-                                    state: cleanData.deliveryState || 'XX',
-                                    zip: cleanData.deliveryZip || '00000',
-                                    earliestArrival: cleanData.deliveryDate,
-                                    latestArrival: cleanData.deliveryDate,
-                                    notes: cleanData.dispatchNotes
-                                }
-                            });
-
-                            count++;
-                        } catch (err: any) {
-                            // If one fails in the transaction block, it might roll back the whole block 
-                            // if we don't catch it. 
-                            // However, we want strict transaction for Load+Stops.
-                            // If we want partial success of the BATCH, we should not wrap the whole loop in one transaction.
-                            // BUT, for performance, we want batching.
-                            // Strategy: We will wrap EACH Load+Stops creation in its own small promise 
-                            // inside the transaction array? No, $transaction takes an array of promises.
-                            // But here we need dependent creates (Load ID needed for Stops).
-                            // So we cannot use $transaction([createLoad, createStop]) easily for batch.
-
-                            // fallback: we are inside an async handler. valid pattern:
-                            throw err; // Re-throw to be caught by outer try/catch or handle per item?
-                        }
-                    }
-                });
-            } catch (batchError) {
-                // If the batch transaction fails, we fallback to individual processing
-                // to save as many as possible
-                for (const data of batch) {
-                    try {
-                        const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
-                        const cleanData = { ...rest, companyId: this.companyId, importBatchId };
-
-                        await this.prisma.$transaction(async (tx) => {
-                            const newLoad = await tx.load.create({ data: cleanData as any });
-
-                            await tx.loadStop.create({
-                                data: {
-                                    loadId: newLoad.id,
-                                    stopType: 'PICKUP',
-                                    sequence: 1,
-                                    company: cleanData.pickupLocation || cleanData.pickupCompany || 'Shipper',
-                                    address: cleanData.pickupAddress || `${cleanData.pickupCity}, ${cleanData.pickupState}`,
-                                    city: cleanData.pickupCity || 'Unknown',
-                                    state: cleanData.pickupState || 'XX',
-                                    zip: cleanData.pickupZip || '00000',
-                                    earliestArrival: cleanData.pickupDate,
-                                    latestArrival: cleanData.pickupDate,
-                                    notes: cleanData.dispatchNotes
-                                }
-                            });
-
-                            await tx.loadStop.create({
-                                data: {
-                                    loadId: newLoad.id,
-                                    stopType: 'DELIVERY',
-                                    sequence: 2,
-                                    company: cleanData.deliveryLocation || cleanData.deliveryCompany || 'Consignee',
-                                    address: cleanData.deliveryAddress || `${cleanData.deliveryCity}, ${cleanData.deliveryState}`,
-                                    city: cleanData.deliveryCity || 'Unknown',
-                                    state: cleanData.deliveryState || 'XX',
-                                    zip: cleanData.deliveryZip || '00000',
-                                    earliestArrival: cleanData.deliveryDate,
-                                    latestArrival: cleanData.deliveryDate,
-                                    notes: cleanData.dispatchNotes
-                                }
-                            });
+                    await this.prisma.$transaction(async (tx) => {
+                        // 1. Create Load
+                        const newLoad = await tx.load.create({
+                            data: cleanData as any
                         });
-                        count++;
-                    } catch (singleErr: any) {
-                        errors.push({ row: 0, error: `Create failed: ${singleErr.message}` });
-                    }
+
+                        // 2. Create Pickup Stop
+                        await tx.loadStop.create({
+                            data: {
+                                loadId: newLoad.id,
+                                stopType: 'PICKUP',
+                                sequence: 1,
+                                company: cleanData.pickupLocation || cleanData.pickupCompany || 'Shipper',
+                                address: cleanData.pickupAddress || `${cleanData.pickupCity}, ${cleanData.pickupState}`,
+                                city: cleanData.pickupCity || 'Unknown',
+                                state: cleanData.pickupState || 'XX',
+                                zip: cleanData.pickupZip || '00000',
+                                earliestArrival: cleanData.pickupDate,
+                                latestArrival: cleanData.pickupDate,
+                                notes: cleanData.dispatchNotes
+                            }
+                        });
+
+                        // 3. Create Delivery Stop
+                        await tx.loadStop.create({
+                            data: {
+                                loadId: newLoad.id,
+                                stopType: 'DELIVERY',
+                                sequence: 2,
+                                company: cleanData.deliveryLocation || cleanData.deliveryCompany || 'Consignee',
+                                address: cleanData.deliveryAddress || `${cleanData.deliveryCity}, ${cleanData.deliveryState}`,
+                                city: cleanData.deliveryCity || 'Unknown',
+                                state: cleanData.deliveryState || 'XX',
+                                zip: cleanData.deliveryZip || '00000',
+                                earliestArrival: cleanData.deliveryDate,
+                                latestArrival: cleanData.deliveryDate,
+                                notes: cleanData.dispatchNotes
+                            }
+                        });
+                    }, { timeout: 30000 });
+
+                    count++;
+                } catch (err: any) {
+                    errors.push({ row: i, error: `Create failed: ${err.message}` });
                 }
-            }
+            }));
         }
         return { count, errors };
     }
@@ -209,12 +150,10 @@ export class LoadPersistenceService {
         for (let i = 0; i < loads.length; i += BATCH_SIZE) {
             const batch = loads.slice(i, i + BATCH_SIZE);
 
-            // Should prompt for transaction
-            for (const u of batch) {
+            await Promise.all(batch.map(async (u) => {
                 try {
                     const { id, ...data } = u;
                     const { mcNumber, stops, ...rest } = importLoadSchema.parse(data);
-                    // Ensure we have valid dates and locations
                     const cleanData = { ...rest, companyId: this.companyId };
 
                     await this.prisma.$transaction(async (tx) => {
@@ -225,14 +164,12 @@ export class LoadPersistenceService {
                         });
 
                         // 2. Manage Stops
-                        // Check if stops exist
                         const existingStops = await tx.loadStop.findMany({
                             where: { loadId: id },
                             orderBy: { sequence: 'asc' }
                         });
 
                         if (existingStops.length === 0) {
-                            // CREATE stops if none exist
                             await tx.loadStop.create({
                                 data: {
                                     loadId: id,
@@ -265,8 +202,6 @@ export class LoadPersistenceService {
                                 }
                             });
                         } else {
-                            // UPDATE existing stops to match new header data (optional but good for consistency)
-                            // We only update the first pickup and last delivery to avoid messing up multi-stop loads
                             const firstPickup = existingStops.find(s => s.stopType === 'PICKUP' && s.sequence === 1);
                             const lastDelivery = existingStops.find(s => s.stopType === 'DELIVERY' && s.sequence === Math.max(...existingStops.map(s => s.sequence)));
 
@@ -294,12 +229,12 @@ export class LoadPersistenceService {
                                 });
                             }
                         }
-                    });
+                    }, { timeout: 30000 });
                     count++;
                 } catch (err: any) {
-                    errors.push({ row: 0, error: `Update failed for ${u.loadNumber}: ${err.message}` });
+                    errors.push({ row: i, error: `Update failed for ${u.loadNumber}: ${err.message}` });
                 }
-            }
+            }));
         }
         return { count, errors };
     }

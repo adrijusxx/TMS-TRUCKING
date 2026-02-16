@@ -11,6 +11,9 @@ import { LoadPersistenceService } from './services/LoadPersistenceService';
  * anomaly detection, and persistence.
  */
 export class LoadImporter extends BaseImporter {
+    private statusCache = new Map<string, LoadStatus>();
+    private typeCache = new Map<string, LoadType>();
+
     async import(data: any[], options: any): Promise<ImportResult> {
         return this.importLoads(data, options);
     }
@@ -189,6 +192,9 @@ export class LoadImporter extends BaseImporter {
         if (v.includes('PAID')) return LoadStatus.PAID;
         if (v.includes('CANCEL')) return LoadStatus.CANCELLED;
 
+        // Check cache
+        if (this.statusCache.has(v)) return this.statusCache.get(v)!;
+
         // AI Fallback
         try {
             const result = await this.aiService.callAI(`Map load status to one of: PENDING, ASSIGNED, EN_ROUTE_PICKUP, AT_PICKUP, LOADED, EN_ROUTE_DELIVERY, AT_DELIVERY, DELIVERED, INVOICED, PAID, CANCELLED. Input: "${val}"`, {
@@ -197,7 +203,10 @@ export class LoadImporter extends BaseImporter {
                 temperature: 0
             });
             const mapped = String(result.data).toUpperCase().trim() as LoadStatus;
-            if (Object.values(LoadStatus).includes(mapped)) return mapped;
+            if (Object.values(LoadStatus).includes(mapped)) {
+                this.statusCache.set(v, mapped);
+                return mapped;
+            }
         } catch (e) {
             console.error('[LoadImporter] AI status mapping failed', e);
         }
@@ -213,6 +222,9 @@ export class LoadImporter extends BaseImporter {
         if (v.includes('FTL') || v.includes('FULL') || v.includes('VAN')) return LoadType.FTL;
         if (v.includes('INTERMODAL') || v.includes('RAIL') || v.includes('CONTAINER')) return LoadType.INTERMODAL;
 
+        // Check cache
+        if (this.typeCache.has(v)) return this.typeCache.get(v)!;
+
         // AI Fallback
         try {
             const result = await this.aiService.callAI(`Map load type to one of: FTL, LTL, PARTIAL, INTERMODAL. Input: "${val}"`, {
@@ -221,7 +233,10 @@ export class LoadImporter extends BaseImporter {
                 temperature: 0
             });
             const mapped = String(result.data).toUpperCase().trim() as LoadType;
-            if (Object.values(LoadType).includes(mapped)) return mapped;
+            if (Object.values(LoadType).includes(mapped)) {
+                this.typeCache.set(v, mapped);
+                return mapped;
+            }
         } catch (e) {
             console.error('[LoadImporter] AI type mapping failed', e);
         }

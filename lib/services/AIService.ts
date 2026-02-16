@@ -136,7 +136,7 @@ export class AIService {
       console.log(`[AIService] ${model} response in ${latencyMs}ms, ${tokensUsed} tokens`);
 
       // Parse JSON response
-      const parsed = this.parseJsonResponse<T>(content);
+      const parsed = this.parseJsonResponse<T>(content, jsonMode);
 
       return {
         data: parsed,
@@ -206,8 +206,13 @@ export class AIService {
   /**
    * Parse JSON response, handling markdown code blocks
    */
-  private parseJsonResponse<T>(content: string): T {
+  private parseJsonResponse<T>(content: string, jsonMode: boolean = true): T {
     let jsonText = content.trim();
+
+    // If not in JSON mode, just return content as T (likely string)
+    if (!jsonMode) {
+      return content as unknown as T;
+    }
 
     // Remove markdown code blocks if present
     if (jsonText.startsWith('```json')) {
@@ -230,10 +235,9 @@ export class AIService {
       try {
         return JSON.parse(fixedJson) as T;
       } catch (finalError) {
-        // Fallback: If T is string, return text. If generic, return text as "response" or raw?
         // Safe fallback: Return the raw text if expected type allows, otherwise specific object?
         // For general usage, returning raw text is better than crashing.
-        console.warn('[AIService] JSON parse failed, returning raw text');
+        console.warn('[AIService] JSON parse failed. Content:', content.substring(0, 500));
         return content as unknown as T;
       }
     }
