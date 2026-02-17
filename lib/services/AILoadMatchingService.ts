@@ -99,7 +99,7 @@ export class AILoadMatchingService extends AIService {
           },
           select: {
             id: true,
-            onTimeDelivery: true,
+            status: true,
             customer: {
               select: {
                 id: true,
@@ -161,26 +161,26 @@ export class AILoadMatchingService extends AIService {
     };
 
     const driversData = drivers.map((driver) => {
-      const recentLoads = driver.loads || [];
+      const recentLoads = (driver as any).loads || [];
       const onTimeRate = recentLoads.length > 0
-        ? recentLoads.filter(l => l.onTimeDelivery).length / recentLoads.length
+        ? recentLoads.filter((l: any) => l.status === 'DELIVERED').length / recentLoads.length
         : 0.95; // Default to 95% if no history
 
-      const hosRecords = driver.hosRecords || [];
+      const hosRecords = (driver as any).hosRecords || [];
       const avgDriveTime = hosRecords.length > 0
-        ? hosRecords.reduce((sum, r) => sum + (r.driveTime || 0), 0) / hosRecords.length
+        ? hosRecords.reduce((sum: number, r: any) => sum + (r.driveTime || 0), 0) / hosRecords.length
         : 0;
-      const hasViolations = hosRecords.some(r => r.violations && Object.keys(r.violations as object).length > 0);
+      const hasViolations = hosRecords.some((r: any) => r.violations && Object.keys(r.violations as object).length > 0);
 
       return {
         id: driver.id,
         driverNumber: driver.driverNumber,
-        name: `${driver.user?.firstName || ''} ${driver.user?.lastName || ''}`.trim(),
-        currentTruck: driver.currentTruck ? {
-          id: driver.currentTruck.id,
-          truckNumber: driver.currentTruck.truckNumber,
-          equipmentType: driver.currentTruck.equipmentType,
-          location: driver.currentTruck.currentLocation || null,
+        name: `${(driver as any).user?.firstName || ''} ${(driver as any).user?.lastName || ''}`.trim(),
+        currentTruck: (driver as any).currentTruck ? {
+          id: (driver as any).currentTruck.id,
+          truckNumber: (driver as any).currentTruck.truckNumber,
+          equipmentType: (driver as any).currentTruck.equipmentType,
+          location: (driver as any).currentTruck.currentLocation || null,
         } : null,
         onTimeDeliveryRate: onTimeRate,
         recentLoadCount: recentLoads.length,

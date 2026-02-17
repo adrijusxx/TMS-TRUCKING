@@ -189,12 +189,13 @@ export async function POST(request: NextRequest) {
 
           if (relatedLoads.length > 0) {
             const load = relatedLoads[0];
-            const currentExpenses = load.expenses || 0;
 
-            await prisma.load.update({
-              where: { id: load.id },
+            await prisma.loadExpense.create({
               data: {
-                expenses: currentExpenses + expenseAmount,
+                loadId: load.id,
+                description: expense.Description || 'QuickBooks Expense',
+                amount: expenseAmount,
+                expenseType: 'OTHER',
               },
             });
 

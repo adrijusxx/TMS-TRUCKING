@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
         const headers = data[0] as string[];
         const rows = data.slice(1) as any[];
 
-        // Get current MC number for this import session
-        const { mcNumber: currentMcNumber } = await getCurrentMcNumber(session, request);
+        // Get current MC state for this import session
+        const { mcNumberId: currentMcNumberId } = await getCurrentMcNumber(session, request);
 
         // Import based on entity type
         const importResult = await importEntityData(
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
           headers,
           rows,
           session.user.companyId,
-          currentMcNumber
+          currentMcNumberId
         );
 
         results[fileInfo.entity] = importResult;
@@ -104,7 +104,7 @@ async function importEntityData(
   headers: string[],
   rows: any[],
   companyId: string,
-  currentMcNumber?: string | null
+  currentMcNumberId?: string | null
 ): Promise<any> {
   const created: any[] = [];
   const errors: any[] = [];
@@ -181,7 +181,7 @@ async function importEntityData(
               customerNumber,
               name,
               type: getValue(row, ['Customer type', 'Customer Type', 'type']) || 'DIRECT',
-              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || null,
+              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumberId || null,
               location: getValue(row, ['Location', 'location']),
               website: getValue(row, ['Website', 'website']),
               referenceNumber: getValue(row, ['Reference number', 'Reference Number', 'reference_number']),
@@ -259,7 +259,7 @@ async function importEntityData(
           ) || new Date();
 
           // Get or create MC number
-          const mcNumberValue = getValue(row, ['MC number', 'MC Number', 'mc_number']) || currentMcNumber;
+          const mcNumberValue = getValue(row, ['MC number', 'MC Number', 'mc_number']) || currentMcNumberId;
           let mcNumberId: string | undefined;
           if (mcNumberValue) {
             let mcNumber = await prisma.mcNumber.findFirst({
@@ -373,7 +373,7 @@ async function importEntityData(
           }
 
           // Get or create MC number
-          const mcNumberValue = getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber;
+          const mcNumberValue = getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumberId;
           let mcNumberId: string | undefined;
           if (mcNumberValue) {
             let mcNumber = await prisma.mcNumber.findFirst({
@@ -629,9 +629,15 @@ async function importEntityData(
             if (trailer) trailerId = trailer.id;
           }
 
-          // Parse pickup/delivery locations
-          const pickupLocation = getValue(row, ['Pickup location', 'Pickup Location', 'pickup_location']);
-          const deliveryLocation = getValue(row, ['Delivery location', 'Delivery Location', 'delivery_location']);
+          // Parse pickup/delivery locations - Enhanced logic
+          let pickupCity = '';
+          let pickupState = '';
+          let deliveryCity = '';
+          let deliveryState = '';
+
+          // 1. Try combined "City, State" column first
+          const pickupLocation = getValue(row, ['Pickup location', 'Pickup Location', 'pickup_location', 'Origin', 'origin']);
+          const deliveryLocation = getValue(row, ['Delivery location', 'Delivery Location', 'delivery_location', 'Destination', 'destination', 'Dest', 'dest']);
 
           // Extract city/state from location strings (format: "City, State")
           const parseLocation = (location: string | null): { city: string; state: string } | null => {
@@ -643,8 +649,44 @@ async function importEntityData(
             return null;
           };
 
-          const pickup = parseLocation(pickupLocation);
-          const delivery = parseLocation(deliveryLocation);
+          const parsedPickup = parseLocation(pickupLocation);
+          const parsedDelivery = parseLocation(deliveryLocation);
+
+          if (parsedPickup) {
+            pickupCity = parsedPickup.city;
+            pickupState = parsedPickup.state;
+          }
+          if (parsedDelivery) {
+            deliveryCity = parsedDelivery.city;
+            deliveryState = parsedDelivery.state;
+          }
+
+          // 2. If parsing failed, look for separate columns (overrides parsed if present)
+          const separatePickupCity = getValue(row, ['Pickup City', 'pickup_city', 'Origin City', 'origin_city', 'City (origin)', 'city_origin', 'PU City', 'pu_city']);
+          const separatePickupState = getValue(row, ['Pickup State', 'pickup_state', 'Origin State', 'origin_state', 'State (origin)', 'state_origin', 'PU State', 'pu_state']);
+          const separateDeliveryCity = getValue(row, ['Delivery City', 'delivery_city', 'Destination City', 'destination_city', 'Dest City', 'dest_city', 'City (dest)', 'city_dest', 'DEL City', 'del_city']);
+          const separateDeliveryState = getValue(row, ['Delivery State', 'delivery_state', 'Destination State', 'destination_state', 'Dest State', 'dest_state', 'State (dest)', 'state_dest', 'DEL State', 'del_state']);
+
+          if (separatePickupCity) pickupCity = separatePickupCity;
+          if (separatePickupState) pickupState = separatePickupState;
+          if (separateDeliveryCity) deliveryCity = separateDeliveryCity;
+          if (separateDeliveryState) deliveryState = separateDeliveryState;
+
+          // Calculate Metrics
+          const revenue = parseFloat(getValue(row, ['Load pay', 'Load Pay', 'revenue', 'Total Pay', 'total_pay', 'Rate', 'rate']) || '0') || 0;
+          const totalMiles = parseFloat(getValue(row, ['Total miles', 'Total Miles', 'total_miles', 'Miles', 'miles']) || '0') || null;
+          const loadedMiles = parseFloat(getValue(row, ['Loaded miles', 'Loaded Miles', 'loaded_miles']) || '0') || null;
+          const emptyMiles = parseFloat(getValue(row, ['Empty miles', 'Empty Miles', 'empty_miles']) || '0') || null;
+          const weight = parseFloat(getValue(row, ['Weight', 'weight', 'Lbs', 'lbs']) || '0') || 0;
+
+          let revenuePerMile = 0;
+          // Try explicit column first
+          const explicitRPM = parseFloat(getValue(row, ['RPM', 'rpm', 'Rate Per Mile', 'rate_per_mile']) || '0');
+          if (explicitRPM > 0) {
+            revenuePerMile = explicitRPM;
+          } else if (revenue > 0 && totalMiles && totalMiles > 0) {
+            revenuePerMile = Number((revenue / totalMiles).toFixed(2));
+          }
 
           const load = await prisma.load.create({
             data: {
@@ -655,23 +697,21 @@ async function importEntityData(
               trailerId,
               loadType: 'FTL', // Default
               equipmentType: 'DRY_VAN', // Default
-              pickupCity: pickup?.city || '',
-              pickupState: pickup?.state || '',
-              deliveryCity: delivery?.city || '',
-              deliveryState: delivery?.state || '',
-              pickupDate: parseDate(getValue(row, ['Pickup Date', 'Pickup Date', 'pickup_date'])) || new Date(),
+              pickupCity: pickupCity || '',
+              pickupState: pickupState || '',
+              deliveryCity: deliveryCity || '',
+              deliveryState: deliveryState || '',
+              pickupDate: parseDate(getValue(row, ['Pickup Date', 'Pickup Date', 'pickup_date', 'PU Date', 'pu_date'])) || new Date(),
               deliveryDate: parseDate(getValue(row, ['DEL date', 'DEL Date', 'Delivery Date', 'delivery_date'])),
-              revenue: parseFloat(getValue(row, ['Load pay', 'Load Pay', 'revenue']) || '0') || 0,
-              weight: 0, // Default
-              shipmentId: getValue(row, ['Shipment ID', 'Shipment ID', 'shipment_id']),
-              stopsCount: parseInt(getValue(row, ['Stops count', 'Stops Count', 'stops_count']) || '0') || null,
-              totalPay: parseFloat(getValue(row, ['Total pay', 'Total Pay', 'total_pay']) || '0') || null,
-              totalMiles: parseFloat(getValue(row, ['Total miles', 'Total Miles', 'total_miles']) || '0') || null,
-              lastNote: getValue(row, ['Last note', 'Last Note', 'last_note']),
-              onTimeDelivery: getValue(row, ['On Time Delivery', 'On Time Delivery']) === 'Yes' || null,
-              lastUpdate: parseDate(getValue(row, ['Last update', 'Last Update', 'last_update'])),
+              revenue,
+              weight,
+              shipmentId: getValue(row, ['Shipment ID', 'Shipment ID', 'shipment_id', 'Ref', 'ref']),
+              totalMiles,
+              loadedMiles,
+              emptyMiles,
+              revenuePerMile,
               status: mapLoadStatus(getValue(row, ['Load status', 'Load Status', 'status']) || 'PENDING'),
-              mcNumber: getValue(row, ['MC Number', 'MC Number', 'mc_number']) || currentMcNumber || null,
+              mcNumberId: currentMcNumberId,
             },
           });
 

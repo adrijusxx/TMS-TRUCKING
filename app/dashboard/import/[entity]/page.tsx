@@ -42,7 +42,6 @@ export default async function ImportEntityPage({ params }: ImportEntityPageProps
           entityLabel={config.label}
           systemFields={config.fields}
           backUrl={backUrl}
-          exampleFileUrl={config.exampleFileUrl}
         />
       </div>
     </>

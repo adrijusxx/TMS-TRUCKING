@@ -146,72 +146,17 @@ export default function PickupSection({
             <p className="text-xs text-destructive">{errors.pickupDate}</p>
           )}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="pickupTimeStart" className="text-xs">
-            Time Window Start
-          </Label>
-          <Input
-            id="pickupTimeStart"
-            type="datetime-local"
-            value={formatDateTimeLocal(loadData.pickupTimeStart ?? undefined)}
-            onChange={(e) => onFieldChange('pickupTimeStart', e.target.value || null)}
-            className="h-9"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="pickupTimeEnd" className="text-xs">
-            Time Window End
-          </Label>
-          <Input
-            id="pickupTimeEnd"
-            type="datetime-local"
-            value={formatDateTimeLocal(loadData.pickupTimeEnd ?? undefined)}
-            onChange={(e) => onFieldChange('pickupTimeEnd', e.target.value || null)}
-            className="h-9"
-          />
-        </div>
-      </div>
-
-      {/* Contact Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="pickupContact" className="text-xs flex items-center gap-1">
-            <Building2 className="h-3 w-3" />
-            Contact Name
-          </Label>
-          <Input
-            id="pickupContact"
-            value={loadData.pickupContact || ''}
-            onChange={(e) => onFieldChange('pickupContact', e.target.value)}
-            className="h-9"
-            placeholder="John Doe"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="pickupPhone" className="text-xs flex items-center gap-1">
-            <Phone className="h-3 w-3" />
-            Contact Phone
-          </Label>
-          <Input
-            id="pickupPhone"
-            type="tel"
-            value={loadData.pickupPhone || ''}
-            onChange={(e) => onFieldChange('pickupPhone', e.target.value)}
-            className="h-9"
-            placeholder="(555) 123-4567"
-          />
-        </div>
       </div>
 
       {/* Notes */}
       <div className="space-y-1.5">
-        <Label htmlFor="pickupNotes" className="text-xs">
+        <Label htmlFor="driverNotes" className="text-xs">
           Pickup Notes
         </Label>
         <Textarea
-          id="pickupNotes"
-          value={loadData.pickupNotes || ''}
-          onChange={(e) => onFieldChange('pickupNotes', e.target.value)}
+          id="driverNotes"
+          value={(loadData as any).driverNotes || ''}
+          onChange={(e) => onFieldChange('driverNotes', e.target.value)}
           rows={2}
           className="text-sm resize-none"
           placeholder="Gate code, dock number, special instructions..."

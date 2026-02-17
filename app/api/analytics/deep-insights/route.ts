@@ -61,9 +61,9 @@ export async function GET(request: NextRequest) {
             prisma.user.count({ where: { companyId, isActive: true, deletedAt: null } }),
             prisma.load.aggregate({
                 where: { ...loadMcWhere, deletedAt: null },
-                _sum: { revenue: true, driverPay: true, profit: true, totalMiles: true, loadedMiles: true, emptyMiles: true, totalExpenses: true, fuelAdvance: true },
-                _avg: { revenue: true, driverPay: true, profit: true, totalMiles: true },
-                _count: true,
+                _sum: { revenue: true, driverPay: true, netProfit: true, totalMiles: true, loadedMiles: true, emptyMiles: true, totalExpenses: true, fuelAdvance: true },
+                _avg: { revenue: true, driverPay: true, netProfit: true, totalMiles: true },
+                _count: { _all: true },
             }),
             prisma.systemConfig.findUnique({ where: { companyId } }),
             // Drivers grouped by status
@@ -87,34 +87,34 @@ export async function GET(request: NextRequest) {
             // Last 30 days loads
             prisma.load.aggregate({
                 where: { ...loadMcWhere, deletedAt: null, pickupDate: { gte: new Date(Date.now() - 30 * 86400000) } },
-                _sum: { revenue: true, driverPay: true, profit: true, totalMiles: true, emptyMiles: true, totalExpenses: true },
-                _count: true,
+                _sum: { revenue: true, driverPay: true, netProfit: true, totalMiles: true, emptyMiles: true, totalExpenses: true },
+                _count: { _all: true },
             }),
             // Last 90 days loads
             prisma.load.aggregate({
                 where: { ...loadMcWhere, deletedAt: null, pickupDate: { gte: new Date(Date.now() - 90 * 86400000) } },
-                _sum: { revenue: true, driverPay: true, profit: true, totalMiles: true, emptyMiles: true, totalExpenses: true },
-                _count: true,
+                _sum: { revenue: true, driverPay: true, netProfit: true, totalMiles: true, emptyMiles: true, totalExpenses: true },
+                _count: { _all: true },
             }),
         ]);
 
         // --- COMPUTED INSIGHTS ---
-        const rev = Number(loadAggregates._sum.revenue) || 0;
-        const pay = Number(loadAggregates._sum.driverPay) || 0;
-        const miles = Number(loadAggregates._sum.totalMiles) || 0;
-        const emptyM = Number(loadAggregates._sum.emptyMiles) || 0;
-        const loadedM = Number(loadAggregates._sum.loadedMiles) || 0;
-        const expenses = Number(loadAggregates._sum.totalExpenses) || 0;
-        const profit = Number(loadAggregates._sum.profit) || 0;
-        const avgRev = Number(loadAggregates._avg.revenue) || 0;
-        const avgPay = Number(loadAggregates._avg.driverPay) || 0;
-        const count = loadAggregates._count || 0;
+        const rev = Number(loadAggregates._sum?.revenue) || 0;
+        const pay = Number(loadAggregates._sum?.driverPay) || 0;
+        const miles = Number(loadAggregates._sum?.totalMiles) || 0;
+        const emptyM = Number(loadAggregates._sum?.emptyMiles) || 0;
+        const loadedM = Number(loadAggregates._sum?.loadedMiles) || 0;
+        const expenses = Number(loadAggregates._sum?.totalExpenses) || 0;
+        const profit = Number(loadAggregates._sum?.netProfit) || 0;
+        const avgRev = Number(loadAggregates._avg?.revenue) || 0;
+        const avgPay = Number(loadAggregates._avg?.driverPay) || 0;
+        const count = (loadAggregates._count as any)?._all || totalLoads;
 
-        const rev30 = Number(recentLoads30d._sum.revenue) || 0;
-        const pay30 = Number(recentLoads30d._sum.driverPay) || 0;
-        const miles30 = Number(recentLoads30d._sum.totalMiles) || 0;
-        const empty30 = Number(recentLoads30d._sum.emptyMiles) || 0;
-        const count30 = recentLoads30d._count || 0;
+        const rev30 = Number(recentLoads30d._sum?.revenue) || 0;
+        const pay30 = Number(recentLoads30d._sum?.driverPay) || 0;
+        const miles30 = Number(recentLoads30d._sum?.totalMiles) || 0;
+        const empty30 = Number(recentLoads30d._sum?.emptyMiles) || 0;
+        const count30 = (recentLoads30d._count as any)?._all || 0
 
         // Financial KPIs
         const grossMargin = rev > 0 ? (rev - pay - expenses) / rev : 0;
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
 
         // Monthly extrapolations (from 30-day data)
         const monthlyRevenue = rev30;
-        const monthlyProfit = rev30 - pay30 - (Number(recentLoads30d._sum.totalExpenses) || 0);
+        const monthlyProfit = rev30 - pay30 - (Number(recentLoads30d._sum?.totalExpenses) || 0);
         const loadsPerMonth = count30;
         const monthlyRevenuePerTruck = totalTrucks > 0 ? rev30 / totalTrucks : 0;
         const monthlyLoadsPerTruck = totalTrucks > 0 ? count30 / totalTrucks : 0;

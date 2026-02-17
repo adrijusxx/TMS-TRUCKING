@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
         revenue: true,
         driverPay: true,
         totalExpenses: true, // Should include fuel, maintenance, etc. allocated to load
-        profit: true,
+        netProfit: true,
         totalMiles: true,
         customer: { select: { id: true, name: true } },
         pickupState: true,
@@ -53,8 +53,8 @@ export async function GET(request: NextRequest) {
       let name = '';
 
       if (groupBy === 'customer') {
-        key = load.customer?.id || 'Unknown';
-        name = load.customer?.name || 'Unknown Customer';
+        key = (load as any).customer?.id || 'Unknown';
+        name = (load as any).customer?.name || 'Unknown Customer';
       } else if (groupBy === 'lane') {
         key = `${load.pickupState || '?'} -> ${load.deliveryState || '?'}`;
         name = key;
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       const rev = Number(load.revenue || 0);
       const pay = Number(load.driverPay || 0);
       const exp = Number(load.totalExpenses || 0);
-      const prof = Number(load.profit || 0);
+      const prof = Number(load.netProfit || 0);
 
       // Recalculate profit if needed or trust DB
       // const calcProfit = rev - pay - exp;
@@ -181,9 +181,9 @@ export async function GET(request: NextRequest) {
         summary: {
           periodDays: Math.round(daysInPeriod),
           totalRevenue: loads.reduce((s, l) => s + Number(l.revenue || 0), 0),
-          totalGrossProfit: loads.reduce((s, l) => s + Number(l.profit || 0), 0),
+          totalGrossProfit: loads.reduce((s, l) => s + Number(l.netProfit || 0), 0),
           totalFixedCosts: Math.round(totalPeriodFixedCost),
-          totalNetProfit: loads.reduce((s, l) => s + Number(l.profit || 0), 0) - totalPeriodFixedCost,
+          totalNetProfit: loads.reduce((s, l) => s + Number(l.netProfit || 0), 0) - totalPeriodFixedCost,
           details: {
             monthlyTruckPayments,
             monthlyTrailerPayments,

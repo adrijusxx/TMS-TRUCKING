@@ -920,7 +920,7 @@ export default function LoadForm({
                       if (key.startsWith('stops') && error && typeof error === 'object' && 'message' in error) {
                         return (
                           <li key={key} className="text-destructive/90">
-                            <span className="font-medium">{key}:</span> {error.message || 'Invalid'}
+                            <span className="font-medium">{key}:</span> {String((error as any).message || 'Invalid')}
                           </li>
                         );
                       }
@@ -933,7 +933,7 @@ export default function LoadForm({
                       }
                       return (
                         <li key={key} className="text-destructive/90">
-                          <span className="font-medium">{key}:</span> {error?.message || (typeof error === 'string' ? error : 'Invalid')}
+                          <span className="font-medium">{key}:</span> {String((error as any)?.message || (typeof error === 'string' ? error : 'Invalid'))}
                         </li>
                       );
                     })}

@@ -108,7 +108,7 @@ async function getLoadOriginalValue(loadId: string) {
   const { prisma } = await import('@/lib/prisma');
   const load = await prisma.load.findUnique({
     where: { id: loadId },
-    select: { revenue: true, driverPay: true, expenses: true, fuelAdvance: true },
+    select: { revenue: true, driverPay: true, totalExpenses: true, fuelAdvance: true },
   });
   return load || null;
 }

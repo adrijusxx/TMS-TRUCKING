@@ -167,14 +167,14 @@ export async function GET(request: NextRequest) {
             _sum: { revenue: true, totalMiles: true },
         });
 
-        // Get on-time stats
+        // Get on-time stats (deliveredAt close to deliveryDate)
         const onTimeStats = await prisma.load.groupBy({
             by: ['driverId'],
             where: {
                 driverId: { in: driverIds },
                 deletedAt: null,
                 deliveredAt: { gte: thirtyDaysAgo },
-                onTimeDelivery: true,
+                status: 'DELIVERED',
             },
             _count: { id: true },
         });
@@ -192,8 +192,8 @@ export async function GET(request: NextRequest) {
 
         // Map stats to lookup objects
         const loadStatsMap = new Map(loadStats.map(s => [s.driverId, s]));
-        const onTimeMap = new Map(onTimeStats.map(s => [s.driverId, s._count.id]));
-        const activeLoadsMap = new Map(activeLoads.map(s => [s.driverId, s._count.id]));
+        const onTimeMap = new Map(onTimeStats.map(s => [s.driverId, (s._count as any).id ?? 0]));
+        const activeLoadsMap = new Map(activeLoads.map(s => [s.driverId, (s._count as any).id ?? 0]));
 
         // 8. Build driver response with stats
         const driversWithStats = drivers.map(driver => {

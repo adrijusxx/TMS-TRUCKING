@@ -58,7 +58,7 @@ export class AISettlementCalculator extends AIService {
         loadNumber: true,
         revenue: true,
         driverPay: true,
-        expenses: true,
+        totalExpenses: true,
         fuelAdvance: true,
       },
     });
@@ -78,7 +78,7 @@ export class AISettlementCalculator extends AIService {
 
     // Calculate settlement
     const grossPay = loads.reduce((sum, load) => sum + (load.driverPay || 0), 0);
-    const totalDeductions = loads.reduce((sum, load) => sum + (load.expenses || 0) + (load.fuelAdvance || 0), 0);
+    const totalDeductions = loads.reduce((sum, load) => sum + (load.totalExpenses || 0) + (load.fuelAdvance || 0), 0);
     const totalAdvances = advances.reduce((sum, adv) => sum + adv.amount, 0);
     const netPay = grossPay - totalDeductions - totalAdvances;
 
@@ -155,7 +155,7 @@ Return JSON with:
         loadNumber: load.loadNumber,
         revenue: load.revenue,
         driverPay: load.driverPay || 0,
-        deductions: (load.expenses || 0) + (load.fuelAdvance || 0),
+        deductions: (load.totalExpenses || 0) + (load.fuelAdvance || 0),
       })),
       calculatedSettlement,
       aiVerification: verification.data,

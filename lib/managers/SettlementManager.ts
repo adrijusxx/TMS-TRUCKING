@@ -91,7 +91,7 @@ export class SettlementManager {
    * Get settlements pending approval
    */
   async getPendingApprovals(companyId: string): Promise<any[]> {
-    return this.workflowManager.getPendingApprovals(companyId);
+    return this.workflowManager.getPendingApprovals({ companyId });
   }
 
   /**

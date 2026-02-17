@@ -103,11 +103,9 @@ export async function GET(
         state: load.pickupState,
         address: load.pickupAddress,
         date: load.pickupDate,
-        timeWindow: load.pickupTimeStart && load.pickupTimeEnd 
-          ? `${load.pickupTimeStart.toISOString()} - ${load.pickupTimeEnd.toISOString()}`
-          : null,
-        contact: load.pickupContact,
-        phone: load.pickupPhone,
+        timeWindow: null,
+        contact: null,
+        phone: null,
         latitude: null,
         longitude: null,
       },
@@ -116,11 +114,9 @@ export async function GET(
         state: load.deliveryState,
         address: load.deliveryAddress,
         date: load.deliveryDate,
-        timeWindow: load.deliveryTimeStart && load.deliveryTimeEnd
-          ? `${load.deliveryTimeStart.toISOString()} - ${load.deliveryTimeEnd.toISOString()}`
-          : null,
-        contact: load.deliveryContact,
-        phone: load.deliveryPhone,
+        timeWindow: null,
+        contact: null,
+        phone: null,
         latitude: null,
         longitude: null,
       },

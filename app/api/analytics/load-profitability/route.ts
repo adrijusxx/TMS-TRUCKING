@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
                 revenue: true,
                 driverPay: true,
                 totalExpenses: true,
-                profit: true,
+                netProfit: true,
                 customer: { select: { name: true } },
                 deliveryDate: true
             },
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
         const data = loads.map(load => {
             const revenue = Number(load.revenue || 0);
-            const profit = Number(load.profit || 0);
+            const profit = Number(load.netProfit || 0);
             return {
                 loadNumber: load.loadNumber,
                 revenue,

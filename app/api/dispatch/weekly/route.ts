@@ -204,7 +204,6 @@ export async function GET(request: NextRequest) {
             deliveryState: load.deliveryState,
             revenue: load.revenue || 0,
             driverPay: calculatedDriverPay,
-            serviceFee: load.serviceFee || 0,
             loadedMiles: load.loadedMiles || 0,
             emptyMiles: load.emptyMiles || 0,
             totalMiles: load.totalMiles || 0,
@@ -244,7 +243,6 @@ export async function GET(request: NextRequest) {
       driverSchedule.summary.emptyMiles += load.emptyMiles || 0;
       driverSchedule.summary.totalDriverGross += calculatedDriverPay;
       driverSchedule.summary.totalGross += load.revenue || 0;
-      driverSchedule.summary.serviceFees += load.serviceFee || 0;
     });
 
     // Calculate overall statistics

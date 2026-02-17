@@ -300,7 +300,6 @@ export async function GET(request: NextRequest) {
               totalMiles: true,
               loadedMiles: true,
               emptyMiles: true,
-              serviceFee: true,
             },
             take: 100, // Get recent loads for tariff calculation
           },

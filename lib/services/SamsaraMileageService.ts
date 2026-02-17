@@ -44,8 +44,8 @@ export class SamsaraMileageService {
 
         // 2. Define Time Window (Add buffer to ensure we capture start/stop)
         // Using pickup/delivery times if available, otherwise dates (start of day / end of day)
-        let startTime = load.pickupTimeStart || load.pickupDate;
-        let endTime = load.deliveryTimeEnd || load.deliveryDate;
+        let startTime = load.pickupDate;
+        let endTime = load.deliveryDate;
 
         // If we only have dates, assume 00:00 to 23:59 coverage if times aren't specific
         // But usually pickupTimeStart is set. If not, use date.

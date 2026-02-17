@@ -199,7 +199,6 @@ export async function GET(request: NextRequest) {
             stops: load.stops,
             revenue: load.revenue,
             totalMiles: load.totalMiles,
-            onTimeDelivery: load.onTimeDelivery,
         }));
 
         return NextResponse.json({

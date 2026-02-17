@@ -180,22 +180,20 @@ Entry ${i + 1}:
         loadNumber: true,
         pickupDate: true,
         deliveryDate: true,
-        deliveryTimeStart: true,
-        onTimeDelivery: true,
       },
       take: 100,
     });
 
     const delays = loads
-      .filter(l => l.deliveryDate && l.deliveryTimeStart)
+      .filter(l => l.deliveryDate && l.pickupDate)
       .map(l => {
-        const delayHours = (l.deliveryDate!.getTime() - l.deliveryTimeStart!.getTime()) / (1000 * 60 * 60);
+        const delayHours = (l.deliveryDate!.getTime() - l.pickupDate!.getTime()) / (1000 * 60 * 60);
         return { load: l, delayHours };
       });
 
     return `DELAY DATA:
 - Total Loads: ${loads.length}
-- On-Time Rate: ${loads.filter(l => l.onTimeDelivery).length / Math.max(loads.length, 1) * 100}%
+- Delivered: ${loads.filter(l => l.deliveryDate).length}
 - Average Delay: ${delays.length > 0 ? (delays.reduce((sum, d) => sum + d.delayHours, 0) / delays.length).toFixed(1) : 0} hours
 
 Delayed Loads:
@@ -302,7 +300,7 @@ Record ${i + 1}:
             createdAt: { gte: startDate, lte: endDate },
           },
           select: {
-            onTimeDelivery: true,
+            status: true,
           },
         },
       },
@@ -312,14 +310,17 @@ Record ${i + 1}:
       return 'Driver not found';
     }
 
+    const deliveredLoads = (driver as any).loads?.filter((l: any) => l.status === 'DELIVERED').length || 0;
+    const totalLoadsCount = (driver as any).loads?.length || 0;
+
     return `DRIVER BEHAVIOR DATA:
 - Driver: ${driver.driverNumber}
-- HOS Violations: ${driver.hosViolations?.length || 0}
-- Safety Incidents: ${driver.safetyIncidents?.length || 0}
-- On-Time Rate: ${driver.loads?.filter(l => l.onTimeDelivery).length / Math.max(driver.loads?.length || 1, 1) * 100}%
+- HOS Violations: ${(driver as any).hosViolations?.length || 0}
+- Safety Incidents: ${(driver as any).safetyIncidents?.length || 0}
+- Delivery Rate: ${totalLoadsCount > 0 ? (deliveredLoads / totalLoadsCount * 100).toFixed(0) : 'N/A'}%
 
 Violations:
-${driver.hosViolations?.slice(0, 10).map((v, i) => `
+${(driver as any).hosViolations?.slice(0, 10).map((v: any, i: number) => `
 Violation ${i + 1}: ${v.violationType} on ${v.violationDate.toISOString().split('T')[0]}
 `).join('\n') || 'None'}`;
   }

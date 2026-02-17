@@ -70,8 +70,6 @@ export async function GET(request: NextRequest) {
             },
             pickupDate: true,
             deliveryDate: true,
-            pickupTimeStart: true,
-            deliveryTimeStart: true,
           },
         },
         driver: {

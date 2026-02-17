@@ -128,7 +128,7 @@ export default function DeliverySection({
         </div>
       </div>
 
-      {/* Date & Time Windows */}
+      {/* Date */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="deliveryDate" className="text-xs flex items-center gap-1">
@@ -146,72 +146,17 @@ export default function DeliverySection({
             <p className="text-xs text-destructive">{errors.deliveryDate}</p>
           )}
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="deliveryTimeStart" className="text-xs">
-            Time Window Start
-          </Label>
-          <Input
-            id="deliveryTimeStart"
-            type="datetime-local"
-            value={formatDateTimeLocal(loadData.deliveryTimeStart ?? undefined)}
-            onChange={(e) => onFieldChange('deliveryTimeStart', e.target.value || null)}
-            className="h-9"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="deliveryTimeEnd" className="text-xs">
-            Time Window End
-          </Label>
-          <Input
-            id="deliveryTimeEnd"
-            type="datetime-local"
-            value={formatDateTimeLocal(loadData.deliveryTimeEnd ?? undefined)}
-            onChange={(e) => onFieldChange('deliveryTimeEnd', e.target.value || null)}
-            className="h-9"
-          />
-        </div>
-      </div>
-
-      {/* Contact Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="deliveryContact" className="text-xs flex items-center gap-1">
-            <Building2 className="h-3 w-3" />
-            Contact Name
-          </Label>
-          <Input
-            id="deliveryContact"
-            value={loadData.deliveryContact || ''}
-            onChange={(e) => onFieldChange('deliveryContact', e.target.value)}
-            className="h-9"
-            placeholder="Jane Smith"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="deliveryPhone" className="text-xs flex items-center gap-1">
-            <Phone className="h-3 w-3" />
-            Contact Phone
-          </Label>
-          <Input
-            id="deliveryPhone"
-            type="tel"
-            value={loadData.deliveryPhone || ''}
-            onChange={(e) => onFieldChange('deliveryPhone', e.target.value)}
-            className="h-9"
-            placeholder="(555) 987-6543"
-          />
-        </div>
       </div>
 
       {/* Notes */}
       <div className="space-y-1.5">
-        <Label htmlFor="deliveryNotes" className="text-xs">
+        <Label htmlFor="driverNotes" className="text-xs">
           Delivery Notes
         </Label>
         <Textarea
-          id="deliveryNotes"
-          value={loadData.deliveryNotes || ''}
-          onChange={(e) => onFieldChange('deliveryNotes', e.target.value)}
+          id="driverNotes"
+          value={(loadData as any).driverNotes || ''}
+          onChange={(e) => onFieldChange('driverNotes', e.target.value)}
           rows={2}
           className="text-sm resize-none"
           placeholder="Appointment number, receiving hours, special instructions..."
