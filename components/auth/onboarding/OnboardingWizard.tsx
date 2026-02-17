@@ -4,13 +4,9 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Step1AccountDetails } from './Step1AccountDetails';
 import { Step2CompanyDetails } from './Step2CompanyDetails';
-import { Step3ImportData } from './Step3ImportData';
 import { Step4PlanSelection } from './Step4PlanSelection';
-import type {
-    OnboardingStep2Input,
-    OnboardingStep3Input,
-    OnboardingStep4Input,
-} from '@/lib/validations/onboarding';
+import type { CompanyDetailsInput } from './Step2CompanyDetails';
+import type { PlanSelectionInput } from './Step4PlanSelection';
 import { Truck, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -28,16 +24,14 @@ interface Step1Data {
     confirmPassword: string;
 }
 
-interface OnboardingData {
+interface RegistrationData {
     step1?: Step1Data;
-    step2?: OnboardingStep2Input;
-    step3?: OnboardingStep3Input;
+    step2?: CompanyDetailsInput;
 }
 
 const STEPS = [
     { label: 'Account', description: 'Your details' },
     { label: 'Company', description: 'Business info' },
-    { label: 'Import', description: 'Quick start' },
     { label: 'Plan', description: 'Get started' },
 ];
 
@@ -48,42 +42,33 @@ const STEPS = [
 export function OnboardingWizard() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState(1);
-    const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
+    const [registrationData, setRegistrationData] = useState<RegistrationData>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // STEP 1: Account Details
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     const handleStep1Complete = useCallback((data: Step1Data) => {
-        setOnboardingData(prev => ({ ...prev, step1: data }));
+        setRegistrationData(prev => ({ ...prev, step1: data }));
         setCurrentStep(2);
         setError(null);
     }, []);
 
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // STEP 2: Company Details
-    // ---------------------------------------------------------------------------
-    const handleStep2Complete = useCallback((data: OnboardingStep2Input) => {
-        setOnboardingData(prev => ({ ...prev, step2: data }));
+    // -------------------------------------------------------------------------
+    const handleStep2Complete = useCallback((data: CompanyDetailsInput) => {
+        setRegistrationData(prev => ({ ...prev, step2: data }));
         setCurrentStep(3);
         setError(null);
     }, []);
 
-    // ---------------------------------------------------------------------------
-    // STEP 3: Import Data (Optional)
-    // ---------------------------------------------------------------------------
-    const handleStep3Complete = useCallback((data: OnboardingStep3Input) => {
-        setOnboardingData(prev => ({ ...prev, step3: data }));
-        setCurrentStep(4);
-        setError(null);
-    }, []);
-
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // STEP 3: Plan Selection - CREATE THE ACCOUNT
-    // ---------------------------------------------------------------------------
-    const handlePlanComplete = useCallback(async (data: OnboardingStep4Input) => {
-        if (!onboardingData.step1 || !onboardingData.step2) {
+    // -------------------------------------------------------------------------
+    const handlePlanComplete = useCallback(async (data: PlanSelectionInput) => {
+        if (!registrationData.step1 || !registrationData.step2) {
             setError('Missing required information. Please go back and complete all steps.');
             return;
         }
@@ -97,21 +82,18 @@ export function OnboardingWizard() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     // Step 1 data
-                    email: onboardingData.step1.email,
-                    password: onboardingData.step1.password,
-                    confirmPassword: onboardingData.step1.confirmPassword,
-                    firstName: onboardingData.step1.firstName,
-                    lastName: onboardingData.step1.lastName,
+                    email: registrationData.step1.email,
+                    password: registrationData.step1.password,
+                    confirmPassword: registrationData.step1.confirmPassword,
+                    firstName: registrationData.step1.firstName,
+                    lastName: registrationData.step1.lastName,
                     // Step 2 data
-                    companyName: onboardingData.step2.companyName,
-                    dotNumber: onboardingData.step2.dotNumber,
-                    mcNumber: onboardingData.step2.mcNumber,
-                    phone: onboardingData.step2.phone,
+                    companyName: registrationData.step2.companyName,
+                    dotNumber: registrationData.step2.dotNumber,
+                    mcNumber: registrationData.step2.mcNumber,
+                    phone: registrationData.step2.phone,
                     // Plan selection
                     plan: data.plan,
-                    // Imported data if any
-                    importedData: onboardingData.step3?.importedData,
-                    skipImport: onboardingData.step3?.skipImport ?? true,
                 }),
             });
 
@@ -128,11 +110,11 @@ export function OnboardingWizard() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [onboardingData, router]);
+    }, [registrationData, router]);
 
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // NAVIGATION
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     const handleBack = useCallback(() => {
         if (currentStep > 1) {
             setCurrentStep(prev => prev - 1);
@@ -140,9 +122,9 @@ export function OnboardingWizard() {
         }
     }, [currentStep]);
 
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // RENDER
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     return (
         <div className="min-h-screen flex bg-slate-950">
             {/* Left Panel - Progress */}
@@ -238,7 +220,7 @@ export function OnboardingWizard() {
                         <Step1AccountDetails
                             onComplete={handleStep1Complete}
                             isLoading={isSubmitting}
-                            defaultValues={onboardingData.step1}
+                            defaultValues={registrationData.step1}
                         />
                     )}
 
@@ -246,18 +228,11 @@ export function OnboardingWizard() {
                         <Step2CompanyDetails
                             onComplete={handleStep2Complete}
                             isLoading={isSubmitting}
-                            defaultValues={onboardingData.step2}
+                            defaultValues={registrationData.step2}
                         />
                     )}
 
                     {currentStep === 3 && (
-                        <Step3ImportData
-                            onComplete={handleStep3Complete}
-                            isLoading={isSubmitting}
-                        />
-                    )}
-
-                    {currentStep === 4 && (
                         <Step4PlanSelection
                             onComplete={handlePlanComplete}
                             isLoading={isSubmitting}

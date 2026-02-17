@@ -7,12 +7,10 @@ export function calculateLoadStats(
     sums: { _sum: Record<string, number | null> }
 ) {
     const revenueSum = Number(sums._sum.revenue ?? 0);
-    const totalPaySum = Number(sums._sum.totalPay ?? 0);
     const driverPaySum = Number(sums._sum.driverPay ?? 0);
     const totalMilesSum = Number(sums._sum.totalMiles ?? 0);
     const emptyMilesSum = Number(sums._sum.emptyMiles ?? 0);
     const loadedMilesSum = Number(sums._sum.loadedMiles ?? 0);
-    const serviceFeeSum = Number(sums._sum.serviceFee ?? 0);
 
     // If loadedMiles is not tracked in half the records, fallback to derivation
     // In a mature system, loadedMiles should always be set during creation/update
@@ -24,7 +22,7 @@ export function calculateLoadStats(
     const rpmTotalMiles = totalMilesSum > 0 ? revenueSum / totalMilesSum : null;
 
     return {
-        totalPay: totalPaySum,
+        totalPay: revenueSum, // Backward compatibility for UI
         totalLoadPay: revenueSum,
         driverGross: driverPaySum,
         totalMiles: totalMilesSum,
@@ -32,7 +30,6 @@ export function calculateLoadStats(
         emptyMiles: emptyMilesSum,
         rpmLoadedMiles,
         rpmTotalMiles,
-        serviceFee: serviceFeeSum,
     };
 }
 

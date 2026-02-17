@@ -18,19 +18,19 @@ export class SettlementOrchestrator {
         const { driverId, periodStart, periodEnd, salaryBatchId, loadIds, forceIncludeNotReady } = params;
 
         const driver = await prisma.driver.findUnique({
-            where: { id: driverId },
+            where: { id: driverId, deletedAt: null },
             include: { user: { select: { firstName: true, lastName: true, email: true } } },
         });
 
         if (!driver) throw new Error('Driver not found');
 
-        const loadWhere: any = {
+        const loadWhere: Record<string, any> = {
             driverId,
             deletedAt: null,
             status: { in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] as LoadStatus[] },
         };
 
-        const andConditions: any[] = [];
+        const andConditions: Record<string, any>[] = [];
 
         if (loadIds && loadIds.length > 0) {
             loadWhere.id = { in: loadIds };
@@ -200,7 +200,7 @@ export class SettlementOrchestrator {
         if (!settlement || settlement.status === 'PAID') throw new Error('Cannot recalculate');
 
         const loads = await prisma.load.findMany({
-            where: { id: { in: settlement.loadIds } },
+            where: { id: { in: settlement.loadIds }, deletedAt: null },
             include: {
                 accessorialCharges: { where: { status: { in: ['APPROVED', 'BILLED'] } } },
                 loadExpenses: { where: { approvalStatus: 'APPROVED', expenseType: { in: ['TOLL', 'SCALE'] } } },

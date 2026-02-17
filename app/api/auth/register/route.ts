@@ -164,61 +164,6 @@ export async function POST(request: NextRequest) {
       data: userData as any,
     });
 
-    // Process imported data (best-effort: pre-mapped rows, same importers as onboarding)
-    const importedData = body.importedData as Record<string, any[]> | undefined;
-    const importOrder: Array<'drivers' | 'trucks' | 'trailers' | 'customers' | 'loads'> = ['drivers', 'trucks', 'trailers', 'customers', 'loads'];
-    if (importedData && Object.keys(importedData).length > 0) {
-      const companyId = company.id;
-      const userId = user.id;
-      const currentMcNumber = validated.mcNumber?.trim() || mcNumber.number;
-
-      const [{ DriverImporter }, { TruckImporter }, { TrailerImporter }, { CustomerImporter }, { LoadImporter }] = await Promise.all([
-        import('@/lib/managers/import/DriverImporter'),
-        import('@/lib/managers/import/TruckImporter'),
-        import('@/lib/managers/import/TrailerImporter'),
-        import('@/lib/managers/import/CustomerImporter'),
-        import('@/lib/managers/import/LoadImporter'),
-      ]);
-
-      for (const entityType of importOrder) {
-        const rows = importedData[entityType];
-        if (!Array.isArray(rows) || rows.length === 0) continue;
-
-        try {
-          let importer: InstanceType<typeof DriverImporter> | InstanceType<typeof TruckImporter> | InstanceType<typeof TrailerImporter> | InstanceType<typeof CustomerImporter> | InstanceType<typeof LoadImporter>;
-          switch (entityType) {
-            case 'drivers':
-              importer = new DriverImporter(prisma, companyId, userId);
-              break;
-            case 'trucks':
-              importer = new TruckImporter(prisma, companyId, userId);
-              break;
-            case 'trailers':
-              importer = new TrailerImporter(prisma, companyId, userId);
-              break;
-            case 'customers':
-              importer = new CustomerImporter(prisma, companyId, userId);
-              break;
-            case 'loads':
-              importer = new LoadImporter(prisma, companyId, userId);
-              break;
-            default:
-              continue;
-          }
-
-          await importer.import(rows, {
-            previewOnly: false,
-            updateExisting: false,
-            columnMapping: {},
-            currentMcNumber,
-          });
-        } catch (importErr) {
-          console.error(`[Register] Import failed for ${entityType}:`, importErr);
-          // Best-effort: do not block registration
-        }
-      }
-    }
-
     // Send welcome email (asynchronously, don't block response)
     // We import dynamically to avoid circular dependency issues if any, though regular import is likely fine here
     try {

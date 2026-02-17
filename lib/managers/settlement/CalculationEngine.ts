@@ -1,18 +1,21 @@
 import { prisma } from '@/lib/prisma';
 import { DriverAdvanceManager } from '../DriverAdvanceManager';
+import { SettlementRuleProcessor } from './RuleProcessor';
 import {
-    AdditionItem,
-    DeductionItem,
     SettlementCalculatedValues,
     LoadAuditLog,
-    SettlementAuditLog
+    SettlementAuditLog,
+    DriverNegativeBalance,
+    AdvanceItem
 } from './types';
 
 export class SettlementCalculationEngine {
     private advanceManager: DriverAdvanceManager;
+    private ruleProcessor: SettlementRuleProcessor;
 
     constructor() {
         this.advanceManager = new DriverAdvanceManager();
+        this.ruleProcessor = new SettlementRuleProcessor();
     }
 
     /**
@@ -25,24 +28,42 @@ export class SettlementCalculationEngine {
         periodEnd: Date
     ): Promise<SettlementCalculatedValues> {
         const driver = await prisma.driver.findUnique({
-            where: { id: driverId },
+            where: {
+                id: driverId,
+                deletedAt: null
+            },
             include: { user: true }
         });
 
         if (!driver) throw new Error('Driver not found');
 
         const { amount: grossPay, logs: loadLogs } = await this.calculateGrossPay(driver, loads);
-        const additions = await this.calculateAdditions(driverId, loads, grossPay, periodStart, periodEnd);
+
+        const additions = await this.ruleProcessor.calculateAdditions(
+            driverId,
+            loads,
+            grossPay,
+            periodStart,
+            periodEnd
+        );
         const totalAdditions = additions.reduce((sum, a) => sum + a.amount, 0);
 
-        const advances = await this.advanceManager.getAdvancesForSettlement(
+        const advancesRaw = await this.advanceManager.getAdvancesForSettlement(
             driverId,
             periodStart,
             periodEnd
         );
+        // Cast to typed items
+        const advances: AdvanceItem[] = advancesRaw.map(a => ({
+            id: a.id,
+            advanceNumber: a.advanceNumber,
+            amount: a.amount,
+            requestDate: a.requestDate,
+            notes: a.notes
+        }));
         const totalAdvances = advances.reduce((sum, adv) => sum + adv.amount, 0);
 
-        const deductions = await this.calculateDeductions(
+        const deductions = await this.ruleProcessor.calculateDeductions(
             driverId,
             loads,
             grossPay,
@@ -64,7 +85,7 @@ export class SettlementCalculationEngine {
             loads: loadLogs,
             additions,
             deductions,
-            advances: advances.map(a => ({ ...a, amount: a.amount })), // Simple copy
+            advances,
             grossPay,
             netPay
         };
@@ -112,9 +133,7 @@ export class SettlementCalculationEngine {
             } else {
                 switch (driver.payType) {
                     case 'PER_MILE': {
-                        const loadedMiles = load.loadedMiles || 0;
-                        const emptyMiles = load.emptyMiles || 0;
-                        const totalMiles = loadedMiles + emptyMiles;
+                        const totalMiles = (load.loadedMiles || 0) + (load.emptyMiles || 0);
                         if (totalMiles > 0) {
                             loadPay = totalMiles * driver.payRate;
                             logEntry.appliedRule = "Per Mile Calculation";
@@ -127,7 +146,7 @@ export class SettlementCalculationEngine {
                         let fuelSurcharge = 0;
 
                         const invoices = await prisma.invoice.findMany({
-                            where: { loadIds: { has: load.id } },
+                            where: { loadIds: { has: load.id }, deletedAt: null },
                             include: {
                                 accessorialCharges: {
                                     where: {
@@ -140,9 +159,9 @@ export class SettlementCalculationEngine {
                         });
 
                         if (invoices.length > 0) {
-                            invoiceTotal = invoices.reduce((sum: number, inv: any) => sum + (inv.subtotal || inv.total || 0), 0);
-                            fuelSurcharge = invoices.reduce((sum: number, inv: any) => {
-                                const fsc = inv.accessorialCharges?.reduce((fscSum: number, charge: any) =>
+                            invoiceTotal = invoices.reduce((sum, inv) => sum + (inv.subtotal || inv.total || 0), 0);
+                            fuelSurcharge = invoices.reduce((sum, inv) => {
+                                const fsc = inv.accessorialCharges?.reduce((fscSum, charge) =>
                                     fscSum + (charge.amount || 0), 0) || 0;
                                 return sum + fsc;
                             }, 0);
@@ -203,232 +222,24 @@ export class SettlementCalculationEngine {
         return { amount: grossPay, logs };
     }
 
-    /**
-     * Calculate additions
-     */
-    async calculateAdditions(
-        driverId: string,
-        loads: any[],
-        grossPay: number,
-        periodStart: Date,
-        periodEnd: Date
-    ): Promise<AdditionItem[]> {
-        const additions: AdditionItem[] = [];
-
-        for (const load of loads) {
-            const stopCharges = load.accessorialCharges?.filter((c: any) => c.chargeType === 'ADDITIONAL_STOP') || [];
-            for (const charge of stopCharges) {
-                additions.push({
-                    type: 'STOP_PAY',
-                    description: `Stop pay: ${charge.description || 'Additional stop'}`,
-                    amount: charge.amount || 0,
-                    reference: `accessorial_${charge.id}`,
-                });
-            }
-
-            const detentionCharges = load.accessorialCharges?.filter((c: any) => c.chargeType === 'DETENTION') || [];
-            for (const charge of detentionCharges) {
-                additions.push({
-                    type: 'DETENTION_PAY',
-                    description: `Detention pay: ${charge.description || `${charge.detentionHours || 0} hours`}`,
-                    amount: charge.amount || 0,
-                    reference: `accessorial_${charge.id}`,
-                });
-            }
-
-            const reimbursements = load.loadExpenses?.filter((e: any) => e.expenseType === 'TOLL' || e.expenseType === 'SCALE') || [];
-            for (const expense of reimbursements) {
-                additions.push({
-                    type: 'REIMBURSEMENT',
-                    description: `Reimbursement: ${expense.expenseType} - ${expense.description || expense.vendor || 'N/A'}`,
-                    amount: expense.amount || 0,
-                    reference: `expense_${expense.id}`,
-                });
-            }
-        }
-
-        const driver = await prisma.driver.findUnique({
-            where: { id: driverId },
-            select: { companyId: true, driverType: true, driverNumber: true },
-        });
-
-        if (driver) {
-            const additionRules = await prisma.deductionRule.findMany({
-                where: {
-                    companyId: driver.companyId,
-                    isActive: true,
-                    isAddition: true,
-                    deductionType: { in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'] },
-                    OR: [
-                        { driverType: null, driverId: null },
-                        { driverType: driver.driverType, driverId: null },
-                        { driverId },
-                    ],
-                },
-            });
-
-            for (const rule of additionRules) {
-                if (rule.name.startsWith('Driver ')) {
-                    if (driver.driverNumber && !rule.name.includes(driver.driverNumber)) continue;
-                }
-
-                if (rule.minGrossPay && grossPay < rule.minGrossPay) continue;
-
-                let additionAmount = 0;
-                switch (rule.calculationType) {
-                    case 'FIXED': additionAmount = rule.amount || 0; break;
-                    case 'PERCENTAGE': additionAmount = grossPay * ((rule.percentage || 0) / 100); break;
-                    case 'PER_MILE': {
-                        const totalMiles = loads.reduce((sum, load) =>
-                            sum + ((load.loadedMiles || 0) + (load.emptyMiles || 0) || load.totalMiles || 0), 0);
-                        additionAmount = totalMiles * (rule.perMileRate || 0);
-                        break;
-                    }
-                }
-
-                if (rule.maxAmount && additionAmount > rule.maxAmount) additionAmount = rule.maxAmount;
-                if (additionAmount > 0) {
-                    additions.push({
-                        type: rule.deductionType,
-                        description: rule.name,
-                        amount: additionAmount,
-                        reference: `deduction_rule_${rule.id}`,
-                        metadata: { deductionRuleId: rule.id },
-                    });
-                }
-            }
-        }
-
-        return additions;
-    }
-
-    /**
-     * Calculate deductions
-     */
-    async calculateDeductions(
-        driverId: string,
-        loads: any[],
-        grossPay: number,
-        periodStart: Date,
-        periodEnd: Date
-    ): Promise<DeductionItem[]> {
-        const deductions: DeductionItem[] = [];
-        const driver = await prisma.driver.findUnique({
-            where: { id: driverId },
-            select: { companyId: true, driverType: true, driverNumber: true },
-        });
-
-        if (!driver) return deductions;
-
-        const recurringRules = await prisma.deductionRule.findMany({
-            where: {
-                companyId: driver.companyId,
-                isActive: true,
-                isAddition: false,
-                deductionType: { in: ['INSURANCE', 'OCCUPATIONAL_ACCIDENT', 'FUEL_CARD_FEE'] },
-                NOT: { deductionType: { in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'] } },
-                OR: [
-                    { driverType: null, driverId: null },
-                    { driverType: driver.driverType, driverId: null },
-                    { driverId },
-                ],
-            },
-        });
-
-        for (const rule of recurringRules) {
-            if (this.shouldSkipRule(rule, driver)) continue;
-            if (rule.minGrossPay && grossPay < rule.minGrossPay) continue;
-
-            let deductionAmount = this.calculateAmount(rule, grossPay, loads);
-            if (rule.maxAmount && deductionAmount > rule.maxAmount) deductionAmount = rule.maxAmount;
-            deductionAmount = this.applyGoalAmount(rule, deductionAmount);
-
-            if (deductionAmount > 0) {
-                deductions.push({
-                    type: rule.deductionType,
-                    description: rule.name,
-                    amount: deductionAmount,
-                    metadata: { deductionRuleId: rule.id },
-                });
-            }
-        }
-
-        const garnishmentRules = await prisma.deductionRule.findMany({
-            where: {
-                companyId: driver.companyId,
-                isActive: true,
-                isAddition: false,
-                deductionType: { in: ['ESCROW', 'OTHER'] },
-                NOT: { deductionType: { in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'] } },
-                OR: [
-                    { driverType: null, driverId: null },
-                    { driverType: driver.driverType, driverId: null },
-                    { driverId },
-                ],
-            },
-        });
-
-        for (const rule of garnishmentRules) {
-            if (this.shouldSkipRule(rule, driver)) continue;
-            if (rule.minGrossPay && grossPay < rule.minGrossPay) continue;
-
-            let deductionAmount = this.calculateAmount(rule, grossPay, loads);
-            if (rule.maxAmount && deductionAmount > rule.maxAmount) deductionAmount = rule.maxAmount;
-            deductionAmount = this.applyGoalAmount(rule, deductionAmount);
-
-            if (deductionAmount > 0) {
-                deductions.push({
-                    type: rule.deductionType,
-                    description: rule.name,
-                    amount: deductionAmount,
-                    metadata: { deductionRuleId: rule.id },
-                });
-            }
-        }
-
-        return deductions;
-    }
-
-    private shouldSkipRule(rule: any, driver: any): boolean {
-        const driverNumberPattern = /DRV-[A-Z]{2}-[A-Z]+-\d+/g;
-        const matchedDriverNumbers = rule.name.match(driverNumberPattern);
-        if (matchedDriverNumbers && matchedDriverNumbers.length > 0) {
-            return !matchedDriverNumbers.some((num: string) => num === driver.driverNumber);
-        }
-        return false;
-    }
-
-    private calculateAmount(rule: any, grossPay: number, loads: any[]): number {
-        switch (rule.calculationType) {
-            case 'FIXED': return rule.amount || 0;
-            case 'PERCENTAGE': return grossPay * ((rule.percentage || 0) / 100);
-            case 'PER_MILE': {
-                const totalMiles = loads.reduce((sum, load) =>
-                    sum + ((load.loadedMiles || 0) + (load.emptyMiles || 0) || load.totalMiles || 0), 0);
-                return totalMiles * (rule.perMileRate || 0);
-            }
-            default: return 0;
-        }
-    }
-
-    private applyGoalAmount(rule: any, deductionAmount: number): number {
-        if (typeof rule.goalAmount === 'number' && rule.goalAmount > 0) {
-            const currentBalance = rule.currentAmount || 0;
-            if (currentBalance >= rule.goalAmount) return 0;
-            if (currentBalance + deductionAmount > rule.goalAmount) {
-                return rule.goalAmount - currentBalance;
-            }
-        }
-        return deductionAmount;
-    }
-
-    async getPreviousNegativeBalance(driverId: string): Promise<any | null> {
-        return await (prisma as any).driverNegativeBalance.findFirst({
+    async getPreviousNegativeBalance(driverId: string): Promise<DriverNegativeBalance | null> {
+        const result = await (prisma as any).driverNegativeBalance.findFirst({
             where: { driverId, isApplied: false },
             include: {
                 originalSettlement: { select: { settlementNumber: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
+
+        if (!result) return null;
+
+        return {
+            id: result.id,
+            amount: result.amount,
+            createdAt: result.createdAt,
+            originalSettlement: result.originalSettlement ? {
+                settlementNumber: result.originalSettlement.settlementNumber
+            } : undefined
+        };
     }
 }

@@ -2,16 +2,38 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { onboardingStep2Schema, type OnboardingStep2Input } from '@/lib/validations/onboarding';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowRight, Loader2, Building2 } from 'lucide-react';
 
+// =============================================================================
+// SCHEMA (inlined from removed onboarding.ts)
+// =============================================================================
+
+export const companyDetailsSchema = z.object({
+    companyName: z.string()
+        .min(1, 'Company name is required')
+        .max(100, 'Company name is too long'),
+    dotNumber: z.string()
+        .min(1, 'DOT Number is required')
+        .regex(/^\d+$/, 'DOT Number must contain only digits'),
+    mcNumber: z.string()
+        .min(1, 'MC Number is required'),
+    phone: z.string().optional(),
+});
+
+export type CompanyDetailsInput = z.infer<typeof companyDetailsSchema>;
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
+
 interface Step2CompanyDetailsProps {
-    onComplete: (data: OnboardingStep2Input) => void;
+    onComplete: (data: CompanyDetailsInput) => void;
     isLoading?: boolean;
-    defaultValues?: Partial<OnboardingStep2Input>;
+    defaultValues?: Partial<CompanyDetailsInput>;
 }
 
 export function Step2CompanyDetails({
@@ -23,8 +45,8 @@ export function Step2CompanyDetails({
         register,
         handleSubmit,
         formState: { errors },
-    } = useForm<OnboardingStep2Input>({
-        resolver: zodResolver(onboardingStep2Schema),
+    } = useForm<CompanyDetailsInput>({
+        resolver: zodResolver(companyDetailsSchema),
         defaultValues: {
             companyName: defaultValues?.companyName || '',
             dotNumber: defaultValues?.dotNumber || '',

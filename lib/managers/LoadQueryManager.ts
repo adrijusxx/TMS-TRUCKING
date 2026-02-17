@@ -173,7 +173,7 @@ function applyEntityIdFilters(
   }
 
   if (params.dispatcherId) {
-    where.assignedDispatcherId = params.dispatcherId;
+    where.dispatcherId = params.dispatcherId;
   }
 }
 

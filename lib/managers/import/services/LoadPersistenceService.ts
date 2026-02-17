@@ -1,4 +1,4 @@
-import { PrismaClient, StopType } from '@prisma/client';
+import { LoadType, EquipmentType, PrismaClient, StopType } from '@prisma/client';
 import { importLoadSchema } from '@/lib/validations/load';
 
 /**
@@ -93,9 +93,14 @@ export class LoadPersistenceService {
                     const cleanData = { ...rest, companyId: this.companyId, importBatchId };
 
                     await this.prisma.$transaction(async (tx) => {
-                        // 1. Create Load
+                        // 1. Create Load (without redundant header fields if they will be synced, 
+                        // but for now we keep them for performance and initial display)
                         const newLoad = await tx.load.create({
-                            data: cleanData as any
+                            data: {
+                                ...cleanData,
+                                // Enforce some defaults for new fields
+                                urgency: (cleanData as any).urgency || 'NORMAL',
+                            } as any
                         });
 
                         // 2. Create Pickup Stop
@@ -111,7 +116,6 @@ export class LoadPersistenceService {
                                 zip: cleanData.pickupZip || '00000',
                                 earliestArrival: cleanData.pickupDate,
                                 latestArrival: cleanData.pickupDate,
-                                notes: cleanData.dispatchNotes
                             }
                         });
 
@@ -128,7 +132,6 @@ export class LoadPersistenceService {
                                 zip: cleanData.deliveryZip || '00000',
                                 earliestArrival: cleanData.deliveryDate,
                                 latestArrival: cleanData.deliveryDate,
-                                notes: cleanData.dispatchNotes
                             }
                         });
                     }, { timeout: 30000 });

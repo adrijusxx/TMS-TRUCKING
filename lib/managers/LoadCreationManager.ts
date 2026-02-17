@@ -58,10 +58,6 @@ export interface LocationFields {
 export interface DateFields {
   pickupDate: Date | null;
   deliveryDate: Date | null;
-  pickupTimeStart: Date | null;
-  pickupTimeEnd: Date | null;
-  deliveryTimeStart: Date | null;
-  deliveryTimeEnd: Date | null;
 }
 
 /**
@@ -86,10 +82,6 @@ export function extractLocationAndDateFields(
   const dates: DateFields = {
     pickupDate: null,
     deliveryDate: null,
-    pickupTimeStart: null,
-    pickupTimeEnd: null,
-    deliveryTimeStart: null,
-    deliveryTimeEnd: null,
   };
 
   if (validated.stops && validated.stops.length > 0) {
@@ -110,8 +102,6 @@ export function extractLocationAndDateFields(
       location.pickupZip = firstPickup.zip || null;
       // Use safeParseDate to avoid "Invalid Date" errors
       dates.pickupDate = safeParseDate(firstPickup.earliestArrival);
-      dates.pickupTimeStart = safeParseDate(firstPickup.earliestArrival);
-      dates.pickupTimeEnd = safeParseDate(firstPickup.latestArrival);
     }
 
     if (deliveries.length > 0) {
@@ -123,8 +113,6 @@ export function extractLocationAndDateFields(
       location.deliveryZip = lastDelivery.zip || null;
       // Use safeParseDate to avoid "Invalid Date" errors
       dates.deliveryDate = safeParseDate(lastDelivery.latestArrival);
-      dates.deliveryTimeStart = safeParseDate(lastDelivery.earliestArrival);
-      dates.deliveryTimeEnd = safeParseDate(lastDelivery.latestArrival);
     }
   } else {
     // Single-stop load - use safeParseDate for all date fields
@@ -141,10 +129,6 @@ export function extractLocationAndDateFields(
 
     dates.pickupDate = safeParseDate(validated.pickupDate);
     dates.deliveryDate = safeParseDate(validated.deliveryDate);
-    dates.pickupTimeStart = safeParseDate(validated.pickupTimeStart);
-    dates.pickupTimeEnd = safeParseDate(validated.pickupTimeEnd);
-    dates.deliveryTimeStart = safeParseDate(validated.deliveryTimeStart);
-    dates.deliveryTimeEnd = safeParseDate(validated.deliveryTimeEnd);
   }
 
   return { location, dates };
@@ -339,10 +323,6 @@ export function buildLoadCreateData(
     // Date fields
     pickupDate: dates.pickupDate,
     deliveryDate: dates.deliveryDate,
-    pickupTimeStart: dates.pickupTimeStart,
-    pickupTimeEnd: dates.pickupTimeEnd,
-    deliveryTimeStart: dates.deliveryTimeStart,
-    deliveryTimeEnd: dates.deliveryTimeEnd,
     // Miles
     loadedMiles: loadedMiles ?? null,
     emptyMiles: emptyMiles ?? null,
@@ -359,30 +339,32 @@ export function buildLoadCreateData(
     weight: loadData.weight || 0,
     revenue: loadData.revenue || 0,
     fuelAdvance: loadData.fuelAdvance || 0,
-    expenses: 0,
-    driverPay: calculatedDriverPay ?? (loadData.driverPay ?? 0),
+    driverPay: calculatedDriverPay ?? (loadData.driverPay || 0),
     hazmat: loadData.hazmat || false,
     // Contact fields
     pickupCompany: loadData.pickupCompany || null,
-    pickupContact: loadData.pickupContact || null,
-    pickupPhone: loadData.pickupPhone || null,
-    pickupNotes: loadData.pickupNotes || null,
     deliveryCompany: loadData.deliveryCompany || null,
-    deliveryContact: loadData.deliveryContact || null,
-    deliveryPhone: loadData.deliveryPhone || null,
-    deliveryNotes: loadData.deliveryNotes || null,
     // Specifications
     pallets: loadData.pallets || null,
     temperature: loadData.temperature || null,
     hazmatClass: loadData.hazmatClass || null,
     // Financial
-    serviceFee: loadData.serviceFee || null,
     revenuePerMile: loadData.revenuePerMile || null,
     // Additional assignments
     coDriverId: loadData.coDriverId || null,
     dispatcherId: loadData.dispatcherId || null,
-    tripId: loadData.tripId || null,
     shipmentId: loadData.shipmentId || null,
+
+    // New Fields
+    urgency: loadData.urgency || 'NORMAL',
+    publicTrackingToken: loadData.publicTrackingToken || null,
+    trackingStatus: loadData.trackingStatus || null,
+    eta: safeParseDate(loadData.eta),
+    driverRating: loadData.driverRating || null,
+    driverFeedback: loadData.driverFeedback || null,
+    factoringStatus: loadData.factoringStatus || null,
+    quickPayFee: loadData.quickPayFee || null,
+    specialHandling: loadData.specialHandling || null,
   };
 
   // Add stops if provided - use safeParseDate to avoid "Invalid Date" errors

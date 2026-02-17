@@ -4,6 +4,7 @@ import { ImporterEntityService } from './services/ImporterEntityService';
 import { LoadAnomalyDetector } from './detectors/LoadAnomalyDetector';
 import { LoadRowMapper } from './mapping/LoadRowMapper';
 import { LoadPersistenceService } from './services/LoadPersistenceService';
+import { ImportValueFormatter } from '@/lib/services/ImportValueFormatter';
 
 /**
  * LoadImporter - Split from original file to comply with 500-line limit.
@@ -27,6 +28,7 @@ export class LoadImporter extends BaseImporter {
         const errors: any[] = [];
         const warnings: any[] = [];
         const lastLocs = new Map<string, any>();
+        const valueFormatter = new ImportValueFormatter();
 
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
@@ -39,12 +41,14 @@ export class LoadImporter extends BaseImporter {
                 const details = LoadRowMapper.mapDetails(row, this.getValue.bind(this), columnMapping);
 
                 // 2. Entity Resolution (JIT)
-                // Customer Resolution: Try explicit Customer column first, then fallback to Pickup Location
-                const customerNameRaw = this.getValue(row, 'customerName', columnMapping, ['Customer', 'customer', 'Broker', 'broker', 'Bill To', 'bill_to']);
+                // Customer Resolution: Try explicit Customer column first, then customerId (often contains name), then Pickup Location
+                const customerNameRaw = this.getValue(row, 'customerName', columnMapping, ['Customer', 'customer', 'Broker', 'broker', 'Bill To', 'bill_to'])
+                    || this.getValue(row, 'customerId', columnMapping, ['Customer ID', 'customer_id', 'Customer #']);
                 const customerName = customerNameRaw || locations.pickup.location;
 
                 const customerId = await entityService.resolveCustomer(customerName, maps.customerMap, previewOnly, importBatchId);
                 const driverId = await entityService.resolveDriver(this.getVal(row, 'driverId', columnMapping), maps.driverMap, previewOnly, importBatchId);
+                const coDriverId = await entityService.resolveDriver(this.getVal(row, 'coDriverId', columnMapping), maps.driverMap, previewOnly, importBatchId);
                 const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId);
                 const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId);
 
@@ -73,14 +77,27 @@ export class LoadImporter extends BaseImporter {
                     }
                 }
 
-                const loadData = this.buildLoadObject(row, rowNum, {
+                let loadData = this.buildLoadObject(row, rowNum, {
                     ...locations, ...financial, ...dates, ...details, driverPay,
-                    customerId, driverId, truckId, trailerId,
+                    customerId, driverId, coDriverId, truckId, trailerId,
                     mcNumberId: maps.defaultMcId,
                     dispatcherId: dispatcherId,
                     status,
                     loadType
                 }, columnMapping);
+
+                // Optional AI value formatting (behind ENABLE_IMPORT_AI_FORMATTING env)
+                const formatted = await valueFormatter.formatLoadValues({
+                    pickupDate: loadData.pickupDate,
+                    deliveryDate: loadData.deliveryDate,
+                    pickupState: loadData.pickupState,
+                    deliveryState: loadData.deliveryState,
+                    revenue: loadData.revenue,
+                    driverPay: loadData.driverPay,
+                    weight: loadData.weight,
+                    totalMiles: loadData.totalMiles,
+                });
+                loadData = { ...loadData, ...formatted };
 
                 preparedLoads.push({ data: loadData, suspiciousPay: suspicious, anomalies, rowIndex: rowNum });
             } catch (err: any) {
@@ -133,24 +150,35 @@ export class LoadImporter extends BaseImporter {
             loadNumber: String(this.getValue(row, 'loadNumber', mapping, ['Load ID', 'load_id', 'Load Number']) || `L-${rowNum}-${Date.now().toString().slice(-4)}`).trim(),
             customerId: context.customerId,
             driverId: context.driverId,
+            coDriverId: context.coDriverId,
             truckId: context.truckId,
             trailerId: context.trailerId,
             dispatcherId: context.dispatcherId,
             revenue: context.revenue,
             driverPay: context.driverPay,
+            fuelAdvance: context.fuelAdvance,
             totalMiles: context.totalMiles,
             loadedMiles: context.loadedMiles,
             emptyMiles: context.emptyMiles,
+            actualMiles: context.actualMiles,
             weight: context.weight,
+            pieces: context.pieces,
+            pallets: context.pallets,
+            commodity: context.commodity,
+            temperature: context.temperature,
+            hazmat: context.hazmat,
+            hazmatClass: context.hazmatClass,
             revenuePerMile: context.revenuePerMile,
             pickupCity: context.pickupCity,
             pickupState: context.pickupState,
             pickupZip: context.pickupZip,
             pickupLocation: context.pickupLocation,
+            pickupCompany: context.pickupCompany,
             deliveryCity: context.deliveryCity,
             deliveryState: context.deliveryState,
             deliveryZip: context.deliveryZip,
             deliveryLocation: context.deliveryLocation,
+            deliveryCompany: context.deliveryCompany,
             pickupDate: context.pickupDate,
             deliveryDate: context.deliveryDate,
             mcNumberId: context.mcNumberId,
@@ -159,11 +187,9 @@ export class LoadImporter extends BaseImporter {
             status: context.status || LoadStatus.PENDING,
             loadType: context.loadType || LoadType.FTL,
             equipmentType: context.equipmentType || EquipmentType.DRY_VAN,
-
-            // New Fields
-            commodity: context.commodity,
-            shipmentId: context.shipmentId,
             dispatchNotes: context.dispatchNotes,
+            driverNotes: context.driverNotes,
+            shipmentId: context.shipmentId,
         };
     }
 

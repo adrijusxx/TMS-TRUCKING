@@ -104,15 +104,15 @@ export default function FinancialSection({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="serviceFee" className="text-sm">
-              Service Fee ($)
+            <Label htmlFor="quickPayFee" className="text-sm">
+              Quick Pay Fee (%)
             </Label>
             <Input
-              id="serviceFee"
+              id="quickPayFee"
               type="number"
               step="0.01"
-              value={loadData.serviceFee ?? ''}
-              onChange={(e) => onFieldChange('serviceFee', e.target.value ? Number(e.target.value) : undefined)}
+              value={loadData.quickPayFee ?? ''}
+              onChange={(e) => onFieldChange('quickPayFee', e.target.value ? Number(e.target.value) : undefined)}
               placeholder="0.00"
             />
           </div>

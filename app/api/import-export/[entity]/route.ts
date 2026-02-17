@@ -234,7 +234,7 @@ export async function POST(
       const file = formData.get('file') as File | Blob;
       previewOnly = formData.get('previewOnly') === 'true';
       updateExisting = formData.get('updateExisting') === 'true' || formData.get('importMode') === 'update';
-      currentMcNumber = formData.get('currentMcNumber') as string || formData.get('mcNumberId') as string || undefined;
+      currentMcNumber = formData.get('currentMcNumber') as string || formData.get('mcNumber') as string || formData.get('mcNumberId') as string || undefined;
       columnMapping = JSON.parse(formData.get('columnMapping') as string || '{}');
 
       if (!file) {

@@ -53,7 +53,6 @@ import {
   Key,
   Bot,
   UserPlus,
-  Rocket,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -78,7 +77,7 @@ import HRHeaderNav from '@/components/hr/HRHeaderNav';
 import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
 import AnalyticsHeaderNav from '@/components/analytics/AnalyticsHeaderNav';
 import AIAssistantChat from '@/components/ai/AIAssistantChat';
-import { ImportTutorial } from '@/components/onboarding/ImportTutorial';
+
 
 interface NavigationItem {
   name: string;
@@ -103,7 +102,6 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Recruitment', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, permission: 'analytics.view' },
   { name: 'Reports', href: '/dashboard/reports', icon: ChartBar, permission: 'departments.reports.view' },
-  { name: 'Onboarding', href: '/dashboard/onboarding', icon: Rocket, permission: 'settings.view' },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'departments.settings.view' },
 ];
 
@@ -320,20 +318,7 @@ export default function DashboardLayout({
   // Filter navigation items based on permissions, department access, and menu visibility config
   const role = (session?.user?.role || 'CUSTOMER') as UserRole;
   // Fetch onboarding status to show/hide the link
-  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
 
-  useEffect(() => {
-    if (session?.user) {
-      fetch('/api/onboarding/stats')
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.data.isComplete) {
-            setIsOnboardingComplete(true);
-          }
-        })
-        .catch(err => console.error('Failed to check onboarding status:', err));
-    }
-  }, [session]);
 
   const visibleNavigation = mainNavigation.filter((item) => {
     // Dashboard is always visible
@@ -556,9 +541,7 @@ export default function DashboardLayout({
                         mainSidebarCollapsed ? 'justify-center px-2 py-2' : 'space-x-3 px-3 py-2',
                         isActive
                           ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
-                          : item.name === 'Onboarding'
-                            ? 'text-purple-600 font-bold hover:bg-purple-100 dark:hover:bg-purple-900/20 animate-pulse'
-                            : 'text-muted-foreground hover:bg-accent/10 hover:text-foreground'
+                          : 'text-muted-foreground hover:bg-accent/10 hover:text-foreground'
                       )}
                       onClick={() => setSidebarOpen(false)}
                     >
@@ -800,7 +783,7 @@ export default function DashboardLayout({
           onOpenChange={setIsAiChatOpen}
           hideTrigger={true}
         />
-        <ImportTutorial />
+
       </div>
     </div>
   );

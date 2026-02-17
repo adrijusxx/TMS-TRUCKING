@@ -130,7 +130,7 @@ export class TrailerImporter extends BaseImporter {
                     state: stateParsed.state || 'XX',
                     type: trailerType,
                     status: status,
-                    driverId,
+                    operatorDriverId: driverId || undefined,
                     registrationExpiry: parseImportDate(this.getValue(row, 'registrationExpiry', columnMapping, ['Registration Expiry', 'registration_expiry'])) || futureDate,
                     insuranceExpiry: parseImportDate(this.getValue(row, 'insuranceExpiry', columnMapping, ['Insurance Expiry', 'insurance_expiry'])) || futureDate,
                     inspectionExpiry: parseImportDate(this.getValue(row, 'inspectionExpiry', columnMapping, ['Inspection Expiry', 'inspection_expiry'])) || futureDate,

@@ -29,7 +29,10 @@ export class DriverAdvanceManager {
   async requestAdvance(request: AdvanceRequest): Promise<any> {
     // Check driver advance limit
     const driver = await prisma.driver.findUnique({
-      where: { id: request.driverId },
+      where: {
+        id: request.driverId,
+        deletedAt: null
+      },
       select: {
         advanceLimit: true,
         escrowBalance: true,
@@ -49,6 +52,14 @@ export class DriverAdvanceManager {
       throw new Error(
         `Advance request exceeds limit. Outstanding: $${outstandingBalance}, Limit: $${driver.advanceLimit}`
       );
+    }
+
+    // Check load if provided
+    if (request.loadId) {
+      const load = await prisma.load.findUnique({
+        where: { id: request.loadId, deletedAt: null },
+      });
+      if (!load) throw new Error('Load not found');
     }
 
     // Create advance request
@@ -196,11 +207,12 @@ export class DriverAdvanceManager {
   /**
    * Get pending advance requests for approval
    */
-  async getPendingAdvances(companyId: string): Promise<any[]> {
+  async getPendingAdvances(mcWhere: Record<string, any>): Promise<any[]> {
     return await prisma.driverAdvance.findMany({
       where: {
         driver: {
-          companyId,
+          ...mcWhere,
+          deletedAt: null,
         },
         approvalStatus: 'PENDING',
       },
@@ -267,7 +279,7 @@ export class DriverAdvanceManager {
    * Get advance statistics
    */
   async getAdvanceStatistics(
-    companyId: string,
+    mcWhere: Record<string, any>,
     startDate?: Date,
     endDate?: Date
   ): Promise<{
@@ -279,7 +291,8 @@ export class DriverAdvanceManager {
   }> {
     const where: any = {
       driver: {
-        companyId,
+        ...mcWhere,
+        deletedAt: null,
       },
     };
 

@@ -73,15 +73,20 @@ export default function AdditionalFieldsSection({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="tripId" className="text-sm">
-                Trip ID
+              <Label htmlFor="urgency" className="text-sm">
+                Urgency
               </Label>
-              <Input
-                id="tripId"
-                value={loadData.tripId ?? ''}
-                onChange={(e) => onFieldChange('tripId', e.target.value || undefined)}
-                placeholder="Internal trip reference"
-              />
+              <select
+                id="urgency"
+                value={loadData.urgency ?? 'NORMAL'}
+                onChange={(e) => onFieldChange('urgency', e.target.value)}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="LOW">Low</option>
+                <option value="NORMAL">Normal</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="shipmentId" className="text-sm">

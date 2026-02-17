@@ -110,10 +110,13 @@ export class SettlementWorkflowManager {
     /**
      * Get settlements pending approval
      */
-    async getPendingApprovals(companyId: string): Promise<any[]> {
+    async getPendingApprovals(mcWhere: Record<string, any>): Promise<any[]> {
         return await prisma.settlement.findMany({
             where: {
-                driver: { companyId },
+                driver: {
+                    ...mcWhere,
+                    deletedAt: null
+                },
                 approvalStatus: { in: ['PENDING', 'UNDER_REVIEW'] },
             },
             include: {

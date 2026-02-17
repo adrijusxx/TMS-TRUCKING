@@ -36,12 +36,49 @@ export async function GET(request: NextRequest) {
       )
     );
 
-    // 5. Merge filters
+    // 5. Build where clause from filters
+    const { searchParams } = new URL(request.url);
     const where: any = {
       ...mcWhere,
       ...roleFilter,
       deletedAt: null,
     };
+
+    // Apply filters
+    const statusFilter = searchParams.get('status');
+    if (statusFilter && statusFilter !== 'all') {
+      if (statusFilter === 'IN_TRANSIT') {
+        where.status = {
+          in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
+        };
+      } else {
+        where.status = statusFilter;
+      }
+    }
+
+    const dispatcherId = searchParams.get('dispatcherId');
+    if (dispatcherId) where.dispatcherId = dispatcherId;
+
+    const customerId = searchParams.get('customerId');
+    if (customerId) where.customerId = customerId;
+
+    const driverId = searchParams.get('driverId');
+    if (driverId) where.driverId = driverId;
+
+    const pickupCity = searchParams.get('pickupCity');
+    if (pickupCity) where.pickupCity = { contains: pickupCity, mode: 'insensitive' };
+
+    const deliveryCity = searchParams.get('deliveryCity');
+    if (deliveryCity) where.deliveryCity = { contains: deliveryCity, mode: 'insensitive' };
+
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    if (startDate && endDate) {
+      where.OR = [
+        { pickupDate: { gte: new Date(startDate), lte: new Date(endDate) } },
+        { deliveryDate: { gte: new Date(startDate), lte: new Date(endDate) } },
+      ];
+    }
 
     // 6. Fetch operational metrics for projections
     const systemConfig = await prisma.systemConfig.findUnique({
@@ -57,7 +94,7 @@ export async function GET(request: NextRequest) {
         emptyMiles: true,
         revenue: true,
         driverPay: true,
-        profit: true,
+        netProfit: true,
         fuelAdvance: true,
         totalExpenses: true,
         segments: {
@@ -82,15 +119,15 @@ export async function GET(request: NextRequest) {
     let totalLoadExpenses = 0;
 
     loads.forEach((load) => {
-      // Add revenue, driverPay, profit
+      // Add revenue, driverPay, netProfit
       totalRevenue += load.revenue || 0;
       totalDriverPay += load.driverPay || 0;
       totalFuelAdvance += load.fuelAdvance || 0;
       totalLoadExpenses += load.totalExpenses || 0;
 
-      // Calculate profit: use stored profit if available, otherwise revenue - driverPay
-      if (load.profit !== null && load.profit !== undefined) {
-        totalProfit += load.profit;
+      // Calculate profit: use stored netProfit if available, otherwise revenue - driverPay
+      if (load.netProfit !== null && load.netProfit !== undefined) {
+        totalProfit += load.netProfit;
       } else {
         totalProfit += (load.revenue || 0) - (load.driverPay || 0);
       }
@@ -165,8 +202,21 @@ export async function GET(request: NextRequest) {
     const projectedNetProfit = totalRevenue - totalDriverPay - projectedTotalOpCost;
     const projectedAvgProfitPerLoad = totalLoads > 0 ? projectedNetProfit / totalLoads : 0;
 
+    // Active loads count (standalone query to ignore status filter if applied)
+    const activeLoads = await prisma.load.count({
+      where: {
+        ...mcWhere,
+        ...roleFilter,
+        deletedAt: null,
+        status: {
+          in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
+        },
+      },
+    });
+
     const statistics = {
       totalLoads,
+      activeLoads,
       totalMiles,
       loadedMiles,
       emptyMiles,

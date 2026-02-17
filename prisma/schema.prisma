@@ -356,7 +356,6 @@ model Load {
   dispatcher    User?     @relation("LoadDispatcher", fields: [dispatcherId], references: [id])
   createdById   String?
   createdBy     User?     @relation("LoadCreatedBy", fields: [createdById], references: [id])
-  tripId        String? // Trip ID from Excel
   mcNumberId    String? // MC Number assignment
   mcNumber      McNumber? @relation(fields: [mcNumberId], references: [id])
 
@@ -367,32 +366,22 @@ model Load {
   equipmentType  EquipmentType
 
   // Pickup Information (optional for multi-stop loads)
-  pickupLocation  String?
-  pickupAddress   String?
-  pickupCity      String?
-  pickupState     String?
-  pickupZip       String?
-  pickupCompany   String? // Pickup company name
-  pickupDate      DateTime?
-  pickupTimeStart DateTime?
-  pickupTimeEnd   DateTime?
-  pickupContact   String?
-  pickupPhone     String?
-  pickupNotes     String?
+  pickupLocation String?
+  pickupAddress  String?
+  pickupCity     String?
+  pickupState    String?
+  pickupZip      String?
+  pickupCompany  String? // Pickup company name
+  pickupDate     DateTime?
 
   // Delivery Information (optional for multi-stop loads)
-  deliveryLocation  String?
-  deliveryAddress   String?
-  deliveryCity      String?
-  deliveryState     String?
-  deliveryZip       String?
-  deliveryCompany   String? // Delivery company name
-  deliveryDate      DateTime?
-  deliveryTimeStart DateTime?
-  deliveryTimeEnd   DateTime?
-  deliveryContact   String?
-  deliveryPhone     String?
-  deliveryNotes     String?
+  deliveryLocation String?
+  deliveryAddress  String?
+  deliveryCity     String?
+  deliveryState    String?
+  deliveryZip      String?
+  deliveryCompany  String? // Delivery company name
+  deliveryDate     DateTime?
 
   // Load Specifications
   weight      Float
@@ -407,9 +396,6 @@ model Load {
   revenue     Float
   driverPay   Float?
   fuelAdvance Float  @default(0)
-  expenses    Float  @default(0)
-  profit      Float?
-  serviceFee  Float? // Service fee from Excel
 
   // Accounting Sync
   accountingSyncedAt   DateTime?
@@ -439,16 +425,11 @@ model Load {
   paidAt      DateTime?
 
   // Notes
-  dispatchNotes  String?
-  driverNotes    String?
-  lastNote       String? // Last note from Excel
-  onTimeDelivery Boolean? // On Time Delivery flag from Excel
+  dispatchNotes String?
+  driverNotes   String?
 
-  // Additional Fields from Excel
+  // Additional Fields
   shipmentId String? // Shipment ID from Excel
-  stopsCount Int? // Stops count from Excel
-  totalPay   Float? // Total pay from Excel
-  lastUpdate DateTime? // Last update from Excel
 
   // EDI Tracking
   ediSent          Boolean @default(false)
@@ -461,6 +442,17 @@ model Load {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+
+  // --- NEW FIELDS ---
+  urgency             Urgency          @default(NORMAL)
+  publicTrackingToken String?          @unique
+  trackingStatus      TrackingStatus?
+  eta                 DateTime?
+  driverRating        Int?
+  driverFeedback      String?
+  factoringStatus     FactoringStatus?
+  quickPayFee         Float?
+  specialHandling     Json?
 
   // Relations
   documents          Document[]
@@ -612,6 +604,19 @@ enum LoadDispatchStatus {
   NEEDS_DISPATCH
   DISPATCHED
   CANCELLED
+}
+
+enum TrackingStatus {
+  ON_TIME
+  DELAYED
+  EARLY
+}
+
+enum Urgency {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
 }
 
 enum AccountingSyncStatus {
@@ -2814,7 +2819,10 @@ enum PaymentMethod {
 
 enum FactoringStatus {
   NOT_FACTORED
+  PENDING
   SUBMITTED_TO_FACTOR
+  APPROVED
+  DECLINED
   FUNDED
   RESERVE_RELEASED
 }

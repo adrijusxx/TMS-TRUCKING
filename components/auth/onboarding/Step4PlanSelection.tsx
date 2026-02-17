@@ -1,14 +1,74 @@
 'use client';
 
 import { useState } from 'react';
-import type { OnboardingStep4Input, SubscriptionPlan } from '@/lib/validations/onboarding';
-import { PLAN_OPTIONS } from '@/lib/validations/onboarding';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Loader2, Sparkles, Truck, Star, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// =============================================================================
+// TYPES (inlined from removed onboarding.ts)
+// =============================================================================
+
+export type SubscriptionPlan = 'owner_operator' | 'trial';
+
+export interface PlanSelectionInput {
+    plan: SubscriptionPlan;
+}
+
+interface PlanDetails {
+    id: SubscriptionPlan;
+    name: string;
+    description: string;
+    features: string[];
+    limitations?: string[];
+    recommended?: boolean;
+    badge?: string;
+}
+
+const PLAN_OPTIONS: PlanDetails[] = [
+    {
+        id: 'owner_operator',
+        name: 'Free Tier',
+        description: 'Get started with monthly usage limits',
+        features: [
+            '10 Loads per month',
+            '5 Invoices per month',
+            '3 Settlements per month',
+            '1 Truck, 2 Drivers max',
+            'Document AI (5 scans/mo)',
+        ],
+        limitations: [
+            'Usage resets monthly',
+            'Upgrade when you need more',
+        ],
+        badge: 'Free Tier',
+    },
+    {
+        id: 'trial',
+        name: '14-Day Pro Trial',
+        description: 'Experience unlimited access to TMS Pro',
+        features: [
+            'Unlimited loads & invoices',
+            'Unlimited trucks & drivers',
+            'Full Accounting module',
+            'Full Safety & Compliance',
+            'AI-powered dispatch',
+        ],
+        limitations: [
+            'Trial expires after 14 days',
+            'Downgrades to Free Tier after trial',
+        ],
+        recommended: true,
+        badge: 'Full Access',
+    },
+];
+
+// =============================================================================
+// COMPONENT
+// =============================================================================
+
 interface Step4PlanSelectionProps {
-    onComplete: (data: OnboardingStep4Input) => void;
+    onComplete: (data: PlanSelectionInput) => void;
     isLoading?: boolean;
 }
 

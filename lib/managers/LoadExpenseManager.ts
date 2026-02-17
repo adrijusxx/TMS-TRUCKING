@@ -30,7 +30,10 @@ export class LoadExpenseManager {
    */
   async addExpense(expenseData: ExpenseData): Promise<any> {
     const load = await prisma.load.findUnique({
-      where: { id: expenseData.loadId },
+      where: {
+        id: expenseData.loadId,
+        deletedAt: null
+      },
     });
 
     if (!load) {
@@ -188,11 +191,12 @@ export class LoadExpenseManager {
   /**
    * Get pending expenses for approval
    */
-  async getPendingExpenses(companyId: string): Promise<any[]> {
+  async getPendingExpenses(mcWhere: Record<string, any>): Promise<any[]> {
     return await prisma.loadExpense.findMany({
       where: {
         load: {
-          companyId,
+          ...mcWhere,
+          deletedAt: null,
         },
         approvalStatus: 'PENDING',
       },
@@ -223,7 +227,7 @@ export class LoadExpenseManager {
    * Get expenses by type for a date range
    */
   async getExpensesByType(
-    companyId: string,
+    mcWhere: Record<string, any>,
     startDate: Date,
     endDate: Date
   ): Promise<{
@@ -232,7 +236,8 @@ export class LoadExpenseManager {
     const expenses = await prisma.loadExpense.findMany({
       where: {
         load: {
-          companyId,
+          ...mcWhere,
+          deletedAt: null,
         },
         date: {
           gte: startDate,
@@ -264,7 +269,7 @@ export class LoadExpenseManager {
    * Get expense statistics
    */
   async getExpenseStatistics(
-    companyId: string,
+    mcWhere: Record<string, any>,
     startDate?: Date,
     endDate?: Date
   ): Promise<{
@@ -276,7 +281,8 @@ export class LoadExpenseManager {
   }> {
     const where: any = {
       load: {
-        companyId,
+        ...mcWhere,
+        deletedAt: null,
       },
       approvalStatus: 'APPROVED',
     };
@@ -300,7 +306,8 @@ export class LoadExpenseManager {
       prisma.loadExpense.count({
         where: {
           load: {
-            companyId,
+            ...mcWhere,
+            deletedAt: null,
           },
           approvalStatus: 'PENDING',
         },

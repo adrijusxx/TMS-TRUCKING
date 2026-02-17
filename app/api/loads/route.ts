@@ -73,13 +73,11 @@ export async function GET(request: NextRequest) {
       prisma.load.aggregate({
         where,
         _sum: {
-          totalPay: true,
           revenue: true,
           driverPay: true,
           totalMiles: true,
           emptyMiles: true,
           loadedMiles: true,
-          serviceFee: true,
         },
       }),
     ]);

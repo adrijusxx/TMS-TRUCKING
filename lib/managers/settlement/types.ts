@@ -27,6 +27,23 @@ export interface AdditionItem {
     metadata?: Record<string, any>;
 }
 
+export interface AdvanceItem {
+    id: string;
+    advanceNumber: string | null;
+    amount: number;
+    requestDate: Date;
+    notes: string | null;
+}
+
+export interface DriverNegativeBalance {
+    id: string;
+    amount: number;
+    createdAt: Date;
+    originalSettlement?: {
+        settlementNumber: string;
+    };
+}
+
 export interface SettlementCalculatedValues {
     grossPay: number;
     netPay: number;
@@ -35,9 +52,9 @@ export interface SettlementCalculatedValues {
     totalAdvances: number;
     additions: AdditionItem[];
     deductions: DeductionItem[];
-    advances: any[];
+    advances: AdvanceItem[];
     negativeBalanceDeduction: number;
-    previousNegativeBalance: any | null;
+    previousNegativeBalance: DriverNegativeBalance | null;
     auditLog: SettlementAuditLog;
 }
 
@@ -49,7 +66,7 @@ export interface SettlementAuditLog {
     loads: LoadAuditLog[];
     additions: AdditionItem[];
     deductions: DeductionItem[];
-    advances: any[];
+    advances: AdvanceItem[];
     grossPay: number;
     netPay: number;
 }

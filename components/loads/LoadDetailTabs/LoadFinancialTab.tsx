@@ -216,31 +216,25 @@ export default function LoadFinancialTab({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="serviceFee" className="text-sm">Service Fee</Label>
+              <Label htmlFor="quickPayFee" className="text-sm">Quick Pay Fee (%)</Label>
               {canEdit ? (
                 <Input
-                  id="serviceFee"
+                  id="quickPayFee"
                   type="number"
                   step="0.01"
-                  value={getInputValue(formData.serviceFee, load.serviceFee, '')}
-                  onChange={(e) => updateField('serviceFee', e.target.value ? parseFloat(e.target.value) : null)}
-                  placeholder={common.financial.placeholder_zero}
+                  value={getInputValue(formData.quickPayFee, load.quickPayFee, '')}
+                  onChange={(e) => updateField('quickPayFee', e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="0.00"
                 />
               ) : (
                 <p className="font-medium text-sm mt-1">
-                  {load.serviceFee !== null && load.serviceFee !== undefined
-                    ? formatCurrency(load.serviceFee)
+                  {load.quickPayFee !== null && load.quickPayFee !== undefined
+                    ? `${load.quickPayFee}%`
                     : '—'}
                 </p>
               )}
             </div>
 
-            {load.totalPay !== null && load.totalPay !== undefined && (
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">Total Pay</Label>
-                <p className="font-medium text-sm mt-1">{formatCurrency(load.totalPay)}</p>
-              </div>
-            )}
 
             {load.profit !== null && load.profit !== undefined && (
               <div className="space-y-2">

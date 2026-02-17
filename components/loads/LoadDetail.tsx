@@ -148,6 +148,10 @@ export default function LoadDetail({
     dispatchStatus: load.dispatchStatus || null,
     loadType: load.loadType || 'FTL',
     equipmentType: load.equipmentType || '',
+    urgency: load.urgency || 'NORMAL',
+    factoringStatus: load.factoringStatus || null,
+    trackingStatus: load.trackingStatus || null,
+    eta: load.eta || null,
     pickupLocation: load.pickupLocation || '',
     pickupAddress: load.pickupAddress || '',
     pickupCity: load.pickupCity || '',
@@ -182,12 +186,10 @@ export default function LoadDetail({
     revenue: load.revenue || 0,
     driverPay: load.driverPay || null,
     fuelAdvance: load.fuelAdvance || 0,
-    serviceFee: load.serviceFee || null,
     loadedMiles: load.loadedMiles || null,
     emptyMiles: load.emptyMiles || null,
     totalMiles: load.totalMiles || null,
     dispatchNotes: load.dispatchNotes || '',
-    tripId: load.tripId || '',
     shipmentId: load.shipmentId || '',
     dispatcherId: load.dispatcherId || '',
     revenuePerMile: load.revenuePerMile || null,
@@ -264,6 +266,7 @@ export default function LoadDetail({
     const fields = [
       'truckId', 'trailerId', 'trailerNumber', 'driverId', 'coDriverId', 'customerId',
       'status', 'dispatchStatus', 'loadType', 'equipmentType',
+      'urgency', 'factoringStatus', 'trackingStatus', 'eta',
       'pickupLocation', 'pickupAddress', 'pickupCity', 'pickupState', 'pickupZip',
       'pickupCompany', 'pickupDate', 'pickupTimeStart', 'pickupTimeEnd',
       'pickupContact', 'pickupPhone', 'pickupNotes',
@@ -271,11 +274,11 @@ export default function LoadDetail({
       'deliveryCompany', 'deliveryDate', 'deliveryTimeStart', 'deliveryTimeEnd',
       'deliveryContact', 'deliveryPhone', 'deliveryNotes',
       'commodity', 'hazmat', 'hazmatClass', 'dispatchNotes',
-      'tripId', 'shipmentId', 'dispatcherId'
+      'shipmentId', 'dispatcherId'
     ];
 
     const numericFields = ['weight', 'pieces', 'pallets', 'revenue', 'driverPay',
-      'fuelAdvance', 'serviceFee', 'loadedMiles', 'emptyMiles', 'totalMiles', 'revenuePerMile'];
+      'fuelAdvance', 'loadedMiles', 'emptyMiles', 'totalMiles', 'revenuePerMile', 'quickPayFee'];
 
     fields.forEach(field => {
       if (hasChanged(field, (load as any)[field], (formData as any)[field])) {

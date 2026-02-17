@@ -131,7 +131,7 @@ export class TruckImporter extends BaseImporter {
                     state: stateParsed.state || 'XX',
                     equipmentType: eqType,
                     status: status,
-                    driverId,
+                    currentDriverId: driverId || undefined,
                     registrationExpiry: parseImportDate(this.getValue(row, 'registrationExpiry', columnMapping, ['Registration Expiry', 'registration_expiry'])) || futureDate,
                     insuranceExpiry: parseImportDate(this.getValue(row, 'insuranceExpiry', columnMapping, ['Insurance Expiry', 'insurance_expiry'])) || futureDate,
                     inspectionExpiry: parseImportDate(this.getValue(row, 'inspectionExpiry', columnMapping, ['Inspection Expiry', 'inspection_expiry'])) || futureDate,

@@ -38,7 +38,10 @@ export class AccountingSyncManager {
     try {
       // Fetch complete load data
       const load = await prisma.load.findUnique({
-        where: { id: loadId },
+        where: {
+          id: loadId,
+          deletedAt: null
+        },
         include: {
           loadExpenses: {
             where: {
@@ -247,10 +250,10 @@ export class AccountingSyncManager {
   /**
    * Get loads pending accounting sync
    */
-  async getLoadsPendingSync(companyId: string): Promise<any[]> {
+  async getLoadsPendingSync(mcWhere: Record<string, any>): Promise<any[]> {
     return await prisma.load.findMany({
       where: {
-        companyId,
+        ...mcWhere,
         status: {
           in: ['DELIVERED', 'INVOICED'],
         },
@@ -285,10 +288,10 @@ export class AccountingSyncManager {
   /**
    * Retry failed syncs
    */
-  async retryFailedSyncs(companyId: string): Promise<SyncResult[]> {
+  async retryFailedSyncs(mcWhere: Record<string, any>): Promise<SyncResult[]> {
     const failedLoads = await prisma.load.findMany({
       where: {
-        companyId,
+        ...mcWhere,
         accountingSyncStatus: 'SYNC_FAILED',
         deletedAt: null,
       },
@@ -303,7 +306,7 @@ export class AccountingSyncManager {
   /**
    * Get accounting sync statistics
    */
-  async getSyncStatistics(companyId: string): Promise<{
+  async getSyncStatistics(mcWhere: Record<string, any>): Promise<{
     total: number;
     synced: number;
     pending: number;
@@ -313,7 +316,7 @@ export class AccountingSyncManager {
     const [total, synced, pending, failed, requiresReview] = await Promise.all([
       prisma.load.count({
         where: {
-          companyId,
+          ...mcWhere,
           status: {
             in: ['DELIVERED', 'INVOICED', 'PAID'],
           },
@@ -322,14 +325,14 @@ export class AccountingSyncManager {
       }),
       prisma.load.count({
         where: {
-          companyId,
+          ...mcWhere,
           accountingSyncStatus: 'SYNCED',
           deletedAt: null,
         },
       }),
       prisma.load.count({
         where: {
-          companyId,
+          ...mcWhere,
           accountingSyncStatus: {
             in: ['NOT_SYNCED', 'PENDING_SYNC'],
           },
@@ -338,14 +341,14 @@ export class AccountingSyncManager {
       }),
       prisma.load.count({
         where: {
-          companyId,
+          ...mcWhere,
           accountingSyncStatus: 'SYNC_FAILED',
           deletedAt: null,
         },
       }),
       prisma.load.count({
         where: {
-          companyId,
+          ...mcWhere,
           accountingSyncStatus: 'REQUIRES_REVIEW',
           deletedAt: null,
         },

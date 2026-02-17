@@ -14,6 +14,8 @@ import { apiUrl } from '@/lib/utils';
 import { validateImportData, getModelNameFromEntityType } from '@/lib/validations/import-field-validator';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 import { deduplicateSystemFields, getSystemFieldsForEntity } from '@/lib/import-export/field-utils';
+import { autoMapColumns } from '@/lib/import-export/auto-map-columns';
+import { DataAlignmentConsole } from './DataAlignmentConsole';
 import {
     Accordion,
     AccordionContent,
@@ -211,27 +213,6 @@ export default function BulkImportSidebar({
         }
     };
 
-    const handleDownloadTemplate = async () => {
-        try {
-            const response = await fetch(apiUrl(`/api/import/template?entityType=${entityType}`));
-            if (!response.ok) throw new Error('Failed to download template');
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${entityType}_template.csv`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            toast.success('Template downloaded');
-        } catch (error) {
-            toast.error('Failed to download template');
-        }
-    };
-
-
     // File Handling
     const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -261,51 +242,8 @@ export default function BulkImportSidebar({
             setImportResult(result);
 
             if (result.success && result.data?.length > 0) {
-                // Auto-map
                 const headers = Object.keys(result.data[0]);
-                const autoMap: Record<string, string> = {};
-
-                headers.forEach(header => {
-                    const normalizeSimple = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-                    // Advanced normalization: handle "number" vs "id" vs "#" common in trucking
-                    const normalizeAdvanced = (str: string) => {
-                        let s = str.toLowerCase().replace(/[^a-z0-9]/g, '');
-                        s = s.replace(/number/g, 'id').replace(/no/g, 'id').replace(/#/g, 'id');
-                        return s;
-                    };
-
-                    const normHeader = normalizeSimple(header);
-                    const normHeaderAdv = normalizeAdvanced(header);
-
-                    // Find best match
-                    const match = systemFields.find(f => {
-                        const normKey = normalizeSimple(f.key);
-                        const normKeyAdv = normalizeAdvanced(f.key);
-
-                        // 1. Exact match (normalized)
-                        if (normHeader === normKey) return true;
-
-                        // 2. Advanced semantic match (load_id == load_number)
-                        if (normHeaderAdv === normKeyAdv) return true;
-
-                        // 3. Substring match (careful with short strings)
-                        if (normHeader.length > 3 && normKey.length > 3) {
-                            return normHeader.includes(normKey) || normKey.includes(normHeader);
-                        }
-
-                        // 4. Check generated suggestions from validator
-                        const suggestions = f.suggestedCsvHeaders || [];
-                        return suggestions.some(s => {
-                            const ns = normalizeSimple(s);
-                            return ns === normHeader;
-                        });
-                    });
-
-                    if (match) {
-                        autoMap[header] = match.key;
-                    }
-                });
+                const autoMap = autoMapColumns(headers, systemFields);
                 setColumnMapping(autoMap);
 
                 // Trigger AI Analysis
@@ -314,7 +252,10 @@ export default function BulkImportSidebar({
                     sample: result.data.slice(0, 5)
                 });
 
-                // setActiveStep(2); // Do not auto-advance, let user see options first
+                // ALSO Trigger AI Mapping Automatically
+                aiMappingMutation.mutate();
+
+                setActiveStep(2); // Auto-advance to mapping
             }
 
         } catch (err: any) {
@@ -592,14 +533,6 @@ export default function BulkImportSidebar({
 
                         {(activeStep === 1 || !selectedFile) && (
                             <div className="space-y-4 ml-8">
-                                {/* Template Download Link */}
-                                <div className="flex justify-end">
-                                    <Button variant="link" size="sm" className="text-xs h-auto p-0 text-muted-foreground hover:text-primary flex items-center gap-1" onClick={handleDownloadTemplate}>
-                                        <Download className="w-3 h-3" />
-                                        Download CSV Template
-                                    </Button>
-                                </div>
-
                                 {/* MC Selection */}
                                 <div className="space-y-1">
                                     <Label className="text-xs">Assign to MC Number (Applies to all rows if not in file)</Label>
@@ -789,22 +722,16 @@ export default function BulkImportSidebar({
                                                 </DialogFooter>
                                             </DialogContent>
                                         </Dialog>
+                                    </div>
 
-                                        {/* AI Auto-Map Button */}
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8 gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:text-indigo-400 dark:border-indigo-800 dark:hover:bg-indigo-950/30"
-                                            onClick={() => aiMappingMutation.mutate()}
-                                            disabled={aiMappingMutation.isPending}
-                                        >
-                                            {aiMappingMutation.isPending ? (
-                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                            ) : (
-                                                <Sparkles className="w-3 h-3" />
-                                            )}
-                                            AI Auto-Map
-                                        </Button>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-semibold">Data Alignment Console</Label>
+                                        <DataAlignmentConsole
+                                            columnMapping={columnMapping}
+                                            isMapping={aiMappingMutation.isPending}
+                                            systemFields={getSystemFieldsForEntity(entityType)}
+                                            excelColumns={Object.keys(importResult.data[0])}
+                                        />
                                     </div>
                                     {/* Alerts & Quick Actions */}
                                     {unmappedRequired.length > 0 && (
