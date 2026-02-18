@@ -136,7 +136,8 @@ async function main() {
         env: {
             ...env,
             PORT: "3001",
-            HOSTNAME: "0.0.0.0"
+            HOSTNAME: "0.0.0.0",
+            NODE_OPTIONS: "--openssl-legacy-provider"
         },
     });
 

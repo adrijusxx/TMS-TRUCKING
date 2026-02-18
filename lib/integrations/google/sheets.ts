@@ -124,8 +124,9 @@ export class GoogleSheetsClient {
             return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
         } catch {}
 
-        // All attempts failed — log debug info for AWS troubleshooting
-        console.error('[GoogleAuth] All key normalization attempts failed. Debug:', {
+        // All createPrivateKey attempts failed — fall back to returning cleaned key as-is.
+        // Let google.auth.JWT try to use it directly (it may handle formats we can't normalize).
+        console.warn('[GoogleAuth] All createPrivateKey attempts failed. Falling back to cleaned key. Debug:', {
             inputLength: input.length,
             base64Length: base64Only.length,
             hasEscapedNewline: input.includes('\\n'),
@@ -135,9 +136,13 @@ export class GoogleSheetsClient {
             first40: input.substring(0, 40) + '...',
         });
 
-        throw new Error(
-            'Failed to initialize Google authentication: Could not parse private key in any supported format (PKCS#1, PKCS#8, DER). Check the key value in AWS Secrets Manager.'
-        );
+        // Return the best-effort cleaned key — google.auth.JWT may still accept it
+        if (cleaned.includes('BEGIN')) {
+            return cleaned;
+        }
+
+        // Last resort: wrap raw base64 in PKCS#8 PEM headers without validation
+        return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
     }
 
     /**
