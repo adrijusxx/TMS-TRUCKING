@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -18,6 +17,7 @@ import {
   Lightbulb,
   ArrowRight,
 } from 'lucide-react';
+import ImportSheet from '@/components/import-export/ImportSheet';
 import { cn } from '@/lib/utils';
 
 interface EntityCounts {
@@ -39,7 +39,6 @@ const IMPORT_STEPS = [
     label: 'Drivers',
     description: 'Import your driver roster with pay rates, CDL info, and contact details.',
     icon: Users,
-    href: '/dashboard/import/drivers',
     color: 'text-blue-500',
     bgColor: 'bg-blue-50 dark:bg-blue-500/10',
   },
@@ -48,7 +47,6 @@ const IMPORT_STEPS = [
     label: 'Trucks',
     description: 'Import your fleet with VIN, year, make, model, and plate info.',
     icon: Truck,
-    href: '/dashboard/import/trucks',
     color: 'text-green-500',
     bgColor: 'bg-green-50 dark:bg-green-500/10',
   },
@@ -57,7 +55,6 @@ const IMPORT_STEPS = [
     label: 'Trailers',
     description: 'Import trailer inventory with type, dimensions, and plate numbers.',
     icon: Container,
-    href: '/dashboard/import/trailers',
     color: 'text-orange-500',
     bgColor: 'bg-orange-50 dark:bg-orange-500/10',
   },
@@ -66,7 +63,6 @@ const IMPORT_STEPS = [
     label: 'Customers',
     description: 'Import customer/broker list with billing addresses and payment terms.',
     icon: Building2,
-    href: '/dashboard/import/customers',
     color: 'text-purple-500',
     bgColor: 'bg-purple-50 dark:bg-purple-500/10',
   },
@@ -75,7 +71,6 @@ const IMPORT_STEPS = [
     label: 'Loads',
     description: 'Import historical or active loads. Best done after drivers and customers.',
     icon: Package,
-    href: '/dashboard/import/loads',
     color: 'text-indigo-500',
     bgColor: 'bg-indigo-50 dark:bg-indigo-500/10',
   },
@@ -191,12 +186,12 @@ export default function OnboardingGuide() {
                     {data.counts[step.key]} imported
                   </span>
                 ) : (
-                  <Link href={step.href}>
+                  <ImportSheet entityType={step.key}>
                     <Button variant="outline" size="sm" className="h-7 text-xs gap-1 w-full">
                       <Upload className="h-3 w-3" />
                       Import
                     </Button>
-                  </Link>
+                  </ImportSheet>
                 )}
               </div>
             );

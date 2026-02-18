@@ -213,7 +213,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
         setIsAiMapping(true);
         aiMappingMutation.mutate(headers);
 
-        setActiveStep(2);
+        // Stay on upload step so user can review MC number, options, and AI advisor
       }
     } catch (err: any) {
       toast.error(err.message);
@@ -287,7 +287,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
       setImportDetails(null);
       setLogs([]);
 
-      const BATCH_SIZE = 500;
+      const BATCH_SIZE = 100;
       const totalRows = importResult.data.length;
       const chunks: any[][] = [];
       for (let i = 0; i < totalRows; i += BATCH_SIZE) {

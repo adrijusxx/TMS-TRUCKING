@@ -77,13 +77,12 @@ export class EmployeeImporter extends BaseImporter {
                     companyId: this.companyId,
                     mcNumberId: resolvedMcId,
                     email,
-                    name: `${firstName} ${lastName}`,
                     firstName,
                     lastName,
                     phone: this.getValue(row, 'phone', columnMapping, ['Phone', 'phone', 'Cell']) || '',
                     role,
                     isActive: true, // Default to true
-                    employeeNumber: this.getValue(row, 'employeeNumber', columnMapping, ['Employee Number', 'employee_number', 'ID']) || '',
+                    employeeNumber: this.getValue(row, 'employeeNumber', columnMapping, ['Employee Number', 'employee_number', 'ID']) || `${firstName}-${lastName}`.toLowerCase().replace(/\s+/g, '-'),
                 };
 
 

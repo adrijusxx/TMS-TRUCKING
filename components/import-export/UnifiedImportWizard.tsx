@@ -36,10 +36,13 @@ export default function UnifiedImportWizard({
     (wizard.importProgress.status !== 'idle' || wizard.logs.length > 0) &&
     !wizard.importDetails;
 
+  // Results step is triggered by importDetails, not activeStep state
+  const effectiveStep = wizard.importDetails ? 4 : wizard.activeStep;
+
   return (
     <div className={`flex flex-col ${isSidebar ? 'h-full bg-background' : 'container mx-auto py-8 px-4 max-w-4xl'}`}>
       {/* Step Indicator */}
-      {!isSidebar && <StepIndicator activeStep={wizard.activeStep} />}
+      {!isSidebar && <StepIndicator activeStep={effectiveStep} />}
 
       {/* Content */}
       {isSidebar ? (
