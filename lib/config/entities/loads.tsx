@@ -361,7 +361,8 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     cell: ({ row }) => {
       const trailer = row.original.trailer;
       const trailerNumber = row.original.trailerNumber;
-      return trailer?.trailerNumber || trailerNumber || '—';
+      const isCuid = trailerNumber && /^c[a-z0-9]{20,}$/i.test(trailerNumber);
+      return trailer?.trailerNumber || (isCuid ? null : trailerNumber) || '—';
     },
     defaultVisible: true,
     enableColumnFilter: true,

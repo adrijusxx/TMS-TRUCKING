@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import RecruitingStats from './RecruitingStats';
 import PipelineFunnel from './PipelineFunnel';
 import RecentLeadsWidget from './RecentLeadsWidget';
+import RecruiterPipelineWidget from './RecruiterPipelineWidget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -163,6 +164,9 @@ export default function RecruitingDashboard() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Recruiter Personal Pipeline */}
+            <RecruiterPipelineWidget />
 
             {/* Recent Leads */}
             <RecentLeadsWidget

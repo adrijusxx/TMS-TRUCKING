@@ -218,7 +218,8 @@ export type Permission =
   | 'crm.leads.assign'
   | 'crm.hire'
   | 'crm.onboarding.view'
-  | 'crm.onboarding.manage';
+  | 'crm.onboarding.manage'
+  | 'crm.templates.manage';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER' | 'HR' | 'SAFETY' | 'FLEET';
 
@@ -295,7 +296,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'departments.settings.view',
     'departments.crm.view',
     // CRM Permissions
-    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage',
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage', 'crm.templates.manage',
   ],
   ADMIN: [
     // Full access to everything
@@ -364,7 +365,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'departments.settings.view',
     'departments.crm.view',
     // CRM Permissions
-    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage',
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage', 'crm.templates.manage',
   ],
   DISPATCHER: [
     // Load management and dispatch operations

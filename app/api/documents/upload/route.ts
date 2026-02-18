@@ -74,6 +74,27 @@ export async function POST(request: NextRequest) {
 
     const fileUrl = `/uploads/documents/${uniqueFilename}`;
 
+    // Optional: extract structured data using OCR + AI
+    const shouldExtract = formData.get('extract') === 'true';
+    let extractedData = null;
+
+    if (shouldExtract) {
+      try {
+        const { AIDocumentProcessor } = await import('@/lib/services/AIDocumentProcessor');
+        const processor = new AIDocumentProcessor();
+        // Map DocumentType enum to processor input types
+        const processorTypeMap: Record<string, string> = {
+          INVOICE: 'INVOICE', RECEIPT: 'RECEIPT', POD: 'POD', BOL: 'BOL',
+          INSURANCE: 'INSURANCE', DRIVER_LICENSE: 'SAFETY_DOCUMENT',
+          MEDICAL_CARD: 'SAFETY_DOCUMENT', INSPECTION: 'MAINTENANCE_RECORD',
+        };
+        const processorType = (processorTypeMap[documentType] || 'OTHER') as any;
+        extractedData = await processor.processDocumentFromFile(buffer, file.type, processorType, file.name);
+      } catch (extractError) {
+        console.warn('[Upload] Auto-extraction failed (non-blocking):', extractError);
+      }
+    }
+
     // Create document record
     const document = await prisma.document.create({
       data: {
@@ -89,10 +110,14 @@ export async function POST(request: NextRequest) {
         truckId: truckId || undefined,
         companyId: session.user.companyId,
         uploadedBy: session.user.id,
+        ...(extractedData ? { metadata: extractedData as any } : {}),
       },
     });
 
-    return NextResponse.json({ success: true, data: document }, { status: 201 });
+    return NextResponse.json(
+      { success: true, data: document, ...(extractedData ? { extractedData } : {}) },
+      { status: 201 }
+    );
   } catch (error: any) {
     console.error('Error uploading document:', error);
     return NextResponse.json(

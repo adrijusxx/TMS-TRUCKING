@@ -179,6 +179,9 @@ model Company {
 
   deletedAt DateTime?
 
+  // Public application page
+  slug String? @unique
+
   // Relations
   users         User[]
   userCompanies UserCompany[]
@@ -282,6 +285,8 @@ model Company {
   // CRM Relations
   leads                  Lead[]
   onboardingChecklists   OnboardingChecklist[]
+  recruitingSLAConfigs   RecruitingSLAConfig[]
+  onboardingTemplates    OnboardingTemplate[]
   integrationSettings    IntegrationSettings?
   // AI Relations
   aiAnomalies            AIAnomaly[]
@@ -3185,6 +3190,9 @@ enum NotificationType {
   DOCUMENT_EXPIRING
   INVOICE_PAID
   SYSTEM_ALERT
+  LEAD_FOLLOW_UP_DUE
+  LEAD_SLA_ALERT
+  LEAD_NEW_APPLICATION
 }
 
 model NotificationPreferences {
@@ -7011,6 +7019,7 @@ enum LeadSource {
   REFERRAL
   DIRECT
   WEBSITE
+  APPLICATION
   OTHER
 }
 
@@ -7104,6 +7113,10 @@ model Lead {
   // Import Metadata - stores extra fields from Facebook forms, spreadsheets, etc.
   metadata Json?
 
+  // Follow-Up Tracking
+  nextFollowUpDate DateTime?
+  nextFollowUpNote String?
+
   // Timestamps
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -7126,6 +7139,8 @@ model Lead {
   @@index([assignedToId])
   @@index([companyId, mcNumberId])
   @@index([companyId, mcNumberId, status])
+  @@index([nextFollowUpDate])
+  @@index([assignedToId, nextFollowUpDate])
 }
 
 model LeadNote {
@@ -7220,6 +7235,59 @@ model OnboardingStep {
 
   @@index([checklistId])
   @@index([status])
+}
+
+// ============================================
+// ONBOARDING TEMPLATES (customizable per company)
+// ============================================
+
+model OnboardingTemplate {
+  id          String                   @id @default(cuid())
+  companyId   String
+  company     Company                  @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  isDefault   Boolean                  @default(false)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  steps OnboardingTemplateStep[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model OnboardingTemplateStep {
+  id          String               @id @default(cuid())
+  templateId  String
+  template    OnboardingTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  stepType    OnboardingStepType
+  label       String
+  description String?
+  required    Boolean              @default(true)
+  sortOrder   Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([templateId])
+}
+
+// ============================================
+// RECRUITING SLA CONFIGURATION
+// ============================================
+
+model RecruitingSLAConfig {
+  id        String     @id @default(cuid())
+  companyId String
+  company   Company    @relation(fields: [companyId], references: [id])
+  status    LeadStatus
+  maxDays   Int
+  enabled   Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([companyId, status])
+  @@index([companyId])
 }
 
 // ============================================

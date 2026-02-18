@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { inngest } from '@/lib/inngest/client';
+import { LeadAutoScoringManager } from '@/lib/managers/LeadAutoScoringManager';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -119,6 +121,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                 source: body.source,
                 assignedToId: body.assignedToId || null,
                 lastContactedAt: body.lastContactedAt || undefined,
+                nextFollowUpDate: body.nextFollowUpDate !== undefined
+                    ? (body.nextFollowUpDate ? new Date(body.nextFollowUpDate) : null)
+                    : undefined,
+                nextFollowUpNote: body.nextFollowUpNote !== undefined ? body.nextFollowUpNote : undefined,
             },
             include: {
                 assignedTo: {
@@ -141,6 +147,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                     },
                 },
             });
+
+            // Trigger auto AI scoring if criteria met
+            const shouldScore = await LeadAutoScoringManager.shouldScoreOnStatusChange(
+                id, body.status, previousStatus
+            );
+            if (shouldScore) {
+                await inngest.send({ name: 'crm/auto-score-lead', data: { leadId: id } });
+            }
         }
 
         return NextResponse.json({ lead });

@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { createPrivateKey } from 'crypto';
 
 interface SheetsClientConfig {
     serviceAccountEmail?: string;
@@ -93,19 +94,25 @@ export class GoogleSheetsClient {
     }
 
     /**
-     * Build an ordered list of key-normalization strategies
+     * Build an ordered list of key-normalization strategies.
+     * OpenSSL 3.x (Node 18+) rejects PKCS#1 (RSA PRIVATE KEY) format.
+     * We always try PKCS#8 first, then convert PKCS#1 → PKCS#8 via Node crypto.
      */
     private buildKeyStrategies(rawKey: string): Array<() => string> {
         return [
-            // Strategy 1: Replace escaped newlines, strip \r (Windows CRLF)
+            // Strategy 1: Replace escaped newlines, strip \r — use as-is if PKCS#8
             () => {
                 const key = rawKey.replace(/\\n/g, '\n').replace(/\r/g, '');
                 if (!key.includes('BEGIN PRIVATE KEY') && !key.includes('BEGIN RSA PRIVATE KEY')) {
                     throw new Error('Missing PEM markers');
                 }
+                // If it's PKCS#1, convert to PKCS#8 for OpenSSL 3.x compatibility
+                if (key.includes('BEGIN RSA PRIVATE KEY')) {
+                    return this.convertPKCS1toPKCS8(key);
+                }
                 return key;
             },
-            // Strategy 2: Robust reconstruction — strip everything and rebuild PEM
+            // Strategy 2: Robust reconstruction as PKCS#8
             () => {
                 const base64Only = rawKey
                     .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
@@ -116,7 +123,7 @@ export class GoogleSheetsClient {
                 const chunked = base64Only.match(/.{1,64}/g)?.join('\n');
                 return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
             },
-            // Strategy 3: Same reconstruction but as RSA PRIVATE KEY (PKCS#1)
+            // Strategy 3: Reconstruct as PKCS#1 and convert to PKCS#8
             () => {
                 const base64Only = rawKey
                     .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
@@ -125,9 +132,24 @@ export class GoogleSheetsClient {
                     .replace(/[\s\r\n"']/g, '');
 
                 const chunked = base64Only.match(/.{1,64}/g)?.join('\n');
-                return `-----BEGIN RSA PRIVATE KEY-----\n${chunked}\n-----END RSA PRIVATE KEY-----\n`;
+                const pkcs1Pem = `-----BEGIN RSA PRIVATE KEY-----\n${chunked}\n-----END RSA PRIVATE KEY-----\n`;
+                return this.convertPKCS1toPKCS8(pkcs1Pem);
             },
         ];
+    }
+
+    /**
+     * Convert PKCS#1 (RSA PRIVATE KEY) to PKCS#8 (PRIVATE KEY) using Node crypto.
+     * Required for OpenSSL 3.x compatibility on newer Node.js / AWS Linux.
+     */
+    private convertPKCS1toPKCS8(pkcs1Pem: string): string {
+        try {
+            const keyObj = createPrivateKey({ key: pkcs1Pem, format: 'pem' });
+            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
+        } catch {
+            // If conversion fails, return original — let the caller handle the error
+            return pkcs1Pem;
+        }
     }
 
     /**

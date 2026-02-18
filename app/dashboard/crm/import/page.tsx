@@ -1,5 +1,4 @@
 import UnifiedImportWizard from '@/components/import-export/UnifiedImportWizard';
-import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
 
 export const metadata = {
     title: 'Import Leads | Recruiting | TMS',
@@ -9,7 +8,6 @@ export const metadata = {
 export default function CRMImportPage() {
     return (
         <div className="space-y-4">
-            <CRMHeaderNav />
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Import Leads</h1>
                 <p className="text-muted-foreground">

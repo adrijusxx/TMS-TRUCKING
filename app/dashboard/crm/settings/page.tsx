@@ -3,6 +3,8 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import CrmSettingsList from '@/components/crm/CrmSettingsList';
+import ApplicationUrlConfig from '@/components/crm/ApplicationUrlConfig';
+import SLAConfigEditor from '@/components/crm/settings/SLAConfigEditor';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata = {
@@ -39,7 +41,18 @@ async function SettingsData() {
         }
     });
 
-    return <CrmSettingsList mcNumbers={mcNumbers} />;
+    const company = await prisma.company.findUnique({
+        where: { id: session.user.companyId },
+        select: { slug: true },
+    });
+
+    return (
+        <>
+            <ApplicationUrlConfig currentSlug={company?.slug || null} />
+            <SLAConfigEditor />
+            <CrmSettingsList mcNumbers={mcNumbers} />
+        </>
+    );
 }
 
 export default async function SettingsPage() {

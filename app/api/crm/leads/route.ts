@@ -119,6 +119,8 @@ export async function POST(request: NextRequest) {
                 tags: body.tags || [],
                 endorsements: body.endorsements || [],
                 freightTypes: body.freightTypes || [],
+                nextFollowUpDate: body.nextFollowUpDate ? new Date(body.nextFollowUpDate) : null,
+                nextFollowUpNote: body.nextFollowUpNote || null,
             },
             include: {
                 assignedTo: {

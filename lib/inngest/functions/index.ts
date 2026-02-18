@@ -50,8 +50,14 @@ import {
 import { autoInvoiceOnStatusChange } from './auto-invoice';
 import { autoSettlementReadiness } from './auto-settlement-readiness';
 import { syncCrmLeads } from './sync-crm-leads';
+import { checkLeadFollowUps } from './check-lead-follow-ups';
+import { checkLeadSLA } from './check-lead-sla';
+import { autoScoreLead } from './auto-score-lead';
 
 export { syncCrmLeads } from './sync-crm-leads';
+export { checkLeadFollowUps } from './check-lead-follow-ups';
+export { checkLeadSLA } from './check-lead-sla';
+export { autoScoreLead } from './auto-score-lead';
 
 export const allFunctions = [
   // Settlements
@@ -70,5 +76,8 @@ export const allFunctions = [
   autoSettlementReadiness,
   // CRM
   syncCrmLeads,
+  checkLeadFollowUps,
+  checkLeadSLA,
+  autoScoreLead,
 ];
 

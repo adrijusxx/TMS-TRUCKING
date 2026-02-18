@@ -31,6 +31,7 @@ export async function POST(
             payRate: body.payRate ? parseFloat(body.payRate) : undefined,
             driverType: body.driverType,
             mcNumberId: body.mcNumberId,
+            templateId: body.templateId,
         });
 
         if (!result.success) {

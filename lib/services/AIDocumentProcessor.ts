@@ -119,6 +119,20 @@ type DocumentExtractionResult =
 
 export class AIDocumentProcessor extends AIService {
   /**
+   * Process a document file (PDF/image) with OCR and extract structured data.
+   * Handles scanned documents automatically via GPT-4o vision fallback.
+   */
+  async processDocumentFromFile(
+    buffer: Buffer,
+    mimeType: string,
+    documentType: DocumentProcessingInput['documentType'],
+    fileName?: string
+  ): Promise<DocumentExtractionResult> {
+    const text = await this.extractTextWithOCR(buffer, mimeType);
+    return this.processDocument({ documentType, text, fileName });
+  }
+
+  /**
    * Process a document and extract structured data
    */
   async processDocument(input: DocumentProcessingInput): Promise<DocumentExtractionResult> {

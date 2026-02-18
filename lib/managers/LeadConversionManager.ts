@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { LeadDocumentBridgeManager } from './LeadDocumentBridgeManager';
 
 interface ConversionInput {
     leadId: string;
@@ -8,6 +9,7 @@ interface ConversionInput {
     payRate?: number;
     driverType?: string;
     mcNumberId?: string;
+    templateId?: string;
 }
 
 interface ConversionResult {
@@ -39,7 +41,7 @@ export class LeadConversionManager {
     }
 
     async convert(input: ConversionInput): Promise<ConversionResult> {
-        const { leadId, companyId, userId, payType, payRate, driverType, mcNumberId } = input;
+        const { leadId, companyId, userId, payType, payRate, driverType, mcNumberId, templateId } = input;
 
         // Fetch the lead
         const lead = await this.prisma.lead.findFirst({
@@ -130,6 +132,9 @@ export class LeadConversionManager {
                 },
             });
 
+            // Resolve onboarding steps from template or defaults
+            const onboardingSteps = await this.resolveOnboardingSteps(companyId, templateId);
+
             // Create onboarding checklist
             const checklist = await tx.onboardingChecklist.create({
                 data: {
@@ -138,7 +143,7 @@ export class LeadConversionManager {
                     leadId,
                     status: 'NOT_STARTED',
                     steps: {
-                        create: DEFAULT_ONBOARDING_STEPS.map((step) => ({
+                        create: onboardingSteps.map((step) => ({
                             stepType: step.stepType as any,
                             label: step.label,
                             required: step.required,
@@ -152,7 +157,37 @@ export class LeadConversionManager {
             return { driverId: driver.id, checklistId: checklist.id };
         });
 
+        // Bridge lead documents to DQF (fire-and-forget, don't block hire)
+        const bridge = new LeadDocumentBridgeManager(this.prisma);
+        bridge.bridgeDocuments({ leadId, driverId: result.driverId, companyId, userId }).catch((err) => {
+            console.error('[LeadConversion] Document bridge failed:', err);
+        });
+
         return { success: true, driverId: result.driverId, checklistId: result.checklistId };
+    }
+
+    private async resolveOnboardingSteps(
+        companyId: string,
+        templateId?: string
+    ): Promise<Array<{ stepType: string; label: string; required: boolean; sortOrder: number }>> {
+        // Try specific template first
+        if (templateId) {
+            const template = await this.prisma.onboardingTemplate.findFirst({
+                where: { id: templateId, companyId },
+                include: { steps: { orderBy: { sortOrder: 'asc' } } },
+            });
+            if (template?.steps.length) return template.steps;
+        }
+
+        // Try company default template
+        const defaultTemplate = await this.prisma.onboardingTemplate.findFirst({
+            where: { companyId, isDefault: true },
+            include: { steps: { orderBy: { sortOrder: 'asc' } } },
+        });
+        if (defaultTemplate?.steps.length) return defaultTemplate.steps;
+
+        // Fall back to hardcoded defaults
+        return DEFAULT_ONBOARDING_STEPS.map((s) => ({ ...s }));
     }
 
     private async findDefaultMcNumber(companyId: string): Promise<string | null> {

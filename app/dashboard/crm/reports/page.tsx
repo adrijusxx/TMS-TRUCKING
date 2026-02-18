@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
-import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
 import RecruitingReports from '@/components/crm/reports/RecruitingReports';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -19,7 +18,6 @@ export default async function ReportsPage() {
 
     return (
         <div className="space-y-4">
-            <CRMHeaderNav />
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Recruiting Reports</h1>
                 <p className="text-muted-foreground">

@@ -61,15 +61,18 @@ export interface ParseRateConResult {
 
 export class RateConParserService extends AIService {
   
-  async parseRateCon(buffer: Buffer): Promise<ParseRateConResult> {
+  async parseRateCon(
+    buffer: Buffer,
+    mimeType: string = 'application/pdf'
+  ): Promise<ParseRateConResult> {
     const startTime = Date.now();
-    
+
     try {
-      console.log('[RateCon] Extracting PDF text...');
-      const pdfText = await this.extractTextFromPDF(buffer);
-      
+      console.log('[RateCon] Extracting document text...');
+      const pdfText = await this.extractTextWithOCR(buffer, mimeType);
+
       if (!pdfText || pdfText.trim().length < 50) {
-        return this.errorResult('PDF is empty or unreadable', startTime);
+        return this.errorResult('Document is empty or unreadable', startTime);
       }
       
       console.log('[RateCon] Text length:', pdfText.length);

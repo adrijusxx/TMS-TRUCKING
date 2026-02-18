@@ -63,10 +63,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ImportRes
       );
     }
 
-    // 3. Extract PDF content using the RateConParserService
+    // 3. Extract content using the RateConParserService (supports PDF + images via OCR)
     const buffer = Buffer.from(await file.arrayBuffer());
     const parserService = getRateConParserService();
-    const parseResult = await parserService.parseRateCon(buffer);
+    const parseResult = await parserService.parseRateCon(buffer, file.type);
     
     if (!parseResult.success || !parseResult.loadFormData) {
       return NextResponse.json(
@@ -131,8 +131,9 @@ function validateFile(file: File | null): string | null {
   if (!file) {
     return 'No file provided';
   }
-  if (file.type !== 'application/pdf') {
-    return 'File must be a PDF';
+  const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+  if (!allowedTypes.includes(file.type)) {
+    return 'File must be a PDF, PNG, or JPEG';
   }
   if (file.size > 10 * 1024 * 1024) {
     return 'File size must be less than 10MB';

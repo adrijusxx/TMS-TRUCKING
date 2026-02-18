@@ -148,9 +148,7 @@ export default async function DashboardPage() {
       prisma.load.aggregate({
         where: {
           ...loadFilter,
-          status: {
-            in: ['DELIVERED', 'INVOICED', 'PAID'],
-          },
+          status: { not: 'CANCELLED' },
           deletedAt: null,
         },
         _sum: {

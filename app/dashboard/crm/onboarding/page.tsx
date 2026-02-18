@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
-import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
 import OnboardingList from '@/components/crm/onboarding/OnboardingList';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -19,7 +18,6 @@ export default async function OnboardingPage() {
 
     return (
         <div className="space-y-4">
-            <CRMHeaderNav />
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Onboarding</h1>
                 <p className="text-muted-foreground">

@@ -99,6 +99,14 @@ export type InngestEvents = {
   'crm/sync-leads': {
     data: Record<string, never>;
   };
+  'crm/check-follow-ups': {
+    data: Record<string, never>;
+  };
+  'crm/auto-score-lead': {
+    data: {
+      leadId: string;
+    };
+  };
 };
 
 // Create the Inngest client

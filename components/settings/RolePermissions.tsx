@@ -201,6 +201,7 @@ const permissionCategories: Record<string, Permission[]> = {
     'crm.hire',
     'crm.onboarding.view',
     'crm.onboarding.manage',
+    'crm.templates.manage',
   ],
 };
 
@@ -440,6 +441,7 @@ function getPermissionLabel(permission: Permission): string {
     'crm.hire': 'Hire Leads',
     'crm.onboarding.view': 'View Onboarding',
     'crm.onboarding.manage': 'Manage Onboarding',
+    'crm.templates.manage': 'Manage Templates',
   };
   return labels[permission] || permission;
 }

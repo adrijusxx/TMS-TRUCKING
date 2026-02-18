@@ -5,6 +5,8 @@ import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { mkdir } from 'fs/promises';
+import { inngest } from '@/lib/inngest/client';
+import { LeadAutoScoringManager } from '@/lib/managers/LeadAutoScoringManager';
 
 // GET /api/crm/leads/[id]/documents
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -135,6 +137,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
                 userId: session.user.id
             }
         });
+
+        // Trigger auto AI scoring for CDL/medical uploads
+        const shouldScore = await LeadAutoScoringManager.shouldScoreOnDocumentUpload(id, documentType);
+        if (shouldScore) {
+            await inngest.send({ name: 'crm/auto-score-lead', data: { leadId: id } });
+        }
 
         return NextResponse.json({ data: document });
 

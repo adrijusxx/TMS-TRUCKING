@@ -11,6 +11,8 @@ import LeadPersonalTab from './LeadPersonalTab';
 import LeadCDLTab from './LeadCDLTab';
 import LeadStatusTab from './LeadStatusTab';
 import HireLeadDialog from './HireLeadDialog';
+import LeadQuickActions from './LeadQuickActions';
+import DuplicateLeadWarning from './DuplicateLeadWarning';
 import { Card, CardContent } from '@/components/ui/card';
 import {
     Sheet,
@@ -167,6 +169,9 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                             ? 'Update lead information and track progress'
                             : 'Enter lead details to add them to the recruiting pipeline'}
                     </SheetDescription>
+                    {isEditing && leadId && (
+                        <LeadQuickActions leadId={leadId} onSuccess={onSuccess} />
+                    )}
                 </SheetHeader>
 
                 {isFetching ? (
@@ -176,6 +181,12 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                 ) : (
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-6">
+                            {!isEditing && (
+                                <DuplicateLeadWarning
+                                    phone={form.watch('phone')}
+                                    email={form.watch('email')}
+                                />
+                            )}
                             <Tabs defaultValue="personal" className="w-full">
                                 <TabsList className={`grid w-full ${isEditing ? 'grid-cols-7' : 'grid-cols-3'}`}>
                                     <TabsTrigger value="personal">Personal</TabsTrigger>

@@ -317,7 +317,7 @@ export class AIService {
   }
 
   /**
-   * Extract text from PDF buffer using pdf-parse
+   * Extract text from PDF buffer using pdf-parse (text-only, no OCR)
    */
   protected async extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {
@@ -342,6 +342,17 @@ export class AIService {
       console.error('[AIService] PDF parsing error:', error);
       throw new Error('Failed to parse PDF. Please ensure the file is a valid PDF.');
     }
+  }
+
+  /**
+   * Extract text from a document with OCR fallback.
+   * Uses pdf-parse for digital PDFs, GPT-4o vision for scanned/image documents.
+   */
+  protected async extractTextWithOCR(buffer: Buffer, mimeType: string): Promise<string> {
+    const { getDocumentOCRService } = await import('./DocumentOCRService');
+    const ocrService = getDocumentOCRService();
+    const result = await ocrService.extractText(buffer, mimeType);
+    return result.text;
   }
 
   /**

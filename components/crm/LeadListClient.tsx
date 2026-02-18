@@ -33,10 +33,11 @@ import {
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isPast } from 'date-fns';
 import LeadSheet from './LeadSheet';
 import BulkStatusDialog from './BulkStatusDialog';
 import BulkAssignDialog from './BulkAssignDialog';
+import ExportLeadsButton from './ExportLeadsButton';
 
 interface Lead {
     id: string;
@@ -51,6 +52,7 @@ interface Lead {
     assignedTo: { firstName: string; lastName: string } | null;
     createdAt: string;
     lastContactedAt: string | null;
+    nextFollowUpDate: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -230,6 +232,11 @@ export default function LeadListClient() {
                     <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
                 </Button>
 
+                <ExportLeadsButton
+                    status={statusFilter !== 'all' ? statusFilter : undefined}
+                    priority={priorityFilter !== 'all' ? priorityFilter : undefined}
+                />
+
                 <Button variant="outline" asChild>
                     <Link href="/dashboard/crm/import">
                         <Upload className="h-4 w-4 mr-2" />
@@ -359,8 +366,13 @@ export default function LeadListClient() {
                                     <TableCell className="text-sm">
                                         {lead.source.replace(/_/g, ' ')}
                                     </TableCell>
-                                    <TableCell className="text-sm text-muted-foreground">
-                                        {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
+                                    <TableCell className="text-sm">
+                                        <span className="text-muted-foreground">{formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}</span>
+                                        {lead.nextFollowUpDate && (
+                                            <div className={cn('text-xs mt-0.5', isPast(new Date(lead.nextFollowUpDate)) ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
+                                                {isPast(new Date(lead.nextFollowUpDate)) ? 'Follow-up overdue' : `Follow-up ${formatDistanceToNow(new Date(lead.nextFollowUpDate), { addSuffix: true })}`}
+                                            </div>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))

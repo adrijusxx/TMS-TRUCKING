@@ -5,8 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { User, Phone, Mail, Calendar } from 'lucide-react';
+import { format, isPast, isToday } from 'date-fns';
+import { User, Phone, Mail, Calendar, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import LeadSheet from './LeadSheet';
 
@@ -23,6 +23,7 @@ interface Lead {
         lastName: string;
     } | null;
     updatedAt: string;
+    nextFollowUpDate?: string | null;
 }
 
 interface KanbanBoardProps {
@@ -187,6 +188,21 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
                                                         <Calendar className="h-3 w-3 mr-2" />
                                                         <span>{format(new Date(lead.updatedAt), 'MMM d')}</span>
                                                     </div>
+                                                    {lead.nextFollowUpDate && (
+                                                        <div className={cn(
+                                                            "flex items-center text-xs",
+                                                            isPast(new Date(lead.nextFollowUpDate)) ? "text-red-500 font-medium" :
+                                                                isToday(new Date(lead.nextFollowUpDate)) ? "text-amber-500 font-medium" :
+                                                                    "text-muted-foreground"
+                                                        )}>
+                                                            <Clock className="h-3 w-3 mr-2" />
+                                                            <span>
+                                                                {isPast(new Date(lead.nextFollowUpDate)) ? 'Overdue' :
+                                                                    isToday(new Date(lead.nextFollowUpDate)) ? 'Today' :
+                                                                        format(new Date(lead.nextFollowUpDate), 'MMM d')}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {lead.assignedTo && (
