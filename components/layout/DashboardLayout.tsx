@@ -100,7 +100,7 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Accounting Department', href: '/dashboard/accounting', icon: DollarSign, permission: 'departments.accounting.view' },
   { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
   { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },
-  { name: 'Recruitment', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
+  { name: 'Recruiting', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, permission: 'analytics.view' },
   { name: 'Reports', href: '/dashboard/reports', icon: ChartBar, permission: 'departments.reports.view' },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'departments.settings.view' },

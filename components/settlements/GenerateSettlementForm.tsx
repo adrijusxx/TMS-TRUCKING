@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,7 +92,6 @@ async function generateSettlement(data: {
 }
 
 export default function GenerateSettlementForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [openDriverSelect, setOpenDriverSelect] = useState(false);
@@ -125,11 +124,10 @@ export default function GenerateSettlementForm() {
       // Invalidate the specific driver load query
       queryClient.invalidateQueries({ queryKey: ['settlement-eligible-loads', selectedDriverId] });
 
-      toast.success('Settlement generated successfully');
-      if (data.data?.id) {
-        // Redirect to settlement list with sheet open
-        router.push(`/dashboard/settlements?settlementId=${data.data.id}`);
-      }
+      toast.success(`Settlement ${data.data?.settlementNumber || ''} generated successfully`);
+      // Reset form so user can generate another settlement
+      setSelectedDriverId('');
+      setSelectedLoads(new Set());
     },
     onError: (error: any) => {
       const errorDetails = error.errorDetails;

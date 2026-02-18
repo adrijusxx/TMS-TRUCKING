@@ -204,6 +204,32 @@ const entityConfigs: Record<string, EntityConfig> = {
     ],
     exampleRow: { email: 'jane@company.com', firstName: 'Jane', lastName: 'Doe', role: 'DISPATCHER', phone: '312-555-0102', employeeNumber: 'EMP-001' },
   },
+  'recruiting-leads': {
+    label: 'Recruiting Leads',
+    fields: [
+      { key: 'firstName', label: 'First Name *', required: true, suggestedCsvHeaders: ['First Name', 'first_name', 'FirstName', 'First', 'FName'] },
+      { key: 'lastName', label: 'Last Name *', required: true, suggestedCsvHeaders: ['Last Name', 'last_name', 'LastName', 'Last', 'LName'] },
+      { key: 'phone', label: 'Phone *', required: true, suggestedCsvHeaders: ['Phone', 'phone', 'Phone Number', 'phone_number', 'Mobile', 'Cell', 'Contact'] },
+      { key: 'email', label: 'Email', suggestedCsvHeaders: ['Email', 'email', 'Email Address', 'email_address', 'E-mail'] },
+      { key: 'cdlNumber', label: 'CDL Number', suggestedCsvHeaders: ['CDL Number', 'cdl_number', 'CDL', 'License Number', 'DL Number'] },
+      { key: 'cdlClass', label: 'CDL Class', suggestedCsvHeaders: ['CDL Class', 'cdl_class', 'Class', 'License Class'] },
+      { key: 'cdlExpiration', label: 'CDL Expiration', suggestedCsvHeaders: ['CDL Expiration', 'cdl_expiration', 'CDL Exp', 'License Expiry'] },
+      { key: 'endorsements', label: 'Endorsements', suggestedCsvHeaders: ['Endorsements', 'endorsements', 'CDL Endorsements'] },
+      { key: 'yearsExperience', label: 'Years Experience', suggestedCsvHeaders: ['Years Experience', 'years_experience', 'Experience', 'Yrs Exp', 'Years'] },
+      { key: 'previousEmployers', label: 'Previous Employers', suggestedCsvHeaders: ['Previous Employers', 'previous_employers', 'Past Employers', 'Employers'] },
+      { key: 'freightTypes', label: 'Freight Types', suggestedCsvHeaders: ['Freight Types', 'freight_types', 'Equipment', 'Freight'] },
+      { key: 'source', label: 'Source', suggestedCsvHeaders: ['Source', 'source', 'Lead Source', 'lead_source', 'Channel'] },
+      { key: 'priority', label: 'Priority', suggestedCsvHeaders: ['Priority', 'priority', 'Lead Priority'] },
+      { key: 'status', label: 'Status', suggestedCsvHeaders: ['Status', 'status', 'Lead Status', 'lead_status'] },
+      { key: 'address', label: 'Address', suggestedCsvHeaders: ['Address', 'address', 'Street'] },
+      { key: 'city', label: 'City', suggestedCsvHeaders: ['City', 'city'] },
+      { key: 'state', label: 'State', suggestedCsvHeaders: ['State', 'state'] },
+      { key: 'zip', label: 'ZIP', suggestedCsvHeaders: ['ZIP', 'zip', 'Zip Code', 'zip_code', 'Postal Code'] },
+      { key: 'dateOfBirth', label: 'Date of Birth', suggestedCsvHeaders: ['Date of Birth', 'date_of_birth', 'DOB', 'dob', 'Birthday'] },
+      { key: 'tags', label: 'Tags', suggestedCsvHeaders: ['Tags', 'tags', 'Labels'] },
+    ],
+    exampleRow: { firstName: 'John', lastName: 'Smith', phone: '312-555-0101', email: 'john@example.com', cdlClass: 'A', yearsExperience: '5', source: 'Facebook', priority: 'Hot', status: 'New' },
+  },
 };
 
 export function getEntityConfig(entityType: string): EntityConfig | null {

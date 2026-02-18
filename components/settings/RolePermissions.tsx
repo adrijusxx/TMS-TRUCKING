@@ -192,12 +192,15 @@ const permissionCategories: Record<string, Permission[]> = {
     'departments.settings.view',
     'departments.crm.view',
   ],
-  'CRM / Recruitment': [
+  'CRM / Recruiting': [
     'crm.leads.view',
     'crm.leads.create',
     'crm.leads.edit',
     'crm.leads.delete',
     'crm.leads.assign',
+    'crm.hire',
+    'crm.onboarding.view',
+    'crm.onboarding.manage',
   ],
 };
 
@@ -427,13 +430,16 @@ function getPermissionLabel(permission: Permission): string {
     'departments.hr.view': departmentLabels['departments.hr.view'],
     'departments.reports.view': departmentLabels['departments.reports.view'],
     'departments.settings.view': departmentLabels['departments.settings.view'],
-    'departments.crm.view': 'View Recruitment',
-    // CRM / Recruitment
+    'departments.crm.view': 'View Recruiting',
+    // CRM / Recruiting
     'crm.leads.view': 'View Leads',
     'crm.leads.create': 'Create Leads',
     'crm.leads.edit': 'Edit Leads',
     'crm.leads.delete': 'Delete Leads',
     'crm.leads.assign': 'Assign Leads',
+    'crm.hire': 'Hire Leads',
+    'crm.onboarding.view': 'View Onboarding',
+    'crm.onboarding.manage': 'Manage Onboarding',
   };
   return labels[permission] || permission;
 }

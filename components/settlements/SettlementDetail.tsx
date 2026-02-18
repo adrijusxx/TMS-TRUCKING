@@ -98,6 +98,7 @@ const TRANSACTION_TYPES = {
 
 interface SettlementDetailProps {
   settlementId: string;
+  onOpenDriver?: (driverId: string) => void;
 }
 
 async function fetchSettlement(id: string) {
@@ -235,7 +236,7 @@ async function deleteAddition(settlementId: string, additionId: string) {
   return response.json();
 }
 
-export default function SettlementDetail({ settlementId }: SettlementDetailProps) {
+export default function SettlementDetail({ settlementId, onOpenDriver }: SettlementDetailProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SettlementStatus | ''>('');
   const [notes, setNotes] = useState('');
@@ -718,11 +719,14 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                 <p className="text-sm text-muted-foreground">
                   {settlement.driver?.user?.email || 'N/A'}
                 </p>
-                <Link href={`/dashboard/drivers?driverId=${settlement.driverId}`}>
-                  <Button variant="ghost" size="sm" className="mt-2">
-                    Edit Driver
-                  </Button>
-                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => onOpenDriver?.(settlement.driverId)}
+                >
+                  Edit Driver
+                </Button>
               </CardContent>
             </Card>
 

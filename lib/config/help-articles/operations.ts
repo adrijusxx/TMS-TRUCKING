@@ -54,7 +54,7 @@ For best results, import or create data in this order:
 | Dispatcher | Loads, dispatch, drivers, fleet |
 | Accountant | Invoices, settlements, payments |
 | Safety | Compliance, inspections, incidents |
-| HR | Driver management, recruitment |
+| HR | Driver management, recruiting |
 | Driver | Mobile app only |
 | Customer | Tracking portal only |`,
       },

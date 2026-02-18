@@ -86,6 +86,17 @@ export class LoadCompletionManager {
         };
       }
 
+      // 1b. Mark load as ready for settlement FIRST (before other steps that might fail)
+      if (load.driverId) {
+        await prisma.load.update({
+          where: { id: loadId },
+          data: {
+            readyForSettlement: true,
+            deliveredAt: load.deliveredAt || new Date(),
+          },
+        });
+      }
+
       // 2. Validate load data completeness
       const validation = await this.validateLoadData(load);
       if (!validation.isValid) {
@@ -152,17 +163,6 @@ export class LoadCompletionManager {
         notificationsSent = true;
       } catch (error: any) {
         errors.push(`Notifications failed: ${error.message}`);
-      }
-
-      // 7. Mark load as ready for settlement if driver assigned
-      if (load.driverId) {
-        await prisma.load.update({
-          where: { id: loadId },
-          data: {
-            readyForSettlement: true,
-            deliveredAt: load.deliveredAt || new Date(),
-          },
-        });
       }
 
       return {

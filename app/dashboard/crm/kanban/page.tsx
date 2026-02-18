@@ -7,8 +7,8 @@ import KanbanBoard from '@/components/crm/KanbanBoard';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata = {
-    title: 'Recruitment Kanban | TMS',
-    description: 'Visual pipeline for recruitment leads',
+    title: 'Recruiting Kanban | TMS',
+    description: 'Visual pipeline for recruiting leads',
 };
 
 async function KanbanData() {

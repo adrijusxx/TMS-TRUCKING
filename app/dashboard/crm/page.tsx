@@ -1,26 +1,27 @@
 import { Suspense } from 'react';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
-import LeadListClient from '@/components/crm/LeadListClient';
+import RecruitingDashboard from '@/components/crm/dashboard/RecruitingDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata = {
-    title: 'Recruitment Pipeline | TMS',
-    description: 'Manage driver recruitment leads and pipeline',
+    title: 'Recruiting Dashboard | TMS',
+    description: 'Driver recruiting dashboard and pipeline overview',
 };
 
-function LeadListSkeleton() {
+function DashboardSkeleton() {
     return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-10 w-32" />
-            </div>
-            <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-16 w-full" />
+        <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
                 ))}
             </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+                <Skeleton className="h-64 w-full" />
+                <Skeleton className="h-64 w-full" />
+            </div>
+            <Skeleton className="h-48 w-full" />
         </div>
     );
 }
@@ -36,15 +37,15 @@ export default async function CRMPage() {
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Recruitment Pipeline</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Recruiting Dashboard</h1>
                     <p className="text-muted-foreground">
-                        Manage driver recruitment leads and track the hiring pipeline
+                        Overview of the driver recruiting pipeline and hiring metrics
                     </p>
                 </div>
             </div>
 
-            <Suspense fallback={<LeadListSkeleton />}>
-                <LeadListClient />
+            <Suspense fallback={<DashboardSkeleton />}>
+                <RecruitingDashboard />
             </Suspense>
         </div>
     );

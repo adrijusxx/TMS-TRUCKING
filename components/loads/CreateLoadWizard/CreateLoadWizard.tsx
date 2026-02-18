@@ -153,8 +153,12 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
       if (selectedDriver.currentTruck?.id && !loadData.truckId) {
         setLoadData((prev) => ({ ...prev, truckId: selectedDriver.currentTruck!.id }));
       }
-      if (selectedDriver.currentTrailer?.trailerNumber && !loadData.trailerNumber) {
-        setLoadData((prev) => ({ ...prev, trailerNumber: selectedDriver.currentTrailer!.trailerNumber }));
+      if (selectedDriver.currentTrailer?.id && !(loadData as any).trailerId) {
+        setLoadData((prev) => ({
+          ...prev,
+          trailerId: selectedDriver.currentTrailer!.id,
+          trailerNumber: selectedDriver.currentTrailer!.trailerNumber,
+        }));
       }
       setLastDriverId(loadData.driverId ?? undefined);
     }
@@ -459,8 +463,12 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
                   <div className="space-y-1">
                     <Label className="text-xs">Trailer</Label>
                     <TrailerCombobox
-                      value={loadData.trailerNumber || ''}
-                      onValueChange={(value) => handleFieldChange('trailerNumber', value)}
+                      value={(loadData as any).trailerId || ''}
+                      onValueChange={(value) => {
+                        const trailer = trailers.find((t: any) => t.id === value);
+                        handleFieldChange('trailerId' as any, value || undefined);
+                        handleFieldChange('trailerNumber', trailer?.trailerNumber || '');
+                      }}
                       placeholder="Select trailer..."
                       trailers={trailers}
                       className="h-8 text-xs"

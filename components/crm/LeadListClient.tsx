@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     Table,
@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Select,
     SelectContent,
@@ -25,11 +26,17 @@ import {
     Search,
     Phone,
     RefreshCw,
+    ArrowRight,
+    UserPlus,
+    Upload,
 } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import LeadSheet from './LeadSheet';
+import BulkStatusDialog from './BulkStatusDialog';
+import BulkAssignDialog from './BulkAssignDialog';
 
 interface Lead {
     id: string;
@@ -90,6 +97,9 @@ export default function LeadListClient() {
     const [priorityFilter, setPriorityFilter] = useState('all');
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+    const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
 
     const { data, isLoading, refetch, isFetching } = useQuery({
         queryKey: ['leads', searchQuery, statusFilter, priorityFilter],
@@ -150,6 +160,25 @@ export default function LeadListClient() {
         }
     };
 
+    const toggleSelect = (id: string) => {
+        setSelectedIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === leads.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(leads.map((l) => l.id));
+        }
+    };
+
+    const handleBulkSuccess = () => {
+        setSelectedIds([]);
+        refetch();
+    };
+
     return (
         <div className="space-y-4">
             {/* Filters */}
@@ -201,17 +230,64 @@ export default function LeadListClient() {
                     <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
                 </Button>
 
+                <Button variant="outline" asChild>
+                    <Link href="/dashboard/crm/import">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Import
+                    </Link>
+                </Button>
+
                 <Button onClick={handleAddNew}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Lead
                 </Button>
             </div>
 
+            {/* Bulk Action Bar */}
+            {selectedIds.length > 0 && (
+                <div className="flex items-center gap-3 rounded-lg border bg-muted/50 p-3">
+                    <span className="text-sm font-medium">
+                        {selectedIds.length} selected
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBulkStatusOpen(true)}
+                        className="gap-1"
+                    >
+                        <ArrowRight className="h-3.5 w-3.5" />
+                        Change Status
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBulkAssignOpen(true)}
+                        className="gap-1"
+                    >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Assign
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedIds([])}
+                    >
+                        Clear
+                    </Button>
+                </div>
+            )}
+
             {/* Table */}
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-10">
+                                <Checkbox
+                                    checked={leads.length > 0 && selectedIds.length === leads.length}
+                                    onCheckedChange={toggleSelectAll}
+                                />
+                            </TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Contact</TableHead>
                             <TableHead>Status</TableHead>
@@ -223,23 +299,32 @@ export default function LeadListClient() {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                     Loading leads...
                                 </TableCell>
                             </TableRow>
                         ) : leads.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                    No leads found. Click "Add Lead" to create your first recruitment lead.
+                                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                    No leads found. Click &quot;Add Lead&quot; to create your first recruiting lead.
                                 </TableCell>
                             </TableRow>
                         ) : (
                             leads.map((lead) => (
                                 <TableRow
                                     key={lead.id}
-                                    className="cursor-pointer hover:bg-muted/50"
+                                    className={cn(
+                                        'cursor-pointer hover:bg-muted/50',
+                                        selectedIds.includes(lead.id) && 'bg-muted/30'
+                                    )}
                                     onClick={() => handleRowClick(lead.id)}
                                 >
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox
+                                            checked={selectedIds.includes(lead.id)}
+                                            onCheckedChange={() => toggleSelect(lead.id)}
+                                        />
+                                    </TableCell>
                                     <TableCell className="font-medium">
                                         {lead.firstName} {lead.lastName}
                                     </TableCell>
@@ -293,6 +378,20 @@ export default function LeadListClient() {
                     refetch();
                     setIsSheetOpen(false);
                 }}
+            />
+
+            {/* Bulk Dialogs */}
+            <BulkStatusDialog
+                open={bulkStatusOpen}
+                onOpenChange={setBulkStatusOpen}
+                selectedIds={selectedIds}
+                onSuccess={handleBulkSuccess}
+            />
+            <BulkAssignDialog
+                open={bulkAssignOpen}
+                onOpenChange={setBulkAssignOpen}
+                selectedIds={selectedIds}
+                onSuccess={handleBulkSuccess}
             />
         </div>
     );

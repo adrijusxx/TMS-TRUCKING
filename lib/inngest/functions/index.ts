@@ -49,6 +49,9 @@ import {
 
 import { autoInvoiceOnStatusChange } from './auto-invoice';
 import { autoSettlementReadiness } from './auto-settlement-readiness';
+import { syncCrmLeads } from './sync-crm-leads';
+
+export { syncCrmLeads } from './sync-crm-leads';
 
 export const allFunctions = [
   // Settlements
@@ -65,5 +68,7 @@ export const allFunctions = [
   // Load Automation
   autoInvoiceOnStatusChange,
   autoSettlementReadiness,
+  // CRM
+  syncCrmLeads,
 ];
 

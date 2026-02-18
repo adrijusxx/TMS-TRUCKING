@@ -301,6 +301,7 @@ export default function DriverWorkDetailsTab({
                 <McNumberSelector
                   value={watch('mcNumber')}
                   onValueChange={(value) => setValue('mcNumber', value)}
+                  label=""
                 />
               </div>
 

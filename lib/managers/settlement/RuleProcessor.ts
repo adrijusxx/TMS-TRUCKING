@@ -71,7 +71,6 @@ export class SettlementRuleProcessor {
                     companyId: driver.companyId,
                     isActive: true,
                     isAddition: true,
-                    deductionType: { in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'] },
                     OR: [
                         { mcNumberId: null },
                         ...(driver.mcNumberId ? [{ mcNumberId: driver.mcNumberId }] : []),
@@ -87,9 +86,18 @@ export class SettlementRuleProcessor {
             });
 
             for (const rule of additionRules) {
-                if (this.shouldSkipRule(rule, driver)) continue;
-                if (rule.minGrossPay && grossPay < rule.minGrossPay) continue;
-                if (await this.wasAlreadyAppliedInFrequencyWindow(rule, driverId, periodStart, periodEnd)) continue;
+                if (this.shouldSkipRule(rule, driver)) {
+                    console.log(`[RuleProcessor] Skipping addition rule "${rule.name}" (id: ${rule.id}) — driver number mismatch`);
+                    continue;
+                }
+                if (rule.minGrossPay && grossPay < rule.minGrossPay) {
+                    console.log(`[RuleProcessor] Skipping addition rule "${rule.name}" — grossPay ${grossPay} < minGrossPay ${rule.minGrossPay}`);
+                    continue;
+                }
+                if (await this.wasAlreadyAppliedInFrequencyWindow(rule, driverId, periodStart, periodEnd)) {
+                    console.log(`[RuleProcessor] Skipping addition rule "${rule.name}" — already applied in frequency window (${rule.frequency})`);
+                    continue;
+                }
 
                 let additionAmount = this.calculateAmount(rule, grossPay, loads);
                 if (rule.maxAmount && additionAmount > rule.maxAmount) additionAmount = rule.maxAmount;
@@ -102,6 +110,8 @@ export class SettlementRuleProcessor {
                         reference: `deduction_rule_${rule.id}`,
                         metadata: { deductionRuleId: rule.id },
                     });
+                } else {
+                    console.log(`[RuleProcessor] Addition rule "${rule.name}" calculated $0 (type: ${rule.calculationType})`);
                 }
             }
         }
@@ -172,6 +182,9 @@ export class SettlementRuleProcessor {
     }
 
     private shouldSkipRule(rule: any, driver: any): boolean {
+        // If rule is already scoped to a specific driver via driverId, the query already handles it
+        if (rule.driverId) return false;
+        // Only use name-based driver matching for company-wide rules without a specific driverId
         const driverNumberPattern = /DRV-[A-Z]{2}-[A-Z]+-\d+/g;
         const matchedDriverNumbers = rule.name.match(driverNumberPattern);
         if (matchedDriverNumbers && matchedDriverNumbers.length > 0) {

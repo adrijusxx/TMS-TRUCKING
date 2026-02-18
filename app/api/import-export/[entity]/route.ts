@@ -18,6 +18,7 @@ import { LocationImporter } from '@/lib/managers/import/LocationImporter';
 import { EmployeeImporter } from '@/lib/managers/import/EmployeeImporter';
 import { SettlementImporter } from '@/lib/managers/import/SettlementImporter';
 import { InvoiceImporter } from '@/lib/managers/import/InvoiceImporter';
+import { LeadImporter } from '@/lib/managers/import/LeadImporter';
 
 /**
  * GET /api/import-export/[entity]
@@ -297,6 +298,9 @@ export async function POST(
         break;
       case 'invoices':
         importer = new InvoiceImporter(prisma, companyId, userId);
+        break;
+      case 'recruiting-leads':
+        importer = new LeadImporter(prisma, companyId, userId);
         break;
       default:
         // For other entity types, return parsed data for frontend processing

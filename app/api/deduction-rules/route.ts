@@ -216,12 +216,24 @@ export async function GET(request: NextRequest) {
       companyId: session.user.companyId,
     };
 
-    // Filter by driverId — show driver-specific rules AND inherited company/driverType rules
+    // Filter by driverId — show driver-specific rules AND inherited rules that actually apply
     if (driverId) {
+      // Fetch driver's type to scope inherited rules properly
+      const driver = await prisma.driver.findUnique({
+        where: { id: driverId },
+        select: { driverType: true, mcNumberId: true },
+      });
       where.OR = [
-        { driverId },
-        { driverId: null }, // Company-wide and driverType rules also apply
+        { driverId }, // Driver-specific rules
+        // Company-wide rules (no driver or driverType restriction)
+        { driverId: null, driverType: null },
+        // Rules matching this driver's type
+        ...(driver?.driverType ? [{ driverId: null, driverType: driver.driverType }] : []),
       ];
+      // Also scope by MC number
+      if (driver?.mcNumberId) {
+        where.AND = { OR: [{ mcNumberId: null }, { mcNumberId: driver.mcNumberId }] };
+      }
     }
 
     if (driverType) {

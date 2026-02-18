@@ -241,6 +241,15 @@ export class LoadUpdateManager {
                     if (!completionResult.success && completionResult.errors) warnings = completionResult.errors;
                 } catch (e: any) {
                     warnings.push(`Completion Error: ${e.message}`);
+                    // Fallback: ensure readyForSettlement is set even if completion manager fails
+                    if (validated.status === 'DELIVERED' && load.driverId) {
+                        try {
+                            await prisma.load.update({
+                                where: { id: load.id },
+                                data: { readyForSettlement: true, deliveredAt: load.deliveredAt || new Date() },
+                            });
+                        } catch { /* best-effort */ }
+                    }
                 }
             }
         }

@@ -94,6 +94,11 @@ export type InngestEvents = {
       newStatus: string;
     };
   };
+
+  // CRM Events
+  'crm/sync-leads': {
+    data: Record<string, never>;
+  };
 };
 
 // Create the Inngest client

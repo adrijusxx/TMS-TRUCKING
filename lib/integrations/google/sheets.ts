@@ -30,103 +30,104 @@ export class GoogleSheetsClient {
      * Initialize authentication using service account
      */
     private async initializeAuth(): Promise<void> {
-        if (!this.auth) {
-            const { serviceAccountEmail, serviceAccountPrivateKey } = this.config;
+        if (this.auth) return;
 
-            if (!serviceAccountEmail || !serviceAccountPrivateKey) {
-                throw new Error('Google service account credentials are required');
-            }
+        const { serviceAccountEmail, serviceAccountPrivateKey } = this.config;
+        if (!serviceAccountEmail || !serviceAccountPrivateKey) {
+            throw new Error('Google service account credentials are required');
+        }
 
-            let privateKey = serviceAccountPrivateKey.trim();
+        let rawKey = serviceAccountPrivateKey.trim();
 
-            // STRATEGY 0: Handle JSON format (If the secret is the full JSON file)
-            if (privateKey.startsWith('{')) {
-                try {
-                    const parsed = JSON.parse(privateKey);
-                    if (parsed.private_key) {
-                        privateKey = parsed.private_key;
-                        // console.error('[GoogleAuth] Successfully extracted private_key from JSON.');
-                    }
-                } catch (e) {
-                    console.error('[GoogleAuth] JSON start detected but parsing failed:', e);
-                }
-            }
-
-            // STRATEGY 1: Standard PEM Logic
-            let standardKey = privateKey;
-            if ((standardKey.startsWith('"') && standardKey.endsWith('"')) ||
-                (standardKey.startsWith("'") && standardKey.endsWith("'"))) {
-                standardKey = standardKey.slice(1, -1);
-            }
-            standardKey = standardKey.replace(/\\n/g, '\n');
-
+        // STRATEGY 0: Handle JSON format (full service account JSON file)
+        if (rawKey.startsWith('{')) {
             try {
-                // Ensure markers exist
-                if (!standardKey.includes('BEGIN PRIVATE KEY')) throw new Error('Missing BEGIN PRIVATE KEY marker');
-
-                const authClient = new google.auth.JWT({
-                    email: serviceAccountEmail,
-                    key: standardKey,
-                    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-                });
-
-                // FORCE VALIDATION
-                await authClient.authorize();
-
-                this.auth = authClient;
-                this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-            } catch (error: any) {
-                console.error('[GoogleAuth] Standard key processing failed.', error.message);
-
-                // DEBUG: Inspect the raw key safely (Use console.error to ensure it prints)
-                const k = serviceAccountPrivateKey;
-                console.error('[GoogleAuth DEBUG] Raw Key Stats:', {
-                    length: k.length,
-                    startsWithQuote: k.startsWith('"') || k.startsWith("'"),
-                    startsWithBrace: k.startsWith('{'),
-                    hasEscapedNewline: k.includes('\\n'),
-                    hasRealNewline: k.includes('\n'),
-                    first10: k.substring(0, 10),
-                    last10: k.substring(k.length - 10),
-                    first10Check: k.substring(0, 10).split('').map(c => c.charCodeAt(0)),
-                });
-
-                // STRATEGY 2: Robust Reconstruction (Fallback)
-                console.warn('[GoogleAuth] Attempting robust reconstruction...');
-                try {
-                    let cleanKey = privateKey // Use valid JSON-extracted key if possible, else raw
-                        .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-                        .replace(/-----END PRIVATE KEY-----/g, '')
-                        .replace(/-----BEGIN RSA PRIVATE KEY-----/g, '')
-                        .replace(/-----END RSA PRIVATE KEY-----/g, '')
-                        .replace(/\\n/g, '') // Remove literal escaped newlines
-                        .replace(/\s+/g, '') // Remove all actual whitespace/newlines
-                        .replace(/["']/g, ''); // Remove quotes
-
-                    // Rebuild PEM with 64-char lines
-                    const chunked = cleanKey.match(/.{1,64}/g)?.join('\n');
-                    const reconstructedKey = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
-
-                    const authClient = new google.auth.JWT({
-                        email: serviceAccountEmail,
-                        key: reconstructedKey,
-                        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-                    });
-
-                    // FORCE VALIDATION
-                    await authClient.authorize();
-
-                    this.auth = authClient;
-                    this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-                    console.error('[GoogleAuth] Reconstruction successful.');
-                } catch (fallbackError: any) {
-                    console.error('[GoogleAuth] All auth strategies failed.');
-                    console.error('Standard Error:', error.message);
-                    console.error('Fallback Error:', fallbackError.message);
-                    throw new Error(`Failed to initialize Google authentication: ${error.message || 'Invalid credentials'}`);
-                }
+                const parsed = JSON.parse(rawKey);
+                if (parsed.private_key) rawKey = parsed.private_key;
+            } catch {
+                console.error('[GoogleAuth] JSON start detected but parsing failed.');
             }
         }
+
+        // Strip surrounding quotes
+        if ((rawKey.startsWith('"') && rawKey.endsWith('"')) ||
+            (rawKey.startsWith("'") && rawKey.endsWith("'"))) {
+            rawKey = rawKey.slice(1, -1);
+        }
+
+        // Build key variants to try in order
+        const keyStrategies = this.buildKeyStrategies(rawKey);
+        let lastError: any;
+
+        for (let i = 0; i < keyStrategies.length; i++) {
+            try {
+                const key = keyStrategies[i]();
+                const authClient = new google.auth.JWT({
+                    email: serviceAccountEmail,
+                    key,
+                    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+                });
+                await authClient.authorize();
+                this.auth = authClient;
+                this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+                return;
+            } catch (error: any) {
+                lastError = error;
+                console.error(`[GoogleAuth] Strategy ${i + 1} failed:`, error.message);
+            }
+        }
+
+        // All strategies failed — log debug info
+        console.error('[GoogleAuth DEBUG] All strategies failed. Key stats:', {
+            length: serviceAccountPrivateKey.length,
+            startsWithQuote: serviceAccountPrivateKey.startsWith('"'),
+            startsWithBrace: serviceAccountPrivateKey.startsWith('{'),
+            hasEscapedNewline: serviceAccountPrivateKey.includes('\\n'),
+            hasRealNewline: serviceAccountPrivateKey.includes('\n'),
+            hasCarriageReturn: serviceAccountPrivateKey.includes('\r'),
+        });
+
+        throw new Error(
+            `Failed to initialize Google authentication: ${lastError?.message || 'Invalid credentials'}`
+        );
+    }
+
+    /**
+     * Build an ordered list of key-normalization strategies
+     */
+    private buildKeyStrategies(rawKey: string): Array<() => string> {
+        return [
+            // Strategy 1: Replace escaped newlines, strip \r (Windows CRLF)
+            () => {
+                const key = rawKey.replace(/\\n/g, '\n').replace(/\r/g, '');
+                if (!key.includes('BEGIN PRIVATE KEY') && !key.includes('BEGIN RSA PRIVATE KEY')) {
+                    throw new Error('Missing PEM markers');
+                }
+                return key;
+            },
+            // Strategy 2: Robust reconstruction — strip everything and rebuild PEM
+            () => {
+                const base64Only = rawKey
+                    .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
+                    .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
+                    .replace(/\\n/g, '')
+                    .replace(/[\s\r\n"']/g, '');
+
+                const chunked = base64Only.match(/.{1,64}/g)?.join('\n');
+                return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
+            },
+            // Strategy 3: Same reconstruction but as RSA PRIVATE KEY (PKCS#1)
+            () => {
+                const base64Only = rawKey
+                    .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
+                    .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
+                    .replace(/\\n/g, '')
+                    .replace(/[\s\r\n"']/g, '');
+
+                const chunked = base64Only.match(/.{1,64}/g)?.join('\n');
+                return `-----BEGIN RSA PRIVATE KEY-----\n${chunked}\n-----END RSA PRIVATE KEY-----\n`;
+            },
+        ];
     }
 
     /**

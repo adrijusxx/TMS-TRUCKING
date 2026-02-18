@@ -6,8 +6,8 @@ import CrmSettingsList from '@/components/crm/CrmSettingsList';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata = {
-    title: 'CRM Settings | TMS',
-    description: 'Configure CRM integrations and settings',
+    title: 'Recruiting Settings | TMS',
+    description: 'Configure recruiting integrations and settings',
 };
 
 async function SettingsData() {
@@ -52,7 +52,7 @@ export default async function SettingsPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold tracking-tight">CRM Settings</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Recruiting Settings</h1>
                 <p className="text-muted-foreground">
                     Manage integrations and lead sources per MC Number
                 </p>

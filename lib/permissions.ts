@@ -210,12 +210,15 @@ export type Permission =
   | 'departments.reports.view'
   | 'departments.settings.view'
   | 'departments.crm.view'
-  // CRM / Recruitment permissions
+  // CRM / Recruiting permissions
   | 'crm.leads.view'
   | 'crm.leads.create'
   | 'crm.leads.edit'
   | 'crm.leads.delete'
-  | 'crm.leads.assign';
+  | 'crm.leads.assign'
+  | 'crm.hire'
+  | 'crm.onboarding.view'
+  | 'crm.onboarding.manage';
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER' | 'HR' | 'SAFETY' | 'FLEET';
 
@@ -292,7 +295,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'departments.settings.view',
     'departments.crm.view',
     // CRM Permissions
-    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign',
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage',
   ],
   ADMIN: [
     // Full access to everything
@@ -361,7 +364,7 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
     'departments.settings.view',
     'departments.crm.view',
     // CRM Permissions
-    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign',
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage',
   ],
   DISPATCHER: [
     // Load management and dispatch operations
@@ -609,8 +612,8 @@ export function getAllPermissions(): Permission[] {
     'departments.reports.view',
     'departments.settings.view',
     'departments.crm.view',
-    // CRM / Recruitment permissions
-    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign',
+    // CRM / Recruiting permissions
+    'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage',
   ];
 }
 

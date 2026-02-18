@@ -225,18 +225,10 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
           </TabsTrigger>
           {hasFinancialAccess && (
             <TabsTrigger
-              value="financial"
+              value="payroll"
               className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
             >
-              Financial
-            </TabsTrigger>
-          )}
-          {hasFinancialAccess && (
-            <TabsTrigger
-              value="deductions"
-              className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
-            >
-              Deductions
+              Payroll
             </TabsTrigger>
           )}
         </TabsList>
@@ -276,17 +268,14 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
         </TabsContent>
 
         {hasFinancialAccess && (
-          <TabsContent value="financial" className="mt-3">
+          <TabsContent value="payroll" className="mt-3 space-y-6">
             <DriverFinancialPayrollTab
               driver={driver}
               onSave={handleSave}
             />
-          </TabsContent>
-        )}
-
-        {hasFinancialAccess && (
-          <TabsContent value="deductions" className="mt-3">
-            <DriverDeductionRulesTab driver={driver} />
+            <div className="border-t pt-4">
+              <DriverDeductionRulesTab driver={driver} />
+            </div>
           </TabsContent>
         )}
       </Tabs>
