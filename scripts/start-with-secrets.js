@@ -53,7 +53,23 @@ async function getSecret(client, secretName) {
     try {
         const command = new GetSecretValueCommand({ SecretId: secretName });
         const response = await client.send(command);
-        return response.SecretString;
+        let value = response.SecretString;
+
+        // AWS Secrets Manager "Key/value" format wraps values in JSON like:
+        //   {"secret-key-name":"actual-value"}
+        // For single-key secrets, extract just the value string.
+        // Multi-key secrets (e.g., RDS with username+password) are returned as-is.
+        if (value && value.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(value);
+                const values = Object.values(parsed);
+                if (values.length === 1 && typeof values[0] === 'string') {
+                    value = values[0];
+                }
+            } catch {}
+        }
+
+        return value;
     } catch (error) {
         console.warn(`[Startup] Warning: Could not fetch secret ${secretName}: ${error.message}`);
         return null;
