@@ -1,5 +1,4 @@
 import { google } from 'googleapis';
-import { createPrivateKey } from 'crypto';
 
 interface SheetsClientConfig {
     serviceAccountEmail?: string;
@@ -28,34 +27,75 @@ export class GoogleSheetsClient {
     }
 
     /**
-     * Initialize authentication using service account
+     * Initialize authentication using service account.
+     * Tries three strategies in order:
+     * 1. GOOGLE_APPLICATION_CREDENTIALS file (production — set by start-with-secrets.js)
+     * 2. GoogleAuth with inline credentials object
+     * 3. Manual JWT with key cleaning (local dev fallback)
      */
     private async initializeAuth(): Promise<void> {
         if (this.auth) return;
 
         const { serviceAccountEmail, serviceAccountPrivateKey } = this.config;
+
+        // Strategy 1: GOOGLE_APPLICATION_CREDENTIALS file (preferred for production)
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            try {
+                const authClient = new google.auth.GoogleAuth({
+                    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+                });
+                await authClient.getClient();
+                this.auth = authClient;
+                this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+                console.log('[GoogleAuth] Authenticated via GOOGLE_APPLICATION_CREDENTIALS');
+                return;
+            } catch (e) {
+                console.warn('[GoogleAuth] GOOGLE_APPLICATION_CREDENTIALS failed:', (e as Error).message);
+            }
+        }
+
         if (!serviceAccountEmail || !serviceAccountPrivateKey) {
             throw new Error('Google service account credentials are required');
         }
 
-        const key = this.normalizePrivateKey(serviceAccountPrivateKey);
+        // Strategy 2: GoogleAuth with inline credentials object
+        try {
+            const cleanedKey = this.cleanPrivateKey(serviceAccountPrivateKey);
+            const authClient = new google.auth.GoogleAuth({
+                credentials: {
+                    type: 'service_account' as const,
+                    client_email: serviceAccountEmail,
+                    private_key: cleanedKey,
+                },
+                scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+            });
+            await authClient.getClient();
+            this.auth = authClient;
+            this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+            console.log('[GoogleAuth] Authenticated via inline credentials');
+            return;
+        } catch (e) {
+            console.warn('[GoogleAuth] Inline credentials failed:', (e as Error).message);
+        }
 
-        const authClient = new google.auth.JWT({
+        // Strategy 3: Manual JWT (local dev fallback)
+        const key = this.cleanPrivateKey(serviceAccountPrivateKey);
+        const jwtClient = new google.auth.JWT({
             email: serviceAccountEmail,
             key,
             scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
         });
-        await authClient.authorize();
-        this.auth = authClient;
+        await jwtClient.authorize();
+        this.auth = jwtClient;
         this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+        console.log('[GoogleAuth] Authenticated via manual JWT');
     }
 
     /**
-     * Normalize a private key into PKCS#8 PEM format.
-     * Handles: JSON service account files, escaped newlines, PKCS#1, PKCS#8, DER.
-     * Always outputs PKCS#8 PEM — guaranteed compatible with OpenSSL 3.x.
+     * Clean a private key string for use with Google auth.
+     * Handles JSON service account files, escaped newlines, and quote wrapping.
      */
-    private normalizePrivateKey(input: string): string {
+    private cleanPrivateKey(input: string): string {
         let rawKey = input.trim();
 
         // Handle JSON format (full service account JSON file)
@@ -64,7 +104,7 @@ export class GoogleSheetsClient {
                 const parsed = JSON.parse(rawKey);
                 if (parsed.private_key) rawKey = parsed.private_key;
             } catch {
-                console.error('[GoogleAuth] JSON start detected but parsing failed.');
+                // Not valid JSON, continue with raw string
             }
         }
 
@@ -75,74 +115,7 @@ export class GoogleSheetsClient {
         }
 
         // Replace escaped newlines and strip carriage returns
-        const cleaned = rawKey.replace(/\\n/g, '\n').replace(/\r/g, '');
-
-        // Attempt 1: Parse cleaned PEM directly (most common path)
-        if (cleaned.includes('BEGIN')) {
-            try {
-                const keyObj = createPrivateKey({ key: cleaned, format: 'pem' });
-                return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
-            } catch (e) {
-                console.error('[GoogleAuth] Direct PEM parse failed:', (e as Error).message);
-            }
-        }
-
-        // Extract raw base64 for reconstruction attempts
-        const base64Only = rawKey
-            .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
-            .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
-            .replace(/\\n/g, '')
-            .replace(/[\s\r\n"']/g, '');
-
-        const chunked = base64Only.match(/.{1,64}/g)?.join('\n') || base64Only;
-
-        // Attempt 2: Reconstruct as PKCS#8 PEM → validate with createPrivateKey
-        try {
-            const pem = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
-            const keyObj = createPrivateKey({ key: pem, format: 'pem' });
-            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
-        } catch {}
-
-        // Attempt 3: Reconstruct as PKCS#1 PEM → convert to PKCS#8
-        try {
-            const pem = `-----BEGIN RSA PRIVATE KEY-----\n${chunked}\n-----END RSA PRIVATE KEY-----\n`;
-            const keyObj = createPrivateKey({ key: pem, format: 'pem' });
-            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
-        } catch {}
-
-        // Attempt 4: Parse as raw DER binary (PKCS#8)
-        try {
-            const der = Buffer.from(base64Only, 'base64');
-            const keyObj = createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
-            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
-        } catch {}
-
-        // Attempt 5: Parse as raw DER binary (PKCS#1) → convert to PKCS#8
-        try {
-            const der = Buffer.from(base64Only, 'base64');
-            const keyObj = createPrivateKey({ key: der, format: 'der', type: 'pkcs1' });
-            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
-        } catch {}
-
-        // All createPrivateKey attempts failed — fall back to returning cleaned key as-is.
-        // Let google.auth.JWT try to use it directly (it may handle formats we can't normalize).
-        console.warn('[GoogleAuth] All createPrivateKey attempts failed. Falling back to cleaned key. Debug:', {
-            inputLength: input.length,
-            base64Length: base64Only.length,
-            hasEscapedNewline: input.includes('\\n'),
-            hasRealNewline: input.includes('\n'),
-            startsWithDash: input.trimStart().startsWith('-'),
-            startsWithBrace: input.trimStart().startsWith('{'),
-            first40: input.substring(0, 40) + '...',
-        });
-
-        // Return the best-effort cleaned key — google.auth.JWT may still accept it
-        if (cleaned.includes('BEGIN')) {
-            return cleaned;
-        }
-
-        // Last resort: wrap raw base64 in PKCS#8 PEM headers without validation
-        return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
+        return rawKey.replace(/\\n/g, '\n').replace(/\r/g, '');
     }
 
     /**

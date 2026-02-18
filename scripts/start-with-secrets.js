@@ -3,6 +3,9 @@ const {
     GetSecretValueCommand,
 } = require("@aws-sdk/client-secrets-manager");
 const { spawn } = require("child_process");
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 // Region where secrets are stored (hardcoded to us-east-1 as per user context)
 const REGION = "us-east-1";
@@ -110,6 +113,40 @@ async function main() {
 
     await Promise.all(secretPromises);
 
+    // 2b. Write Google Service Account credentials to a temp JSON file
+    //     This bypasses env var encoding issues with PEM keys on OpenSSL 3.x (AWS EC2)
+    const googleEmail = env['GOOGLE_SERVICE_ACCOUNT_EMAIL'];
+    const googleKey = env['GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY'];
+
+    if (googleEmail && googleKey) {
+        try {
+            // Clean the private key: replace escaped \n with real newlines, strip quotes
+            let normalizedKey = googleKey;
+            if ((normalizedKey.startsWith('"') && normalizedKey.endsWith('"')) ||
+                (normalizedKey.startsWith("'") && normalizedKey.endsWith("'"))) {
+                normalizedKey = normalizedKey.slice(1, -1);
+            }
+            normalizedKey = normalizedKey.replace(/\\n/g, '\n').replace(/\r/g, '');
+
+            const credentials = {
+                type: 'service_account',
+                client_email: googleEmail,
+                private_key: normalizedKey,
+            };
+
+            const credPath = path.join(os.tmpdir(), 'google-sa-credentials.json');
+            fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), {
+                encoding: 'utf8',
+                mode: 0o600,
+            });
+
+            env['GOOGLE_APPLICATION_CREDENTIALS'] = credPath;
+            console.log(`[Startup] Google SA credentials file written to ${credPath}`);
+        } catch (credError) {
+            console.warn('[Startup] Warning: Could not write Google credentials file:', credError.message);
+        }
+    }
+
     // 3. Set standard NextAuth/Next variables
     env.AUTH_TRUST_HOST = "true";
     console.log("[Startup] Set AUTH_TRUST_HOST=true");
@@ -118,8 +155,6 @@ async function main() {
     console.log("[Startup] Starting Next.js (Standalone Mode)...");
 
     // Check if standalone server exists
-    const fs = require('fs');
-    const path = require('path');
     const standalonePath = path.join(process.cwd(), '.next', 'standalone', 'server.js');
 
     let cmd = 'node';
@@ -136,8 +171,7 @@ async function main() {
         env: {
             ...env,
             PORT: "3001",
-            HOSTNAME: "0.0.0.0",
-            NODE_OPTIONS: "--openssl-legacy-provider"
+            HOSTNAME: "0.0.0.0"
         },
     });
 
