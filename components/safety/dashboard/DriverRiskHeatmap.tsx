@@ -58,7 +58,7 @@ export default function DriverRiskHeatmap() {
     refetchInterval: 60000,
   });
 
-  const drivers: DriverRisk[] = (data as any)?.data ?? [];
+  const drivers: DriverRisk[] = (data as any)?.data?.drivers ?? [];
 
   // Sort: critical first, then warn, then ok
   const sorted = [...drivers].sort((a, b) => a.overallCompliance - b.overallCompliance);

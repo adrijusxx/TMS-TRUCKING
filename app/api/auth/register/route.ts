@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         subscriptionStatus: subscriptionStatus,
         truckLimit: truckLimit,
         trialEndsAt: trialEndsAt,
-        onboardingComplete: true,
+        onboardingComplete: false,
         isReadOnly: false,
       },
     });

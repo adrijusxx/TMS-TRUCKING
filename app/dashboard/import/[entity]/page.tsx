@@ -1,4 +1,4 @@
-import ImportPage from '@/components/import-export/ImportPage';
+import UnifiedImportWizard from '@/components/import-export/UnifiedImportWizard';
 import { getEntityConfig } from '@/lib/import-export/entity-config';
 import { notFound } from 'next/navigation';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
@@ -15,18 +15,6 @@ export default async function ImportEntityPage({ params }: ImportEntityPageProps
     notFound();
   }
 
-  // Determine back URL based on entity type
-  const backUrls: Record<string, string> = {
-    trucks: '/dashboard/trucks',
-    trailers: '/dashboard/trailers',
-    loads: '/dashboard/loads',
-    customers: '/dashboard/customers',
-    drivers: '/dashboard/drivers',
-    invoices: '/dashboard/invoices',
-  };
-
-  const backUrl = backUrls[entity] || '/dashboard';
-
   return (
     <>
       <Breadcrumb items={[
@@ -37,11 +25,9 @@ export default async function ImportEntityPage({ params }: ImportEntityPageProps
         <div>
           <h1 className="text-3xl font-bold">Import {config.label}</h1>
         </div>
-        <ImportPage
+        <UnifiedImportWizard
           entityType={entity}
-          entityLabel={config.label}
-          systemFields={config.fields}
-          backUrl={backUrl}
+          mode="fullpage"
         />
       </div>
     </>

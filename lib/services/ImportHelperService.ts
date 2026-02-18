@@ -1,24 +1,19 @@
 import { AIService } from './AIService';
-
-interface MappingSuggestion {
-    sourceHeader: string;
-    targetField: string;
-    confidence: number;
-}
+import { getEntityConfig } from '@/lib/import-export/entity-config';
 
 export class ImportHelperService extends AIService {
 
     /**
-     * Suggests mappings between user CSV headers and system fields
+     * Suggests mappings between user CSV headers and system fields.
+     * Dynamically pulls target fields from entity-config.ts.
      */
     async suggestColumnMapping(
         userHeaders: string[],
-        entityType: 'loads' | 'drivers' | 'trucks' | 'trailers' | 'customers' | 'vendors' | 'invoices'
+        entityType: string
     ): Promise<Record<string, string>> {
 
         const targetFields = this.getTargetFieldsForEntity(entityType);
 
-        // If no specific fields, return empty
         if (Object.keys(targetFields).length === 0) return {};
 
         const prompt = `
@@ -53,72 +48,14 @@ Return ONLY valid JSON.
     }
 
     private getTargetFieldsForEntity(entityType: string): Record<string, string> {
-        switch (entityType) {
-            case 'loads':
-                return {
-                    loadNumber: 'Load ID / Number',
-                    customerId: 'Customer / Broker Name',
-                    pickupDate: 'Pickup Date',
-                    deliveryDate: 'Delivery / Drop Date',
-                    revenue: 'Rate / Revenue / Price',
-                    driverPay: 'Driver Pay / Cost',
-                    totalMiles: 'Total Miles / Distance',
-                    emptyMiles: 'Empty / Deadhead Miles',
-                    weight: 'Weight (lbs)',
-                    pickupCity: 'Pickup City',
-                    pickupState: 'Pickup State',
-                    deliveryCity: 'Delivery City',
-                    deliveryState: 'Delivery State',
-                    driverId: 'Driver Name / ID',
-                    truckId: 'Truck Number',
-                    trailerId: 'Trailer Number',
-                    notes: 'Notes / Instructions',
-                    status: 'Status'
-                };
-            case 'drivers':
-                return {
-                    firstName: 'First Name',
-                    lastName: 'Last Name',
-                    email: 'Email',
-                    phone: 'Phone Number',
-                    driverNumber: 'Driver ID / Number',
-                    licenseNumber: 'CDL Number',
-                    hiringDate: 'Hire Date',
-                    status: 'Status'
-                };
-            case 'trucks':
-                return {
-                    truckNumber: 'Truck Number / Unit ID',
-                    make: 'Make',
-                    model: 'Model',
-                    year: 'Year',
-                    vin: 'VIN',
-                    licensePlate: 'Plate Number',
-                    status: 'Status'
-                };
-            case 'trailers':
-                return {
-                    trailerNumber: 'Trailer Number / Unit ID',
-                    make: 'Make',
-                    model: 'Model',
-                    year: 'Year',
-                    vin: 'VIN',
-                    licensePlate: 'Plate Number',
-                    type: 'Type (Reefer, Dry Van, etc)'
-                };
-            case 'customers':
-                return {
-                    name: 'Customer / Company Name',
-                    email: 'Email',
-                    phone: 'Phone',
-                    address: 'Address',
-                    city: 'City',
-                    state: 'State',
-                    zip: 'Zip Code',
-                    mcNumber: 'MC Number'
-                };
-            default:
-                return {};
+        const config = getEntityConfig(entityType);
+        if (!config) return {};
+
+        const fields: Record<string, string> = {};
+        for (const field of config.fields) {
+            const aliases = field.suggestedCsvHeaders?.slice(0, 3).join(', ');
+            fields[field.key] = field.label + (aliases ? ` (also known as: ${aliases})` : '');
         }
+        return fields;
     }
 }

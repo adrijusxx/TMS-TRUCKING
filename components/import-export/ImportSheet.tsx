@@ -12,7 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { Upload, FileText } from 'lucide-react';
-import BulkImportSidebar from './BulkImportSidebar';
+import UnifiedImportWizard from './UnifiedImportWizard';
 import AILoadImporter from '@/components/loads/AILoadImporter';
 
 interface ImportSheetProps {
@@ -69,11 +69,11 @@ export default function ImportSheet({
                         </div>
 
                         <TabsContent value="bulk" className="flex-1 min-h-0 m-0 relative">
-                            <BulkImportSidebar
+                            <UnifiedImportWizard
                                 entityType={entityType}
+                                mode="sidebar"
                                 onImportComplete={(data) => {
                                     if (onImportComplete) onImportComplete(data);
-                                    // Optional: Close on success?
                                 }}
                                 onClose={() => setOpen(false)}
                             />
@@ -103,8 +103,9 @@ export default function ImportSheet({
                     </Tabs>
                 ) : (
                     <div className="flex-1 min-h-0 relative">
-                        <BulkImportSidebar
+                        <UnifiedImportWizard
                             entityType={entityType}
+                            mode="sidebar"
                             onImportComplete={(data) => {
                                 if (onImportComplete) onImportComplete(data);
                             }}

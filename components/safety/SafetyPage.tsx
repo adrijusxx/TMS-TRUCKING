@@ -175,9 +175,9 @@ export default function SafetyPage() {
       }),
   });
 
-  const incidents: SafetyIncident[] = incidentsData?.data?.incidents || [];
+  const incidents: SafetyIncident[] = incidentsData?.incidents || [];
   const trainings: SafetyTraining[] = trainingsData?.data?.trainings || [];
-  const incidentsPagination = incidentsData?.data?.pagination;
+  const incidentsPagination = incidentsData?.pagination;
   const trainingsPagination = trainingsData?.data?.pagination;
 
   const toggleIncidentSelect = (id: string) => {

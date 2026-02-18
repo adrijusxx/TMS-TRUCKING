@@ -14,7 +14,7 @@ import {
     ArrowLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { helpModules, getAllTopics } from '@/lib/config/help-content';
+import { helpModules, getAllTopics } from '@/lib/config/help-articles';
 
 interface HelpDialogProps {
     open: boolean;
@@ -79,7 +79,7 @@ export function HelpDialog({ open, onOpenChange, defaultModule, defaultTopic }: 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[95vw] w-[1400px] h-[85vh] p-0">
+            <DialogContent className="max-w-[95vw] sm:max-w-[95vw] w-[1400px] h-[85vh] p-0">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                     <div className="flex items-center justify-between">
                         <DialogTitle className="flex items-center gap-2 text-lg">

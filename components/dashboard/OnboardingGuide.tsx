@@ -92,7 +92,7 @@ export default function OnboardingGuide() {
       .then((json) => {
         if (json.success) setData(json.data);
       })
-      .catch(() => {});
+      .catch((err) => console.error('[OnboardingGuide] fetch failed:', err));
   }, []);
 
   if (!data || data.dismissed || hidden) return null;
