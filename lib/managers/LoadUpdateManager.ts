@@ -5,6 +5,7 @@ import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications/triggers';
 import { emitLoadStatusChanged, emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
+import { inngest } from '@/lib/inngest/client';
 import { Session } from 'next-auth';
 import { LoadSyncManager } from './LoadSyncManager';
 
@@ -214,6 +215,22 @@ export class LoadUpdateManager {
             await notifyLoadStatusChanged(load.id, existingLoad.status, validated.status, session.user.id);
             emitLoadStatusChanged(load.id, validated.status, load);
             emitDispatchUpdated({ type: 'load_status_changed', loadId: load.id, status: validated.status });
+
+            // Emit Inngest event for async automation (invoice, settlement readiness)
+            try {
+                await inngest.send({
+                    name: 'load/status-changed',
+                    data: {
+                        loadId: load.id,
+                        companyId: load.companyId,
+                        previousStatus: existingLoad.status,
+                        newStatus: validated.status,
+                    },
+                });
+            } catch (e) {
+                // Non-critical: don't break the request if Inngest is unavailable
+                console.error('Failed to emit load/status-changed event:', e);
+            }
 
             // Completion Workflow
             const completionStatuses = ['DELIVERED', 'INVOICED', 'PAID', 'READY_TO_BILL', 'BILLING_HOLD'];

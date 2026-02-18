@@ -61,7 +61,7 @@ interface LoadData {
   deliveryDate: Date | null;
   revenue: number;
   driverPay: number;
-  profit: number;
+  netProfit: number;
   miles: number;
   loadedMiles?: number | null;
   emptyMiles?: number | null;
@@ -322,8 +322,6 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       </div>
     ),
     defaultVisible: true,
-    filterType: 'text',
-    filterKey: 'route',
   },
   {
     id: 'driver',
@@ -530,10 +528,10 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     permission: 'loads.view_financial',
   },
   {
-    id: 'profit',
-    accessorKey: 'profit',
+    id: 'netProfit',
+    accessorKey: 'netProfit',
     header: 'Profit',
-    cell: ({ row }) => formatCurrency(row.original.profit),
+    cell: ({ row }) => formatCurrency(row.original.netProfit),
     defaultVisible: false,
     permission: 'loads.view_financial',
   },

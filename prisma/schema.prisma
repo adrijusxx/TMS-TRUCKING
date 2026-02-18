@@ -429,7 +429,12 @@ model Load {
   driverNotes   String?
 
   // Additional Fields
-  shipmentId String? // Shipment ID from Excel
+  shipmentId     String? // Shipment ID from Excel
+  tripId         String? // Trip ID from external TMS
+  stopsCount     Int? // Number of stops on the load
+  lastNote       String? // Last note/comment on the load
+  onTimeDelivery String? // On-time delivery status
+  lastUpdate     DateTime? // Last update timestamp from external source
 
   // EDI Tracking
   ediSent          Boolean @default(false)
@@ -2154,8 +2159,12 @@ model Settlement {
 
   notes String?
 
+  // Negative balance carried forward to next settlement (for UI visibility)
+  carriedForwardAmount Float @default(0)
+
   // Audit
-  calculationLog Json? // Snapshot of rates/miles used for calculation
+  calculationLog     Json? // Snapshot of rates/miles used for calculation
+  calculationHistory Json[] // Previous calculation snapshots for audit trail
 
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
@@ -2246,7 +2255,7 @@ model SettlementDeduction {
   settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
 
   deductionType DeductionType
-  category      String? // "addition" | "deduction"
+  category      String @default("deduction") // "addition" | "deduction"
   description   String
   amount        Float
 
@@ -2455,6 +2464,10 @@ model DeductionRule {
   deductionType DeductionType
   driverType    DriverType? // Apply to specific driver type (COMPANY, OWNER_OPERATOR, LEASE)
 
+  // MC number scoping (optional — null means all MC numbers in company)
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id])
+
   // Unified addition/deduction flag
   isAddition Boolean @default(false) // true = addition (bonus, overtime), false = deduction
 
@@ -2494,6 +2507,7 @@ model DeductionRule {
   @@index([deductionType])
   @@index([driverType])
   @@index([driverId])
+  @@index([mcNumberId])
   @@index([isActive])
   @@index([isAddition])
   @@index([startDate])
@@ -5573,6 +5587,7 @@ model McNumber {
   trailers Trailer[] // Trailers assigned to this MC number
   loads    Load[] // Loads assigned to this MC number
 
+  deductionRules        DeductionRule[]
   paymentConfigurations PaymentConfiguration[]
   orderPaymentTypes     OrderPaymentType[]
   dynamicStatuses       DynamicStatus[]

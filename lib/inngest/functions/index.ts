@@ -25,6 +25,10 @@ export {
   calculateLoadIFTA,
 } from './calculate-ifta';
 
+// Load Automation Functions
+export { autoInvoiceOnStatusChange } from './auto-invoice';
+export { autoSettlementReadiness } from './auto-settlement-readiness';
+
 // Aggregate all functions for serve handler
 import {
   generateAllSettlements,
@@ -43,6 +47,9 @@ import {
   calculateLoadIFTA,
 } from './calculate-ifta';
 
+import { autoInvoiceOnStatusChange } from './auto-invoice';
+import { autoSettlementReadiness } from './auto-settlement-readiness';
+
 export const allFunctions = [
   // Settlements
   generateAllSettlements,
@@ -55,5 +62,8 @@ export const allFunctions = [
   // IFTA
   calculateQuarterlyIFTA,
   calculateLoadIFTA,
+  // Load Automation
+  autoInvoiceOnStatusChange,
+  autoSettlementReadiness,
 ];
 

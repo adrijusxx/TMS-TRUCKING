@@ -211,6 +211,7 @@ export async function POST(
     let data: any[] = [];
     let previewOnly = false;
     let updateExisting = false;
+    let treatAsHistorical = true; // Default: treat imported loads as historical (PAID)
     let currentMcNumber: string | undefined;
     let columnMapping: any = {};
 
@@ -223,6 +224,7 @@ export async function POST(
       data = body.data || [];
       previewOnly = body.previewOnly === true;
       updateExisting = body.updateExisting === true || body.importMode === 'update';
+      treatAsHistorical = body.treatAsHistorical !== false; // Default true unless explicitly false
       currentMcNumber = body.currentMcNumber || body.mcNumberId;
       columnMapping = body.columnMapping || {};
 
@@ -330,13 +332,15 @@ export async function POST(
       importBatchId = batch.id;
     }
 
-    const result = await importer.import(data, {
+    const importOptions: any = {
       previewOnly,
       updateExisting,
       currentMcNumber,
       columnMapping,
-      importBatchId // Pass the batch ID
-    });
+      importBatchId,
+      ...(entity === 'loads' && { treatAsHistorical }),
+    };
+    const result = await importer.import(data, importOptions);
 
     // Update Batch Status
     if (importBatchId && result.summary) {

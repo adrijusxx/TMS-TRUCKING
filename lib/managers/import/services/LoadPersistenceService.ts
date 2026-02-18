@@ -7,7 +7,7 @@ import { importLoadSchema } from '@/lib/validations/load';
  * Handles batching, validation, and saving/updating of loads in the database.
  */
 export class LoadPersistenceService {
-    constructor(private prisma: PrismaClient, private companyId: string) { }
+    constructor(private prisma: PrismaClient, private companyId: string, private userId?: string) { }
 
     /**
      * Batch save new loads and update existing ones
@@ -93,12 +93,10 @@ export class LoadPersistenceService {
                     const cleanData = { ...rest, companyId: this.companyId, importBatchId };
 
                     await this.prisma.$transaction(async (tx) => {
-                        // 1. Create Load (without redundant header fields if they will be synced, 
-                        // but for now we keep them for performance and initial display)
+                        // 1. Create Load
                         const newLoad = await tx.load.create({
                             data: {
                                 ...cleanData,
-                                // Enforce some defaults for new fields
                                 urgency: (cleanData as any).urgency || 'NORMAL',
                             } as any
                         });
@@ -116,6 +114,8 @@ export class LoadPersistenceService {
                                 zip: cleanData.pickupZip || '00000',
                                 earliestArrival: cleanData.pickupDate,
                                 latestArrival: cleanData.pickupDate,
+                                contactName: (cleanData as any).pickupContact || undefined,
+                                contactPhone: (cleanData as any).pickupPhone || undefined,
                             }
                         });
 
@@ -132,8 +132,22 @@ export class LoadPersistenceService {
                                 zip: cleanData.deliveryZip || '00000',
                                 earliestArrival: cleanData.deliveryDate,
                                 latestArrival: cleanData.deliveryDate,
+                                contactName: (cleanData as any).deliveryContact || undefined,
+                                contactPhone: (cleanData as any).deliveryPhone || undefined,
                             }
                         });
+
+                        // 4. Create status history entry
+                        if (this.userId) {
+                            await tx.loadStatusHistory.create({
+                                data: {
+                                    loadId: newLoad.id,
+                                    status: newLoad.status,
+                                    notes: 'Imported from external system',
+                                    createdBy: this.userId,
+                                }
+                            });
+                        }
                     }, { timeout: 30000 });
 
                     count++;
@@ -185,6 +199,8 @@ export class LoadPersistenceService {
                                     zip: cleanData.pickupZip || '00000',
                                     earliestArrival: cleanData.pickupDate,
                                     latestArrival: cleanData.pickupDate,
+                                    contactName: (cleanData as any).pickupContact || undefined,
+                                    contactPhone: (cleanData as any).pickupPhone || undefined,
                                     notes: cleanData.dispatchNotes
                                 }
                             });
@@ -201,6 +217,8 @@ export class LoadPersistenceService {
                                     zip: cleanData.deliveryZip || '00000',
                                     earliestArrival: cleanData.deliveryDate,
                                     latestArrival: cleanData.deliveryDate,
+                                    contactName: (cleanData as any).deliveryContact || undefined,
+                                    contactPhone: (cleanData as any).deliveryPhone || undefined,
                                     notes: cleanData.dispatchNotes
                                 }
                             });
@@ -215,6 +233,8 @@ export class LoadPersistenceService {
                                         city: cleanData.pickupCity || undefined,
                                         state: cleanData.pickupState || undefined,
                                         earliestArrival: cleanData.pickupDate || undefined,
+                                        contactName: (cleanData as any).pickupContact || undefined,
+                                        contactPhone: (cleanData as any).pickupPhone || undefined,
                                         notes: cleanData.dispatchNotes || undefined
                                     }
                                 });
@@ -227,10 +247,24 @@ export class LoadPersistenceService {
                                         city: cleanData.deliveryCity || undefined,
                                         state: cleanData.deliveryState || undefined,
                                         earliestArrival: cleanData.deliveryDate || undefined,
+                                        contactName: (cleanData as any).deliveryContact || undefined,
+                                        contactPhone: (cleanData as any).deliveryPhone || undefined,
                                         notes: cleanData.dispatchNotes || undefined
                                     }
                                 });
                             }
+                        }
+
+                        // 3. Create status history entry for update
+                        if (this.userId) {
+                            await tx.loadStatusHistory.create({
+                                data: {
+                                    loadId: id,
+                                    status: updatedLoad.status,
+                                    notes: 'Updated via import',
+                                    createdBy: this.userId,
+                                }
+                            });
                         }
                     }, { timeout: 30000 });
                     count++;

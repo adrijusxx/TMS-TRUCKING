@@ -3,8 +3,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { RuleApplicationLog } from './RuleApplicationLog';
+import { SettlementComparison } from './SettlementComparison';
 
-export function SettlementAuditLog({ auditLog }: { auditLog?: any }) {
+interface SettlementAuditLogProps {
+    auditLog?: any;
+    calculationHistory?: any[];
+    grossPay?: number;
+    netPay?: number;
+    deductions?: number;
+}
+
+export function SettlementAuditLog({ auditLog, calculationHistory, grossPay, netPay, deductions }: SettlementAuditLogProps) {
     if (!auditLog) {
         return (
             <Card>
@@ -123,7 +133,21 @@ export function SettlementAuditLog({ auditLog }: { auditLog?: any }) {
                 </CardContent>
             </Card>
 
-            {/* Raw JSON for Debugging (Collapsible?) */}
+            {/* Rule Application Log — shows additions, deductions, advances as readable tables */}
+            <RuleApplicationLog auditLog={auditLog} />
+
+            {/* Recalculation History — shows before/after comparison for each recalculation */}
+            {calculationHistory && calculationHistory.length > 0 && (
+                <SettlementComparison
+                    calculationHistory={calculationHistory}
+                    currentLog={auditLog}
+                    currentGrossPay={grossPay ?? 0}
+                    currentNetPay={netPay ?? 0}
+                    currentDeductions={deductions ?? 0}
+                />
+            )}
+
+            {/* Raw JSON for Debugging (Collapsible) */}
             <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer mb-2">Raw Audit Log JSON</summary>
                 <pre className="bg-muted p-4 rounded overflow-auto max-h-60">

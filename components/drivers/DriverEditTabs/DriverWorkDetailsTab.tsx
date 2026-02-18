@@ -56,14 +56,14 @@ export default function DriverWorkDetailsTab({
     thresholdAmount: driver.thresholdAmount || '',
     // Assignments
     assignedTruck: driver.currentTruckId || '',
-    assignedTrailer: getTrailerNumberFromId(driver.currentTrailerId), // Convert ID to trailerNumber
+    assignedTrailer: driver.currentTrailerId || '', // Store ID directly (TrailerCombobox returns ID)
     assignedDispatcher: driver.assignedDispatcherId || '',
     hrManager: driver.hrManagerId || '',
     safetyManager: driver.safetyManagerId || '',
     mcNumber: typeof driver.mcNumber === 'object' ? driver.mcNumber?.id || '' : driver.mcNumber || '',
     teamDriver: driver.teamDriver || false,
     otherId: driver.otherId || '',
-    driverTags: driver.tags || [],
+    driverTags: driver.driverTags || [],
     notes: driver.notes || '',
     // Dispatch preferences
     dispatchPreferences: driver.dispatchPreferences || '',
@@ -78,7 +78,7 @@ export default function DriverWorkDetailsTab({
     const newDefaultValues = {
       ...defaultValues,
       assignedTruck: driver.currentTruckId || '',
-      assignedTrailer: getTrailerNumberFromId(driver.currentTrailerId),
+      assignedTrailer: driver.currentTrailerId || '',
     };
     reset(newDefaultValues);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,14 +102,14 @@ export default function DriverWorkDetailsTab({
       thresholdAmount: data.thresholdAmount ? parseFloat(data.thresholdAmount) : undefined,
       // Assignments - use null to explicitly clear, not undefined
       currentTruckId: data.assignedTruck && data.assignedTruck !== 'none' && data.assignedTruck !== '' ? data.assignedTruck : null,
-      currentTrailerId: getTrailerIdFromNumber(data.assignedTrailer), // Convert trailerNumber to ID
+      currentTrailerId: data.assignedTrailer && data.assignedTrailer !== 'none' && data.assignedTrailer !== '' ? data.assignedTrailer : null,
       assignedDispatcherId: data.assignedDispatcher && data.assignedDispatcher !== 'none' ? data.assignedDispatcher : undefined,
       hrManagerId: data.hrManager && data.hrManager !== 'none' ? data.hrManager : undefined,
       safetyManagerId: data.safetyManager && data.safetyManager !== 'none' ? data.safetyManager : undefined,
-      mcNumber: data.mcNumber,
+      mcNumberId: data.mcNumber || undefined, // Correct field name for Zod schema + Prisma
       teamDriver: data.teamDriver,
       otherId: data.otherId,
-      driverTags: driverTags,
+      tags: driverTags, // Correct field name matching updateDriverSchema
       notes: data.notes,
       // Dispatch
       dispatchPreferences: data.dispatchPreferences,

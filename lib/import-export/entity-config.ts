@@ -56,13 +56,14 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'loadNumber', label: 'Load Number', required: true, suggestedCsvHeaders: ['Load ID', 'load_id', 'Load Number', 'Load #', 'Order #', 'Order Number'] },
       { key: 'shipmentId', label: 'Shipment ID', suggestedCsvHeaders: ['Ref', 'Ref#', 'Reference', 'PO', 'PO#', 'BOL', 'bol', 'Shipment ID', 'shipment_id'] },
       { key: 'tripId', label: 'Trip ID', suggestedCsvHeaders: ['Trip ID', 'trip_id', 'Trip', 'trip', 'Trip #'] },
-      { key: 'customerId', label: 'Customer ID', required: true, suggestedCsvHeaders: ['Customer', 'customer', 'Broker', 'broker', 'Customer Name', 'Bill To', 'bill_to'] },
+      { key: 'customerId', label: 'Customer ID', required: true, suggestedCsvHeaders: ['Customer', 'customer', 'customer*', 'Broker', 'broker', 'Customer Name', 'Bill To', 'bill_to'] },
       { key: 'customerName', label: 'Customer Name', suggestedCsvHeaders: ['Customer', 'customer', 'Broker', 'Customer Name', 'Bill To'] },
-      { key: 'driverId', label: 'Driver ID', suggestedCsvHeaders: ['Driver', 'driver', 'Assigned Driver', 'Driver Name', 'Operator'] },
-      { key: 'coDriverId', label: 'Co-Driver ID', suggestedCsvHeaders: ['Co-Driver', 'co_driver', 'Team Driver', 'Second Driver'] },
+      { key: 'driverId', label: 'Driver ID', suggestedCsvHeaders: ['Driver', 'driver', 'driver/carrier', 'Driver/Carrier', 'Assigned Driver', 'Driver Name', 'Operator'] },
+      { key: 'coDriverId', label: 'Co-Driver ID', suggestedCsvHeaders: ['Co-Driver', 'co-driver', 'co_driver', 'Team Driver', 'Second Driver'] },
       { key: 'truckId', label: 'Truck ID', suggestedCsvHeaders: ['Truck', 'truck', 'Truck Number', 'Unit', 'Unit #', 'Truck ID'] },
       { key: 'trailerId', label: 'Trailer ID', suggestedCsvHeaders: ['Trailer', 'trailer', 'Trailer Number', 'Trailer ID', 'Trailer Unit'] },
-      { key: 'dispatcherId', label: 'Dispatcher ID', suggestedCsvHeaders: ['Dispatcher', 'dispatcher', 'Dispatch', 'Agent'] },
+      { key: 'dispatcherId', label: 'Dispatcher ID', suggestedCsvHeaders: ['Dispatcher', 'dispatcher', 'Dispatch', 'Agent', 'created_by', 'Created By'] },
+      { key: 'mcNumberId', label: 'MC Number', suggestedCsvHeaders: ['MC Number', 'mc_number', 'MC', 'driver_mc', 'Driver MC'] },
 
       // Pickup Information
       { key: 'pickupLocation', label: 'Pickup Location', suggestedCsvHeaders: ['Pickup Location', 'pickup_location', 'Origin', 'origin'] },
@@ -71,7 +72,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'pickupState', label: 'Pickup State', suggestedCsvHeaders: ['Pickup State', 'pickup_state', 'Origin State'] },
       { key: 'pickupZip', label: 'Pickup ZIP', suggestedCsvHeaders: ['Pickup Zip', 'pickup_zip', 'Origin Zip'] },
       { key: 'pickupCompany', label: 'Pickup Company', suggestedCsvHeaders: ['Pickup Company', 'pickup_company', 'Shipper'] },
-      { key: 'pickupDate', label: 'Pickup Date', suggestedCsvHeaders: ['Pickup Date', 'pickup_date', 'PU Date'] },
+      { key: 'pickupDate', label: 'Pickup Date', suggestedCsvHeaders: ['Pickup Date', 'pickup_date', 'PU Date', 'pu_date', 'PU date', 'pickup_time', 'Pickup Time', 'pickup_appointment_time'] },
       { key: 'pickupContact', label: 'Pickup Contact', suggestedCsvHeaders: ['Pickup Contact', 'Pickup Name', 'Origin Contact'] },
       { key: 'pickupPhone', label: 'Pickup Phone', suggestedCsvHeaders: ['Pickup Phone', 'Origin Phone'] },
 
@@ -82,14 +83,14 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'deliveryState', label: 'Delivery State', suggestedCsvHeaders: ['Delivery State', 'delivery_state', 'Destination State'] },
       { key: 'deliveryZip', label: 'Delivery ZIP', suggestedCsvHeaders: ['Delivery Zip', 'delivery_zip', 'Destination Zip'] },
       { key: 'deliveryCompany', label: 'Delivery Company', suggestedCsvHeaders: ['Delivery Company', 'delivery_company', 'Consignee'] },
-      { key: 'deliveryDate', label: 'Delivery Date', suggestedCsvHeaders: ['Delivery Date', 'delivery_date', 'Del Date'] },
+      { key: 'deliveryDate', label: 'Delivery Date', suggestedCsvHeaders: ['Delivery Date', 'delivery_date', 'Del Date', 'del_date', 'DEL date', 'delivery_time', 'Delivery Time', 'delivery_appointment_time'] },
       { key: 'deliveryContact', label: 'Delivery Contact', suggestedCsvHeaders: ['Delivery Contact', 'Delivery Name', 'Destination Contact'] },
       { key: 'deliveryPhone', label: 'Delivery Phone', suggestedCsvHeaders: ['Delivery Phone', 'Destination Phone'] },
 
       // Status & Type
-      { key: 'status', label: 'Status', suggestedCsvHeaders: ['Status', 'status', 'Load Status'] },
+      { key: 'status', label: 'Status', suggestedCsvHeaders: ['Status', 'status', 'Load Status', 'load_status'] },
       { key: 'loadType', label: 'Load Type', suggestedCsvHeaders: ['Load Type', 'load_type', 'Type', 'Size'] },
-      { key: 'equipmentType', label: 'Equipment Type', suggestedCsvHeaders: ['Equipment', 'equipment', 'Trailer Type'] },
+      { key: 'equipmentType', label: 'Equipment Type', suggestedCsvHeaders: ['Equipment', 'equipment', 'Trailer Type', 'equipment_types', 'Equipment Types'] },
 
       // Load Specifications
       { key: 'weight', label: 'Weight', suggestedCsvHeaders: ['Weight', 'weight', 'Lbs', 'lbs'] },
@@ -101,26 +102,26 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'hazmatClass', label: 'Hazmat Class', suggestedCsvHeaders: ['Hazmat Class', 'hazard_class'] },
 
       // Financial
-      { key: 'revenue', label: 'Revenue', suggestedCsvHeaders: ['Revenue', 'revenue', 'Total Amount', 'Gross', 'Total Pay'] },
+      { key: 'revenue', label: 'Revenue', suggestedCsvHeaders: ['Revenue', 'revenue', 'Total Amount', 'Gross', 'Total Pay', 'total_pay', 'Load Pay', 'load_pay'] },
       { key: 'driverPay', label: 'Driver Pay', suggestedCsvHeaders: ['Driver Pay', 'driver_pay', 'Carrier Pay'] },
       { key: 'fuelAdvance', label: 'Fuel Advance', suggestedCsvHeaders: ['Fuel Advance', 'fuel_advance', 'Advance'] },
       { key: 'expenses', label: 'Expenses', suggestedCsvHeaders: ['Expenses', 'expenses', 'Costs', 'Tolls'] },
       { key: 'serviceFee', label: 'Service Fee', suggestedCsvHeaders: ['Service Fee', 'service_fee', 'Fee'] },
 
       // Distances
-      { key: 'totalMiles', label: 'Total Miles', suggestedCsvHeaders: ['Total Miles', 'Miles', 'Distance'] },
-      { key: 'loadedMiles', label: 'Loaded Miles', suggestedCsvHeaders: ['Loaded Miles', 'loaded_miles'] },
-      { key: 'emptyMiles', label: 'Empty Miles', suggestedCsvHeaders: ['Empty Miles', 'Deadhead'] },
+      { key: 'totalMiles', label: 'Total Miles', suggestedCsvHeaders: ['Total Miles', 'total_miles', 'Miles', 'Distance'] },
+      { key: 'loadedMiles', label: 'Loaded Miles', suggestedCsvHeaders: ['Loaded Miles', 'loaded_miles', 'mile', 'Mile'] },
+      { key: 'emptyMiles', label: 'Empty Miles', suggestedCsvHeaders: ['Empty Miles', 'empty_miles', 'empty_mile', 'Empty Mile', 'Deadhead'] },
       { key: 'actualMiles', label: 'Actual Miles', suggestedCsvHeaders: ['Actual Miles', 'GPS Miles'] },
-      { key: 'revenuePerMile', label: 'RPM', suggestedCsvHeaders: ['Revenue Per Mile', 'RPM', 'Rate Per Mile'] },
+      { key: 'revenuePerMile', label: 'RPM', suggestedCsvHeaders: ['Revenue Per Mile', 'revenue_per_mile', 'RPM', 'Rate Per Mile'] },
 
       // Notes & Tracking
       { key: 'dispatchNotes', label: 'Dispatch Notes', suggestedCsvHeaders: ['Dispatch Notes', 'Notes', 'Instructions', 'Comments'] },
       { key: 'driverNotes', label: 'Driver Notes', suggestedCsvHeaders: ['Driver Notes', 'driver_notes', 'Driver Info'] },
-      { key: 'lastNote', label: 'Last Note', suggestedCsvHeaders: ['Last Note', 'Note'] },
-      { key: 'onTimeDelivery', label: 'On Time Delivery', suggestedCsvHeaders: ['On Time Delivery', 'OnTime', 'OTD'] },
-      { key: 'lastUpdate', label: 'Last Update', suggestedCsvHeaders: ['Last Update', 'Updated'] },
-      { key: 'stopsCount', label: 'Stops Count', suggestedCsvHeaders: ['Stops Count', 'Stops'] },
+      { key: 'lastNote', label: 'Last Note', suggestedCsvHeaders: ['Last Note', 'last_note', 'Note'] },
+      { key: 'onTimeDelivery', label: 'On Time Delivery', suggestedCsvHeaders: ['On Time Delivery', 'on_time_delivery', 'OnTime', 'OTD'] },
+      { key: 'lastUpdate', label: 'Last Update', suggestedCsvHeaders: ['Last Update', 'last_update', 'Updated'] },
+      { key: 'stopsCount', label: 'Stops Count', suggestedCsvHeaders: ['Stops Count', 'stops_count', 'Stops', 'stops'] },
     ],
   },
   customers: {

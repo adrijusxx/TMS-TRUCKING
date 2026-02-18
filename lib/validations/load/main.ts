@@ -216,6 +216,50 @@ export const baseLoadSchema = z.object({
         },
         z.string().optional().nullable()
     ),
+    tripId: z.preprocess(
+        (val) => {
+            if (val === null || val === '') return null;
+            if (val === undefined) return undefined;
+            if (typeof val === 'string') {
+                const trimmed = val.trim();
+                return trimmed === '' ? null : trimmed;
+            }
+            return val;
+        },
+        z.string().optional().nullable()
+    ),
+    stopsCount: z.preprocess(
+        (val) => {
+            if (val === undefined || val === null || val === '') return null;
+            if (typeof val === 'string') {
+                const num = parseInt(val, 10);
+                return isNaN(num) ? null : num;
+            }
+            if (typeof val === 'number') return isNaN(val) ? null : val;
+            return null;
+        },
+        z.number().int().nonnegative().optional().nullable()
+    ),
+    lastNote: z.preprocess(
+        (val) => (val === null || val === undefined ? null : (typeof val === 'string' ? val.trim() : String(val))),
+        z.string().optional().nullable()
+    ),
+    onTimeDelivery: z.preprocess(
+        (val) => (val === null || val === undefined || val === '' ? null : (typeof val === 'string' ? val.trim() : String(val))),
+        z.string().optional().nullable()
+    ),
+    lastUpdate: z.preprocess(
+        (val) => {
+            if (val === '' || val === null || val === undefined) return null;
+            if (val instanceof Date) return val;
+            if (typeof val === 'string') {
+                const d = new Date(val);
+                return isNaN(d.getTime()) ? null : d;
+            }
+            return null;
+        },
+        z.date().optional().nullable()
+    ),
     mcNumber: z.string().optional(),
     mcNumberId: z.string().optional(),
 

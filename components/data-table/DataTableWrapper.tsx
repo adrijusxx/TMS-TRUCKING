@@ -307,6 +307,11 @@ export function DataTableWrapper<TData extends Record<string, any>>({
     });
   }, [visibleColumns, columnVisibility]);
 
+  // Reset to page 1 when filters change
+  React.useEffect(() => {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, [columnFilters]);
+
   // Extract search from column filters
   const searchFilter = React.useMemo(() => {
     const searchFilterItem = columnFilters.find((f) => f.id === 'search');

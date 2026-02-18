@@ -3,6 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
 import { emitLoadDelivered, emitLoadStatusChanged, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
+import { inngest } from '@/lib/inngest/client';
 
 /**
  * Mark load as complete and trigger accounting sync
@@ -100,6 +101,21 @@ export async function POST(
       emitLoadDelivered(loadId, updatedLoad);
       emitLoadStatusChanged(loadId, 'DELIVERED', updatedLoad);
       emitDispatchUpdated({ type: 'load_delivered', loadId });
+    }
+
+    // Emit Inngest event for async automation (invoice, settlement readiness)
+    try {
+      await inngest.send({
+        name: 'load/status-changed',
+        data: {
+          loadId,
+          companyId: session.user.companyId,
+          previousStatus: load.status,
+          newStatus: 'DELIVERED',
+        },
+      });
+    } catch (e) {
+      console.error('Failed to emit load/status-changed on completion:', e);
     }
 
     return NextResponse.json({

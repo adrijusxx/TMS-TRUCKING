@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, Send, X, MessageSquare, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
+import { Bot, Send, X, MessageSquare, Loader2, Sparkles, BrainCircuit, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
+import { HelpDialog } from '@/components/help/HelpDialog';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -44,6 +45,7 @@ export default function AIAssistantChat({
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
+    const [helpDialogOpen, setHelpDialogOpen] = useState(false);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const lastMessageRef = useRef<HTMLDivElement>(null);
     const { toast } = useToast();
@@ -178,6 +180,17 @@ export default function AIAssistantChat({
                             </div>
                             Contact Support (Telegram)
                         </Button>
+
+                        <Button
+                            variant="outline"
+                            className="w-full h-14 justify-start gap-4 text-base border-primary/20 hover:bg-primary/5 hover:border-primary/40"
+                            onClick={() => setHelpDialogOpen(true)}
+                        >
+                            <div className="bg-emerald-100 p-2 rounded-lg">
+                                <BookOpen className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            Browse Help Articles
+                        </Button>
                     </div>
                 );
 
@@ -306,6 +319,9 @@ export default function AIAssistantChat({
                     {renderContent()}
                 </Card>
             </div>
+
+            {/* Help Articles Dialog */}
+            <HelpDialog open={helpDialogOpen} onOpenChange={setHelpDialogOpen} />
         </>
     );
 }

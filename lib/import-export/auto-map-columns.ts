@@ -1,6 +1,9 @@
 /**
  * Shared auto-mapping logic for import UIs.
  * Maps CSV/Excel column headers to system field keys using normalization and semantic matching.
+ *
+ * Uses priority-based scoring to find the BEST match for each header,
+ * then deduplicates so no two headers map to the same system field.
  */
 
 import type { SystemField } from './field-utils';
@@ -23,47 +26,86 @@ function normalizeAdvanced(str: string): string {
 
 /**
  * Auto-map Excel/CSV column headers to system field keys.
- * Uses exact match, advanced semantic match (load_id == load_number), substring match, and suggestedCsvHeaders.
  *
- * @param headers - Column headers from the file (as they appear in parsed row keys)
- * @param systemFields - System fields with key, label, suggestedCsvHeaders
- * @returns Record mapping header -> systemField.key
+ * Matching priority (highest to lowest):
+ *   100 — Exact match on normalized field key
+ *    90 — Exact match on a suggestedCsvHeaders entry
+ *    80 — Advanced semantic match (e.g. load_id ↔ load_number)
+ *    50 — Substring match on field key (strings > 3 chars)
+ *    40 — Substring match on a suggestedCsvHeaders entry (strings > 3 chars)
+ *
+ * A +5 bonus is applied when the normalized header also overlaps the normalized
+ * field key as a substring, so closer-named headers win ties.
+ *
+ * After scoring, a greedy assignment ensures each system field is used at most once.
  */
 export function autoMapColumns(
   headers: string[],
   systemFields: Array<{ key: string; label?: string; suggestedCsvHeaders?: string[] }>
 ): Record<string, string> {
-  const result: Record<string, string> = {};
+  const candidates: Array<{ header: string; fieldKey: string; priority: number; headerIdx: number }> = [];
 
-  for (const header of headers) {
+  for (let hIdx = 0; hIdx < headers.length; hIdx++) {
+    const header = headers[hIdx];
     const normHeader = normalizeSimple(header);
     const normHeaderAdv = normalizeAdvanced(header);
 
-    const match = systemFields.find((f) => {
+    for (const f of systemFields) {
       const normKey = normalizeSimple(f.key);
       const normKeyAdv = normalizeAdvanced(f.key);
+      let priority = 0;
 
-      // 1. Exact match (normalized)
-      if (normHeader === normKey) return true;
-
-      // 2. Advanced semantic match (load_id == load_number)
-      if (normHeaderAdv === normKeyAdv) return true;
-
-      // 3. Substring match (careful with short strings)
-      if (normHeader.length > 3 && normKey.length > 3) {
-        return normHeader.includes(normKey) || normKey.includes(normHeader);
+      // Priority 100: Exact key match (normalized)
+      if (normHeader === normKey) {
+        priority = 100;
+      }
+      // Priority 90: Exact match on a suggestedCsvHeaders entry
+      else if (f.suggestedCsvHeaders?.some(s => normalizeSimple(s) === normHeader)) {
+        priority = 90;
+      }
+      // Priority 80: Advanced semantic match (load_id == load_number)
+      else if (normHeaderAdv === normKeyAdv) {
+        priority = 80;
+      }
+      // Priority 50: Substring match on field key
+      else if (
+        normHeader.length > 3 && normKey.length > 3 &&
+        (normHeader.includes(normKey) || normKey.includes(normHeader))
+      ) {
+        priority = 50;
+      }
+      // Priority 40: Substring match on a suggestedCsvHeaders entry
+      else if (
+        f.suggestedCsvHeaders?.some(s => {
+          const ns = normalizeSimple(s);
+          return ns.length > 3 && normHeader.length > 3 &&
+            (normHeader.includes(ns) || ns.includes(normHeader));
+        })
+      ) {
+        priority = 40;
       }
 
-      // 4. Check suggestedCsvHeaders
-      const suggestions = f.suggestedCsvHeaders || [];
-      return suggestions.some((s) => {
-        const ns = normalizeSimple(s);
-        return ns === normHeader || normHeader.includes(ns) || ns.includes(normHeader);
-      });
-    });
+      if (priority > 0) {
+        // Bonus: prefer headers whose normalized form overlaps the field key
+        if (priority >= 40 && (normKey.includes(normHeader) || normHeader.includes(normKey))) {
+          priority += 5;
+        }
+        candidates.push({ header, fieldKey: f.key, priority, headerIdx: hIdx });
+      }
+    }
+  }
 
-    if (match) {
-      result[header] = match.key;
+  // Sort by priority descending; ties broken by header order (earlier header wins)
+  candidates.sort((a, b) => b.priority - a.priority || a.headerIdx - b.headerIdx);
+
+  // Greedy assignment — each header and each field used at most once
+  const result: Record<string, string> = {};
+  const usedFields = new Set<string>();
+
+  for (const c of candidates) {
+    if (!result[c.header] && !usedFields.has(c.fieldKey)) {
+      result[c.header] = c.fieldKey;
+      usedFields.add(c.fieldKey);
     }
   }
 

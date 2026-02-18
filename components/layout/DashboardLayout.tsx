@@ -53,6 +53,7 @@ import {
   Key,
   Bot,
   UserPlus,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -753,25 +754,20 @@ export default function DashboardLayout({
               <div className="hidden sm:block"><FontSizeToggle /></div>
               <div className="hidden sm:block"><ThemeToggle /></div>
               <NotificationBell />
-              {/* AI Assistant Toggle in Header */}
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsAiChatOpen(!isAiChatOpen)}
-                      className={cn(
-                        "transition-colors",
-                        isAiChatOpen && "bg-primary/10 text-primary"
-                      )}
-                    >
-                      <Bot className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>AI Assistant</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {/* Help & Support Toggle in Header */}
+              <Button
+                variant="outline"
+                onClick={() => setIsAiChatOpen(!isAiChatOpen)}
+                className={cn(
+                  "gap-2 h-9 px-3 text-sm font-medium transition-colors border-primary/30",
+                  isAiChatOpen
+                    ? "bg-primary/10 text-primary border-primary/50"
+                    : "hover:bg-primary/5 hover:border-primary/40"
+                )}
+              >
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">Help & Support</span>
+              </Button>
             </div>
           </div>
         </header>
@@ -783,7 +779,6 @@ export default function DashboardLayout({
           onOpenChange={setIsAiChatOpen}
           hideTrigger={true}
         />
-
       </div>
     </div>
   );

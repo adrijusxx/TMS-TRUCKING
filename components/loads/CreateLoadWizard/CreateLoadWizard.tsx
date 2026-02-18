@@ -511,7 +511,7 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
                     className="text-xs cursor-pointer"
                     onClick={() => handleLoadDraft(draft.id)}
                   >
-                    {draft.name || `Draft ${draft.id.slice(-6)}`}
+                    {draft.name || 'Untitled Draft'}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

@@ -514,6 +514,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Apply default pay profile when not explicitly provided
+    const finalPayType = validated.payType ?? 'PER_MILE';
+    const finalPayRate = (!validated.payRate || validated.payRate === 0) ? 0.65 : validated.payRate;
+
     // Create driver
     const driver = await prisma.driver.create({
       data: {
@@ -530,8 +534,8 @@ export async function POST(request: NextRequest) {
         backgroundCheck: validated.backgroundCheck
           ? (validated.backgroundCheck instanceof Date ? validated.backgroundCheck : new Date(validated.backgroundCheck))
           : null,
-        payType: validated.payType,
-        payRate: validated.payRate,
+        payType: finalPayType as any,
+        payRate: finalPayRate,
         homeTerminal: validated.homeTerminal,
         emergencyContact: validated.emergencyContact,
         emergencyPhone: validated.emergencyPhone,

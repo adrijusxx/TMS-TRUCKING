@@ -36,13 +36,6 @@ export function createVendorColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'vendorNumber',
       accessorKey: 'vendorNumber',
       header: 'Vendor #',

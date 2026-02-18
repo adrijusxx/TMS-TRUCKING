@@ -88,7 +88,33 @@ export default function TrailerCombobox({
   const trailers: Trailer[] = shouldUseApi
     ? (trailersData?.success ? trailersData?.data || [] : [])
     : filteredPreloaded;
-  const selectedTrailer = trailers.find((t) => t.id === value) || (value && explicitSelectedTrailer?.id === value ? explicitSelectedTrailer : undefined);
+
+  // Fetch trailer by ID when value is an ID not found in the preloaded list
+  const needsFetch = React.useMemo(() => {
+    if (!value || value.trim() === '') return false;
+    if (explicitSelectedTrailer?.id === value) return false;
+    if (trailers.find((t) => t.id === value)) return false;
+    if (preloadedTrailers?.find((t) => t.id === value)) return false;
+    // Only fetch if value looks like an ID (CUIDs are longer than typical trailer numbers)
+    return value.length > 20;
+  }, [value, trailers, preloadedTrailers, explicitSelectedTrailer]);
+
+  const { data: fetchedTrailerData, isLoading: isLoadingTrailer } = useQuery({
+    queryKey: ['trailer', value, 'by-id'],
+    queryFn: async () => {
+      if (!value) return null;
+      const response = await fetch(apiUrl(`/api/trailers?limit=1000`));
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.data?.find((t: Trailer) => t.id === value) || null;
+    },
+    enabled: needsFetch,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedTrailer = trailers.find((t) => t.id === value)
+    || (value && explicitSelectedTrailer?.id === value ? explicitSelectedTrailer : undefined)
+    || (fetchedTrailerData?.id === value ? fetchedTrailerData : undefined);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -105,8 +131,8 @@ export default function TrailerCombobox({
               #{selectedTrailer.trailerNumber}
               {selectedTrailer.make && selectedTrailer.model && ` - ${selectedTrailer.make} ${selectedTrailer.model}`}
             </span>
-          ) : value ? (
-            <span className="truncate">{value}</span>
+          ) : value && isLoadingTrailer ? (
+            <span className="text-muted-foreground">Loading...</span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}

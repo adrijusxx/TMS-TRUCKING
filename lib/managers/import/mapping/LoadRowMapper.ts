@@ -18,12 +18,14 @@ export class LoadRowMapper {
         const expPickupCity = getValue(row, 'pickupCity', mapping, ['Pickup City', 'pickup_city', 'Origin City', 'origin_city']);
         const expPickupState = getValue(row, 'pickupState', mapping, ['Pickup State', 'pickup_state', 'Origin State', 'origin_state']);
         const expPickupZip = getValue(row, 'pickupZip', mapping, ['Pickup Zip', 'pickup_zip', 'Origin Zip', 'origin_zip']);
+        const pickupCompany = getValue(row, 'pickupCompany', mapping, ['Pickup Company', 'pickup_company', 'Shipper', 'shipper']);
 
         const pickup = {
             city: (expPickupCity || pickupParsed?.city || 'Unknown').trim(),
             state: normalizeState(expPickupState || pickupParsed?.state) || '',
             zip: (expPickupZip || pickupParsed?.zip || '00000').trim(),
-            location: pickupString || (expPickupCity ? `${expPickupCity}, ${expPickupState || ''}` : 'Unknown')
+            location: pickupString || (expPickupCity ? `${expPickupCity}, ${expPickupState || ''}` : 'Unknown'),
+            company: pickupCompany ? String(pickupCompany).trim() : undefined
         };
 
         // Delivery
@@ -33,12 +35,14 @@ export class LoadRowMapper {
         const expDeliveryCity = getValue(row, 'deliveryCity', mapping, ['Delivery City', 'delivery_city', 'Destination City', 'destination_city', 'Dest City', 'dest_city']);
         const expDeliveryState = getValue(row, 'deliveryState', mapping, ['Delivery State', 'delivery_state', 'Destination State', 'destination_state', 'Dest State', 'dest_state']);
         const expDeliveryZip = getValue(row, 'deliveryZip', mapping, ['Delivery Zip', 'delivery_zip', 'Destination Zip', 'destination_zip', 'Dest Zip', 'dest_zip']);
+        const deliveryCompany = getValue(row, 'deliveryCompany', mapping, ['Delivery Company', 'delivery_company', 'Consignee', 'consignee']);
 
         const delivery = {
             city: (expDeliveryCity || deliveryParsed?.city || 'Unknown').trim(),
             state: normalizeState(expDeliveryState || deliveryParsed?.state) || '',
             zip: (expDeliveryZip || deliveryParsed?.zip || '00000').trim(),
-            location: deliveryString || (expDeliveryCity ? `${expDeliveryCity}, ${expDeliveryState || ''}` : 'Unknown')
+            location: deliveryString || (expDeliveryCity ? `${expDeliveryCity}, ${expDeliveryState || ''}` : 'Unknown'),
+            company: deliveryCompany ? String(deliveryCompany).trim() : undefined
         };
 
         return { pickup, delivery };
@@ -49,9 +53,9 @@ export class LoadRowMapper {
      */
     static mapFinancials(row: any, getValue: Function, mapping?: Record<string, string>) {
         // 1. Try to find revenue from any of the UI-mapped keys (revenue, totalPay, loadPay)
-        const revenueVal = parseImportNumber(getValue(row, 'revenue', mapping, ['Total Amount', 'total_amount', 'Gross', 'gross', 'Total Pay', 'Total pay', 'Load Pay', 'Load pay'])) || 0;
-        const totalPayVal = parseImportNumber(getValue(row, 'totalPay', mapping, [])) || 0;
-        const loadPayVal = parseImportNumber(getValue(row, 'loadPay', mapping, [])) || 0;
+        const revenueVal = parseImportNumber(getValue(row, 'revenue', mapping, ['Total Amount', 'total_amount', 'Gross', 'gross', 'Total Pay', 'Total pay', 'total_pay', 'Load Pay', 'Load pay', 'load_pay'])) || 0;
+        const totalPayVal = parseImportNumber(getValue(row, 'totalPay', mapping, ['total_pay', 'Total pay'])) || 0;
+        const loadPayVal = parseImportNumber(getValue(row, 'loadPay', mapping, ['load_pay', 'Load pay'])) || 0;
         const grossRevenue = revenueVal > 0 ? revenueVal : (totalPayVal > 0 ? totalPayVal : loadPayVal);
 
         // 2. Look for components if Gross is missing
@@ -70,10 +74,10 @@ export class LoadRowMapper {
         const expenses = parseImportNumber(getValue(row, 'expenses', mapping, ['Expenses', 'expenses', 'Costs', 'costs', 'Tolls', 'tolls'])) || 0;
         const serviceFee = parseImportNumber(getValue(row, 'serviceFee', mapping, ['Service Fee', 'service_fee', 'Fee', 'fee'])) || 0;
 
-        // Map Miles
+        // Map Miles — 'mile' is loaded miles in the user's CSV, 'empty_mile' is empty miles
         const totalMiles = parseImportNumber(getValue(row, 'totalMiles', mapping, ['Total Miles', 'Total miles', 'total_miles', 'Miles', 'miles', 'Billed Miles', 'billed_miles', 'Trip Miles', 'trip_miles', 'Paid Miles', 'paid_miles', 'Distance', 'distance', 'Odometer', 'odometer'])) || 0;
-        const emptyMiles = parseImportNumber(getValue(row, 'emptyMiles', mapping, ['Empty Miles', 'Empty miles', 'empty_miles', 'Deadhead', 'deadhead'])) || 0;
-        const loadedMilesCol = parseImportNumber(getValue(row, 'loadedMiles', mapping, ['Loaded Miles', 'Loaded miles', 'loaded_miles'])) || 0;
+        const emptyMiles = parseImportNumber(getValue(row, 'emptyMiles', mapping, ['Empty Miles', 'Empty miles', 'empty_miles', 'empty_mile', 'Empty Mile', 'Deadhead', 'deadhead'])) || 0;
+        const loadedMilesCol = parseImportNumber(getValue(row, 'loadedMiles', mapping, ['Loaded Miles', 'Loaded miles', 'loaded_miles', 'mile', 'Mile'])) || 0;
         const actualMiles = parseImportNumber(getValue(row, 'actualMiles', mapping, ['Actual Miles', 'actual_miles', 'GPS Miles', 'gps_miles'])) || 0;
         const weight = parseImportNumber(getValue(row, 'weight', mapping, ['Weight', 'weight', 'Lbs', 'lbs', 'Gross Weight'])) || 1;
 
@@ -119,10 +123,11 @@ export class LoadRowMapper {
      * Parse dates from row
      */
     static mapDates(row: any, getValue: Function, mapping?: Record<string, string>) {
-        const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date', 'puDate', 'Pu Date']))
+        const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date', 'puDate', 'Pu Date', 'pu_date', 'PU Date', 'pickup_time', 'Pickup Time', 'pickup_appointment_time']))
             || parseImportDate(getValue(row, 'puDate', mapping, []));
-        const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date', 'delDate', 'Del Date']))
+        const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date', 'delDate', 'Del Date', 'del_date', 'Del date', 'delivery_time', 'Delivery Time', 'delivery_appointment_time']))
             || parseImportDate(getValue(row, 'delDate', mapping, []));
+        const lastUpdate = parseImportDate(getValue(row, 'lastUpdate', mapping, ['Last Update', 'last_update', 'Updated', 'Last Modified', 'last_modified']));
 
         const finalPickupDate = pickupDate || new Date();
         const finalDeliveryDate = deliveryDate || new Date(finalPickupDate.getTime() + 24 * 60 * 60 * 1000);
@@ -131,7 +136,8 @@ export class LoadRowMapper {
             pickupDate: finalPickupDate,
             deliveryDate: finalDeliveryDate,
             pickupDateRaw: pickupDate,
-            deliveryDateRaw: deliveryDate
+            deliveryDateRaw: deliveryDate,
+            lastUpdate: lastUpdate || undefined
         };
     }
 
@@ -141,11 +147,15 @@ export class LoadRowMapper {
     static mapDetails(row: any, getValue: Function, mapping?: Record<string, string>) {
         const commodity = getValue(row, 'commodity', mapping, ['Commodity', 'commodity', 'Cargo', 'cargo', 'Item', 'item']);
         const shipmentId = getValue(row, 'shipmentId', mapping, ['Ref', 'Ref#', 'Reference', 'PO', 'PO#', 'BOL', 'bol', 'Shipment ID', 'shipment_id']);
+        const tripId = getValue(row, 'tripId', mapping, ['Trip ID', 'trip_id', 'Trip', 'trip', 'Trip #', 'Trip Number']);
         const dispatchNotes = getValue(row, 'dispatchNotes', mapping, ['Notes', 'notes', 'Instructions', 'instructions', 'Comments', 'comments']);
         const driverNotes = getValue(row, 'driverNotes', mapping, ['Driver Notes', 'driver_notes', 'Driver Info', 'driver_info']);
+        const lastNote = getValue(row, 'lastNote', mapping, ['Last Note', 'last_note', 'Note']);
+        const onTimeDelivery = getValue(row, 'onTimeDelivery', mapping, ['On Time Delivery', 'on_time_delivery', 'OnTime', 'OTD', 'otd']);
+        const stopsCount = parseImportNumber(getValue(row, 'stopsCount', mapping, ['Stops Count', 'stops_count', 'Stops', 'stops', 'Stop Count']));
 
         // Equipment Type Mapping
-        const equipStr = getValue(row, 'equipmentType', mapping, ['Equipment', 'equipment', 'Trailer Type', 'trailer_type']);
+        const equipStr = getValue(row, 'equipmentType', mapping, ['Equipment', 'equipment', 'Trailer Type', 'trailer_type', 'equipment_types', 'Equipment Types', 'Equipment Type']);
         let equipmentType = 'DRY_VAN'; // Default
 
         if (equipStr) {
@@ -181,8 +191,12 @@ export class LoadRowMapper {
         return {
             commodity: commodity ? String(commodity).trim() : undefined,
             shipmentId: shipmentId ? String(shipmentId).trim() : undefined,
+            tripId: tripId ? String(tripId).trim() : undefined,
             dispatchNotes: dispatchNotes ? String(dispatchNotes).trim() : undefined,
             driverNotes: driverNotes ? String(driverNotes).trim() : undefined,
+            lastNote: lastNote ? String(lastNote).trim() : undefined,
+            onTimeDelivery: onTimeDelivery ? String(onTimeDelivery).trim() : undefined,
+            stopsCount: stopsCount || undefined,
             equipmentType,
             pieces,
             pallets,
@@ -191,7 +205,11 @@ export class LoadRowMapper {
             hazmatClass: hazmatClass ? String(hazmatClass).trim() : undefined,
             urgency: urgency ? urgency.toUpperCase() : 'NORMAL',
             eta,
-            quickPayFee
+            quickPayFee,
+            pickupContact: pickupContact ? String(pickupContact).trim() : undefined,
+            pickupPhone: pickupPhone ? String(pickupPhone).trim() : undefined,
+            deliveryContact: deliveryContact ? String(deliveryContact).trim() : undefined,
+            deliveryPhone: deliveryPhone ? String(deliveryPhone).trim() : undefined,
         };
     }
 }

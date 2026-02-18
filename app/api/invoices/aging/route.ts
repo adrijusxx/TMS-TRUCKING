@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
           customerId,
           customerName: invoice.customer.name,
           customerNumber: invoice.customer.customerNumber,
+          customerEmail: (invoice.customer as any).email ?? null,
           totalOutstanding: 0,
           invoiceCount: 0,
           oldestInvoice: invoice.dueDate,

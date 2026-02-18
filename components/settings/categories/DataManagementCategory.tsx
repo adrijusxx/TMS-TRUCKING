@@ -490,8 +490,6 @@ export default function DataManagementCategory() {
                           </div>
                           <div className="text-xs text-muted-foreground truncate">
                             {record.status && `Status: ${record.status}`}
-                            {record.status && record.id && ' • '}
-                            {record.id && `ID: ${record.id.substring(0, 8)}...`}
                             {isDeleted && record.deletedAt && (
                               <span> • Deleted: {new Date(record.deletedAt).toLocaleDateString()}</span>
                             )}

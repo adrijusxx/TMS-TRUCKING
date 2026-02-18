@@ -11,6 +11,7 @@ import DriverPersonalInfoTab from './DriverEditTabs/DriverPersonalInfoTab';
 import DriverComplianceTab from './DriverEditTabs/DriverComplianceTab';
 import DriverWorkDetailsTab from './DriverEditTabs/DriverWorkDetailsTab';
 import DriverFinancialPayrollTab from './DriverEditTabs/DriverFinancialPayrollTab';
+import DriverDeductionRulesTab from './DriverEditTabs/DriverDeductionRulesTab';
 import { useMutation } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -48,7 +49,7 @@ async function fetchDispatchers() {
 }
 
 async function fetchUsers() {
-  const response = await fetch(apiUrl('/api/settings/users?limit=1000'));
+  const response = await fetch(apiUrl('/api/settings/users?limit=1000&excludeDrivers=true'));
   if (!response.ok) throw new Error('Failed to fetch users');
   const result = await response.json();
   return result.data || [];
@@ -230,6 +231,14 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
               Financial
             </TabsTrigger>
           )}
+          {hasFinancialAccess && (
+            <TabsTrigger
+              value="deductions"
+              className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            >
+              Deductions
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="personal" className="mt-3">
@@ -272,6 +281,12 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
               driver={driver}
               onSave={handleSave}
             />
+          </TabsContent>
+        )}
+
+        {hasFinancialAccess && (
+          <TabsContent value="deductions" className="mt-3">
+            <DriverDeductionRulesTab driver={driver} />
           </TabsContent>
         )}
       </Tabs>

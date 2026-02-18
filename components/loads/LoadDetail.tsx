@@ -33,6 +33,7 @@ import LoadDetailsTab from './LoadDetailTabs/LoadDetailsTab';
 import LoadRouteTab from './LoadDetailTabs/LoadRouteTab';
 import LoadFinancialTab from './LoadDetailTabs/LoadFinancialTab';
 import LoadHistoryDocumentsTab from './LoadDetailTabs/LoadHistoryDocumentsTab';
+import LoadActivityTab from './LoadDetailTabs/LoadActivityTab';
 
 interface LoadDetailProps {
   load: any;
@@ -392,13 +393,14 @@ export default function LoadDetail({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Tabs - Merged to 4 */}
+      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-8">
+        <TabsList className="grid w-full grid-cols-5 h-8">
           <TabsTrigger value="details" className="text-xs h-7">Details</TabsTrigger>
           <TabsTrigger value="route" className="text-xs h-7">Route</TabsTrigger>
           <TabsTrigger value="financial" className="text-xs h-7">Financial</TabsTrigger>
           <TabsTrigger value="documents" className="text-xs h-7">Documents</TabsTrigger>
+          <TabsTrigger value="activity" className="text-xs h-7">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="mt-3">
@@ -435,6 +437,10 @@ export default function LoadDetail({
 
         <TabsContent value="documents" className="mt-3">
           <LoadHistoryDocumentsTab load={load} />
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-3">
+          <LoadActivityTab load={load} />
         </TabsContent>
       </Tabs>
     </div>

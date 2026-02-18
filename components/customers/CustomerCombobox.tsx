@@ -169,10 +169,8 @@ export default function CustomerCombobox({
             <span className="truncate">
               {selectedCustomer.name} {selectedCustomer.customerNumber ? `(${selectedCustomer.customerNumber})` : ''}
             </span>
-          ) : value && isLoadingCustomer ? (
-            <span className="text-muted-foreground">Loading customer...</span>
           ) : value ? (
-            <span className="text-muted-foreground">Customer ID: {value}</span>
+            <span className="text-muted-foreground">Loading...</span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}

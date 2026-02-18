@@ -91,13 +91,6 @@ export function createRoadsideInspectionColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'inspectionDate',
       accessorKey: 'inspectionDate',
       header: 'Date',

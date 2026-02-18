@@ -7,6 +7,10 @@
 
 import { prisma } from '@/lib/prisma';
 import { AdditionItem, DeductionItem } from './types';
+import {
+    startOfWeek, endOfWeek, startOfMonth, endOfMonth,
+    subWeeks, subMonths
+} from 'date-fns';
 
 export class SettlementRuleProcessor {
     /**
@@ -58,27 +62,34 @@ export class SettlementRuleProcessor {
 
         const driver = await prisma.driver.findUnique({
             where: { id: driverId },
-            select: { companyId: true, driverType: true, driverNumber: true },
+            select: { companyId: true, driverType: true, driverNumber: true, mcNumberId: true },
         });
 
         if (driver) {
-            const additionRules = await prisma.deductionRule.findMany({
+            const additionRules = await (prisma.deductionRule as any).findMany({
                 where: {
                     companyId: driver.companyId,
                     isActive: true,
                     isAddition: true,
                     deductionType: { in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'] },
                     OR: [
-                        { driverType: null, driverId: null },
-                        { driverType: driver.driverType, driverId: null },
-                        { driverId },
+                        { mcNumberId: null },
+                        ...(driver.mcNumberId ? [{ mcNumberId: driver.mcNumberId }] : []),
                     ],
+                    AND: {
+                        OR: [
+                            { driverType: null, driverId: null },
+                            { driverType: driver.driverType, driverId: null },
+                            { driverId },
+                        ],
+                    },
                 },
             });
 
             for (const rule of additionRules) {
                 if (this.shouldSkipRule(rule, driver)) continue;
                 if (rule.minGrossPay && grossPay < rule.minGrossPay) continue;
+                if (await this.wasAlreadyAppliedInFrequencyWindow(rule, driverId, periodStart, periodEnd)) continue;
 
                 let additionAmount = this.calculateAmount(rule, grossPay, loads);
                 if (rule.maxAmount && additionAmount > rule.maxAmount) additionAmount = rule.maxAmount;
@@ -111,34 +122,41 @@ export class SettlementRuleProcessor {
         const deductions: DeductionItem[] = [];
         const driver = await prisma.driver.findUnique({
             where: { id: driverId },
-            select: { companyId: true, driverType: true, driverNumber: true },
+            select: { companyId: true, driverType: true, driverNumber: true, mcNumberId: true },
         });
 
         if (!driver) return deductions;
 
-        // FETCH ALL APPLICABLE RULES (RECURRING + GARNISHMENTS)
-        const rules = await prisma.deductionRule.findMany({
+        // FETCH ALL APPLICABLE RULES (RECURRING + GARNISHMENTS) — scoped by MC number
+        const rules = await (prisma.deductionRule as any).findMany({
             where: {
                 companyId: driver.companyId,
                 isActive: true,
                 isAddition: false,
                 OR: [
-                    { driverType: null, driverId: null },
-                    { driverType: driver.driverType, driverId: null },
-                    { driverId },
+                    { mcNumberId: null },
+                    ...(driver.mcNumberId ? [{ mcNumberId: driver.mcNumberId }] : []),
                 ],
+                AND: {
+                    OR: [
+                        { driverType: null, driverId: null },
+                        { driverType: driver.driverType, driverId: null },
+                        { driverId },
+                    ],
+                },
             },
         });
 
         for (const rule of rules) {
             if (this.shouldSkipRule(rule, driver)) continue;
             if (rule.minGrossPay && grossPay < rule.minGrossPay) continue;
+            if (await this.wasAlreadyAppliedInFrequencyWindow(rule, driverId, periodStart, periodEnd)) continue;
 
             let deductionAmount = this.calculateAmount(rule, grossPay, loads);
             if (rule.maxAmount && deductionAmount > rule.maxAmount) deductionAmount = rule.maxAmount;
 
-            // Apply goal amount logic (don't exceed total total)
-            deductionAmount = this.applyGoalAmount(rule, deductionAmount);
+            // Apply goal amount logic (don't exceed target)
+            deductionAmount = await this.applyGoalAmount(rule, driverId, deductionAmount);
 
             if (deductionAmount > 0) {
                 deductions.push({
@@ -175,13 +193,91 @@ export class SettlementRuleProcessor {
         }
     }
 
-    private applyGoalAmount(rule: any, deductionAmount: number): number {
-        if (typeof rule.goalAmount === 'number' && rule.goalAmount > 0) {
-            const currentBalance = rule.currentAmount || 0;
-            if (currentBalance >= rule.goalAmount) return 0;
-            if (currentBalance + deductionAmount > rule.goalAmount) {
-                return rule.goalAmount - currentBalance;
-            }
+    /**
+     * Check if a rule was already applied within its frequency window for this driver.
+     * PER_SETTLEMENT always applies. ONE_TIME checks all history. Others check their period.
+     */
+    private async wasAlreadyAppliedInFrequencyWindow(
+        rule: any,
+        driverId: string,
+        periodStart: Date,
+        periodEnd: Date
+    ): Promise<boolean> {
+        if (!rule.frequency || rule.frequency === 'PER_SETTLEMENT') return false;
+
+        let windowStart: Date;
+        let windowEnd: Date;
+
+        if (rule.frequency === 'ONE_TIME') {
+            // Check if this rule was ever applied to an approved/paid settlement for this driver
+            const existing = await prisma.settlementDeduction.findFirst({
+                where: {
+                    settlement: { driverId, status: { in: ['APPROVED', 'PAID'] } },
+                    metadata: { path: ['deductionRuleId'], equals: rule.id },
+                },
+            });
+            return !!existing;
+        }
+
+        // Calculate frequency window based on periodEnd
+        switch (rule.frequency) {
+            case 'WEEKLY':
+                windowStart = startOfWeek(periodEnd, { weekStartsOn: 1 });
+                windowEnd = endOfWeek(periodEnd, { weekStartsOn: 1 });
+                break;
+            case 'BIWEEKLY':
+                windowStart = subWeeks(startOfWeek(periodEnd, { weekStartsOn: 1 }), 1);
+                windowEnd = endOfWeek(periodEnd, { weekStartsOn: 1 });
+                break;
+            case 'MONTHLY':
+                windowStart = startOfMonth(periodEnd);
+                windowEnd = endOfMonth(periodEnd);
+                break;
+            default:
+                return false;
+        }
+
+        const existing = await prisma.settlementDeduction.findFirst({
+            where: {
+                settlement: {
+                    driverId,
+                    status: { in: ['APPROVED', 'PAID'] },
+                    periodEnd: { gte: windowStart, lte: windowEnd },
+                },
+                metadata: { path: ['deductionRuleId'], equals: rule.id },
+            },
+        });
+
+        return !!existing;
+    }
+
+    /**
+     * Apply goal amount logic per-driver (not global).
+     * Queries actual approved deductions for this driver+rule to avoid cross-driver contamination.
+     */
+    private async applyGoalAmount(rule: any, driverId: string, deductionAmount: number): Promise<number> {
+        if (typeof rule.goalAmount !== 'number' || rule.goalAmount <= 0) return deductionAmount;
+
+        // For driver-specific rules, the global currentAmount is fine.
+        // For company-wide/driverType rules, calculate per-driver from actual settlements.
+        let currentBalance: number;
+
+        if (rule.driverId) {
+            currentBalance = rule.currentAmount || 0;
+        } else {
+            const result = await prisma.settlementDeduction.aggregate({
+                _sum: { amount: true },
+                where: {
+                    settlement: { driverId, status: { in: ['APPROVED', 'PAID'] } },
+                    metadata: { path: ['deductionRuleId'], equals: rule.id },
+                },
+            });
+            currentBalance = result._sum.amount || 0;
+        }
+
+        if (currentBalance >= rule.goalAmount) return 0;
+        if (currentBalance + deductionAmount > rule.goalAmount) {
+            return rule.goalAmount - currentBalance;
         }
         return deductionAmount;
     }

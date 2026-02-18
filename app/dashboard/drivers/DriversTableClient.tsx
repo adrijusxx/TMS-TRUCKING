@@ -18,8 +18,7 @@ import { Plus, Upload, Download } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DriverSheet from '@/components/drivers/DriverSheet';
-
-
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface DriversTableClientProps {
   data: DriverData[];
@@ -31,6 +30,17 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = React.useState<'active' | 'terminated'>('active');
+
+  const activeDrivers = React.useMemo(
+    () => data.filter((d) => (d as any).employeeStatus !== EmployeeStatus.TERMINATED),
+    [data]
+  );
+  const terminatedDrivers = React.useMemo(
+    () => data.filter((d) => (d as any).employeeStatus === EmployeeStatus.TERMINATED),
+    [data]
+  );
+  const displayedData = activeTab === 'terminated' ? terminatedDrivers : activeDrivers;
 
   // Sheet State
   const [sheetOpen, setSheetOpen] = React.useState(false);
@@ -81,14 +91,14 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
   }, [queryClient]);
 
   const handleExport = React.useCallback(() => {
-    if (data.length === 0) {
+    if (displayedData.length === 0) {
       toast.error('No data to export');
       return;
     }
-    const headers = Object.keys(data[0]);
-    exportToCSV(data, headers, `drivers-export-${new Date().toISOString().split('T')[0]}.csv`);
-    toast.success(`Exported ${data.length} driver(s)`);
-  }, [data]);
+    const headers = Object.keys(displayedData[0]);
+    exportToCSV(displayedData, headers, `drivers-export-${new Date().toISOString().split('T')[0]}.csv`);
+    toast.success(`Exported ${displayedData.length} driver(s)`);
+  }, [displayedData]);
 
   const handleImport = React.useCallback(() => {
     // Trigger import dialog - using a hidden button approach
@@ -132,7 +142,7 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
   }, [handleDelete]);
 
   const handleExportSelected = React.useCallback((ids: string[]) => {
-    const selectedData = data.filter((row) => ids.includes(row.id));
+    const selectedData = displayedData.filter((row) => ids.includes(row.id));
     if (selectedData.length === 0) {
       toast.error('No data to export');
       return;
@@ -196,6 +206,25 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
           onActionComplete={handleUpdate}
         />
       )}
+      {/* Tab switcher */}
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'active' | 'terminated'); setRowSelection({}); }} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="active">
+            Active
+            <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary tabular-nums">
+              {activeDrivers.length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="terminated">
+            Terminated
+            {terminatedDrivers.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-destructive/10 px-1.5 py-0.5 text-xs font-medium text-destructive tabular-nums">
+                {terminatedDrivers.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
       {/* Header with action buttons */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
         <div className="flex items-center gap-2">
@@ -230,7 +259,7 @@ export function DriversTableClient({ data }: DriversTableClientProps) {
       </div>
       <DataTable
         columns={columns}
-        data={data}
+        data={displayedData}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         enableRowSelection={true}

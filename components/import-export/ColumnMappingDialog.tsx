@@ -106,43 +106,54 @@ export default function ColumnMappingDialog({
     }
 
     // 3. Run Local Fuzzy Match (Cleanup / Fallback)
+    // Track already-assigned fields to avoid duplicates
+    const assignedFields = new Set(Object.values(newMapping));
+
     excelColumns.forEach((excelCol) => {
       if (newMapping[excelCol]) return; // Already mapped (by AI or manually)
 
-      const normalizedExcel = excelCol.toLowerCase().trim().replace(/[_\s-.]/g, '');
+      const normalizedExcel = excelCol.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 
-      // Direct match
+      // Score all fields, pick the best available one
+      let bestKey: string | null = null;
+      let bestScore = 0;
+
       for (const field of deduplicatedFields) {
-        const normalizedField = field.key.toLowerCase().replace(/[_\s-.]/g, '');
-        if (
-          normalizedExcel === normalizedField ||
-          normalizedExcel.includes(normalizedField) ||
-          normalizedField.includes(normalizedExcel)
+        if (assignedFields.has(field.key)) continue; // Already used by another column
+
+        const normalizedField = field.key.toLowerCase().replace(/[^a-z0-9]/g, '');
+        let score = 0;
+
+        // Exact match — highest priority
+        if (normalizedExcel === normalizedField) {
+          score = 100;
+        }
+        // Substring match — lower priority
+        else if (
+          normalizedExcel.length > 3 && normalizedField.length > 3 &&
+          (normalizedExcel.includes(normalizedField) || normalizedField.includes(normalizedExcel))
         ) {
-          newMapping[excelCol] = field.key;
-          newAutoMapped.add(excelCol);
-          return;
+          score = 50;
+        }
+        // Levenshtein fuzzy match — lowest priority
+        else {
+          const distance = levenshtein(normalizedExcel, normalizedField);
+          const threshold = Math.max(4, Math.floor(normalizedField.length * 0.4));
+          if (distance <= threshold) {
+            score = 30 - distance; // Closer = higher score
+          }
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestKey = field.key;
         }
       }
 
-      // Fuzzy match
-      let bestMatch = null;
-      let minDistance = Infinity;
-
-      for (const field of deduplicatedFields) {
-        const normalizedField = field.key.toLowerCase().replace(/[_\s-.]/g, '');
-        const distance = levenshtein(normalizedExcel, normalizedField);
-        const threshold = Math.max(4, Math.floor(normalizedField.length * 0.4));
-
-        if (distance <= threshold && distance < minDistance) {
-          minDistance = distance;
-          bestMatch = field.key;
-        }
-      }
-
-      if (bestMatch) {
-        newMapping[excelCol] = bestMatch;
+      if (bestKey) {
+        newMapping[excelCol] = bestKey;
         newAutoMapped.add(excelCol);
+        assignedFields.add(bestKey);
       }
     });
 

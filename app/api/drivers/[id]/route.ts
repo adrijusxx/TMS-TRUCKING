@@ -236,13 +236,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    console.log('[Driver Update API] Raw request body:', JSON.stringify(body, null, 2));
-    console.log('[Driver Update API] recurringTransactions in body:', body.recurringTransactions);
-    console.log('[Driver Update API] Type of recurringTransactions:', typeof body.recurringTransactions);
-    console.log('[Driver Update API] Is array?', Array.isArray(body.recurringTransactions));
-
     const validated = updateDriverSchema.parse(body);
-    console.log('[Driver Update API] Validated data - recurringTransactions:', validated.recurringTransactions);
 
     const role = session.user.role as 'ADMIN' | 'ACCOUNTANT' | 'DISPATCHER' | 'DRIVER' | 'CUSTOMER';
 
@@ -267,7 +261,7 @@ export async function PATCH(
 
     const updateData: any = {};
 
-    // Driver-specific fields
+    // Driver-specific fields (keys must match updateDriverSchema field names)
     const driverFields = [
       'status', 'employeeStatus', 'assignmentStatus', 'dispatchStatus',
       'currentTruckId', 'currentTrailerId', 'socialSecurityNumber',
@@ -276,8 +270,8 @@ export async function PATCH(
       'licenseIssueDate', 'cdlExperience', 'restrictions', 'dlClass',
       'driverType', 'endorsements', 'driverFacingCamera', 'address1',
       'address2', 'city', 'state', 'zipCode', 'country', 'dispatchPreferences',
-      'assignedDispatcherId', 'hrManagerId', 'safetyManagerId', 'mcNumber',
-      'teamDriver', 'otherId', 'driverTags', 'notes', 'emergencyContactName',
+      'assignedDispatcherId', 'hrManagerId', 'safetyManagerId', 'mcNumberId',
+      'teamDriver', 'otherId', 'notes', 'emergencyContactName',
       'emergencyContactRelation', 'emergencyContactAddress1', 'emergencyContactAddress2',
       'emergencyContactCity', 'emergencyContactState', 'emergencyContactZip',
       'emergencyContactCountry', 'emergencyContactPhone', 'emergencyContactEmail',
@@ -299,13 +293,15 @@ export async function PATCH(
       }
     });
 
+    // Map schema field 'tags' → Prisma field 'driverTags'
+    if (validated.tags !== undefined) {
+      updateData.driverTags = validated.tags;
+    }
+
     // Handle unified recurring transactions (both additions and deductions) - save as DeductionRule records
     if (validated.recurringTransactions !== undefined) {
-      console.log('[Driver Update] Processing recurring transactions:', validated.recurringTransactions);
-
       // Get driver number for naming pattern
       const driverIdentifier = existingDriver.driverNumber || id.slice(0, 8);
-      console.log('[Driver Update] Driver identifier:', driverIdentifier);
 
       // Get existing deduction rules for THIS driver (by driverId)
       const existingRules = await prisma.deductionRule.findMany({
@@ -314,7 +310,6 @@ export async function PATCH(
           driverId: id, // Query by driverId for proper association
         },
       });
-      console.log('[Driver Update] Found existing rules:', existingRules.length);
 
       // Deactivate old rules (even if new list is empty)
       if (existingRules.length > 0) {
@@ -326,12 +321,10 @@ export async function PATCH(
             isActive: false,
           },
         });
-        console.log('[Driver Update] Deactivated', existingRules.length, 'old rules');
       }
 
       // Create new deduction rules for each recurring transaction
       if (Array.isArray(validated.recurringTransactions) && validated.recurringTransactions.length > 0) {
-        console.log('[Driver Update] Creating', validated.recurringTransactions.length, 'new transaction rules');
 
         // Transaction types that are additions (payments to driver)
         const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];

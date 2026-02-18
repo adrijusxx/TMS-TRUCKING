@@ -51,6 +51,7 @@ export default function ImportPage({
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [selectedMcNumberId, setSelectedMcNumberId] = useState<string>('');
   const [updateExisting, setUpdateExisting] = useState<boolean>(false);
+  const [treatAsHistorical, setTreatAsHistorical] = useState<boolean>(true);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [importProgress, setImportProgress] = useState<number>(0);
   const [importStatus, setImportStatus] = useState<string>('');
@@ -178,6 +179,7 @@ export default function ImportPage({
           columnMapping,
           currentMcNumber: mcNumberValue,
           updateExisting,
+          treatAsHistorical: entityType === 'loads' ? treatAsHistorical : undefined,
         }),
       });
 
@@ -251,6 +253,9 @@ export default function ImportPage({
             onBack={() => setCurrentStep('upload')}
             onNext={handleNextToPreview}
             isAiMapping={isAiMapping}
+            entityType={entityType}
+            treatAsHistorical={treatAsHistorical}
+            setTreatAsHistorical={setTreatAsHistorical}
           />
         )}
 

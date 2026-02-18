@@ -54,19 +54,11 @@ export async function GET(
       );
     }
 
-    // Get only actual deductions (exclude addition types)
+    // Get only actual deductions
     const deductions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
-        OR: [
-          { category: 'deduction' },
-          {
-            category: null,
-            deductionType: {
-              notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
-            }
-          }
-        ]
+        category: 'deduction',
       },
       orderBy: {
         createdAt: 'desc',
@@ -145,19 +137,11 @@ export async function POST(
     });
 
     // Recalculate settlement totals
-    // Get only actual deductions (exclude addition types)
+    // Get only actual deductions
     const allDeductions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
-        OR: [
-          { category: 'deduction' },
-          {
-            category: null,
-            deductionType: {
-              notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
-            }
-          }
-        ]
+        category: 'deduction',
       },
     });
     const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
@@ -166,14 +150,7 @@ export async function POST(
     const allAdditions = await prisma.settlementDeduction.findMany({
       where: {
         settlementId,
-        OR: [
-          { category: 'addition' },
-          {
-            deductionType: {
-              in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
-            }
-          }
-        ]
+        category: 'addition',
       },
     });
     const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
@@ -289,19 +266,11 @@ export async function PATCH(
     });
 
     if (settlement) {
-      // Get only actual deductions (exclude addition types)
+      // Get only actual deductions
       const allDeductions = await prisma.settlementDeduction.findMany({
         where: {
           settlementId,
-          OR: [
-            { category: 'deduction' },
-            {
-              category: null,
-              deductionType: {
-                notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
-              }
-            }
-          ]
+          category: 'deduction',
         },
       });
       const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
@@ -310,14 +279,7 @@ export async function PATCH(
       const allAdditions = await prisma.settlementDeduction.findMany({
         where: {
           settlementId,
-          OR: [
-            { category: 'addition' },
-            {
-              deductionType: {
-                in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
-              }
-            }
-          ]
+          category: 'addition',
         },
       });
       const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
@@ -433,19 +395,11 @@ export async function DELETE(
     });
 
     if (settlement) {
-      // Get only actual deductions (exclude addition types)
+      // Get only actual deductions
       const allDeductions = await prisma.settlementDeduction.findMany({
         where: {
           settlementId,
-          OR: [
-            { category: 'deduction' },
-            {
-              category: null,
-              deductionType: {
-                notIn: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
-              }
-            }
-          ]
+          category: 'deduction',
         },
       });
       const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
@@ -454,14 +408,7 @@ export async function DELETE(
       const allAdditions = await prisma.settlementDeduction.findMany({
         where: {
           settlementId,
-          OR: [
-            { category: 'addition' },
-            {
-              deductionType: {
-                in: ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT']
-              }
-            }
-          ]
+          category: 'addition',
         },
       });
       const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);

@@ -12,7 +12,9 @@ import LoadStatusDistribution from '@/components/dashboard/LoadStatusDistributio
 import DriverPerformanceSummary from '@/components/dashboard/DriverPerformanceSummary';
 import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSummary';
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
+import TodayAtAGlance from '@/components/dashboard/TodayAtAGlance';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import OnboardingGuide from '@/components/dashboard/OnboardingGuide';
 import { LoadStatus } from '@prisma/client';
 import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { cookies } from 'next/headers';
@@ -78,6 +80,12 @@ export default async function DashboardPage() {
     );
     const truckFilter = { ...baseDriverTruckFilter, ...roleTruckFilter };
 
+    // Date boundaries for "Today at a Glance"
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
     // Fetch dashboard stats
     const [
       totalLoads,
@@ -87,6 +95,10 @@ export default async function DashboardPage() {
       totalTrucks,
       availableTrucks,
       revenueData,
+      deliveriesToday,
+      openInvoicesData,
+      expiringMedicalCards,
+      expiringCDLs,
     ] = await Promise.all([
       prisma.load.count({
         where: {
@@ -145,9 +157,43 @@ export default async function DashboardPage() {
           revenue: true,
         },
       }),
+      // Deliveries due today
+      prisma.load.count({
+        where: {
+          ...loadFilter,
+          deliveryDate: { gte: todayStart, lt: todayEnd },
+          deletedAt: null,
+        },
+      }),
+      // Open invoices (not paid or cancelled)
+      prisma.invoice.aggregate({
+        where: {
+          companyId: session.user.companyId,
+          status: { notIn: ['PAID', 'CANCELLED'] },
+        },
+        _count: { id: true },
+        _sum: { balance: true },
+      }),
+      // Medical cards expiring within 30 days
+      prisma.medicalCard.count({
+        where: {
+          companyId: session.user.companyId,
+          expirationDate: { gte: now, lte: thirtyDaysFromNow },
+        },
+      }),
+      // CDLs expiring within 30 days
+      prisma.cDLRecord.count({
+        where: {
+          companyId: session.user.companyId,
+          expirationDate: { gte: now, lte: thirtyDaysFromNow },
+        },
+      }),
     ]);
 
     const totalRevenue = revenueData._sum.revenue || 0;
+    const openInvoicesCount = openInvoicesData._count.id ?? 0;
+    const openInvoicesBalance = openInvoicesData._sum.balance ?? 0;
+    const expiringDocsCount = expiringMedicalCards + expiringCDLs;
 
     const stats = [
       {
@@ -186,6 +232,19 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-xl sm:text-3xl font-bold">Dashboard</h1>
         </div>
+
+        {/* Onboarding Guide for New Users */}
+        <OnboardingGuide />
+
+        {/* Today at a Glance */}
+        <TodayAtAGlance
+          activeLoads={activeLoads}
+          deliveriesToday={deliveriesToday}
+          openInvoicesCount={openInvoicesCount}
+          openInvoicesBalance={openInvoicesBalance}
+          availableDrivers={availableDrivers}
+          expiringDocsCount={expiringDocsCount}
+        />
 
         {/* Overview Statistics Section */}
         <section className="space-y-4">

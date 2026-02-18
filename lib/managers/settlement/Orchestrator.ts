@@ -24,6 +24,16 @@ export class SettlementOrchestrator {
 
         if (!driver) throw new Error('Driver not found');
 
+        // Prevent duplicate settlements for same driver+period
+        if (!loadIds || loadIds.length === 0) {
+            const existing = await prisma.settlement.findFirst({
+                where: { driverId, periodStart, periodEnd, status: { in: ['PENDING', 'APPROVED', 'PAID'] } },
+            });
+            if (existing) {
+                throw new Error(`Settlement ${existing.settlementNumber} already exists for this driver and period. Use recalculate instead.`);
+            }
+        }
+
         const loadWhere: Record<string, any> = {
             driverId,
             deletedAt: null,
@@ -74,7 +84,7 @@ export class SettlementOrchestrator {
 
         const settlementNumber = params.settlementNumber || `SET-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-        const settlement = await prisma.settlement.create({
+        const settlement = await (prisma.settlement as any).create({
             data: {
                 driverId,
                 settlementNumber,
@@ -83,6 +93,7 @@ export class SettlementOrchestrator {
                 deductions: totalDeductions + negativeBalanceDeduction,
                 advances: totalAdvances,
                 netPay: netPay < 0 ? 0 : netPay,
+                carriedForwardAmount: netPay < 0 ? Math.abs(netPay) : 0,
                 periodStart,
                 periodEnd,
                 status: 'PENDING',
@@ -199,6 +210,16 @@ export class SettlementOrchestrator {
 
         if (!settlement || settlement.status === 'PAID') throw new Error('Cannot recalculate');
 
+        // Snapshot current calculation for audit trail before overwriting
+        const previousSnapshot = settlement.calculationLog ? {
+            ...(settlement.calculationLog as Record<string, any>),
+            snapshotReason: 'recalculation',
+            snapshotAt: new Date().toISOString(),
+            previousGrossPay: settlement.grossPay,
+            previousNetPay: settlement.netPay,
+            previousDeductions: settlement.deductions,
+        } : null;
+
         const loads = await prisma.load.findMany({
             where: { id: { in: settlement.loadIds }, deletedAt: null },
             include: {
@@ -208,16 +229,21 @@ export class SettlementOrchestrator {
         });
 
         const preview = await this.calculationEngine.calculateSettlementPreview(settlement.driverId, loads, settlement.periodStart, settlement.periodEnd);
-        const { grossPay, netPay, totalDeductions, additions, deductions, negativeBalanceDeduction, previousNegativeBalance, auditLog } = preview;
+        const { grossPay, netPay, totalDeductions, totalAdditions, totalAdvances, additions, deductions, advances, negativeBalanceDeduction, previousNegativeBalance, auditLog } = preview;
 
-        await prisma.settlement.update({
+        await (prisma.settlement as any).update({
             where: { id: settlementId },
             data: {
                 grossPay,
                 deductions: totalDeductions + negativeBalanceDeduction,
+                advances: totalAdvances,
                 netPay: netPay < 0 ? 0 : netPay,
+                carriedForwardAmount: netPay < 0 ? Math.abs(netPay) : 0,
                 calculatedAt: new Date(),
                 calculationLog: auditLog as any,
+                ...(previousSnapshot ? {
+                    calculationHistory: { push: previousSnapshot },
+                } : {}),
             },
         });
 
@@ -234,6 +260,7 @@ export class SettlementOrchestrator {
 
         await prisma.settlementDeduction.deleteMany({ where: { settlementId } });
 
+        // Persist Additions (with references)
         for (const addition of additions) {
             await prisma.settlementDeduction.create({
                 data: {
@@ -248,6 +275,7 @@ export class SettlementOrchestrator {
             });
         }
 
+        // Persist Deductions (with references including advance links)
         const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
         for (const deduction of deductions) {
             if (additionTypes.includes(deduction.type)) continue;
@@ -258,6 +286,9 @@ export class SettlementOrchestrator {
                     category: 'deduction',
                     description: deduction.description,
                     amount: deduction.amount,
+                    fuelEntryId: deduction.reference?.startsWith('fuel_') ? deduction.reference.replace('fuel_', '') : undefined,
+                    driverAdvanceId: deduction.reference?.startsWith('advance_') ? deduction.reference.replace('advance_', '') : undefined,
+                    loadExpenseId: deduction.reference?.startsWith('expense_') ? deduction.reference.replace('expense_', '') : undefined,
                     metadata: deduction.metadata,
                 },
             });

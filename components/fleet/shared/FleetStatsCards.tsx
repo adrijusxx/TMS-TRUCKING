@@ -149,11 +149,19 @@ export default function FleetStatsCards({
         )}>
             {visibleCards.map((card) => {
                 const Icon = card.icon;
+                const isHealth = card.id === 'fleetHealth';
+                const healthBorder = isHealth
+                    ? healthScore >= 80 ? 'border-green-400' : healthScore >= 60 ? 'border-yellow-400' : 'border-red-400'
+                    : '';
+                const healthBarColor = isHealth
+                    ? healthScore >= 80 ? 'bg-green-500' : healthScore >= 60 ? 'bg-yellow-400' : 'bg-red-500'
+                    : '';
                 return (
                     <Card
                         key={card.id}
                         className={cn(
-                            onCardClick && 'cursor-pointer hover:bg-muted/50 transition-colors'
+                            onCardClick && 'cursor-pointer hover:bg-muted/50 transition-colors',
+                            isHealth && `border-2 ${healthBorder}`
                         )}
                         onClick={() => onCardClick?.(card.id)}
                     >
@@ -165,6 +173,21 @@ export default function FleetStatsCards({
                             <div className={cn('text-2xl font-bold', card.color)}>
                                 {card.value}
                             </div>
+                            {isHealth && (
+                                <>
+                                    <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                                        <div
+                                            className={cn('h-full rounded-full transition-all', healthBarColor)}
+                                            style={{ width: `${healthScore}%` }}
+                                        />
+                                    </div>
+                                    {metrics && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {metrics.trucks.available}/{metrics.trucks.total} available
+                                        </p>
+                                    )}
+                                </>
+                            )}
                         </CardContent>
                     </Card>
                 );

@@ -183,7 +183,11 @@ export class DriverImporter extends BaseImporter {
                 const status = await this.mapDriverStatusSmart(statusStr);
 
                 // --- Anomaly Detection ---
-                const payRate = parseFloat(String(this.getValue(row, 'payRate', columnMapping, ['Pay Rate', 'pay_rate', 'Rate']) || '0').replace(/[^0-9.]/g, '')) || 0;
+                let payRate = parseFloat(String(this.getValue(row, 'payRate', columnMapping, ['Pay Rate', 'pay_rate', 'Rate']) || '0').replace(/[^0-9.]/g, '')) || 0;
+                if (payRate === 0) {
+                    payRate = 0.65;
+                    warnings.push(this.warning(rowNum, 'Pay Rate missing or zero, defaulted to $0.65/mile (PER_MILE)', 'payRate'));
+                }
 
                 // DEFAULTS for Required Fields (Prisma Constraints)
                 let licenseNumber = this.getValue(row, 'licenseNumber', columnMapping, ['License Number', 'license_number', 'CDL#', 'CDL Number', 'License #', 'CDL']);

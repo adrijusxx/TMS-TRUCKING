@@ -33,6 +33,16 @@ const statusColors: Record<TruckStatus, string> = {
   NEEDS_REPAIR: 'bg-red-100 text-red-800 border-red-200',
 };
 
+const statusDotColors: Record<TruckStatus, string> = {
+  AVAILABLE: 'bg-green-500',
+  IN_USE: 'bg-blue-500',
+  MAINTENANCE: 'bg-orange-500',
+  MAINTENANCE_DUE: 'bg-yellow-400',
+  OUT_OF_SERVICE: 'bg-red-500',
+  INACTIVE: 'bg-gray-400',
+  NEEDS_REPAIR: 'bg-red-600',
+};
+
 function formatStatus(status: TruckStatus): string {
   return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
@@ -47,23 +57,22 @@ export function createTruckColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'truckNumber',
       accessorKey: 'truckNumber',
       header: 'Truck #',
       cell: ({ row }) => (
-        <span
-          className="text-primary hover:underline font-medium cursor-pointer"
+        <div
+          className="flex items-center gap-2 cursor-pointer"
           onClick={() => onEdit?.(row.original.id)}
         >
-          {row.original.truckNumber}
-        </span>
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${statusDotColors[row.original.status]}`}
+            title={formatStatus(row.original.status)}
+          />
+          <span className="text-primary hover:underline font-medium">
+            {row.original.truckNumber}
+          </span>
+        </div>
       ),
       defaultVisible: true,
       required: true,

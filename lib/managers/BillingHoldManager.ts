@@ -7,6 +7,7 @@
  * CRITICAL: Billing hold blocks Customer Invoicing (AR) but allows Driver Settlement (AP)
  */
 import { prisma } from '@/lib/prisma';
+import { inngest } from '@/lib/inngest/client';
 import { notifyBillingHold } from '@/lib/notifications/triggers';
 import { LoadStatus } from '@prisma/client';
 
@@ -227,6 +228,21 @@ export class BillingHoldManager {
           accountingSyncStatus: 'PENDING_SYNC',
         },
       });
+
+      // Emit event so auto-invoice picks up the READY_TO_BILL transition
+      try {
+        await inngest.send({
+          name: 'load/status-changed',
+          data: {
+            loadId,
+            companyId: load.companyId,
+            previousStatus: 'BILLING_HOLD',
+            newStatus: 'READY_TO_BILL',
+          },
+        });
+      } catch (e) {
+        console.error('Failed to emit load/status-changed on billing hold clearance:', e);
+      }
 
       return {
         cleared: true,

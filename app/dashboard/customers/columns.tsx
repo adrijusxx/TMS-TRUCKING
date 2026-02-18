@@ -37,13 +37,6 @@ export function createCustomerColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'customerNumber',
       accessorKey: 'customerNumber',
       header: 'Customer #',

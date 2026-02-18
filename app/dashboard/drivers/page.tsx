@@ -21,7 +21,35 @@ export default async function DriversPage() {
       companyId: session.user.companyId,
       deletedAt: null,
     },
-    include: {
+    select: {
+      id: true,
+      driverNumber: true,
+      address1: true,
+      address2: true,
+      city: true,
+      state: true,
+      zipCode: true,
+      notes: true,
+      warnings: true,
+      status: true,
+      assignmentStatus: true,
+      dispatchStatus: true,
+      teamDriver: true,
+      mcNumberId: true,
+      createdAt: true,
+      totalLoads: true,
+      onTimePercentage: true,
+      rating: true,
+      // HR / compliance fields
+      employeeStatus: true,
+      driverType: true,
+      hireDate: true,
+      payRate: true,
+      payType: true,
+      payTo: true,
+      licenseNumber: true,
+      licenseExpiry: true,
+      medicalCardExpiry: true,
       user: {
         select: {
           id: true,
@@ -82,6 +110,9 @@ export default async function DriversPage() {
       currentTrailer: driver.currentTrailer,
       createdAt: driver.createdAt,
       user: driver.user,
+      totalLoads: driver.totalLoads,
+      onTimePercentage: driver.onTimePercentage,
+      rating: driver.rating,
     };
 
     // HR data only visible to authorized roles
@@ -94,6 +125,7 @@ export default async function DriversPage() {
         payRate: driver.payRate,
         payType: driver.payType,
         payTo: driver.payTo,
+        licenseNumber: driver.licenseNumber,
         licenseExpiry: driver.licenseExpiry,
         medicalCardExpiry: driver.medicalCardExpiry,
       };

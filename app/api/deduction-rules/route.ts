@@ -3,6 +3,8 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
+const ADDITION_TYPES = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'] as const;
+
 const createRuleSchema = z.object({
   name: z.string().min(1).max(100),
   deductionType: z.enum([
@@ -28,12 +30,16 @@ const createRuleSchema = z.object({
     'INCENTIVE',
     'REIMBURSEMENT',
   ]),
+  isAddition: z.boolean().optional(), // Auto-inferred from deductionType if not provided
+  driverId: z.string().cuid().optional(), // Specific driver
   driverType: z.enum(['COMPANY_DRIVER', 'OWNER_OPERATOR', 'LEASE']).optional(),
+  mcNumberId: z.string().cuid().optional(), // MC number scoping
   calculationType: z.enum(['FIXED', 'PERCENTAGE', 'PER_MILE']),
   amount: z.number().positive().optional(),
   percentage: z.number().min(0).max(100).optional(),
   perMileRate: z.number().positive().optional(),
   frequency: z.enum(['PER_SETTLEMENT', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'ONE_TIME']),
+  goalAmount: z.number().positive().optional(),
   minGrossPay: z.number().positive().optional(),
   maxAmount: z.number().positive().optional(),
   isActive: z.boolean().default(true),
@@ -124,18 +130,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auto-infer isAddition from deductionType if not explicitly provided
+    const isAddition = validated.isAddition ?? ADDITION_TYPES.includes(validated.deductionType as any);
+
     // Create deduction rule
     const rule = await (prisma as any).deductionRule.create({
       data: {
         companyId: session.user.companyId,
         name: validated.name,
         deductionType: validated.deductionType,
+        isAddition,
+        driverId: validated.driverId,
         driverType: validated.driverType,
+        mcNumberId: validated.mcNumberId,
         calculationType: validated.calculationType,
         amount: validated.amount,
         percentage: validated.percentage,
         perMileRate: validated.perMileRate,
         frequency: validated.frequency,
+        goalAmount: validated.goalAmount,
         minGrossPay: validated.minGrossPay,
         maxAmount: validated.maxAmount,
         isActive: validated.isActive,
@@ -196,14 +209,19 @@ export async function GET(request: NextRequest) {
     const driverType = searchParams.get('driverType');
     const deductionType = searchParams.get('deductionType');
     const isActive = searchParams.get('isActive');
+    const mcNumberId = searchParams.get('mcNumberId');
+    const isAddition = searchParams.get('isAddition');
 
     const where: any = {
       companyId: session.user.companyId,
     };
 
-    // Filter by driverId if provided
+    // Filter by driverId — show driver-specific rules AND inherited company/driverType rules
     if (driverId) {
-      where.driverId = driverId;
+      where.OR = [
+        { driverId },
+        { driverId: null }, // Company-wide and driverType rules also apply
+      ];
     }
 
     if (driverType) {
@@ -214,8 +232,16 @@ export async function GET(request: NextRequest) {
       where.deductionType = deductionType;
     }
 
-    if (isActive !== null) {
+    if (isActive !== null && isActive !== undefined) {
       where.isActive = isActive === 'true';
+    }
+
+    if (mcNumberId) {
+      where.mcNumberId = mcNumberId;
+    }
+
+    if (isAddition !== null && isAddition !== undefined) {
+      where.isAddition = isAddition === 'true';
     }
 
     try {
@@ -227,7 +253,8 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           companyId: true,
-          driverId: true, // Include driverId for association
+          driverId: true,
+          mcNumberId: true,
           name: true,
           deductionType: true,
           driverType: true,
@@ -240,12 +267,12 @@ export async function GET(request: NextRequest) {
           minGrossPay: true,
           maxAmount: true,
           isActive: true,
+          isAddition: true,
           notes: true,
           createdAt: true,
           updatedAt: true,
           goalAmount: true,
           currentAmount: true,
-          isAddition: true,
         },
       });
 

@@ -896,6 +896,14 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
                     {formatCurrency(settlement.netPay)}
                   </span>
                 </div>
+                {(settlement as any).carriedForwardAmount > 0 && (
+                  <div className="flex justify-between pt-1 text-sm">
+                    <span className="text-amber-600 font-medium">Carried Forward</span>
+                    <span className="text-amber-600 font-medium">
+                      -{formatCurrency((settlement as any).carriedForwardAmount)}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1440,7 +1448,13 @@ export default function SettlementDetail({ settlementId }: SettlementDetailProps
           </div>
         </TabsContent>
         <TabsContent value="audit">
-          <SettlementAuditLog auditLog={settlement.calculationLog as any} />
+          <SettlementAuditLog
+            auditLog={settlement.calculationLog as any}
+            calculationHistory={(settlement as any).calculationHistory || []}
+            grossPay={settlement.grossPay}
+            netPay={settlement.netPay}
+            deductions={settlement.deductions}
+          />
         </TabsContent>
       </Tabs>
     </div>

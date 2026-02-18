@@ -9,6 +9,7 @@ import { apiUrl } from '@/lib/utils';
 import { getMcContext } from '@/lib/utils/query-keys';
 import SafetyStats, { SafetyStatsData } from './SafetyStats';
 import ActionCenter, { ActionItem } from './ActionCenter';
+import DriverRiskHeatmap from './DriverRiskHeatmap';
 
 interface SafetyDashboardData {
   metrics: {
@@ -137,8 +138,8 @@ export default function SafetyDashboard() {
         </div>
       </div>
 
-      {/* Bottom: Management Tabs (Preserving for backward compatibility during migration) */}
-
+      {/* Bottom: Driver Risk Heatmap */}
+      <DriverRiskHeatmap />
 
     </div>
   );

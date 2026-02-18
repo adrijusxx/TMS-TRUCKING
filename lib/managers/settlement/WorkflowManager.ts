@@ -19,43 +19,44 @@ export class SettlementWorkflowManager {
         approverId: string,
         notes?: string
     ): Promise<any> {
-        const settlement = await prisma.settlement.update({
-            where: { id: settlementId },
-            data: {
-                approvalStatus: 'APPROVED',
-                approvedById: approverId,
-                approvedAt: new Date(),
-                status: 'APPROVED',
-            },
-        });
+        return await prisma.$transaction(async (tx) => {
+            const settlement = await tx.settlement.update({
+                where: { id: settlementId },
+                data: {
+                    approvalStatus: 'APPROVED',
+                    approvedById: approverId,
+                    approvedAt: new Date(),
+                    status: 'APPROVED',
+                },
+            });
 
-        await prisma.settlementApproval.create({
-            data: {
-                settlementId,
-                status: 'APPROVED',
-                approvedById: approverId,
-                notes,
-            },
-        });
+            await tx.settlementApproval.create({
+                data: {
+                    settlementId,
+                    status: 'APPROVED',
+                    approvedById: approverId,
+                    notes,
+                },
+            });
 
-        // UPDATE STOP LIMIT BALANCES
-        const deductionItems = await prisma.settlementDeduction.findMany({
-            where: { settlementId },
-        });
+            // UPDATE GOAL AMOUNT BALANCES (atomic within transaction)
+            const deductionItems = await tx.settlementDeduction.findMany({
+                where: { settlementId },
+            });
 
-        for (const item of deductionItems) {
-            // Only track progress for deductions, not additions (bonuses, overtime, etc.)
-            if (item.category === 'addition') continue;
-            const meta = item.metadata as Record<string, any> | null;
-            if (meta?.deductionRuleId) {
-                await prisma.deductionRule.update({
-                    where: { id: meta.deductionRuleId },
-                    data: { currentAmount: { increment: item.amount } },
-                });
+            for (const item of deductionItems) {
+                if (item.category === 'addition') continue;
+                const meta = item.metadata as Record<string, any> | null;
+                if (meta?.deductionRuleId) {
+                    await tx.deductionRule.update({
+                        where: { id: meta.deductionRuleId },
+                        data: { currentAmount: { increment: item.amount } },
+                    });
+                }
             }
-        }
 
-        return settlement;
+            return settlement;
+        });
     }
 
     /**

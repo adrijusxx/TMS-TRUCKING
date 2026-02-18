@@ -42,7 +42,7 @@ export default function EditMaintenancePage({ params }: { params: { id: string }
             <Breadcrumb
                 items={[
                     { label: 'Maintenance', href: '/dashboard/maintenance' },
-                    { label: `Edit Record #${data.data.maintenanceNumber || data.data.id.substring(0, 8)}` },
+                    { label: `Edit Record ${data.data.maintenanceNumber ? `#${data.data.maintenanceNumber}` : ''}` },
                 ]}
             />
             <div className="space-y-6">

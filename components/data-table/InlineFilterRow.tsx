@@ -38,7 +38,13 @@ export function InlineFilterRow<TData extends Record<string, any>>({ table, enti
                         <FilterInput
                             type={filterType}
                             value={currentValue}
-                            onChange={(value) => column.setFilterValue(value)}
+                            onChange={(value) => {
+                                table.setColumnFilters((prev) => {
+                                    const without = prev.filter((f) => f.id !== filterKey);
+                                    if (value === undefined || value === null || value === '') return without;
+                                    return [...without, { id: filterKey, value }];
+                                });
+                            }}
                             columnDef={columnDef}
                             entityType={entityType}
                             filterKey={filterKey}

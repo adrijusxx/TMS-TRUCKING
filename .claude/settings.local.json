@@ -4,7 +4,11 @@
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
       "Bash(npm run lint:*)",
-      "Bash(node_modules/.bin/next lint --help)"
+      "Bash(node_modules/.bin/next lint --help)",
+      "Bash(xargs:*)",
+      "Bash(npx tsx:*)",
+      "Bash(grep:*)",
+      "Bash(npx prisma generate:*)"
     ]
   }
 }

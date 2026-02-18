@@ -28,6 +28,7 @@ export default async function SettlementDetailPage({
     },
     select: {
       id: true,
+      settlementNumber: true,
     },
   });
 
@@ -40,7 +41,7 @@ export default async function SettlementDetailPage({
     <>
       <Breadcrumb items={[
         { label: 'Settlements', href: '/dashboard/settlements' },
-        { label: `Settlement #${resolvedParams.id.slice(0, 8)}` }
+        { label: `Settlement #${settlement.settlementNumber}` }
       ]} />
       <div className="space-y-6">
         <div>

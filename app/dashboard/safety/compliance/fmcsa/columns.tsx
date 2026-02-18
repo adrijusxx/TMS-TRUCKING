@@ -77,13 +77,6 @@ export function createFMCSAActionItemColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'actionItem',
       accessorKey: 'actionItem',
       header: 'Action Item',

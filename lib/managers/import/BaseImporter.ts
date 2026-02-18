@@ -36,8 +36,10 @@ export abstract class BaseImporter {
         previewOnly?: boolean;
         currentMcNumber?: string;
         updateExisting?: boolean;
+        entity?: string;
         columnMapping?: Record<string, string>;
         importBatchId?: string;
+        treatAsHistorical?: boolean;
     }): Promise<ImportResult>;
 
     /**

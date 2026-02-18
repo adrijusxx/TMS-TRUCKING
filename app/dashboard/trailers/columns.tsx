@@ -3,8 +3,19 @@
 import React from 'react';
 import type { ExtendedColumnDef } from '@/components/data-table/types';
 import { EditableCell } from '@/components/ui/editable-cell';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { updateEntityField } from '@/lib/utils/updateEntityField';
+
+function getTrailerStatusStyle(status: string | null): { badge: string; dot: string } {
+  const s = (status ?? '').toUpperCase();
+  if (s === 'AVAILABLE') return { badge: 'bg-green-100 text-green-800 border-green-200', dot: 'bg-green-500' };
+  if (s === 'IN_USE' || s === 'ASSIGNED') return { badge: 'bg-blue-100 text-blue-800 border-blue-200', dot: 'bg-blue-500' };
+  if (s === 'MAINTENANCE') return { badge: 'bg-orange-100 text-orange-800 border-orange-200', dot: 'bg-orange-500' };
+  if (s === 'OUT_OF_SERVICE') return { badge: 'bg-red-100 text-red-800 border-red-200', dot: 'bg-red-500' };
+  if (s === 'INACTIVE') return { badge: 'bg-gray-100 text-gray-800 border-gray-200', dot: 'bg-gray-400' };
+  return { badge: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-400' };
+}
 
 interface TrailerData {
   id: string;
@@ -32,24 +43,26 @@ export function createTrailerColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'trailerNumber',
       accessorKey: 'trailerNumber',
       header: 'Trailer #',
-      cell: ({ row }) => (
-        <Link
-          href={`/dashboard/trailers/${row.original.id}`}
-          className="text-primary hover:underline font-medium"
-        >
-          {row.original.trailerNumber}
-        </Link>
-      ),
+      cell: ({ row }) => {
+        const { dot } = getTrailerStatusStyle(row.original.status);
+        return (
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${dot}`}
+              title={row.original.status ?? 'Unknown'}
+            />
+            <Link
+              href={`/dashboard/trailers/${row.original.id}`}
+              className="text-primary hover:underline font-medium"
+            >
+              {row.original.trailerNumber}
+            </Link>
+          </div>
+        );
+      },
       defaultVisible: true,
       required: true,
     },
@@ -122,8 +135,13 @@ export function createTrailerColumns(
       id: 'status',
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => row.original.status ? <span className="capitalize">{row.original.status.toLowerCase().replace(/_/g, ' ')}</span> : '-',
-      defaultVisible: false,
+      cell: ({ row }) => {
+        if (!row.original.status) return <span className="text-muted-foreground">-</span>;
+        const { badge } = getTrailerStatusStyle(row.original.status);
+        const label = row.original.status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+        return <Badge variant="outline" className={badge}>{label}</Badge>;
+      },
+      defaultVisible: true,
     },
     {
       id: 'assignedTruck',

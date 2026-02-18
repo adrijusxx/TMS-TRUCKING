@@ -86,6 +86,14 @@ export type InngestEvents = {
       companyId: string;
     };
   };
+  'load/status-changed': {
+    data: {
+      loadId: string;
+      companyId: string;
+      previousStatus: string;
+      newStatus: string;
+    };
+  };
 };
 
 // Create the Inngest client

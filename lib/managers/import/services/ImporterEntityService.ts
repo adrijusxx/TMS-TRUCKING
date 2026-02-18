@@ -145,6 +145,7 @@ export class ImporterEntityService {
                     licenseState: 'XX',
                     licenseExpiry: this.getFutureDate(1),
                     medicalCardExpiry: this.getFutureDate(1),
+                    payType: 'PER_MILE' as any,
                     payRate: 0.65,
                     mcNumberId: this.defaultMcId,
                     status: 'AVAILABLE',
@@ -169,6 +170,7 @@ export class ImporterEntityService {
                     licenseState: 'XX',
                     licenseExpiry: this.getFutureDate(1),
                     medicalCardExpiry: this.getFutureDate(1),
+                    payType: 'PER_MILE' as any,
                     payRate: 0.65,
                     mcNumberId: this.defaultMcId || '', // Driver record might allow null, check schema
                     status: 'AVAILABLE',

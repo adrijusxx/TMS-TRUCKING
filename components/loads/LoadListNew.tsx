@@ -73,7 +73,7 @@ interface LoadData {
   deliveryDate: Date | null;
   revenue: number;
   driverPay: number;
-  profit: number;
+  netProfit: number;
   miles: number;
   weight: number | null;
   missingDocuments?: string[];

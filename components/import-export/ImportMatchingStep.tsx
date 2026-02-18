@@ -28,6 +28,9 @@ interface ImportMatchingStepProps {
     onBack: () => void;
     onNext: () => void;
     isAiMapping?: boolean;
+    entityType?: string;
+    treatAsHistorical?: boolean;
+    setTreatAsHistorical?: (val: boolean) => void;
 }
 
 export function ImportMatchingStep({
@@ -43,6 +46,9 @@ export function ImportMatchingStep({
     onBack,
     onNext,
     isAiMapping,
+    entityType,
+    treatAsHistorical,
+    setTreatAsHistorical,
 }: ImportMatchingStepProps) {
     const [showColumnMapping, setShowColumnMapping] = useState(false);
 
@@ -88,6 +94,27 @@ export function ImportMatchingStep({
                     </p>
                 </div>
             </div>
+
+            {entityType === 'loads' && setTreatAsHistorical && (
+                <div className="flex items-start space-x-2 pt-2">
+                    <Checkbox
+                        id="treat-historical"
+                        checked={treatAsHistorical}
+                        onCheckedChange={(checked) => setTreatAsHistorical(checked === true)}
+                    />
+                    <div className="grid gap-1.5 leading-none">
+                        <label
+                            htmlFor="treat-historical"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                            Treat as historical data (recommended)
+                        </label>
+                        <p className="text-xs text-muted-foreground">
+                            All loads will be marked as fully completed (PAID). Uncheck only if importing loads that are still in progress.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div className="space-y-4 pt-4 border-t">
                 <div className="flex items-center justify-between">

@@ -90,13 +90,6 @@ export function createIncidentColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'incidentNumber',
       accessorKey: 'incidentNumber',
       header: 'Incident #',

@@ -87,13 +87,6 @@ export function createDOTInspectionColumns(
 
   return [
     {
-      id: 'id',
-      accessorKey: 'id',
-      header: 'ID',
-      cell: ({ row }) => row.original.id,
-      defaultVisible: false,
-    },
-    {
       id: 'inspectionNumber',
       accessorKey: 'inspectionNumber',
       header: 'Inspection #',

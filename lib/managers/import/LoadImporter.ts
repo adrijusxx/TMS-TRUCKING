@@ -6,10 +6,19 @@ import { LoadRowMapper } from './mapping/LoadRowMapper';
 import { LoadPersistenceService } from './services/LoadPersistenceService';
 import { ImportValueFormatter } from '@/lib/services/ImportValueFormatter';
 
+const STATUS_ORDER = ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED',
+    'EN_ROUTE_DELIVERY', 'AT_DELIVERY', 'DELIVERED', 'INVOICED', 'PAID'];
+
+function statusAtOrBeyond(current: string, target: string): boolean {
+    const ci = STATUS_ORDER.indexOf(current);
+    const ti = STATUS_ORDER.indexOf(target);
+    return ci >= 0 && ti >= 0 && ci >= ti;
+}
+
 /**
- * LoadImporter - Split from original file to comply with 500-line limit.
- * Coordinates the import process using dedicated services for entity resolution,
- * anomaly detection, and persistence.
+ * LoadImporter - Coordinates load import with historical mode support.
+ * When treatAsHistorical=true (default), all loads are set to PAID status
+ * with full timestamps, making them closed historical records.
  */
 export class LoadImporter extends BaseImporter {
     private statusCache = new Map<string, LoadStatus>();
@@ -20,7 +29,7 @@ export class LoadImporter extends BaseImporter {
     }
 
     async importLoads(data: any[], options: any): Promise<ImportResult> {
-        const { previewOnly, updateExisting, columnMapping, importBatchId } = options;
+        const { previewOnly, updateExisting, columnMapping, importBatchId, treatAsHistorical } = options;
         const maps = await this.preFetchLookups();
         const entityService = new ImporterEntityService(this.prisma, this.companyId, maps.defaultMcId);
 
@@ -47,14 +56,15 @@ export class LoadImporter extends BaseImporter {
                 const customerName = customerNameRaw || locations.pickup.location;
 
                 const customerId = await entityService.resolveCustomer(customerName, maps.customerMap, previewOnly, importBatchId);
-                const driverId = await entityService.resolveDriver(this.getVal(row, 'driverId', columnMapping), maps.driverMap, previewOnly, importBatchId);
-                const coDriverId = await entityService.resolveDriver(this.getVal(row, 'coDriverId', columnMapping), maps.driverMap, previewOnly, importBatchId);
+                const driverId = await entityService.resolveDriver(this.getValue(row, 'driverId', columnMapping, ['Driver', 'driver', 'driver/carrier', 'Driver/Carrier', 'Driver Name']), maps.driverMap, previewOnly, importBatchId);
+                const coDriverId = await entityService.resolveDriver(this.getValue(row, 'coDriverId', columnMapping, ['Co-Driver', 'co-driver', 'co_driver', 'Team Driver']), maps.driverMap, previewOnly, importBatchId);
                 const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId);
                 const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId);
 
                 // 3. AI Smart Mapping (Status & Type)
-                const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'Current Status']);
-                const status = await this.mapLoadStatusSmart(statusStr);
+                const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'load_status', 'Current Status']);
+                const csvStatus = await this.mapLoadStatusSmart(statusStr);
+                const status = treatAsHistorical ? LoadStatus.PAID : csvStatus;
 
                 const typeStr = this.getValue(row, 'loadType', columnMapping, ['Load Type', 'load_type', 'Type', 'size', 'Size']);
                 const loadType = await this.mapLoadTypeSmart(typeStr);
@@ -64,7 +74,7 @@ export class LoadImporter extends BaseImporter {
                 const { driverPay } = LoadAnomalyDetector.autoCorrect({ ...financial, defaultPayRate: 0.65 });
 
                 // 5. Construct Load Object
-                const dispatcherNameRaw = this.getValue(row, 'dispatcherId', columnMapping, ['Dispatcher', 'dispatcher', 'Dispatch', 'Agent'])?.toLowerCase().trim();
+                const dispatcherNameRaw = this.getValue(row, 'dispatcherId', columnMapping, ['Dispatcher', 'dispatcher', 'Dispatch', 'Agent', 'created_by', 'Created By'])?.toLowerCase().trim();
                 let dispatcherId = maps.dispatcherMap.get(dispatcherNameRaw);
 
                 // Fallback: Try partial match on First Name if full name fails
@@ -107,7 +117,7 @@ export class LoadImporter extends BaseImporter {
 
         if (previewOnly) return this.buildPreviewResult(data.length, preparedLoads, errors, warnings);
 
-        const persistence = new LoadPersistenceService(this.prisma, this.companyId);
+        const persistence = new LoadPersistenceService(this.prisma, this.companyId, this.userId);
         const persistResult = await persistence.persist(preparedLoads, { updateExisting, importBatchId });
 
         return {
@@ -146,6 +156,17 @@ export class LoadImporter extends BaseImporter {
     }
 
     private buildLoadObject(row: any, rowNum: number, context: any, mapping: any) {
+        const pickup = context.pickup || {};
+        const delivery = context.delivery || {};
+        const status = context.status || LoadStatus.PENDING;
+        const revenue = context.revenue || 0;
+        const driverPay = context.driverPay || 0;
+
+        // Calculate revenuePerMile if not already set from CSV
+        const rpm = context.revenuePerMile ||
+            (revenue > 0 && context.totalMiles > 0
+                ? Number((revenue / context.totalMiles).toFixed(2)) : undefined);
+
         return {
             loadNumber: String(this.getValue(row, 'loadNumber', mapping, ['Load ID', 'load_id', 'Load Number']) || `L-${rowNum}-${Date.now().toString().slice(-4)}`).trim(),
             customerId: context.customerId,
@@ -154,8 +175,8 @@ export class LoadImporter extends BaseImporter {
             truckId: context.truckId,
             trailerId: context.trailerId,
             dispatcherId: context.dispatcherId,
-            revenue: context.revenue,
-            driverPay: context.driverPay,
+            revenue,
+            driverPay,
             fuelAdvance: context.fuelAdvance,
             totalMiles: context.totalMiles,
             loadedMiles: context.loadedMiles,
@@ -168,28 +189,47 @@ export class LoadImporter extends BaseImporter {
             temperature: context.temperature,
             hazmat: context.hazmat,
             hazmatClass: context.hazmatClass,
-            revenuePerMile: context.revenuePerMile,
-            pickupCity: context.pickupCity,
-            pickupState: context.pickupState,
-            pickupZip: context.pickupZip,
-            pickupLocation: context.pickupLocation,
-            pickupCompany: context.pickupCompany,
-            deliveryCity: context.deliveryCity,
-            deliveryState: context.deliveryState,
-            deliveryZip: context.deliveryZip,
-            deliveryLocation: context.deliveryLocation,
-            deliveryCompany: context.deliveryCompany,
+            revenuePerMile: rpm,
+            pickupCity: pickup.city || context.pickupCity,
+            pickupState: pickup.state || context.pickupState,
+            pickupZip: pickup.zip || context.pickupZip,
+            pickupLocation: pickup.location || context.pickupLocation,
+            pickupCompany: pickup.company || context.pickupCompany,
+            deliveryCity: delivery.city || context.deliveryCity,
+            deliveryState: delivery.state || context.deliveryState,
+            deliveryZip: delivery.zip || context.deliveryZip,
+            deliveryLocation: delivery.location || context.deliveryLocation,
+            deliveryCompany: delivery.company || context.deliveryCompany,
             pickupDate: context.pickupDate,
             deliveryDate: context.deliveryDate,
             mcNumberId: context.mcNumberId,
             companyId: this.companyId,
             createdById: this.userId,
-            status: context.status || LoadStatus.PENDING,
+            status,
             loadType: context.loadType || LoadType.FTL,
             equipmentType: context.equipmentType || EquipmentType.DRY_VAN,
             dispatchNotes: context.dispatchNotes,
             driverNotes: context.driverNotes,
             shipmentId: context.shipmentId,
+            tripId: context.tripId,
+            stopsCount: context.stopsCount,
+            lastNote: context.lastNote,
+            onTimeDelivery: context.onTimeDelivery,
+            lastUpdate: context.lastUpdate,
+            // Computed fields
+            netProfit: revenue > 0 ? Number((revenue - driverPay).toFixed(2)) : undefined,
+            readyForSettlement: statusAtOrBeyond(status, 'DELIVERED'),
+            // Status timestamps based on progression
+            assignedAt: statusAtOrBeyond(status, 'ASSIGNED') ? (context.pickupDate || new Date()) : undefined,
+            pickedUpAt: statusAtOrBeyond(status, 'AT_PICKUP') ? (context.pickupDate || new Date()) : undefined,
+            deliveredAt: statusAtOrBeyond(status, 'DELIVERED') ? (context.deliveryDate || new Date()) : undefined,
+            invoicedAt: statusAtOrBeyond(status, 'INVOICED') ? (context.deliveryDate || new Date()) : undefined,
+            paidAt: status === LoadStatus.PAID ? (context.deliveryDate || new Date()) : undefined,
+            // Stop contact info (passed through to LoadStop creation)
+            pickupContact: context.pickupContact,
+            pickupPhone: context.pickupPhone,
+            deliveryContact: context.deliveryContact,
+            deliveryPhone: context.deliveryPhone,
         };
     }
 
