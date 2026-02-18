@@ -38,9 +38,27 @@ export class GoogleSheetsClient {
             throw new Error('Google service account credentials are required');
         }
 
-        let rawKey = serviceAccountPrivateKey.trim();
+        const key = this.normalizePrivateKey(serviceAccountPrivateKey);
 
-        // STRATEGY 0: Handle JSON format (full service account JSON file)
+        const authClient = new google.auth.JWT({
+            email: serviceAccountEmail,
+            key,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+        await authClient.authorize();
+        this.auth = authClient;
+        this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+    }
+
+    /**
+     * Normalize a private key into PKCS#8 PEM format.
+     * Handles: JSON service account files, escaped newlines, PKCS#1, PKCS#8, DER.
+     * Always outputs PKCS#8 PEM — guaranteed compatible with OpenSSL 3.x.
+     */
+    private normalizePrivateKey(input: string): string {
+        let rawKey = input.trim();
+
+        // Handle JSON format (full service account JSON file)
         if (rawKey.startsWith('{')) {
             try {
                 const parsed = JSON.parse(rawKey);
@@ -56,100 +74,70 @@ export class GoogleSheetsClient {
             rawKey = rawKey.slice(1, -1);
         }
 
-        // Build key variants to try in order
-        const keyStrategies = this.buildKeyStrategies(rawKey);
-        let lastError: any;
+        // Replace escaped newlines and strip carriage returns
+        const cleaned = rawKey.replace(/\\n/g, '\n').replace(/\r/g, '');
 
-        for (let i = 0; i < keyStrategies.length; i++) {
+        // Attempt 1: Parse cleaned PEM directly (most common path)
+        if (cleaned.includes('BEGIN')) {
             try {
-                const key = keyStrategies[i]();
-                const authClient = new google.auth.JWT({
-                    email: serviceAccountEmail,
-                    key,
-                    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-                });
-                await authClient.authorize();
-                this.auth = authClient;
-                this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-                return;
-            } catch (error: any) {
-                lastError = error;
-                console.error(`[GoogleAuth] Strategy ${i + 1} failed:`, error.message);
+                const keyObj = createPrivateKey({ key: cleaned, format: 'pem' });
+                return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
+            } catch (e) {
+                console.error('[GoogleAuth] Direct PEM parse failed:', (e as Error).message);
             }
         }
 
-        // All strategies failed — log debug info
-        console.error('[GoogleAuth DEBUG] All strategies failed. Key stats:', {
-            length: serviceAccountPrivateKey.length,
-            startsWithQuote: serviceAccountPrivateKey.startsWith('"'),
-            startsWithBrace: serviceAccountPrivateKey.startsWith('{'),
-            hasEscapedNewline: serviceAccountPrivateKey.includes('\\n'),
-            hasRealNewline: serviceAccountPrivateKey.includes('\n'),
-            hasCarriageReturn: serviceAccountPrivateKey.includes('\r'),
+        // Extract raw base64 for reconstruction attempts
+        const base64Only = rawKey
+            .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
+            .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
+            .replace(/\\n/g, '')
+            .replace(/[\s\r\n"']/g, '');
+
+        const chunked = base64Only.match(/.{1,64}/g)?.join('\n') || base64Only;
+
+        // Attempt 2: Reconstruct as PKCS#8 PEM → validate with createPrivateKey
+        try {
+            const pem = `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
+            const keyObj = createPrivateKey({ key: pem, format: 'pem' });
+            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
+        } catch {}
+
+        // Attempt 3: Reconstruct as PKCS#1 PEM → convert to PKCS#8
+        try {
+            const pem = `-----BEGIN RSA PRIVATE KEY-----\n${chunked}\n-----END RSA PRIVATE KEY-----\n`;
+            const keyObj = createPrivateKey({ key: pem, format: 'pem' });
+            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
+        } catch {}
+
+        // Attempt 4: Parse as raw DER binary (PKCS#8)
+        try {
+            const der = Buffer.from(base64Only, 'base64');
+            const keyObj = createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
+        } catch {}
+
+        // Attempt 5: Parse as raw DER binary (PKCS#1) → convert to PKCS#8
+        try {
+            const der = Buffer.from(base64Only, 'base64');
+            const keyObj = createPrivateKey({ key: der, format: 'der', type: 'pkcs1' });
+            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
+        } catch {}
+
+        // All attempts failed — log debug info for AWS troubleshooting
+        console.error('[GoogleAuth] All key normalization attempts failed. Debug:', {
+            inputLength: input.length,
+            base64Length: base64Only.length,
+            hasEscapedNewline: input.includes('\\n'),
+            hasRealNewline: input.includes('\n'),
+            startsWithDash: input.trimStart().startsWith('-'),
+            startsWithBrace: input.trimStart().startsWith('{'),
+            first40: input.substring(0, 40) + '...',
         });
 
         throw new Error(
-            `Failed to initialize Google authentication: ${lastError?.message || 'Invalid credentials'}`
+            'Failed to initialize Google authentication: Could not parse private key in any supported format (PKCS#1, PKCS#8, DER). Check the key value in AWS Secrets Manager.'
         );
-    }
-
-    /**
-     * Build an ordered list of key-normalization strategies.
-     * OpenSSL 3.x (Node 18+) rejects PKCS#1 (RSA PRIVATE KEY) format.
-     * We always try PKCS#8 first, then convert PKCS#1 → PKCS#8 via Node crypto.
-     */
-    private buildKeyStrategies(rawKey: string): Array<() => string> {
-        return [
-            // Strategy 1: Replace escaped newlines, strip \r — use as-is if PKCS#8
-            () => {
-                const key = rawKey.replace(/\\n/g, '\n').replace(/\r/g, '');
-                if (!key.includes('BEGIN PRIVATE KEY') && !key.includes('BEGIN RSA PRIVATE KEY')) {
-                    throw new Error('Missing PEM markers');
-                }
-                // If it's PKCS#1, convert to PKCS#8 for OpenSSL 3.x compatibility
-                if (key.includes('BEGIN RSA PRIVATE KEY')) {
-                    return this.convertPKCS1toPKCS8(key);
-                }
-                return key;
-            },
-            // Strategy 2: Robust reconstruction as PKCS#8
-            () => {
-                const base64Only = rawKey
-                    .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
-                    .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
-                    .replace(/\\n/g, '')
-                    .replace(/[\s\r\n"']/g, '');
-
-                const chunked = base64Only.match(/.{1,64}/g)?.join('\n');
-                return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
-            },
-            // Strategy 3: Reconstruct as PKCS#1 and convert to PKCS#8
-            () => {
-                const base64Only = rawKey
-                    .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
-                    .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
-                    .replace(/\\n/g, '')
-                    .replace(/[\s\r\n"']/g, '');
-
-                const chunked = base64Only.match(/.{1,64}/g)?.join('\n');
-                const pkcs1Pem = `-----BEGIN RSA PRIVATE KEY-----\n${chunked}\n-----END RSA PRIVATE KEY-----\n`;
-                return this.convertPKCS1toPKCS8(pkcs1Pem);
-            },
-        ];
-    }
-
-    /**
-     * Convert PKCS#1 (RSA PRIVATE KEY) to PKCS#8 (PRIVATE KEY) using Node crypto.
-     * Required for OpenSSL 3.x compatibility on newer Node.js / AWS Linux.
-     */
-    private convertPKCS1toPKCS8(pkcs1Pem: string): string {
-        try {
-            const keyObj = createPrivateKey({ key: pkcs1Pem, format: 'pem' });
-            return keyObj.export({ type: 'pkcs8', format: 'pem' }) as string;
-        } catch {
-            // If conversion fails, return original — let the caller handle the error
-            return pkcs1Pem;
-        }
     }
 
     /**
