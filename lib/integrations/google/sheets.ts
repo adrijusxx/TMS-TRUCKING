@@ -93,29 +93,47 @@ export class GoogleSheetsClient {
 
     /**
      * Clean a private key string for use with Google auth.
-     * Handles JSON service account files, escaped newlines, and quote wrapping.
+     * Handles: JSON key/value secrets (AWS Secrets Manager), full service account JSON,
+     * spaces instead of newlines, escaped newlines, surrounding quotes.
+     * Always outputs a clean PKCS#8 PEM with proper 64-char line breaks.
      */
     private cleanPrivateKey(input: string): string {
-        let rawKey = input.trim();
+        let value = input.trim();
 
-        // Handle JSON format (full service account JSON file)
-        if (rawKey.startsWith('{')) {
+        // Handle JSON format — either full service account JSON or AWS key/value secret
+        if (value.startsWith('{')) {
             try {
-                const parsed = JSON.parse(rawKey);
-                if (parsed.private_key) rawKey = parsed.private_key;
+                const parsed = JSON.parse(value);
+                if (parsed.private_key) {
+                    value = parsed.private_key;
+                } else {
+                    // AWS Secrets Manager key/value format: extract first string value
+                    const strVal = Object.values(parsed).find(v => typeof v === 'string') as string | undefined;
+                    if (strVal) value = strVal;
+                }
             } catch {
                 // Not valid JSON, continue with raw string
             }
         }
 
         // Strip surrounding quotes
-        if ((rawKey.startsWith('"') && rawKey.endsWith('"')) ||
-            (rawKey.startsWith("'") && rawKey.endsWith("'"))) {
-            rawKey = rawKey.slice(1, -1);
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
         }
 
         // Replace escaped newlines and strip carriage returns
-        return rawKey.replace(/\\n/g, '\n').replace(/\r/g, '');
+        value = value.replace(/\\n/g, '\n').replace(/\r/g, '');
+
+        // Extract raw base64 from PEM, then reconstruct with proper 64-char line breaks.
+        // This fixes spaces-instead-of-newlines (common from AWS console paste).
+        const base64 = value
+            .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
+            .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
+            .replace(/\s+/g, '');
+
+        const chunked = base64.match(/.{1,64}/g)?.join('\n') || base64;
+        return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
     }
 
     /**

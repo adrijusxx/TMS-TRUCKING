@@ -74,6 +74,44 @@ async function buildDatabaseUrl(rdsSecretJson) {
     }
 }
 
+/**
+ * Extract and normalize a PEM private key from various storage formats.
+ * Handles: JSON key/value secrets (AWS Secrets Manager), spaces instead of newlines,
+ * escaped newlines, surrounding quotes. Always outputs a clean PKCS#8 PEM.
+ */
+function normalizePemKey(raw) {
+    let value = raw;
+
+    // 1. If stored as JSON key/value (AWS Secrets Manager "Key/value" format),
+    //    extract the first string value from the JSON object
+    if (value.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(value);
+            const strVal = Object.values(parsed).find(v => typeof v === 'string');
+            if (strVal) value = strVal;
+        } catch {}
+    }
+
+    // 2. Strip surrounding quotes
+    if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+    }
+
+    // 3. Replace escaped newlines with real newlines, strip carriage returns
+    value = value.replace(/\\n/g, '\n').replace(/\r/g, '');
+
+    // 4. Extract raw base64 from PEM (handles spaces, newlines, or mixed whitespace)
+    //    Then reconstruct a clean PEM with proper 64-char line breaks
+    const base64 = value
+        .replace(/-----BEGIN (?:RSA )?PRIVATE KEY-----/g, '')
+        .replace(/-----END (?:RSA )?PRIVATE KEY-----/g, '')
+        .replace(/\s+/g, ''); // strip ALL whitespace (spaces, newlines, tabs)
+
+    const chunked = base64.match(/.{1,64}/g)?.join('\n') || base64;
+    return `-----BEGIN PRIVATE KEY-----\n${chunked}\n-----END PRIVATE KEY-----\n`;
+}
+
 async function main() {
     console.log(`[Startup] Initializing AWS Secrets Manager Client (${REGION})...`);
     const client = new SecretsManagerClient({ region: REGION });
@@ -113,37 +151,39 @@ async function main() {
 
     await Promise.all(secretPromises);
 
-    // 2b. Write Google Service Account credentials to a temp JSON file
-    //     This bypasses env var encoding issues with PEM keys on OpenSSL 3.x (AWS EC2)
-    const googleEmail = env['GOOGLE_SERVICE_ACCOUNT_EMAIL'];
-    const googleKey = env['GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY'];
+    // 2b. Set GOOGLE_APPLICATION_CREDENTIALS for Google Sheets auth
+    //     Prefer a pre-deployed SA JSON file on disk (avoids Secrets Manager PEM encoding issues)
+    const googleSAFilePath = '/opt/tms/google-sa.json';
 
-    if (googleEmail && googleKey) {
-        try {
-            // Clean the private key: replace escaped \n with real newlines, strip quotes
-            let normalizedKey = googleKey;
-            if ((normalizedKey.startsWith('"') && normalizedKey.endsWith('"')) ||
-                (normalizedKey.startsWith("'") && normalizedKey.endsWith("'"))) {
-                normalizedKey = normalizedKey.slice(1, -1);
+    if (fs.existsSync(googleSAFilePath)) {
+        env['GOOGLE_APPLICATION_CREDENTIALS'] = googleSAFilePath;
+        console.log(`[Startup] Google SA credentials file found at ${googleSAFilePath}`);
+    } else {
+        // Fallback: construct temp file from Secrets Manager values
+        const googleEmail = env['GOOGLE_SERVICE_ACCOUNT_EMAIL'];
+        const googleKey = env['GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY'];
+
+        if (googleEmail && googleKey) {
+            try {
+                const normalizedKey = normalizePemKey(googleKey);
+
+                const credentials = {
+                    type: 'service_account',
+                    client_email: googleEmail,
+                    private_key: normalizedKey,
+                };
+
+                const credPath = path.join(os.tmpdir(), 'google-sa-credentials.json');
+                fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), {
+                    encoding: 'utf8',
+                    mode: 0o600,
+                });
+
+                env['GOOGLE_APPLICATION_CREDENTIALS'] = credPath;
+                console.log(`[Startup] Google SA credentials file written to ${credPath}`);
+            } catch (credError) {
+                console.warn('[Startup] Warning: Could not write Google credentials file:', credError.message);
             }
-            normalizedKey = normalizedKey.replace(/\\n/g, '\n').replace(/\r/g, '');
-
-            const credentials = {
-                type: 'service_account',
-                client_email: googleEmail,
-                private_key: normalizedKey,
-            };
-
-            const credPath = path.join(os.tmpdir(), 'google-sa-credentials.json');
-            fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), {
-                encoding: 'utf8',
-                mode: 0o600,
-            });
-
-            env['GOOGLE_APPLICATION_CREDENTIALS'] = credPath;
-            console.log(`[Startup] Google SA credentials file written to ${credPath}`);
-        } catch (credError) {
-            console.warn('[Startup] Warning: Could not write Google credentials file:', credError.message);
         }
     }
 
