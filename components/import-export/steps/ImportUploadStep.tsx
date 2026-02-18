@@ -1,13 +1,13 @@
 'use client';
 
 import { useRef, useCallback } from 'react';
-import { Upload, FileText, Trash2, ArrowRight, Loader2 } from 'lucide-react';
+import { Upload, FileText, Trash2, ArrowRight, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
-import { AIImportAdvisor } from '../AIImportAdvisor';
+import { apiUrl } from '@/lib/utils';
 import type { UseImportWizardReturn } from '@/lib/hooks/useImportWizard';
 
 interface ImportUploadStepProps {
@@ -44,6 +44,17 @@ export function ImportUploadStep({ wizard }: ImportUploadStepProps) {
           onValueChange={wizard.setSelectedMcNumberId}
           className="w-full"
         />
+      </div>
+
+      {/* Download example */}
+      <div className="flex justify-end">
+        <a
+          href={apiUrl(`/api/import/template?entityType=${wizard.entityType}`)}
+          download
+          className="text-xs text-primary hover:underline flex items-center gap-1"
+        >
+          <Download className="w-3 h-3" /> Download Example Spreadsheet
+        </a>
       </div>
 
       {/* File drop zone */}
@@ -123,11 +134,6 @@ export function ImportUploadStep({ wizard }: ImportUploadStepProps) {
             </p>
           </div>
         </div>
-      )}
-
-      {/* AI Advisor */}
-      {wizard.selectedFile && (wizard.isAnalyzing || wizard.aiAnalysis) && (
-        <AIImportAdvisor analysis={wizard.aiAnalysis} isAnalyzing={wizard.isAnalyzing} isMapping={wizard.isAiMapping} />
       )}
 
       {/* Next button */}

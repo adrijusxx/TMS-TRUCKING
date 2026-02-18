@@ -86,10 +86,10 @@ export class TruckImporter extends BaseImporter {
 
                 // Match Status and Equipment
                 const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status']);
-                const status = await this.mapTruckStatusSmart(statusStr);
+                const status = this.mapTruckStatusSmart(statusStr);
 
                 const eqTypeStr = this.getValue(row, 'equipmentType', columnMapping, ['Equipment Type', 'equipment_type']);
-                const eqType = await this.mapEquipmentTypeSmart(eqTypeStr);
+                const eqType = this.mapEquipmentTypeSmart(eqTypeStr);
 
                 // Smart State Parsing
                 const stateVal = this.getValue(row, 'state', columnMapping, ['State', 'state', 'Registration State']);
@@ -224,56 +224,28 @@ export class TruckImporter extends BaseImporter {
         }, trucksToCreate, errors, warnings);
     }
 
-    private async mapTruckStatusSmart(value: any): Promise<TruckStatus> {
+    private mapTruckStatusSmart(value: any): TruckStatus {
         if (!value) return TruckStatus.AVAILABLE;
         const v = String(value).toUpperCase().trim();
 
-        // Fast heuristics
         if (v.includes('IN_USE') || v.includes('INUSE') || v.includes('ACTIVE')) return TruckStatus.IN_USE;
         if (v.includes('MAINT') || v.includes('SHOP') || v.includes('REPAIR')) return TruckStatus.MAINTENANCE;
         if (v.includes('OUT') || v.includes('DOWN') || v.includes('SERVICE')) return TruckStatus.OUT_OF_SERVICE;
         if (v.includes('INACTIVE') || v.includes('QUIT')) return TruckStatus.INACTIVE;
         if (v.includes('AVAIL') || v.includes('READY') || v.includes('OK')) return TruckStatus.AVAILABLE;
 
-        // Fallback to AI status mapping if it's very messy
-        try {
-            const result = await this.aiService.callAI(`Map this truck status to one of: AVAILABLE, IN_USE, MAINTENANCE, OUT_OF_SERVICE, INACTIVE. Input: "${value}"`, {
-                systemPrompt: "Return ONLY the enum value as a plain string, no JSON, no markdown.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).replace(/['"`]/g, '').toUpperCase().trim() as TruckStatus;
-            if (Object.values(TruckStatus).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[TruckImporter] AI status mapping failed', e);
-        }
-
         return TruckStatus.AVAILABLE;
     }
 
-    private async mapEquipmentTypeSmart(value: any): Promise<EquipmentType> {
+    private mapEquipmentTypeSmart(value: any): EquipmentType {
         if (!value) return EquipmentType.DRY_VAN;
         const v = String(value).toUpperCase().trim();
 
-        // Fast heuristics
         if (v.includes('REEFER') || v.includes('REF')) return EquipmentType.REEFER;
         if (v.includes('FLAT') || v.includes('FB')) return EquipmentType.FLATBED;
         if (v.includes('STEP') || v.includes('SD')) return EquipmentType.STEP_DECK;
         if (v.includes('TANK')) return EquipmentType.TANKER;
         if (v.includes('VAN') || v.includes('DRY')) return EquipmentType.DRY_VAN;
-
-        // Fallback to AI
-        try {
-            const result = await this.aiService.callAI(`Map this equipment type to one of: DRY_VAN, REEFER, FLATBED, STEP_DECK, TANKER. Input: "${value}"`, {
-                systemPrompt: "Return ONLY the enum value as a plain string, no JSON, no markdown.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).replace(/['"`]/g, '').toUpperCase().trim() as EquipmentType;
-            if (Object.values(EquipmentType).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[TruckImporter] AI equipment mapping failed', e);
-        }
 
         return EquipmentType.DRY_VAN;
     }

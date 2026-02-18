@@ -9,7 +9,6 @@ import { apiUrl } from '@/lib/utils';
 import { deduplicateSystemFields, getSystemFieldsForEntity } from '@/lib/import-export/field-utils';
 import { validateImportData, getModelNameFromEntityType } from '@/lib/validations/import-field-validator';
 import { autoMapColumns } from '@/lib/import-export/auto-map-columns';
-import type { AIAnalysisResult } from '@/components/import-export/AIImportAdvisor';
 import type { MissingFieldWarning } from '@/lib/validations/import-field-validator';
 
 export interface ImportProgress {
@@ -65,10 +64,6 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
   const [selectedMcNumberId, setSelectedMcNumberId] = useState('');
   const [updateExisting, setUpdateExisting] = useState(false);
   const [treatAsHistorical, setTreatAsHistorical] = useState(true);
-
-  // AI Analysis
-  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysisResult | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Preview
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -182,7 +177,6 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
     setFixedValues({});
     setImportDetails(null);
     setPreviewData(null);
-    setAiAnalysis(null);
     setImportProgress({ status: 'idle', message: '', progress: 0 });
     setIsProcessing(true);
 
@@ -197,19 +191,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
         const autoMap = autoMapColumns(headers, systemFields);
         setColumnMapping(autoMap);
 
-        // 2. AI analysis (silent)
-        setIsAnalyzing(true);
-        fetch(apiUrl('/api/import-export/analyze-file'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ headers, sampleData: result.data.slice(0, 3), entityType }),
-        })
-          .then(res => res.ok ? res.json() : null)
-          .then(data => { if (data) setAiAnalysis(data); })
-          .catch(() => {})
-          .finally(() => setIsAnalyzing(false));
-
-        // 3. AI mapping (silent, merges with local)
+        // 2. AI mapping (silent, merges with local)
         setIsAiMapping(true);
         aiMappingMutation.mutate(headers);
 
@@ -232,7 +214,6 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
     setUpdateExisting(false);
     setImportDetails(null);
     setPreviewData(null);
-    setAiAnalysis(null);
     setImportProgress({ status: 'idle', message: '', progress: 0 });
     setSelectedMcNumberId('');
     setLogs([]);
@@ -245,11 +226,23 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
       if (!selectedFile || !importResult) throw new Error('No file');
       setImportProgress({ status: 'processing', message: 'Analyzing data...', progress: 20 });
 
+      // Strip unmapped columns and empty values to reduce payload size
+      const mappedCsvHeaders = new Set(Object.keys(columnMapping));
+      const strippedPreviewData = importResult.data.map(row => {
+        const stripped: Record<string, any> = {};
+        for (const [key, value] of Object.entries(row)) {
+          if (value != null && value !== '' && mappedCsvHeaders.has(key)) {
+            stripped[key] = value;
+          }
+        }
+        return stripped;
+      });
+
       const res = await fetch(apiUrl(entityType === 'invoices' ? '/api/invoices/import' : `/api/import-export/${entityType}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          data: importResult.data,
+          data: strippedPreviewData,
           columnMapping,
           fixedValues,
           mcNumberId: selectedMcNumberId,
@@ -287,7 +280,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
       setImportDetails(null);
       setLogs([]);
 
-      const BATCH_SIZE = 100;
+      const BATCH_SIZE = 50;
       const totalRows = importResult.data.length;
       const chunks: any[][] = [];
       for (let i = 0; i < totalRows; i += BATCH_SIZE) {
@@ -299,8 +292,21 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
 
       setLogs(prev => [...prev, `Starting import of ${totalRows} rows in ${chunks.length} batches...`]);
 
+      // Strip unmapped columns and empty values to reduce payload size
+      const mappedCsvHeaders = new Set(Object.keys(columnMapping));
+      const stripRow = (row: any) => {
+        const stripped: Record<string, any> = {};
+        for (const [key, value] of Object.entries(row)) {
+          if (value != null && value !== '' && mappedCsvHeaders.has(key)) {
+            stripped[key] = value;
+          }
+        }
+        return stripped;
+      };
+
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
+        const strippedChunk = chunk.map(stripRow);
         const batchNum = i + 1;
         setImportProgress({ status: 'processing', message: `Processing batch ${batchNum}/${chunks.length}...`, progress: Math.round((i / chunks.length) * 100) });
 
@@ -310,7 +316,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              data: chunk,
+              data: strippedChunk,
               columnMapping,
               fixedValues,
               mcNumberId: selectedMcNumberId,
@@ -374,7 +380,6 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
     selectedMcNumberId, setSelectedMcNumberId,
     updateExisting, setUpdateExisting,
     treatAsHistorical, setTreatAsHistorical,
-    aiAnalysis, isAnalyzing,
     previewData, setPreviewData, previewMutation,
     importProgress, importDetails, importMutation,
     logs, logsEndRef,

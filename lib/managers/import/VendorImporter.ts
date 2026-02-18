@@ -86,7 +86,7 @@ export class VendorImporter extends BaseImporter {
 
                 // --- Smart Category Mapping ---
                 const typeStr = this.getValue(row, 'type', columnMapping, ['Type', 'type', 'Category']);
-                const type = await this.mapVendorTypeSmart(typeStr);
+                const type = this.mapVendorTypeSmart(typeStr);
 
                 const vendorData: any = {
                     companyId: this.companyId,
@@ -182,34 +182,16 @@ export class VendorImporter extends BaseImporter {
     }
 
 
-    private async mapVendorTypeSmart(value: any): Promise<VendorType> {
+    private mapVendorTypeSmart(value: any): VendorType {
         if (!value) return VendorType.SUPPLIER;
         const v = String(value).toUpperCase().trim();
 
-        // Heuristics
         if (v.includes('PARTS')) return VendorType.PARTS_VENDOR;
         if (v.includes('SERVICE')) return VendorType.SERVICE_PROVIDER;
         if (v.includes('FUEL')) return VendorType.FUEL_VENDOR;
         if (v.includes('REPAIR') || v.includes('SHOP')) return VendorType.REPAIR_SHOP;
         if (v.includes('TIRE')) return VendorType.TIRE_SHOP;
         if (v.includes('SUPPLY') || v.includes('SUPPLIER')) return VendorType.SUPPLIER;
-
-        // Fallback to AI for messy inputs
-        try {
-            const prompt = `Map this vendor category to one of: PARTS_VENDOR, SERVICE_PROVIDER, FUEL_VENDOR, REPAIR_SHOP, TIRE_SHOP, SUPPLIER. 
-            Input: "${value}"`;
-
-            const result = await this.aiService.callAI(prompt, {
-                systemPrompt: "Return ONLY the enum value from the list provided.",
-                jsonMode: false,
-                temperature: 0
-            });
-
-            const mapped = String(result.data).toUpperCase().trim() as VendorType;
-            if (Object.values(VendorType).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[VendorImporter] AI type mapping failed', e);
-        }
 
         return VendorType.SUPPLIER;
     }

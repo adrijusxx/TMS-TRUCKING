@@ -6,6 +6,7 @@
 interface EntityConfig {
   label: string;
   fields: Array<{ key: string; label: string; required?: boolean; suggestedCsvHeaders?: string[] }>;
+  exampleRow?: Record<string, string>;
   exampleFileUrl?: string;
 }
 
@@ -30,6 +31,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'driverId', label: 'Driver', suggestedCsvHeaders: ['Driver', 'driver', 'Assigned Driver', 'Operator'] },
       { key: 'mcNumberId', label: 'MC Number', suggestedCsvHeaders: ['MC Number', 'mc_number', 'MC'] },
     ],
+    exampleRow: { truckNumber: 'T-101', vin: '1HGBH41JXMN109186', make: 'Freightliner', model: 'Cascadia', year: '2022', licensePlate: 'ABC1234', state: 'IL', equipmentType: 'DRY_VAN', status: 'AVAILABLE' },
   },
   trailers: {
     label: 'Trailers',
@@ -49,6 +51,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'driverId', label: 'Driver', suggestedCsvHeaders: ['Driver', 'driver', 'Assigned Driver', 'Operator'] },
       { key: 'mcNumberId', label: 'MC Number', suggestedCsvHeaders: ['MC Number', 'mc_number', 'MC'] },
     ],
+    exampleRow: { trailerNumber: 'TR-201', vin: '1JJV532D8KL456789', make: 'Utility', model: '4000D-X', year: '2021', trailerType: 'DRY_VAN', licensePlate: 'TRL5678', state: 'TX', status: 'AVAILABLE' },
   },
   loads: {
     label: 'Loads',
@@ -123,6 +126,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'lastUpdate', label: 'Last Update', suggestedCsvHeaders: ['Last Update', 'last_update', 'Updated'] },
       { key: 'stopsCount', label: 'Stops Count', suggestedCsvHeaders: ['Stops Count', 'stops_count', 'Stops', 'stops'] },
     ],
+    exampleRow: { loadNumber: 'L-1001', customerName: 'ABC Logistics', driverId: 'John Smith', pickupCity: 'Chicago', pickupState: 'IL', pickupDate: '2025-01-15', deliveryCity: 'Dallas', deliveryState: 'TX', deliveryDate: '2025-01-17', revenue: '3500', driverPay: '1750', totalMiles: '920', status: 'DELIVERED', loadType: 'FTL' },
   },
   customers: {
     label: 'Customers',
@@ -138,6 +142,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'email', label: 'Email' },
       { key: 'paymentTerms', label: 'Payment Terms' },
     ],
+    exampleRow: { name: 'ABC Logistics', customerNumber: 'C-001', type: 'BROKER', city: 'Chicago', state: 'IL', zip: '60601', phone: '312-555-0100', email: 'billing@abclogistics.com', paymentTerms: 'NET30' },
   },
   drivers: {
     label: 'Drivers',
@@ -167,6 +172,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'notes', label: 'Notes', suggestedCsvHeaders: ['Notes', 'notes', 'Note', 'note'] },
       { key: 'warnings', label: 'Warnings', suggestedCsvHeaders: ['Warnings', 'warnings'] },
     ],
+    exampleRow: { firstName: 'John', lastName: 'Smith', email: 'john.smith@example.com', phone: '312-555-0101', driverNumber: 'D-001', licenseNumber: 'D400-1234-5678', licenseState: 'IL', driverType: 'COMPANY_DRIVER', status: 'AVAILABLE', payRate: '0.65', payType: 'PER_MILE' },
   },
   invoices: {
     label: 'Invoices',
@@ -179,6 +185,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'status', label: 'Status' },
       { key: 'notes', label: 'Notes' },
     ],
+    exampleRow: { invoiceNumber: 'INV-1001', customerId: 'ABC Logistics', invoiceDate: '2025-01-20', dueDate: '2025-02-19', total: '3500', status: 'PENDING' },
   },
   users: {
     label: 'Users',
@@ -195,6 +202,7 @@ const entityConfigs: Record<string, EntityConfig> = {
       { key: 'tags', label: 'Tags', suggestedCsvHeaders: ['Tags', 'tags', 'Labels', 'labels', 'Categories', 'categories'] },
       { key: 'notes', label: 'Notes', suggestedCsvHeaders: ['Notes', 'notes', 'Comments', 'comments', 'Description', 'description'] },
     ],
+    exampleRow: { email: 'jane@company.com', firstName: 'Jane', lastName: 'Doe', role: 'DISPATCHER', phone: '312-555-0102', employeeNumber: 'EMP-001' },
   },
 };
 

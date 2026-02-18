@@ -85,10 +85,10 @@ export class TrailerImporter extends BaseImporter {
                 if (vin) existingInFile.add(vin);
 
                 const trailerTypeStr = this.getValue(row, 'trailerType', columnMapping, ['Trailer Type', 'trailer_type', 'type']);
-                const trailerType = await this.mapTrailerTypeSmart(trailerTypeStr);
+                const trailerType = this.mapTrailerTypeSmart(trailerTypeStr);
 
                 const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status']) || 'AVAILABLE';
-                const status = await this.mapTrailerStatusSmart(statusStr);
+                const status = this.mapTrailerStatusSmart(statusStr);
 
                 // Smart State Parsing
                 const stateVal = this.getValue(row, 'state', columnMapping, ['State', 'state', 'Registration State']);
@@ -229,33 +229,19 @@ export class TrailerImporter extends BaseImporter {
         }, trailersToCreate, errors, warnings);
     }
 
-    private async mapTrailerTypeSmart(value: any): Promise<EquipmentType> {
+    private mapTrailerTypeSmart(value: any): EquipmentType {
         if (!value) return EquipmentType.DRY_VAN;
         const v = String(value).toUpperCase().trim();
 
-        // Fast heuristics
         if (v.includes('REEFER') || v.includes('REF')) return EquipmentType.REEFER;
         if (v.includes('FLAT') || v.includes('FB')) return EquipmentType.FLATBED;
         if (v.includes('TANK')) return EquipmentType.TANKER;
         if (v.includes('VAN') || v.includes('DRY')) return EquipmentType.DRY_VAN;
 
-        // Fallback to AI
-        try {
-            const result = await this.aiService.callAI(`Map this trailer type to one of: DRY_VAN, REEFER, FLATBED, TANKER. Input: "${value}"`, {
-                systemPrompt: "Return ONLY the enum value as a plain string, no JSON, no markdown.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).replace(/['"`]/g, '').toUpperCase().trim() as EquipmentType;
-            if (Object.values(EquipmentType).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[TrailerImporter] AI type mapping failed', e);
-        }
-
         return EquipmentType.DRY_VAN;
     }
 
-    private async mapTrailerStatusSmart(value: any): Promise<string> {
+    private mapTrailerStatusSmart(value: any): string {
         if (!value) return 'AVAILABLE';
         const v = String(value).toUpperCase().trim();
         if (v.includes('IN_USE') || v.includes('INUSE') || v.includes('ACTIVE')) return 'IN_USE';

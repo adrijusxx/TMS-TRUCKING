@@ -83,7 +83,7 @@ export class LocationImporter extends BaseImporter {
 
                 // --- Smart Type Mapping ---
                 const typeStr = this.getValue(row, 'type', columnMapping, ['Type', 'Location Type', 'type', 'Category']);
-                const type = await this.mapLocationTypeSmart(typeStr || name); // Use name as hint if type is missing
+                const type = this.mapLocationTypeSmart(typeStr || name);
 
                 const locationData: any = {
                     companyId: this.companyId,
@@ -176,7 +176,7 @@ export class LocationImporter extends BaseImporter {
     }
 
 
-    private async mapLocationTypeSmart(val: any): Promise<LocationType> {
+    private mapLocationTypeSmart(val: any): LocationType {
         if (!val) return LocationType.PICKUP;
         const v = String(val).toUpperCase();
 
@@ -189,19 +189,6 @@ export class LocationImporter extends BaseImporter {
         if (v.includes('REPAIR') || v.includes('SHOP') || v.includes('SERVICE')) return LocationType.REPAIR_SHOP;
         if (v.includes('FUEL') || v.includes('TRUCKSTOP') || v.includes('DAT')) return LocationType.FUEL_STOP;
         if (v.includes('SCALE')) return LocationType.SCALE;
-
-        // AI Fallback
-        try {
-            const result = await this.aiService.callAI(`Map location type to one of: PICKUP, DELIVERY, TERMINAL, WAREHOUSE, CUSTOMER, VENDOR, REPAIR_SHOP, FUEL_STOP, REST_AREA, SCALE. Input: "${val}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).toUpperCase().trim() as LocationType;
-            if (Object.values(LocationType).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[LocationImporter] AI type mapping failed', e);
-        }
 
         return LocationType.PICKUP;
     }

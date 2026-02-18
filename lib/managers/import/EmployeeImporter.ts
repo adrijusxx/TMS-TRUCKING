@@ -67,7 +67,7 @@ export class EmployeeImporter extends BaseImporter {
                 existingInFile.add(email);
 
                 const roleStr = this.getValue(row, 'role', columnMapping, ['Role', 'role', 'Job Title', 'Type']);
-                const role = await this.mapUserRoleSmart(roleStr, entity);
+                const role = this.mapUserRoleSmart(roleStr, entity);
 
                 const rowMc = this.getValue(row, 'mcNumberId', columnMapping, ['MC Number', 'mc_number']);
                 const resolvedMcId = await this.resolveMcNumberId(rowMc);
@@ -154,7 +154,7 @@ export class EmployeeImporter extends BaseImporter {
     }
 
 
-    private async mapUserRoleSmart(value: any, entity?: string): Promise<UserRole> {
+    private mapUserRoleSmart(value: any, entity?: string): UserRole {
         if (!value) {
             if (entity === 'dispatchers') return UserRole.DISPATCHER;
             if (entity === 'employees') return UserRole.DISPATCHER;
@@ -167,19 +167,6 @@ export class EmployeeImporter extends BaseImporter {
         if (v.includes('ACCOUNT') || v.includes('BILLING')) return UserRole.ACCOUNTANT;
         if (v.includes('DRIVER')) return UserRole.DRIVER;
         if (v.includes('SUPER')) return UserRole.SUPER_ADMIN;
-
-        // AI Fallback
-        try {
-            const result = await this.aiService.callAI(`Map user role to one of: ADMIN, DISPATCHER, ACCOUNTANT, DRIVER, SUPER_ADMIN. Input: "${value}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).toUpperCase().trim() as UserRole;
-            if (Object.values(UserRole).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[EmployeeImporter] AI role mapping failed', e);
-        }
 
         return UserRole.DISPATCHER;
     }

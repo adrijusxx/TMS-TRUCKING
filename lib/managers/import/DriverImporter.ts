@@ -177,10 +177,10 @@ export class DriverImporter extends BaseImporter {
 
                 // --- Smart Type & Status Mapping ---
                 const driverTypeStr = this.getValue(row, 'driverType', columnMapping, ['Type', 'driver_type', 'Driver Type']);
-                const driverType = await this.mapDriverTypeSmart(driverTypeStr);
+                const driverType = this.mapDriverTypeSmart(driverTypeStr);
 
                 const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status']);
-                const status = await this.mapDriverStatusSmart(statusStr);
+                const status = this.mapDriverStatusSmart(statusStr);
 
                 // --- Anomaly Detection ---
                 let payRate = parseFloat(String(this.getValue(row, 'payRate', columnMapping, ['Pay Rate', 'pay_rate', 'Rate']) || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -361,7 +361,7 @@ export class DriverImporter extends BaseImporter {
         }, [], errors);
     }
 
-    private async mapDriverTypeSmart(val: any): Promise<DriverType> {
+    private mapDriverTypeSmart(val: any): DriverType {
         if (!val) return DriverType.COMPANY_DRIVER;
         const v = String(val).toUpperCase();
 
@@ -369,23 +369,10 @@ export class DriverImporter extends BaseImporter {
         if (v.includes('LEASE')) return DriverType.LEASE;
         if (v.includes('COMPANY') || v.includes('EMP')) return DriverType.COMPANY_DRIVER;
 
-        // AI Fallback
-        try {
-            const result = await this.aiService.callAI(`Map driver type to one of: COMPANY_DRIVER, LEASE, OWNER_OPERATOR. Input: "${val}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).toUpperCase().trim() as DriverType;
-            if (Object.values(DriverType).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[DriverImporter] AI type mapping failed', e);
-        }
-
         return DriverType.COMPANY_DRIVER;
     }
 
-    private async mapDriverStatusSmart(val: any): Promise<DriverStatus> {
+    private mapDriverStatusSmart(val: any): DriverStatus {
         if (!val) return DriverStatus.AVAILABLE;
         const v = String(val).toUpperCase();
 
@@ -396,19 +383,6 @@ export class DriverImporter extends BaseImporter {
         if (v.includes('OFF')) return DriverStatus.OFF_DUTY;
         if (v.includes('LEAVE')) return DriverStatus.ON_LEAVE;
         if (v.includes('INACTIVE') || v.includes('QUIT')) return DriverStatus.INACTIVE;
-
-        // AI Fallback
-        try {
-            const result = await this.aiService.callAI(`Map driver status to one of: AVAILABLE, ON_DUTY, DRIVING, OFF_DUTY, SLEEPER_BERTH, ON_LEAVE, INACTIVE, IN_TRANSIT, DISPATCHED. Input: "${val}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).toUpperCase().trim() as DriverStatus;
-            if (Object.values(DriverStatus).includes(mapped)) return mapped;
-        } catch (e) {
-            console.error('[DriverImporter] AI status mapping failed', e);
-        }
 
         return DriverStatus.AVAILABLE;
     }

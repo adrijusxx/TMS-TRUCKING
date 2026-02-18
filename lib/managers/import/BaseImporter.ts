@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { getRowValue } from '@/lib/import-export/import-utils';
-import { AIService } from '@/lib/services/AIService';
 
 export interface ImportResult {
     success: boolean;
@@ -22,14 +21,12 @@ export abstract class BaseImporter {
     protected prisma: PrismaClient;
     protected companyId: string;
     protected userId: string;
-    protected aiService: AIService;
     protected BATCH_SIZE = 500;
 
     constructor(prisma: PrismaClient, companyId: string, userId: string) {
         this.prisma = prisma;
         this.companyId = companyId;
         this.userId = userId;
-        this.aiService = new AIService();
     }
 
     abstract import(data: any[], options: {
@@ -41,36 +38,6 @@ export abstract class BaseImporter {
         importBatchId?: string;
         treatAsHistorical?: boolean;
     }): Promise<ImportResult>;
-
-    /**
-     * Uses AI to suggest a mapping between CSV headers and system fields.
-     */
-    public async suggestHeaderMapping(csvHeaders: string[], systemFields: string[]): Promise<Record<string, string>> {
-        try {
-            const prompt = `
-            Act as a TMS data expert. Map the following CSV headers to our system field names.
-            CSV Headers: [${csvHeaders.join(', ')}]
-            System Fields: [${systemFields.join(', ')}]
-
-            Return ONLY a JSON object where keys are CSV headers and values are the best system field matches.
-            If no match is clear, omit the key or user an empty string.
-            Example: {"Unit#": "unit_number", "Pay Rate": "payRate"}
-            `;
-
-            const result = await this.aiService.callAI(prompt, {
-                systemPrompt: "You are a data mapping assistant. Return ONLY valid JSON.",
-                jsonMode: true
-            });
-
-            if (result && result.data) {
-                return result.data as Record<string, string>;
-            }
-            return {};
-        } catch (e) {
-            console.error('[BaseImporter] AI mapping failed', e);
-            return {};
-        }
-    }
 
     protected error(row: number, error: string, field?: string) {
         return { row, field, error };

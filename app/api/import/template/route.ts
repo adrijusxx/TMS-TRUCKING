@@ -1,28 +1,6 @@
 import { auth } from "@/app/api/auth/[...nextauth]/route";
 import { NextResponse } from "next/server";
-
-// Helper to get fields for entity type (Simplified for now, can be expanded)
-// In a real scenario, this might read from schema-reference or Prisma DMMF
-const getTemplateFields = (entityType: string) => {
-    switch (entityType.toLowerCase()) {
-        case "driver":
-            return ["firstName", "lastName", "email", "phone", "licenseNumber", "state", "status"];
-        case "load":
-            return ["loadNumber", "customerName", "pickupDate", "deliveryDate", "originCity", "originState", "destinationCity", "destinationState", "rate", "driverName"];
-        case "truck":
-            return ["truckNumber", "vin", "make", "model", "year", "licensePlate", "status"];
-        case "trailer":
-            return ["trailerNumber", "vin", "make", "model", "year", "licensePlate", "status"];
-        case "customer":
-            return ["customerNumber", "name", "email", "phone", "address", "city", "state", "zip"];
-        case "vendor":
-            return ["vendorNumber", "name", "email", "phone", "address", "city", "state", "zip", "type"];
-        case "location":
-            return ["name", "address", "city", "state", "zip", "type"];
-        default:
-            return ["column1", "column2", "column3"];
-    }
-};
+import { getEntityConfig } from "@/lib/import-export/entity-config";
 
 export async function GET(req: Request) {
     try {
@@ -38,8 +16,23 @@ export async function GET(req: Request) {
             return new NextResponse("Entity Type is required", { status: 400 });
         }
 
-        const fields = getTemplateFields(entityType);
-        const csvContent = fields.join(",") + "\n";
+        const config = getEntityConfig(entityType);
+        if (!config) {
+            return new NextResponse("Unknown entity type", { status: 400 });
+        }
+
+        const headers = config.fields.map(f => f.label.replace(' *', ''));
+        const headerRow = headers.join(",");
+
+        // Build example data row from config
+        const exampleValues = config.fields.map(f => {
+            const example = config.exampleRow?.[f.key];
+            if (example) return `"${example}"`;
+            return '';
+        });
+        const exampleRow = exampleValues.join(",");
+
+        const csvContent = headerRow + "\n" + exampleRow + "\n";
 
         return new NextResponse(csvContent, {
             status: 200,

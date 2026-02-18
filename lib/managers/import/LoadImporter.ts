@@ -4,7 +4,6 @@ import { ImporterEntityService } from './services/ImporterEntityService';
 import { LoadAnomalyDetector } from './detectors/LoadAnomalyDetector';
 import { LoadRowMapper } from './mapping/LoadRowMapper';
 import { LoadPersistenceService } from './services/LoadPersistenceService';
-import { ImportValueFormatter } from '@/lib/services/ImportValueFormatter';
 
 const STATUS_ORDER = ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED',
     'EN_ROUTE_DELIVERY', 'AT_DELIVERY', 'DELIVERED', 'INVOICED', 'PAID'];
@@ -21,8 +20,6 @@ function statusAtOrBeyond(current: string, target: string): boolean {
  * with full timestamps, making them closed historical records.
  */
 export class LoadImporter extends BaseImporter {
-    private statusCache = new Map<string, LoadStatus>();
-    private typeCache = new Map<string, LoadType>();
 
     async import(data: any[], options: any): Promise<ImportResult> {
         return this.importLoads(data, options);
@@ -36,9 +33,6 @@ export class LoadImporter extends BaseImporter {
         const preparedLoads: any[] = [];
         const errors: any[] = [];
         const warnings: any[] = [];
-        const lastLocs = new Map<string, any>();
-        const valueFormatter = new ImportValueFormatter();
-
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
             const rowNum = i + 1;
@@ -61,13 +55,13 @@ export class LoadImporter extends BaseImporter {
                 const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId);
                 const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId);
 
-                // 3. AI Smart Mapping (Status & Type)
+                // 3. Status & Type Mapping
                 const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'load_status', 'Current Status']);
-                const csvStatus = await this.mapLoadStatusSmart(statusStr);
+                const csvStatus = this.mapLoadStatusSmart(statusStr);
                 const status = treatAsHistorical ? LoadStatus.PAID : csvStatus;
 
                 const typeStr = this.getValue(row, 'loadType', columnMapping, ['Load Type', 'load_type', 'Type', 'size', 'Size']);
-                const loadType = await this.mapLoadTypeSmart(typeStr);
+                const loadType = this.mapLoadTypeSmart(typeStr);
 
                 // 4. Anomaly Detection
                 const { suspicious, anomalies } = LoadAnomalyDetector.detect({ ...financial, profit: financial.revenue - financial.driverPay }, updateExisting);
@@ -95,19 +89,6 @@ export class LoadImporter extends BaseImporter {
                     status,
                     loadType
                 }, columnMapping);
-
-                // Optional AI value formatting (behind ENABLE_IMPORT_AI_FORMATTING env)
-                const formatted = await valueFormatter.formatLoadValues({
-                    pickupDate: loadData.pickupDate,
-                    deliveryDate: loadData.deliveryDate,
-                    pickupState: loadData.pickupState,
-                    deliveryState: loadData.deliveryState,
-                    revenue: loadData.revenue,
-                    driverPay: loadData.driverPay,
-                    weight: loadData.weight,
-                    totalMiles: loadData.totalMiles,
-                });
-                loadData = { ...loadData, ...formatted };
 
                 preparedLoads.push({ data: loadData, suspiciousPay: suspicious, anomalies, rowIndex: rowNum });
             } catch (err: any) {
@@ -245,7 +226,7 @@ export class LoadImporter extends BaseImporter {
         };
     }
 
-    private async mapLoadStatusSmart(val: any): Promise<LoadStatus> {
+    private mapLoadStatusSmart(val: any): LoadStatus {
         if (!val) return LoadStatus.PENDING;
         const v = String(val).toUpperCase();
 
@@ -258,54 +239,16 @@ export class LoadImporter extends BaseImporter {
         if (v.includes('PAID')) return LoadStatus.PAID;
         if (v.includes('CANCEL')) return LoadStatus.CANCELLED;
 
-        // Check cache
-        if (this.statusCache.has(v)) return this.statusCache.get(v)!;
-
-        // AI Fallback
-        try {
-            const result = await this.aiService.callAI(`Map load status to one of: PENDING, ASSIGNED, EN_ROUTE_PICKUP, AT_PICKUP, LOADED, EN_ROUTE_DELIVERY, AT_DELIVERY, DELIVERED, INVOICED, PAID, CANCELLED. Input: "${val}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).toUpperCase().trim() as LoadStatus;
-            if (Object.values(LoadStatus).includes(mapped)) {
-                this.statusCache.set(v, mapped);
-                return mapped;
-            }
-        } catch (e) {
-            console.error('[LoadImporter] AI status mapping failed', e);
-        }
-
         return LoadStatus.PENDING;
     }
 
-    private async mapLoadTypeSmart(val: any): Promise<LoadType> {
+    private mapLoadTypeSmart(val: any): LoadType {
         if (!val) return LoadType.FTL;
         const v = String(val).toUpperCase();
 
         if (v.includes('LTL') || v.includes('PARTIAL') || v.includes('LESS')) return LoadType.LTL;
         if (v.includes('FTL') || v.includes('FULL') || v.includes('VAN')) return LoadType.FTL;
         if (v.includes('INTERMODAL') || v.includes('RAIL') || v.includes('CONTAINER')) return LoadType.INTERMODAL;
-
-        // Check cache
-        if (this.typeCache.has(v)) return this.typeCache.get(v)!;
-
-        // AI Fallback
-        try {
-            const result = await this.aiService.callAI(`Map load type to one of: FTL, LTL, PARTIAL, INTERMODAL. Input: "${val}"`, {
-                systemPrompt: "Return ONLY the enum value.",
-                jsonMode: false,
-                temperature: 0
-            });
-            const mapped = String(result.data).toUpperCase().trim() as LoadType;
-            if (Object.values(LoadType).includes(mapped)) {
-                this.typeCache.set(v, mapped);
-                return mapped;
-            }
-        } catch (e) {
-            console.error('[LoadImporter] AI type mapping failed', e);
-        }
 
         return LoadType.FTL;
     }
