@@ -9,6 +9,7 @@ import { format, isPast, isToday } from 'date-fns';
 import { User, Phone, Mail, Calendar, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import LeadSheet from './LeadSheet';
+import HireLeadDialog from './HireLeadDialog';
 import { useClickToCall } from '@/lib/hooks/useClickToCall';
 
 interface Lead {
@@ -49,6 +50,8 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
     const [draggedLead, setDraggedLead] = useState<string | null>(null);
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [hireDialogOpen, setHireDialogOpen] = useState(false);
+    const [hireLeadData, setHireLeadData] = useState<{ id: string; name: string } | null>(null);
 
     const handleCardClick = (leadId: string) => {
         setSelectedLeadId(leadId);
@@ -74,6 +77,14 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
 
         const lead = leads.find((l) => l.id === leadId);
         if (!lead || lead.status === targetStatus) return;
+
+        // Intercept HIRED: show HireLeadDialog instead of direct status change
+        if (targetStatus === 'HIRED') {
+            setDraggedLead(null);
+            setHireLeadData({ id: leadId, name: `${lead.firstName} ${lead.lastName}` });
+            setHireDialogOpen(true);
+            return;
+        }
 
         const previousStatus = lead.status;
         setLeads((prev) =>
@@ -206,6 +217,23 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
                     setIsSheetOpen(false);
                 }}
             />
+
+            {hireLeadData && (
+                <HireLeadDialog
+                    open={hireDialogOpen}
+                    onOpenChange={(open) => {
+                        setHireDialogOpen(open);
+                        if (!open) setHireLeadData(null);
+                    }}
+                    leadId={hireLeadData.id}
+                    leadName={hireLeadData.name}
+                    onSuccess={() => {
+                        setHireDialogOpen(false);
+                        setHireLeadData(null);
+                        onRefresh?.();
+                    }}
+                />
+            )}
         </>
     );
 }

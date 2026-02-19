@@ -44,6 +44,13 @@ export async function POST(request: NextRequest) {
                 if (!payload?.status) {
                     return NextResponse.json({ error: 'Status is required' }, { status: 400 });
                 }
+                // HIRED requires individual conversion via the /hire endpoint
+                if (payload.status === 'HIRED') {
+                    return NextResponse.json(
+                        { error: 'Cannot bulk-change status to HIRED. Each lead must be hired individually.' },
+                        { status: 400 }
+                    );
+                }
                 const result = await prisma.lead.updateMany({
                     where: { id: { in: accessibleIds } },
                     data: { status: payload.status },

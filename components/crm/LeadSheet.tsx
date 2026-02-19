@@ -120,6 +120,12 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
     };
 
     const onSubmit = async (values: LeadFormValues) => {
+        // Intercept HIRED: redirect to proper hire flow with driver creation
+        if (isEditing && values.status === 'HIRED' && leadData?.status !== 'HIRED') {
+            setHireDialogOpen(true);
+            return;
+        }
+
         setIsLoading(true);
         try {
             const url = isEditing ? `/api/crm/leads/${leadId}` : '/api/crm/leads';

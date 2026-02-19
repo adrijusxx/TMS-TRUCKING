@@ -54,7 +54,9 @@ export default function LeadStatusTab({ form, isEditing, leadId, leadData, onSco
                                 <SelectItem value="DOCUMENTS_COLLECTED">Documents Collected</SelectItem>
                                 <SelectItem value="INTERVIEW">Interview</SelectItem>
                                 <SelectItem value="OFFER">Offer</SelectItem>
-                                <SelectItem value="HIRED">Hired</SelectItem>
+                                {leadData?.status === 'HIRED' && (
+                                    <SelectItem value="HIRED">Hired</SelectItem>
+                                )}
                                 <SelectItem value="REJECTED">Rejected</SelectItem>
                             </SelectContent>
                         </Select>

@@ -34,7 +34,7 @@ const STATUS_OPTIONS = [
     { value: 'DOCUMENTS_COLLECTED', label: 'Docs Collected' },
     { value: 'INTERVIEW', label: 'Interview' },
     { value: 'OFFER', label: 'Offer' },
-    { value: 'HIRED', label: 'Hired' },
+    // HIRED excluded — leads must be hired individually via the Hire button
     { value: 'REJECTED', label: 'Rejected' },
 ];
 
@@ -88,7 +88,8 @@ export default function BulkStatusDialog({
                 <DialogHeader>
                     <DialogTitle>Change Status</DialogTitle>
                     <DialogDescription>
-                        Update the status of {selectedIds.length} selected lead(s)
+                        Update the status of {selectedIds.length} selected lead(s).
+                        <span className="block text-xs mt-1">To hire leads, open each lead individually and use the Hire button.</span>
                     </DialogDescription>
                 </DialogHeader>
 

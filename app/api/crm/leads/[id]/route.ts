@@ -81,6 +81,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         const { id } = await params;
         const body = await request.json();
 
+        // HIRED status can only be set via the /hire endpoint (creates Driver + OnboardingChecklist)
+        if (body.status === 'HIRED') {
+            return NextResponse.json(
+                { error: 'Use the Hire button to convert a lead to a driver with an onboarding checklist.' },
+                { status: 400 }
+            );
+        }
+
         // Build MC filter
         const mcWhere = await buildMcNumberWhereClause(session, request);
 
