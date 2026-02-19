@@ -88,6 +88,31 @@ export async function GET(request: NextRequest) {
       authUrl: qbConfig ? '/api/integrations/quickbooks/authorize' : null,
     });
 
+    // Check NetSapiens PBX
+    try {
+      const { ApiKeyService } = await import('@/lib/services/ApiKeyService');
+      const nsApiKey = await ApiKeyService.getCredential('NETSAPIENS', 'API_KEY', { companyId: session.user.companyId });
+      const nsServer = await ApiKeyService.getCredential('NETSAPIENS', 'SERVER', { companyId: session.user.companyId });
+      const nsDomain = await ApiKeyService.getCredential('NETSAPIENS', 'DOMAIN', { companyId: session.user.companyId });
+
+      integrations.push({
+        provider: 'NETSAPIENS',
+        configured: !!nsApiKey && !!nsServer,
+        connected: !!nsDomain,
+        isActive: !!nsApiKey && !!nsDomain,
+        domain: nsDomain || null,
+        server: nsServer || null,
+      });
+    } catch (error) {
+      console.error('NetSapiens status check failed:', error);
+      integrations.push({
+        provider: 'NETSAPIENS',
+        configured: false,
+        connected: false,
+        isActive: false,
+      });
+    }
+
     // Check Google Maps
     integrations.push({
       provider: 'GOOGLE_MAPS',

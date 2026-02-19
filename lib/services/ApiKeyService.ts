@@ -76,22 +76,27 @@ export class ApiKeyService {
     }) {
         const { provider, configKey, configValue, scope, companyId, mcNumberId, description } = params;
 
-        return await prisma.apiKeyConfig.upsert({
+        // Use findFirst + update/create instead of upsert because
+        // Prisma rejects null in compound unique where clauses
+        const existing = await prisma.apiKeyConfig.findFirst({
             where: {
-                provider_scope_companyId_mcNumberId_configKey: {
-                    provider,
-                    scope,
-                    companyId: (companyId || null) as any,
-                    mcNumberId: (mcNumberId || null) as any,
-                    configKey,
-                }
+                provider,
+                scope,
+                configKey,
+                companyId: companyId ?? null,
+                mcNumberId: mcNumberId ?? null,
             },
-            update: {
-                configValue,
-                description,
-                updatedAt: new Date(),
-            },
-            create: {
+        });
+
+        if (existing) {
+            return await prisma.apiKeyConfig.update({
+                where: { id: existing.id },
+                data: { configValue, description, updatedAt: new Date() },
+            });
+        }
+
+        return await prisma.apiKeyConfig.create({
+            data: {
                 provider,
                 scope,
                 companyId,

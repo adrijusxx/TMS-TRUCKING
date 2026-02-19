@@ -42,6 +42,8 @@ export async function POST(request: NextRequest) {
                 return await testTelegramConnection(companyId);
             case 'QUICKBOOKS':
                 return await testQuickBooksConnection(companyId);
+            case 'NETSAPIENS':
+                return await testNetSapiensConnection(companyId);
             default:
                 return NextResponse.json(
                     { success: false, error: { code: 'INVALID_PROVIDER', message: 'Unknown provider' } },
@@ -247,6 +249,62 @@ async function testQuickBooksConnection(companyId: string) {
             success: false,
             connected: false,
             message: `QuickBooks check error: ${error.message}`,
+            details: { error: error.message }
+        });
+    }
+}
+
+async function testNetSapiensConnection(companyId: string) {
+    try {
+        const apiKey = await ApiKeyService.getCredential('NETSAPIENS', 'API_KEY', { companyId });
+        const server = await ApiKeyService.getCredential('NETSAPIENS', 'SERVER', { companyId });
+
+        if (!apiKey) {
+            return NextResponse.json({
+                success: false,
+                connected: false,
+                message: 'NetSapiens API key not configured',
+                details: { hasApiKey: false }
+            });
+        }
+
+        if (!server) {
+            return NextResponse.json({
+                success: false,
+                connected: false,
+                message: 'NetSapiens server hostname not configured',
+                details: { hasServer: false }
+            });
+        }
+
+        // Test by discovering the domain
+        const { discoverDomain } = await import('@/lib/integrations/netsapiens');
+        const domain = await discoverDomain(apiKey, server);
+
+        if (domain) {
+            return NextResponse.json({
+                success: true,
+                connected: true,
+                message: 'Connection successful',
+                details: {
+                    domain,
+                    server,
+                    testedAt: new Date().toISOString(),
+                }
+            });
+        }
+
+        return NextResponse.json({
+            success: false,
+            connected: false,
+            message: 'API key or server is invalid - could not discover PBX domain',
+            details: { server }
+        });
+    } catch (error: any) {
+        return NextResponse.json({
+            success: false,
+            connected: false,
+            message: `NetSapiens check error: ${error.message}`,
             details: { error: error.message }
         });
     }

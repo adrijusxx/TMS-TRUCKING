@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Loader2, FileSpreadsheet, UserCheck } from 'lucide-react';
+import { useClickToCall } from '@/lib/hooks/useClickToCall';
 
 const leadFormSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
@@ -105,27 +106,8 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
         }
     }, [leadId, open, form]);
 
-    const handleCall = async (phone: string) => {
-        try {
-            const settingsRes = await fetch('/api/user/voip-settings');
-            const settingsData = await settingsRes.json();
-            if (settingsData?.voipConfig?.enabled) {
-                toast.info('Initiating call via Yoko...');
-                const callRes = await fetch('/api/communications/call', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ destination: phone }),
-                });
-                const callData = await callRes.json();
-                if (!callRes.ok) throw new Error(callData.error);
-                toast.success('Call initiated! Check your device.');
-            } else {
-                window.location.href = `tel:${phone}`;
-            }
-        } catch {
-            window.location.href = `tel:${phone}`;
-        }
-    };
+    const { initiateCall } = useClickToCall();
+    const handleCall = (phone: string) => initiateCall(phone);
 
     const handleScoreUpdate = (score: number, summary: string) => {
         setLeadData((prev: any) => ({

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { mcNumberId, type, enabled, config } = body;
+        const { mcNumberId, type, enabled, config, syncInterval } = body;
 
         if (!mcNumberId || !type) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -37,13 +37,15 @@ export async function POST(request: NextRequest) {
             },
             update: {
                 enabled,
-                config
+                config,
+                ...(syncInterval !== undefined && { syncInterval: syncInterval || null }),
             },
             create: {
                 mcNumberId,
                 type,
                 enabled,
-                config
+                config,
+                ...(syncInterval !== undefined && { syncInterval: syncInterval || null }),
             }
         });
 

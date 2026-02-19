@@ -3,6 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
+import { inngest } from '@/lib/inngest/client';
 
 // GET /api/crm/leads - List all leads
 export async function GET(request: NextRequest) {
@@ -138,6 +139,16 @@ export async function POST(request: NextRequest) {
                 userId: session.user.id,
             },
         });
+
+        // Fire-and-forget: automation rules (non-critical)
+        inngest.send({
+            name: 'automation/lead-event',
+            data: {
+                leadId: lead.id,
+                companyId,
+                event: 'new_lead',
+            },
+        }).catch((err) => console.warn('[CRM Leads POST] Inngest event failed:', err));
 
         return NextResponse.json({ lead }, { status: 201 });
     } catch (error) {

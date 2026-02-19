@@ -107,6 +107,24 @@ export type InngestEvents = {
       leadId: string;
     };
   };
+
+  // Campaign Events
+  'campaign/execute': {
+    data: {
+      campaignId: string;
+      senderId: string;
+    };
+  };
+
+  // Automation Events
+  'automation/lead-event': {
+    data: {
+      leadId: string;
+      companyId: string;
+      event: string;
+      metadata?: Record<string, unknown>;
+    };
+  };
 };
 
 // Create the Inngest client

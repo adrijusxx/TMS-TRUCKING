@@ -239,62 +239,62 @@ export async function processCompanySettlements(
   const errors: Array<{ driverId: string; error: string }> = [];
   let settlementsGenerated = 0;
 
-  // Get active drivers for company
+  // Get all non-inactive drivers (any active driver may have unsettled loads)
   const drivers = await prisma.driver.findMany({
     where: {
       companyId,
-      status: 'AVAILABLE',
+      status: { notIn: ['INACTIVE'] },
       deletedAt: null,
     },
-    select: {
-      id: true,
-      driverNumber: true,
-    },
+    select: { id: true, driverNumber: true },
   });
 
   const settlementManager = new SettlementManager();
 
   for (const driver of drivers) {
     try {
-      // Check for completed loads in period
-      const loadsCount = await prisma.load.count({
+      // Fetch load IDs already in active (non-rejected) settlements
+      const existingSettlements = await prisma.settlement.findMany({
         where: {
           driverId: driver.id,
-          status: 'DELIVERED',
-          deliveredAt: { gte: periodStart, lte: periodEnd },
-          readyForSettlement: true,
+          approvalStatus: { not: 'REJECTED' },
+        },
+        select: { loadIds: true },
+      });
+      const settledLoadIds = new Set(existingSettlements.flatMap(s => s.loadIds));
+
+      // Find eligible loads — same criteria as Orchestrator and draft-batch
+      const eligibleLoads = await prisma.load.findMany({
+        where: {
+          driverId: driver.id,
+          status: { in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] },
           deletedAt: null,
+          OR: [
+            { readyForSettlement: true },
+            { status: { in: ['INVOICED', 'PAID'] } },
+          ],
         },
+        select: { id: true },
       });
 
-      if (loadsCount === 0) {
-        logger.info(`Skipping ${driver.driverNumber} - no loads`);
+      // Exclude already-settled loads
+      const unsettledLoads = eligibleLoads.filter(l => !settledLoadIds.has(l.id));
+
+      if (unsettledLoads.length === 0) {
+        logger.info(`Skipping ${driver.driverNumber} - no unsettled loads`);
         continue;
       }
 
-      // Check for existing settlement
-      const existing = await prisma.settlement.findFirst({
-        where: {
-          driverId: driver.id,
-          periodStart,
-          periodEnd,
-        },
-      });
-
-      if (existing) {
-        logger.info(`Skipping ${driver.driverNumber} - settlement exists`);
-        continue;
-      }
-
-      // Generate settlement
+      // Generate settlement with explicit load IDs
       const settlement = await settlementManager.generateSettlement({
         driverId: driver.id,
         periodStart,
         periodEnd,
+        loadIds: unsettledLoads.map(l => l.id),
       });
 
       settlementsGenerated++;
-      logger.info(`Generated ${settlement.settlementNumber} for ${driver.driverNumber}`);
+      logger.info(`Generated ${settlement.settlementNumber} for ${driver.driverNumber} (${unsettledLoads.length} loads)`);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       errors.push({ driverId: driver.id, error: message });

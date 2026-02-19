@@ -148,12 +148,25 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                 },
             });
 
-            // Trigger auto AI scoring if criteria met
-            const shouldScore = await LeadAutoScoringManager.shouldScoreOnStatusChange(
-                id, body.status, previousStatus
-            );
-            if (shouldScore) {
-                await inngest.send({ name: 'crm/auto-score-lead', data: { leadId: id } });
+            // Fire-and-forget: Inngest events (non-critical, don't crash the update)
+            try {
+                const shouldScore = await LeadAutoScoringManager.shouldScoreOnStatusChange(
+                    id, body.status, previousStatus
+                );
+                if (shouldScore) {
+                    await inngest.send({ name: 'crm/auto-score-lead', data: { leadId: id } });
+                }
+                await inngest.send({
+                    name: 'automation/lead-event',
+                    data: {
+                        leadId: id,
+                        companyId: existingLead.companyId,
+                        event: 'status_change',
+                        metadata: { fromStatus: previousStatus, toStatus: body.status },
+                    },
+                });
+            } catch (inngestErr) {
+                console.warn('[CRM Lead PATCH] Inngest event failed (non-critical):', inngestErr);
             }
         }
 

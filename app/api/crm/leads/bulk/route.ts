@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { sendSMS } from '@/lib/integrations/netsapiens/sms';
+import { EmailService } from '@/lib/services/EmailService';
+import { inngest } from '@/lib/inngest/client';
 
 // POST /api/crm/leads/bulk - Bulk operations on leads
 export async function POST(request: NextRequest) {
@@ -57,6 +60,21 @@ export async function POST(request: NextRequest) {
                         metadata: { newStatus: payload.status, bulk: true },
                     })),
                 });
+
+                // Fire-and-forget: automation rules (non-critical)
+                Promise.all(
+                    accessibleIds.map((id) =>
+                        inngest.send({
+                            name: 'automation/lead-event',
+                            data: {
+                                leadId: id,
+                                companyId: session.user.companyId,
+                                event: 'status_change',
+                                metadata: { toStatus: payload.status },
+                            },
+                        })
+                    )
+                ).catch((err) => console.warn('[CRM Bulk] Inngest events failed:', err));
                 break;
             }
 
@@ -91,6 +109,36 @@ export async function POST(request: NextRequest) {
                 break;
             }
 
+            case 'send-sms': {
+                if (!payload?.message?.trim()) {
+                    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+                }
+                const smsResult = await handleBulkSms(
+                    accessibleIds, payload.message.trim(), session.user.id, session.user.companyId
+                );
+                return NextResponse.json({
+                    success: true,
+                    sent: smsResult.sent,
+                    failed: smsResult.failed,
+                    total: accessibleIds.length,
+                });
+            }
+
+            case 'send-email': {
+                if (!payload?.subject?.trim() || !payload?.body?.trim()) {
+                    return NextResponse.json({ error: 'Subject and body are required' }, { status: 400 });
+                }
+                const emailResult = await handleBulkEmail(
+                    accessibleIds, payload.subject.trim(), payload.body.trim(), session.user.id
+                );
+                return NextResponse.json({
+                    success: true,
+                    sent: emailResult.sent,
+                    failed: emailResult.failed,
+                    total: accessibleIds.length,
+                });
+            }
+
             default:
                 return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
         }
@@ -107,4 +155,82 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+async function handleBulkSms(
+    leadIds: string[], message: string, userId: string, companyId: string
+) {
+    const leads = await prisma.lead.findMany({
+        where: { id: { in: leadIds } },
+        select: { id: true, phone: true },
+    });
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { voipConfig: true },
+    });
+    const voipConfig = user?.voipConfig as Record<string, any> | null;
+    const fromNumber = voipConfig?.pbxExtension || voipConfig?.username;
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const lead of leads) {
+        if (!lead.phone || !fromNumber) { failed++; continue; }
+
+        try {
+            const result = await sendSMS(fromNumber, lead.phone, message, companyId);
+            if (result.success) {
+                sent++;
+                await prisma.leadActivity.create({
+                    data: {
+                        leadId: lead.id, type: 'SMS', content: message,
+                        userId, metadata: { sent: true, to: lead.phone, bulk: true },
+                    },
+                });
+                await prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { lastContactedAt: new Date() },
+                });
+            } else { failed++; }
+        } catch { failed++; }
+    }
+
+    return { sent, failed };
+}
+
+async function handleBulkEmail(
+    leadIds: string[], subject: string, body: string, userId: string
+) {
+    const leads = await prisma.lead.findMany({
+        where: { id: { in: leadIds } },
+        select: { id: true, email: true },
+    });
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const lead of leads) {
+        if (!lead.email) { failed++; continue; }
+
+        try {
+            const ok = await EmailService.sendEmail({ to: lead.email, subject, html: body });
+            if (ok) {
+                sent++;
+                await prisma.leadActivity.create({
+                    data: {
+                        leadId: lead.id, type: 'EMAIL',
+                        content: `Subject: ${subject}\n\n${body}`,
+                        userId, metadata: { sent: true, to: lead.email, bulk: true },
+                    },
+                });
+                await prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { lastContactedAt: new Date() },
+                });
+            } else { failed++; }
+        } catch { failed++; }
+    }
+
+    return { sent, failed };
 }

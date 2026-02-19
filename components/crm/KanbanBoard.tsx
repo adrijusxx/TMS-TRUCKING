@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -9,6 +9,7 @@ import { format, isPast, isToday } from 'date-fns';
 import { User, Phone, Mail, Calendar, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import LeadSheet from './LeadSheet';
+import { useClickToCall } from '@/lib/hooks/useClickToCall';
 
 interface Lead {
     id: string;
@@ -54,34 +55,7 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
         setIsSheetOpen(true);
     };
 
-    const handleCall = useCallback(async (e: React.MouseEvent, phone: string) => {
-        e.stopPropagation();
-        e.preventDefault();
-
-        try {
-            const settingsRes = await fetch('/api/user/voip-settings');
-            const settingsData = await settingsRes.json();
-            const isYokoEnabled = settingsData?.voipConfig?.enabled;
-
-            if (isYokoEnabled) {
-                toast.info('Initiating call via Yoko...');
-                const callRes = await fetch('/api/communications/call', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ destination: phone })
-                });
-                const callData = await callRes.json();
-
-                if (!callRes.ok) throw new Error(callData.error);
-                toast.success('Call initiated! Check your device.');
-            } else {
-                window.location.href = `tel:${phone}`;
-            }
-        } catch (err) {
-            console.error('Call failed', err);
-            window.location.href = `tel:${phone}`;
-        }
-    }, []);
+    const { initiateCall } = useClickToCall();
 
     const handleDragStart = (e: React.DragEvent, leadId: string) => {
         setDraggedLead(leadId);
@@ -171,7 +145,7 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
 
                                                 <div className="grid gap-1">
                                                     <button
-                                                        onClick={(e) => handleCall(e, lead.phone)}
+                                                        onClick={(e) => initiateCall(lead.phone, e)}
                                                         className="flex items-center text-xs text-muted-foreground hover:text-primary transition-colors text-left"
                                                         title="Click to Call"
                                                     >

@@ -71,11 +71,30 @@ export const quickBooksSettingsSchema = z.object({
 export type QuickBooksSettingsInput = z.infer<typeof quickBooksSettingsSchema>;
 
 // ============================================
+// NETSAPIENS PBX INTEGRATION
+// ============================================
+
+export const netsapiensSettingsSchema = z.object({
+    apiKey: z.string().min(1, 'API Key is required'),
+    server: z.string().min(1, 'Server hostname is required'),
+});
+
+export type NetsapiensSettingsInput = z.infer<typeof netsapiensSettingsSchema>;
+
+export const netsapiensVoipConfigSchema = z.object({
+    pbxExtension: z.string().min(1, 'PBX extension is required'),
+    answerDevice: z.string().min(1, 'Answer device phone number is required'),
+    enabled: z.boolean().default(false),
+});
+
+export type NetsapiensVoipConfigInput = z.infer<typeof netsapiensVoipConfigSchema>;
+
+// ============================================
 // TEST CONNECTION
 // ============================================
 
 export const testConnectionSchema = z.object({
-    provider: z.enum(['SAMSARA', 'TELEGRAM', 'QUICKBOOKS']),
+    provider: z.enum(['SAMSARA', 'TELEGRAM', 'QUICKBOOKS', 'NETSAPIENS']),
     mcNumberId: z.string().optional(),
     apiToken: z.string().optional(), // Allow testing unsaved tokens
 });

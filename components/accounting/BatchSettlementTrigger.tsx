@@ -9,7 +9,7 @@ export function BatchSettlementTrigger() {
     const [isLoading, setIsLoading] = useState(false);
 
     const handleRunBatch = async () => {
-        if (!confirm('This will generate settlements for ALL drivers for the PREVIOUS WEEK. Continue?')) {
+        if (!confirm('This will generate settlements for ALL drivers with unsettled loads. Continue?')) {
             return;
         }
 
@@ -56,7 +56,7 @@ export function BatchSettlementTrigger() {
             ) : (
                 <PlayCircle className="h-4 w-4 mr-2" />
             )}
-            Run Weekly Batch
+            Generate Settlements
         </Button>
     );
 }

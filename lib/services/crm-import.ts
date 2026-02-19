@@ -172,6 +172,7 @@ export async function processCrmIntegration(integrationId: string, triggeredByUs
 
     const config = integration.config as Record<string, any> || {};
     const sheetId = config.sheetId;
+    const sheetName = config.sheetName || 'Sheet1';
     const columnMap = config.columnMapping || {};
     const lastImportedRow = config.lastImportedRow || 0;
 
@@ -180,7 +181,7 @@ export async function processCrmIntegration(integrationId: string, triggeredByUs
     }
 
     const client = await createGoogleSheetsClient();
-    const totalRows = await client.getRowCount(sheetId);
+    const totalRows = await client.getRowCount(sheetId, sheetName);
 
     if (totalRows <= lastImportedRow) {
         return {
@@ -195,7 +196,8 @@ export async function processCrmIntegration(integrationId: string, triggeredByUs
     const rows = await client.readSheetRange(
         sheetId,
         lastImportedRow + 1,
-        totalRows
+        totalRows,
+        sheetName
     );
 
     const result: ImportResult = {

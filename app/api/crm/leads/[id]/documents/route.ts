@@ -138,11 +138,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             }
         });
 
-        // Trigger auto AI scoring for CDL/medical uploads
-        const shouldScore = await LeadAutoScoringManager.shouldScoreOnDocumentUpload(id, documentType);
-        if (shouldScore) {
-            await inngest.send({ name: 'crm/auto-score-lead', data: { leadId: id } });
-        }
+        // Fire-and-forget: auto AI scoring (non-critical)
+        LeadAutoScoringManager.shouldScoreOnDocumentUpload(id, documentType)
+            .then((shouldScore) => {
+                if (shouldScore) {
+                    return inngest.send({ name: 'crm/auto-score-lead', data: { leadId: id } });
+                }
+            })
+            .catch((err) => console.warn('[CRM Docs] Inngest event failed:', err));
 
         return NextResponse.json({ data: document });
 

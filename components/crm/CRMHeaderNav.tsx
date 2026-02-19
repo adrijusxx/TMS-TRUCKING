@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, LayoutGrid, Settings, ClipboardCheck, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Users, LayoutGrid, Settings, ClipboardCheck, BarChart3, Megaphone } from 'lucide-react';
 
 interface NavItem {
     name: string;
@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
     { name: 'Kanban', href: '/dashboard/crm/kanban', icon: LayoutGrid },
     { name: 'Onboarding', href: '/dashboard/crm/onboarding', icon: ClipboardCheck },
     { name: 'Reports', href: '/dashboard/crm/reports', icon: BarChart3 },
+    { name: 'Campaigns', href: '/dashboard/crm/campaigns', icon: Megaphone },
     { name: 'Settings', href: '/dashboard/crm/settings', icon: Settings },
 ];
 

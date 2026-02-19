@@ -16,7 +16,8 @@ import {
   Clock,
   XCircle,
   Sheet,
-  Database
+  Database,
+  Phone,
 } from 'lucide-react';
 
 interface Integration {
@@ -32,6 +33,22 @@ interface Integration {
 
 const integrations: Integration[] = [
   // Communications
+  {
+    id: 'netsapiens',
+    name: 'NetSapiens PBX',
+    description: 'Business phone system with click-to-call, SMS, voicemail, call recordings, and CDR',
+    icon: Phone,
+    href: '/dashboard/settings/integrations/netsapiens',
+    status: 'not-configured',
+    category: 'communications',
+    features: [
+      'Click-to-call from TMS',
+      'Call history (CDR)',
+      'SMS messaging',
+      'Voicemail access',
+      'Call recordings',
+    ]
+  },
   {
     id: 'telegram',
     name: 'Telegram',

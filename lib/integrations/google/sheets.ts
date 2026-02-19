@@ -226,12 +226,27 @@ export class GoogleSheetsClient {
     }
 
     /**
+     * Get all tab (sheet) names within a spreadsheet
+     */
+    async getSheetTabs(sheetId: string): Promise<string[]> {
+        await this.initializeAuth();
+        const response = await this.sheets.spreadsheets.get({
+            spreadsheetId: this._extractSheetId(sheetId),
+            fields: 'sheets.properties.title',
+        });
+        return (response.data.sheets || []).map((s: any) => s.properties.title as string);
+    }
+
+    /**
      * Test connection to a Google Sheet
      */
-    async testConnection(sheetId: string): Promise<{ success: boolean; error?: string; rowCount?: number }> {
+    async testConnection(sheetId: string): Promise<{ success: boolean; error?: string; rowCount?: number; tabs?: string[] }> {
         try {
-            const rowCount = await this.getRowCount(sheetId);
-            return { success: true, rowCount };
+            const [tabs, rowCount] = await Promise.all([
+                this.getSheetTabs(sheetId),
+                this.getRowCount(sheetId, 'Sheet1').catch(() => 0),
+            ]);
+            return { success: true, rowCount, tabs };
         } catch (error: any) {
             return { success: false, error: error.message || 'Connection test failed' };
         }

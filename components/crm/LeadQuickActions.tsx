@@ -13,8 +13,8 @@ interface LeadQuickActionsProps {
 
 const actions = [
     { type: 'CALL' as const, icon: Phone, label: 'Log Call', color: 'text-blue-600 hover:bg-blue-50' },
-    { type: 'SMS' as const, icon: MessageSquare, label: 'Log SMS', color: 'text-green-600 hover:bg-green-50' },
-    { type: 'EMAIL' as const, icon: Mail, label: 'Log Email', color: 'text-purple-600 hover:bg-purple-50' },
+    { type: 'SMS' as const, icon: MessageSquare, label: 'Send SMS', color: 'text-green-600 hover:bg-green-50' },
+    { type: 'EMAIL' as const, icon: Mail, label: 'Send Email', color: 'text-purple-600 hover:bg-purple-50' },
 ];
 
 export default function LeadQuickActions({ leadId, onSuccess }: LeadQuickActionsProps) {
@@ -23,7 +23,7 @@ export default function LeadQuickActions({ leadId, onSuccess }: LeadQuickActions
     return (
         <>
             <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground mr-1">Quick log:</span>
+                <span className="text-xs text-muted-foreground mr-1">Quick actions:</span>
                 <TooltipProvider delayDuration={200}>
                     {actions.map((action) => (
                         <Tooltip key={action.type}>

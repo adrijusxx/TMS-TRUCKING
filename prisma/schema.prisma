@@ -97,6 +97,11 @@ model User {
   uploadedLeadDocuments      LeadDocument[]         @relation("LeadDocumentUploader")
   completedOnboardingSteps   OnboardingStep[]       @relation("OnboardingStepCompletedBy")
 
+  // Campaign & Automation
+  campaignsCreated           Campaign[]             @relation("CampaignCreator")
+  messageTemplatesCreated    MessageTemplate[]      @relation("MessageTemplateCreator")
+  automationRulesCreated     AutomationRule[]       @relation("AutomationRuleCreator")
+
   // Import Features
   importMappingProfiles ImportMappingProfile[] @relation("UserImportProfiles")
   importBatches         ImportBatch[]          @relation("UserImportBatches")
@@ -288,6 +293,10 @@ model Company {
   recruitingSLAConfigs   RecruitingSLAConfig[]
   onboardingTemplates    OnboardingTemplate[]
   integrationSettings    IntegrationSettings?
+  // Campaign & Automation
+  messageTemplates       MessageTemplate[]
+  campaigns              Campaign[]
+  automationRules        AutomationRule[]
   // AI Relations
   aiAnomalies            AIAnomaly[]
 
@@ -3264,6 +3273,7 @@ enum IntegrationProvider {
   GOOGLE_MAPS
   DAT
   TRUCKSTOP
+  NETSAPIENS
 }
 
 // ============================================
@@ -7130,6 +7140,7 @@ model Lead {
   activities           LeadActivity[]
   documents            LeadDocument[]
   onboardingChecklist  OnboardingChecklist?
+  campaignRecipients   CampaignRecipient[]
 
   @@unique([companyId, leadNumber])
   @@index([companyId])
@@ -7373,3 +7384,171 @@ enum SettlementValidationMode {
 
 // Add this relation to the Company model:
 // accountingSettings AccountingSettings?
+
+// ============================================
+// CAMPAIGN & AUTOMATION
+// ============================================
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum CampaignChannel {
+  SMS
+  EMAIL
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  OPTED_OUT
+}
+
+model MessageTemplate {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id])
+  name        String
+  channel     CampaignChannel
+  subject     String? // Email only
+  body        String // SMS text or email HTML. Supports {{firstName}}, {{leadNumber}} placeholders
+  createdById String
+  createdBy   User            @relation("MessageTemplateCreator", fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  campaignSteps   CampaignStep[]
+  automationRules AutomationRule[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([channel])
+}
+
+model Campaign {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  channel     CampaignChannel
+  status      CampaignStatus  @default(DRAFT)
+
+  // Audience filter (JSON) — e.g. { status: ["NEW","CONTACTED"], source: ["FACEBOOK"], tags: ["cdl-a"] }
+  audienceFilter Json?
+
+  // Stats (denormalized for fast reads)
+  totalRecipients Int @default(0)
+  totalSent       Int @default(0)
+  totalFailed     Int @default(0)
+
+  // Drip settings
+  isDrip Boolean @default(false) // false = one-time blast, true = multi-step drip
+
+  createdById String
+  createdBy   User   @relation("CampaignCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps      CampaignStep[]
+  recipients CampaignRecipient[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([companyId, status])
+}
+
+model CampaignStep {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sortOrder  Int      @default(0)
+
+  // Content — either inline or from template
+  templateId String?
+  template   MessageTemplate? @relation(fields: [templateId], references: [id])
+  subject    String? // Inline override (email)
+  body       String? // Inline override
+
+  // Delay before sending (relative to previous step or campaign start)
+  delayDays  Int @default(0)
+  delayHours Int @default(0)
+
+  executions CampaignStepExecution[]
+
+  @@index([campaignId])
+  @@index([sortOrder])
+}
+
+model CampaignRecipient {
+  id         String                  @id @default(cuid())
+  campaignId String
+  campaign   Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId     String
+  lead       Lead                    @relation(fields: [leadId], references: [id])
+  status     CampaignRecipientStatus @default(PENDING)
+
+  // Track which step they're on (for drips)
+  currentStepIndex Int       @default(0)
+  nextSendAt       DateTime? // When the next drip step should fire
+
+  enrolledAt DateTime @default(now())
+
+  executions CampaignStepExecution[]
+
+  @@unique([campaignId, leadId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([status])
+  @@index([nextSendAt])
+}
+
+model CampaignStepExecution {
+  id          String                  @id @default(cuid())
+  recipientId String
+  recipient   CampaignRecipient       @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  stepId      String
+  step        CampaignStep            @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  status      CampaignRecipientStatus @default(PENDING)
+  error       String?
+  sentAt      DateTime?
+  createdAt   DateTime                @default(now())
+
+  @@unique([recipientId, stepId])
+  @@index([recipientId])
+  @@index([stepId])
+  @@index([status])
+}
+
+model AutomationRule {
+  id        String          @id @default(cuid())
+  companyId String
+  company   Company         @relation(fields: [companyId], references: [id])
+  name      String
+  enabled   Boolean         @default(true)
+  channel   CampaignChannel
+
+  // Trigger
+  triggerType  String // "status_change", "new_lead", "tag_added", "no_contact_days"
+  triggerValue Json   // e.g. { fromStatus: "NEW", toStatus: "CONTACTED" } or { days: 3 }
+
+  // Action — what to send
+  templateId String?
+  template   MessageTemplate? @relation(fields: [templateId], references: [id])
+  subject    String?
+  body       String?
+
+  createdById String
+  createdBy   User   @relation("AutomationRuleCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([enabled])
+  @@index([triggerType])
+}

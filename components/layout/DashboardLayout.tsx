@@ -78,6 +78,10 @@ import HRHeaderNav from '@/components/hr/HRHeaderNav';
 import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
 import AnalyticsHeaderNav from '@/components/analytics/AnalyticsHeaderNav';
 import AIAssistantChat from '@/components/ai/AIAssistantChat';
+import { SmsMessengerProvider, useSmsMessenger } from '@/lib/contexts/SmsMessengerContext';
+import LeadSmsMessenger from '@/components/crm/LeadSmsMessenger';
+import { SoftphoneProvider } from '@/lib/contexts/SoftphoneContext';
+import Softphone from '@/components/communications/Softphone';
 
 
 interface NavigationItem {
@@ -148,6 +152,11 @@ function UserProfileSection({ collapsed }: { collapsed?: boolean }) {
       </div>
     </div>
   );
+}
+
+function SmsMessengerOverlay() {
+  const { activeLead, closeSmsMessenger } = useSmsMessenger();
+  return <LeadSmsMessenger lead={activeLead} onClose={closeSmsMessenger} />;
 }
 
 interface DashboardLayoutProps {
@@ -358,6 +367,8 @@ export default function DashboardLayout({
   }, []); // Empty deps - only log once on mount
 
   return (
+    <SoftphoneProvider>
+    <SmsMessengerProvider>
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
@@ -779,7 +790,11 @@ export default function DashboardLayout({
           onOpenChange={setIsAiChatOpen}
           hideTrigger={true}
         />
+        <SmsMessengerOverlay />
+        <Softphone />
       </div>
     </div>
+    </SmsMessengerProvider>
+    </SoftphoneProvider>
   );
 }

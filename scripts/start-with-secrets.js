@@ -46,6 +46,10 @@ const SECRETS_MAPPING = {
     "tms/integrations/telegram/api-id": "TELEGRAM_API_ID",
     "tms/integrations/telegram/api-hash": "TELEGRAM_API_HASH",
     "tms/integrations/telegram/encryption-key": "TELEGRAM_SESSION_ENCRYPTION_KEY",
+
+    // NetSapiens PBX
+    "tms/integrations/netsapiens/api-key": "NS_API_KEY",
+    "tms/integrations/netsapiens/server": "NS_API_SERVER",
 };
 
 

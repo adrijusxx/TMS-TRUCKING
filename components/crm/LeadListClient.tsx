@@ -29,15 +29,22 @@ import {
     ArrowRight,
     UserPlus,
     Upload,
+    MessageSquare,
+    Mail,
 } from 'lucide-react';
 import Link from 'next/link';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow, isPast } from 'date-fns';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import LeadSheet from './LeadSheet';
+import LogActivityDialog from './LogActivityDialog';
 import BulkStatusDialog from './BulkStatusDialog';
 import BulkAssignDialog from './BulkAssignDialog';
+import BulkSmsDialog from './BulkSmsDialog';
+import BulkEmailDialog from './BulkEmailDialog';
 import ExportLeadsButton from './ExportLeadsButton';
+import { useSmsMessenger } from '@/lib/contexts/SmsMessengerContext';
+import { useClickToCall } from '@/lib/hooks/useClickToCall';
 
 interface Lead {
     id: string;
@@ -102,6 +109,10 @@ export default function LeadListClient() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
     const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+    const [bulkSmsOpen, setBulkSmsOpen] = useState(false);
+    const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
+    const [emailDialogLeadId, setEmailDialogLeadId] = useState<string | null>(null);
+    const { openSmsMessenger } = useSmsMessenger();
 
     const { data, isLoading, refetch, isFetching } = useQuery({
         queryKey: ['leads', searchQuery, statusFilter, priorityFilter],
@@ -134,33 +145,7 @@ export default function LeadListClient() {
         return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     };
 
-    const handleCall = async (e: React.MouseEvent, phone: string) => {
-        e.stopPropagation();
-        e.preventDefault();
-
-        try {
-            const settingsRes = await fetch('/api/user/voip-settings');
-            const settingsData = await settingsRes.json();
-            const isYokoEnabled = settingsData?.voipConfig?.enabled;
-
-            if (isYokoEnabled) {
-                toast.info('Initiating call via Yoko...');
-                const callRes = await fetch('/api/communications/call', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ destination: phone })
-                });
-                const callData = await callRes.json();
-                if (!callRes.ok) throw new Error(callData.error);
-                toast.success('Call initiated! Check your device.');
-            } else {
-                window.location.href = `tel:${phone}`;
-            }
-        } catch (err) {
-            console.error('Call failed', err);
-            window.location.href = `tel:${phone}`;
-        }
-    };
+    const { initiateCall } = useClickToCall();
 
     const toggleSelect = (id: string) => {
         setSelectedIds((prev) =>
@@ -275,6 +260,24 @@ export default function LeadListClient() {
                         Assign
                     </Button>
                     <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBulkSmsOpen(true)}
+                        className="gap-1"
+                    >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Send SMS
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBulkEmailOpen(true)}
+                        className="gap-1"
+                    >
+                        <Mail className="h-3.5 w-3.5" />
+                        Send Email
+                    </Button>
+                    <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedIds([])}
@@ -335,17 +338,53 @@ export default function LeadListClient() {
                                     <TableCell className="font-medium">
                                         {lead.firstName} {lead.lastName}
                                     </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                            <button
-                                                onClick={(e) => handleCall(e, lead.phone)}
-                                                className="flex items-center gap-1 hover:text-primary transition-colors"
-                                                title="Click to Call"
-                                            >
-                                                <Phone className="h-3 w-3" />
-                                                <span>{lead.phone}</span>
-                                            </button>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
+                                        <TooltipProvider delayDuration={300}>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-sm text-muted-foreground truncate max-w-[120px]">
+                                                {lead.phone}
+                                            </span>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        onClick={(e) => initiateCall(lead.phone, e)}
+                                                        className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-muted-foreground hover:text-blue-600 transition-colors"
+                                                    >
+                                                        <Phone className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Call</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        onClick={() => openSmsMessenger({
+                                                            leadId: lead.id,
+                                                            leadName: `${lead.firstName} ${lead.lastName}`,
+                                                            leadPhone: lead.phone,
+                                                        })}
+                                                        className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-muted-foreground hover:text-green-600 transition-colors"
+                                                    >
+                                                        <MessageSquare className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>SMS</TooltipContent>
+                                            </Tooltip>
+                                            {lead.email && (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            onClick={() => setEmailDialogLeadId(lead.id)}
+                                                            className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/30 text-muted-foreground hover:text-purple-600 transition-colors"
+                                                        >
+                                                            <Mail className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Email</TooltipContent>
+                                                </Tooltip>
+                                            )}
                                         </div>
+                                        </TooltipProvider>
                                     </TableCell>
                                     <TableCell>
                                         <Badge
@@ -405,6 +444,32 @@ export default function LeadListClient() {
                 selectedIds={selectedIds}
                 onSuccess={handleBulkSuccess}
             />
+            <BulkSmsDialog
+                open={bulkSmsOpen}
+                onOpenChange={setBulkSmsOpen}
+                selectedIds={selectedIds}
+                onSuccess={handleBulkSuccess}
+            />
+            <BulkEmailDialog
+                open={bulkEmailOpen}
+                onOpenChange={setBulkEmailOpen}
+                selectedIds={selectedIds}
+                onSuccess={handleBulkSuccess}
+            />
+
+            {/* Per-row email dialog */}
+            {emailDialogLeadId && (
+                <LogActivityDialog
+                    open={!!emailDialogLeadId}
+                    onOpenChange={(open) => { if (!open) setEmailDialogLeadId(null); }}
+                    leadId={emailDialogLeadId}
+                    activityType="EMAIL"
+                    onSuccess={() => {
+                        setEmailDialogLeadId(null);
+                        refetch();
+                    }}
+                />
+            )}
         </div>
     );
 }
