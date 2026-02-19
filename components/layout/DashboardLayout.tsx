@@ -68,6 +68,7 @@ import { useSession } from 'next-auth/react';
 import { getDepartmentForRoute, hasRouteAccess } from '@/lib/department-access';
 import type { UserRole } from '@/lib/permissions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import AppVersionBadge from '@/components/layout/AppVersionBadge';
 import { MenuVisibilityManager } from '@/lib/managers/MenuVisibilityManager';
 import type { MenuItemId } from '@/lib/managers/MenuVisibilityManager';
 import SafetyHeaderNav from '@/components/safety/SafetyHeaderNav';
@@ -678,6 +679,7 @@ export default function DashboardLayout({
                 </Tooltip>
               </TooltipProvider>
             </div>
+            <AppVersionBadge collapsed={mainSidebarCollapsed} />
           </div>
         </aside>
       )}

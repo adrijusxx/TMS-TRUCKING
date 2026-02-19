@@ -2,9 +2,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Load .env file manually
+// Load .env file manually (checks local .env first, then shared/.env for release-based deploys)
 function loadEnvFile() {
-  const envPath = path.join(__dirname, '.env');
+  const localEnvPath = path.join(__dirname, '.env');
+  const sharedEnvPath = path.resolve(__dirname, '..', 'shared', '.env');
+  const envPath = fs.existsSync(localEnvPath) ? localEnvPath : sharedEnvPath;
   const env = {};
 
   if (fs.existsSync(envPath)) {

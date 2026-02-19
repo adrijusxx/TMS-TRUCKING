@@ -8,27 +8,35 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Extract build metadata
+        id: meta
+        run: |
+          echo "commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "commit_sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "release_tag=$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "build_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
         env:
           npm_config_legacy_peer_deps: true
-      
+
       - name: Generate Prisma Client
         run: npm run db:generate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      
+
       - name: Build Next.js
         run: npm run build
         env:
@@ -36,7 +44,7 @@ jobs:
           NEXT_PUBLIC_BASE_PATH: ${{ secrets.NEXT_PUBLIC_BASE_PATH || '' }}
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
           NODE_OPTIONS: '--max-old-space-size=6144'
-      
+
       - name: Create deployment archive
         run: |
           tar -czf deploy.tar.gz \
@@ -52,8 +60,9 @@ jobs:
             scripts/start-with-secrets.js \
             scripts/run-migration-with-secrets.js \
             scripts/resolve-migration.js \
-            scripts/assign-super-admin.js
-            
+            scripts/assign-super-admin.js \
+            scripts/rollback.sh
+
       - name: Deploy to AWS EC2 via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -64,8 +73,8 @@ jobs:
           timeout: 300s
           source: "deploy.tar.gz"
           target: "/home/ec2-user/tms/"
-      
-      - name: Extract, update, and restart on EC2
+
+      - name: Deploy release on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
@@ -76,62 +85,92 @@ jobs:
           script: |
             set -e
             cd /home/ec2-user/tms
-            
-            echo "Extracting deployment archive..."
-            tar -xzf deploy.tar.gz
-            
+
+            RELEASE_TAG="${{ steps.meta.outputs.release_tag }}"
+            RELEASES_DIR="/home/ec2-user/tms/releases"
+            SHARED_DIR="/home/ec2-user/tms/shared"
+            CURRENT_LINK="/home/ec2-user/tms/current"
+            MAX_RELEASES=5
+            RELEASE_DIR="${RELEASES_DIR}/${RELEASE_TAG}"
+
+            echo "=== Deploying release: ${RELEASE_TAG} ==="
+
+            # Create directories
+            mkdir -p "${RELEASES_DIR}" "${SHARED_DIR}" "${RELEASE_DIR}"
+
+            # Extract archive to release directory
+            tar -xzf deploy.tar.gz -C "${RELEASE_DIR}"
+            cd "${RELEASE_DIR}"
+
+            # Organize standalone build
             echo "Organizing standalone build..."
-            # Move static assets to where standalone server expects them
-            mkdir -p .next/standalone/.next
-            mkdir -p .next/standalone/public
-            
-            # Copy static (bundled assets)
+            mkdir -p .next/standalone/.next .next/standalone/public
             cp -r .next/static .next/standalone/.next/
-            
-            # Copy public (static files)
             cp -r public/* .next/standalone/public/ || true
-            
-            echo "Making startup script executable..."
-            chmod +x scripts/start-app-with-secrets.sh scripts/run-migration-with-secrets.sh || true
-            
+
+            echo "Making scripts executable..."
+            chmod +x scripts/*.sh || true
+
+            # Check swap (prevent OOM on small instances)
             echo "Checking memory and swap..."
             free -h
-            # Check if swap exists and create if not (prevent OOM on small instances)
             SWAP_SIZE=$(free -m | awk '/^Swap:/ {print $2}')
-            if [ "$SWAP_SIZE" -gt 0 ]; then
-                echo "Swap exists ($SWAP_SIZE MB)."
-            else
+            if [ "$SWAP_SIZE" -eq 0 ]; then
                 echo "No swap found. Creating 2GB swap file..."
                 sudo fallocate -l 2G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
                 sudo chmod 600 /swapfile
                 sudo mkswap /swapfile
                 sudo swapon /swapfile
-                echo "Swap created successfully."
-                free -h
+                echo "Swap created."
             fi
-            
+
             echo "Installing production dependencies..."
             npm ci --production --ignore-scripts --legacy-peer-deps
-            
-            echo "Installing Prisma CLI for client generation..."
-            # Pin Prisma version to 6.19.0 to prevent version mismatch issues
+
+            echo "Installing Prisma CLI..."
             npm install prisma@6.19.0 --legacy-peer-deps --save-dev
-            
+
             echo "Verifying Prisma version..."
             npx prisma@6.19.0 --version | head -1
-            
+
             echo "Generating Prisma Client..."
-            # Note: In production, DATABASE_URL comes from AWS Secrets Manager
             npx prisma@6.19.0 generate
-            
+
             echo "Running database migrations..."
             node scripts/run-migration-with-secrets.js || echo "Migration skipped or failed"
-            
-            echo "Restarting application with PM2..."
+
+            # Atomic switch: update the symlink to the new release
+            echo "Switching to new release..."
+            ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
+
+            # Restart PM2 from the new release directory
+            cd "${CURRENT_LINK}"
             pm2 restart tms || pm2 start ecosystem.config.js
-            
-            echo "Cleaning up..."
-            rm -f deploy.tar.gz
-            
-            echo "✅ Deployment complete!"
-# Trigger rebuild 12/29/2025 18:48:00
+
+            # Cleanup: keep only the last N releases
+            echo "Cleaning up old releases..."
+            cd "${RELEASES_DIR}"
+            ls -dt */ | tail -n +$((MAX_RELEASES + 1)) | xargs rm -rf 2>/dev/null || true
+
+            # Cleanup archive
+            rm -f /home/ec2-user/tms/deploy.tar.gz
+
+            echo "=== Release ${RELEASE_TAG} deployed ==="
+            echo "Current -> $(readlink ${CURRENT_LINK})"
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          script: |
+            echo "Waiting for app to start..."
+            sleep 10
+            echo "Checking version endpoint..."
+            curl -sf http://localhost:3001/api/version || echo "Version endpoint not yet ready"
+            echo ""
+            echo "PM2 status:"
+            pm2 list

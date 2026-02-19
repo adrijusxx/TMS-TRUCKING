@@ -1,4 +1,23 @@
 /** @type {import('next').NextConfig} */
+const { execSync } = require('child_process');
+
+function getBuildMetadata() {
+  let commitSha = 'unknown';
+  let commitShaShort = 'unknown';
+  const buildTimestamp = new Date().toISOString();
+  try {
+    commitSha = execSync('git rev-parse HEAD').toString().trim();
+    commitShaShort = execSync('git rev-parse --short HEAD').toString().trim();
+  } catch { /* not in git repo */ }
+  const pkg = require('./package.json');
+  return {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
+    NEXT_PUBLIC_COMMIT_SHA: commitSha,
+    NEXT_PUBLIC_COMMIT_SHA_SHORT: commitShaShort,
+    NEXT_PUBLIC_BUILD_TIMESTAMP: buildTimestamp,
+  };
+}
+
 const nextConfig = {
   reactStrictMode: true,
   images: {
@@ -34,6 +53,11 @@ const nextConfig = {
     fetches: {
       fullUrl: false,
     },
+  },
+
+  // Build metadata injected at build time
+  env: {
+    ...getBuildMetadata(),
   },
 }
 

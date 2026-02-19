@@ -30,14 +30,18 @@ export async function GET(request: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '50');
 
         // 1. Find all loads ready for settlement
+        // Use same criteria as Orchestrator: readyForSettlement=true OR status INVOICED/PAID
         const pendingLoads = await prisma.load.findMany({
             where: {
                 companyId: session.user.companyId,
                 status: {
                     in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] as LoadStatus[],
                 },
-                readyForSettlement: true,
                 deletedAt: null,
+                OR: [
+                    { readyForSettlement: true },
+                    { status: { in: ['INVOICED', 'PAID'] as LoadStatus[] } },
+                ],
             },
             select: {
                 id: true,
@@ -155,7 +159,28 @@ export async function GET(request: NextRequest) {
                 });
             } catch (err) {
                 console.error(`Failed to calculate draft for driver ${driver.id}:`, err);
-                // Continue to next driver
+                // Still include the driver with basic info so they appear in Pending tab
+                const totalRevenue = driverLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+                const totalDriverPay = driverLoads.reduce((sum, l) => sum + (l.driverPay || 0), 0);
+                draftSettlements.push({
+                    driver: {
+                        id: driver.id,
+                        name: `${driver.user?.firstName} ${driver.user?.lastName}`,
+                        truckNumber: driver.currentTruck?.truckNumber
+                    },
+                    period: { start: periodStart, end: periodEnd },
+                    loadCount: driverLoads.length,
+                    loads: driverLoads.map(l => ({ id: l.id, loadNumber: l.loadNumber, revenue: l.revenue })),
+                    grossPay: totalDriverPay,
+                    netPay: totalDriverPay,
+                    totalDeductions: 0,
+                    totalAdditions: 0,
+                    totalAdvances: 0,
+                    negativeBalanceDeduction: 0,
+                    additions: [],
+                    deductions: [],
+                    advances: [],
+                });
             }
         }
 
