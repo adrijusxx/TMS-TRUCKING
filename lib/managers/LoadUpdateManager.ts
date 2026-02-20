@@ -175,6 +175,16 @@ export class LoadUpdateManager {
                 );
             }
         }
+
+        // Recalculate netProfit when any financial field changes
+        const financialsChanged = validated.revenue !== undefined || validated.driverPay !== undefined
+            || validated.totalExpenses !== undefined || updateData.driverPay !== undefined;
+        if (financialsChanged) {
+            const finalRevenue = validated.revenue ?? existingLoad.revenue ?? 0;
+            const finalDriverPay = updateData.driverPay ?? validated.driverPay ?? existingLoad.driverPay ?? 0;
+            const finalExpenses = validated.totalExpenses ?? existingLoad.totalExpenses ?? 0;
+            updateData.netProfit = Number((finalRevenue - finalDriverPay - finalExpenses).toFixed(2));
+        }
     }
 
     private static async trackStatusHistory(loadId: string, existingLoad: any, validated: any, userId: string) {

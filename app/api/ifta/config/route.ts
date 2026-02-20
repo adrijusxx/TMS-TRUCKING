@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { hasPermissionAsync } from '@/lib/server-permissions';
 import { z } from 'zod';
 
 const configSchema = z.object({
@@ -15,6 +16,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
         { status: 401 }
+      );
+    }
+
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!(await hasPermissionAsync(role, 'ifta.view'))) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN' } },
+        { status: 403 }
       );
     }
 
@@ -65,6 +74,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
         { status: 401 }
+      );
+    }
+
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!(await hasPermissionAsync(role, 'ifta.manage'))) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN' } },
+        { status: 403 }
       );
     }
 

@@ -100,7 +100,7 @@ export interface IFTAReportPDFData {
     address?: string;
     city?: string;
     state?: string;
-    zipCode?: string;
+    zip?: string;
     phone?: string;
     email?: string;
     mcNumber?: string;

@@ -14,6 +14,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AccountingSettingsForm } from '@/components/settings/AccountingSettingsForm';
+import { McInvoiceBranding } from '@/components/accounting/McInvoiceBranding';
 import { Loader2, Save, DollarSign, Clock, Truck, Building2, Calculator } from 'lucide-react';
 
 interface SystemConfig {
@@ -169,6 +170,7 @@ export default function AccountingSettingsPage() {
           <TabsList>
             <TabsTrigger value="system">System Defaults</TabsTrigger>
             <TabsTrigger value="validation">Settlement Rules</TabsTrigger>
+            <TabsTrigger value="branding">Invoice Branding</TabsTrigger>
           </TabsList>
 
           <TabsContent value="system" className="space-y-6">
@@ -427,6 +429,10 @@ export default function AccountingSettingsPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="branding">
+            <McInvoiceBranding />
           </TabsContent>
         </Tabs>
       </div>

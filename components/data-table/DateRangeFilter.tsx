@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar, X, ChevronDown } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface DateRangeFilterProps {
@@ -135,17 +136,17 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
                     <div className="border-t p-2 space-y-2">
                         <div className="text-xs font-medium text-muted-foreground px-2">Custom Range</div>
                         <div className="flex gap-2">
-                            <input
+                            <Input
                                 type="date"
                                 value={customStart}
                                 onChange={(e) => setCustomStart(e.target.value)}
-                                className="flex-1 h-7 text-xs px-2 border rounded"
+                                className="flex-1 h-7 text-xs px-2"
                             />
-                            <input
+                            <Input
                                 type="date"
                                 value={customEnd}
                                 onChange={(e) => setCustomEnd(e.target.value)}
-                                className="flex-1 h-7 text-xs px-2 border rounded"
+                                className="flex-1 h-7 text-xs px-2"
                             />
                         </div>
                         <Button

@@ -368,7 +368,7 @@ export default function LoadRelatedItemsTab({
                 id="dispatchNotes"
                 value={formData.dispatchNotes || load.dispatchNotes || ''}
                 onChange={(e) => updateField('dispatchNotes', e.target.value)}
-                className="w-full min-h-[100px] p-2 text-sm border rounded-md resize-none"
+                className="w-full min-h-[100px] p-2 text-sm border border-input bg-background text-foreground rounded-md resize-none"
                 placeholder="Dispatch notes..."
               />
             ) : (

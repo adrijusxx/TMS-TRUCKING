@@ -209,7 +209,7 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                                 {company.address && <Text>{company.address}</Text>}
                                 {company.city && company.state && (
                                     <Text>
-                                        {company.city}, {company.state} {company.zipCode}
+                                        {company.city}, {company.state} {company.zip}
                                     </Text>
                                 )}
                                 {company.phone && <Text>Phone: {company.phone}</Text>}

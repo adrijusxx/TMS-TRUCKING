@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('search') || '';
         const status = searchParams.get('status');
         const priority = searchParams.get('priority');
+        const assignedTo = searchParams.get('assignedTo');
         const limit = parseInt(searchParams.get('limit') || '100');
 
         // Build MC filter
@@ -38,6 +39,12 @@ export async function GET(request: NextRequest) {
 
         if (priority && priority !== 'all') {
             where.priority = priority;
+        }
+
+        if (assignedTo === 'unassigned') {
+            where.assignedToId = null;
+        } else if (assignedTo && assignedTo !== 'all') {
+            where.assignedToId = assignedTo;
         }
 
         if (search) {
@@ -68,6 +75,7 @@ export async function GET(request: NextRequest) {
                 lastCallAt: true,
                 lastSmsAt: true,
                 nextFollowUpDate: true,
+                nextFollowUpNote: true,
                 aiSummary: true,
                 aiScore: true,
                 assignedTo: {

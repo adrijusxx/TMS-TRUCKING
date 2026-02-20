@@ -243,7 +243,7 @@ export default function LoadLocationDetailsTab({
                   id="pickupNotes"
                   value={formData.pickupNotes || load.pickupNotes || ''}
                   onChange={(e) => updateField('pickupNotes', e.target.value)}
-                  className="w-full min-h-[80px] p-2 text-sm border rounded-md resize-none"
+                  className="w-full min-h-[80px] p-2 text-sm border border-input bg-background text-foreground rounded-md resize-none"
                   placeholder="Pickup notes..."
                 />
               ) : (
@@ -448,7 +448,7 @@ export default function LoadLocationDetailsTab({
                   id="deliveryNotes"
                   value={formData.deliveryNotes || load.deliveryNotes || ''}
                   onChange={(e) => updateField('deliveryNotes', e.target.value)}
-                  className="w-full min-h-[80px] p-2 text-sm border rounded-md resize-none"
+                  className="w-full min-h-[80px] p-2 text-sm border border-input bg-background text-foreground rounded-md resize-none"
                   placeholder="Delivery notes..."
                 />
               ) : (

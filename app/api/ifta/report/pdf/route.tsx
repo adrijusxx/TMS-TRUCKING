@@ -11,6 +11,7 @@ import { iftaCalculatorService } from '@/lib/services/IFTACalculatorService';
 import { PDFFactory } from '@/lib/pdf/PDFFactory';
 import { IFTAReportPDF } from '@/lib/pdf/templates/IFTAReportPDF';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { hasPermissionAsync } from '@/lib/server-permissions';
 import { z } from 'zod';
 import React from 'react';
 
@@ -29,6 +30,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED' } },
         { status: 401 }
+      );
+    }
+
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!(await hasPermissionAsync(role, 'ifta.view'))) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN' } },
+        { status: 403 }
       );
     }
 
@@ -74,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     // Generate PDF
     const pdfBuffer = await PDFFactory.generate(
-      React.createElement(IFTAReportPDF, { report, company: company ? { ...company, zipCode: company.zip } : null })
+      React.createElement(IFTAReportPDF, { report, company: company ? { ...company, zip: company.zip } : null })
     );
 
     // Return PDF

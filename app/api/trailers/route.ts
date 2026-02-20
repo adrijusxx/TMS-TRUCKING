@@ -502,7 +502,7 @@ export async function POST(request: NextRequest) {
         ownerName: validated.ownerName || null,
         assignedTruckId: validated.assignedTruckId || null,
         operatorDriverId: validated.operatorDriverId || null,
-        status: validated.status || null,
+        status: (validated.status as any) || undefined,
         fleetStatus: validated.fleetStatus || null,
         registrationExpiry,
         insuranceExpiry,

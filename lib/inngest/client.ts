@@ -125,6 +125,11 @@ export type InngestEvents = {
       metadata?: Record<string, unknown>;
     };
   };
+
+  // Fleet Monitoring Events
+  'fleet/check-dormancy': {
+    data: Record<string, never>;
+  };
 };
 
 // Create the Inngest client

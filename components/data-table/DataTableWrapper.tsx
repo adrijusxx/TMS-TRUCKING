@@ -124,6 +124,10 @@ interface DataTableWrapperProps<TData extends Record<string, any>> {
    * Custom actions to be rendered in the toolbar
    */
   toolbarActions?: React.ReactNode;
+  /**
+   * Callback when column filters change (exposes filter state to parent)
+   */
+  onFiltersChange?: (filters: ColumnFiltersState) => void;
 }
 
 /**
@@ -151,6 +155,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   enableInlineFilters,
   enableColumnReorder = false,
   toolbarActions,
+  onFiltersChange,
 }: DataTableWrapperProps<TData>) {
 
   const { can } = usePermissions();
@@ -323,6 +328,11 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   React.useEffect(() => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, [columnFilters]);
+
+  // Notify parent of filter changes
+  React.useEffect(() => {
+    onFiltersChange?.(columnFilters);
+  }, [columnFilters, onFiltersChange]);
 
   // Extract search from column filters
   const searchFilter = React.useMemo(() => {

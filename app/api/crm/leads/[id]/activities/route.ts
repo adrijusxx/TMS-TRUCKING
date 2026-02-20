@@ -26,9 +26,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
         if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
+        // Optional filters
+        const { searchParams } = new URL(request.url);
+        const typeFilter = searchParams.get('type');
+        const limit = parseInt(searchParams.get('limit') || '50');
+
+        const activityWhere: any = { leadId: id };
+        if (typeFilter) {
+            activityWhere.type = { in: typeFilter.split(',') };
+        }
+
         const activities = await prisma.leadActivity.findMany({
-            where: { leadId: id },
+            where: activityWhere,
             orderBy: { createdAt: 'desc' },
+            take: Math.min(limit, 200),
             include: {
                 user: {
                     select: {

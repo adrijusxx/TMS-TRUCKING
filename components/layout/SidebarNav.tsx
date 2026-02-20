@@ -33,6 +33,7 @@ interface NavigationItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   permission?: Permission;
+  activePaths?: string[];
 }
 
 interface NavigationGroup {
@@ -59,7 +60,7 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: 'Fleet', href: '/dashboard/fleet', icon: Truck, permission: 'departments.fleet.view' },
       { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
-      { name: 'Accounting', href: '/dashboard/accounting', icon: DollarSign, permission: 'departments.accounting.view' },
+      { name: 'Accounting', href: '/dashboard/invoices', icon: DollarSign, permission: 'departments.accounting.view', activePaths: ['/dashboard/invoices', '/dashboard/settlements', '/dashboard/customers', '/dashboard/batches', '/dashboard/accounting'] },
       { name: 'HR', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },
       { name: 'Recruiting', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
     ],
@@ -152,7 +153,9 @@ export default function SidebarNav({ collapsed, onItemClick }: SidebarNavProps) 
 
     const isActive = item.href === '/dashboard'
       ? pathname === '/dashboard'
-      : pathname === item.href || pathname?.startsWith(item.href + '/');
+      : item.activePaths
+        ? item.activePaths.some(p => pathname === p || pathname?.startsWith(p + '/'))
+        : pathname === item.href || pathname?.startsWith(item.href + '/');
 
     const activeStyles = variant === 'super-admin'
       ? 'bg-status-error text-status-error-foreground shadow-sm shadow-status-error/20'

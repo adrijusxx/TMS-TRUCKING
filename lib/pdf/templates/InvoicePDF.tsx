@@ -89,7 +89,7 @@ export interface InvoicePDFData {
     address?: string;
     city?: string;
     state?: string;
-    zipCode?: string;
+    zip?: string;
     email?: string;
     phone?: string;
   };
@@ -98,7 +98,7 @@ export interface InvoicePDFData {
     address?: string;
     city?: string;
     state?: string;
-    zipCode?: string;
+    zip?: string;
     phone?: string;
     email?: string;
     mcNumber?: string;
@@ -187,7 +187,7 @@ export const InvoicePDF: React.FC<InvoicePDFData> = ({
             {customer.address && <Text style={{ fontSize: 9 }}>{customer.address}</Text>}
             {(customer.city || customer.state) && (
               <Text style={{ fontSize: 9 }}>
-                {customer.city}, {customer.state} {customer.zipCode}
+                {customer.city}, {customer.state} {customer.zip}
               </Text>
             )}
             {customer.email && <Text style={{ fontSize: 8, color: '#666' }}>{customer.email}</Text>}

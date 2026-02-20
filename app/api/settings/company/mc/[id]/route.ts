@@ -41,19 +41,19 @@ export async function PATCH(
             );
         }
 
-        // Update
+        // Build update data — only include fields that are present in body
+        const updateData: Record<string, unknown> = {};
+        const allowedFields = [
+            'branding', 'email', 'address', 'city', 'state', 'zip',
+            'website', 'companyName', 'companyPhone', 'logoUrl',
+        ] as const;
+        for (const field of allowedFields) {
+            if (field in body) updateData[field] = body[field];
+        }
+
         const updatedMc = await prisma.mcNumber.update({
             where: { id },
-            data: {
-                branding: body.branding,
-                email: body.email,
-                address: body.address,
-                city: body.city,
-                state: body.state,
-                zip: body.zip,
-                website: body.website,
-                // Allow updating common validation fields if needed, but primarily branding
-            },
+            data: updateData,
         });
 
         return NextResponse.json({

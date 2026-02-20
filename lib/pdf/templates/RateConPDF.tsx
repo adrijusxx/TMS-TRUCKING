@@ -94,7 +94,7 @@ export interface RateConPDFData {
     address?: string;
     city: string;
     state: string;
-    zipCode?: string;
+    zip?: string;
     scheduledDate?: Date | string;
   }>;
   company: {
@@ -102,7 +102,7 @@ export interface RateConPDFData {
     address?: string;
     city?: string;
     state?: string;
-    zipCode?: string;
+    zip?: string;
     phone?: string;
     email?: string;
     mcNumber?: string;
@@ -202,7 +202,7 @@ export const RateConPDF: React.FC<RateConPDFData> = ({
                 </Text>
                 {stop.address && <Text style={{ fontSize: 9 }}>{stop.address}</Text>}
                 <Text style={{ fontSize: 10 }}>
-                  {stop.city}, {stop.state} {stop.zipCode || ''}
+                  {stop.city}, {stop.state} {stop.zip || ''}
                 </Text>
                 {stop.scheduledDate && (
                   <Text style={{ fontSize: 8, color: '#666', marginTop: 4 }}>

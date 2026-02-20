@@ -154,3 +154,54 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: 'Failed to upload document' }, { status: 500 });
     }
 }
+
+// DELETE /api/crm/leads/[id]/documents
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    try {
+        const session = await auth();
+        if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+        const { id } = await params;
+        const companyId = session.user.companyId;
+        if (!companyId) return NextResponse.json({ error: 'Company ID required' }, { status: 400 });
+
+        const { searchParams } = new URL(request.url);
+        const documentId = searchParams.get('documentId');
+        if (!documentId) return NextResponse.json({ error: 'documentId is required' }, { status: 400 });
+
+        // Verify lead access
+        const lead = await prisma.lead.findFirst({
+            where: { id, companyId, deletedAt: null },
+        });
+        if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+
+        const doc = await prisma.leadDocument.findFirst({ where: { id: documentId, leadId: id } });
+        if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+
+        await prisma.leadDocument.delete({ where: { id: documentId } });
+
+        // Log activity
+        await prisma.leadActivity.create({
+            data: {
+                leadId: id,
+                type: 'DOCUMENT_UPLOAD',
+                content: `Deleted document: ${doc.fileName} (${doc.documentType})`,
+                userId: session.user.id,
+            },
+        });
+
+        // Try to remove the physical file (non-critical)
+        try {
+            const { unlink } = await import('fs/promises');
+            const filePath = join(process.cwd(), 'public', doc.fileUrl);
+            await unlink(filePath);
+        } catch {
+            // File may not exist or be inaccessible — not critical
+        }
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting document:', error);
+        return NextResponse.json({ error: 'Failed to delete document' }, { status: 500 });
+    }
+}

@@ -351,6 +351,7 @@ export function buildLoadCreateData(
     hazmatClass: loadData.hazmatClass || null,
     // Financial
     revenuePerMile: loadData.revenuePerMile || null,
+    netProfit: (loadData.revenue || 0) - (calculatedDriverPay ?? (loadData.driverPay || 0)),
     // Additional assignments
     coDriverId: loadData.coDriverId || null,
     dispatcherId: loadData.dispatcherId || null,

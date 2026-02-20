@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Phone, MessageSquare, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow, isPast } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import LeadSheet from './LeadSheet';
 import LeadListToolbar from './LeadListToolbar';
 import LeadBulkActionBar from './LeadBulkActionBar';
@@ -19,6 +19,9 @@ import BulkStatusDialog from './BulkStatusDialog';
 import BulkAssignDialog from './BulkAssignDialog';
 import BulkSmsDialog from './BulkSmsDialog';
 import BulkEmailDialog from './BulkEmailDialog';
+import LeadWarningCell from './LeadWarningCell';
+import LeadAssignedToCell from './LeadAssignedToCell';
+import { computeLeadWarnings, type SLAConfig } from '@/lib/utils/lead-warnings';
 import { useSmsMessenger } from '@/lib/contexts/SmsMessengerContext';
 import { useClickToCall } from '@/lib/hooks/useClickToCall';
 
@@ -34,10 +37,12 @@ interface Lead {
     source: string;
     assignedTo: { firstName: string; lastName: string } | null;
     createdAt: string;
+    updatedAt: string;
     lastContactedAt: string | null;
     lastCallAt: string | null;
     lastSmsAt: string | null;
     nextFollowUpDate: string | null;
+    nextFollowUpNote: string | null;
     aiSummary: string | null;
     latestNote: string | null;
 }
@@ -67,6 +72,7 @@ export default function LeadListClient() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [priorityFilter, setPriorityFilter] = useState('all');
+    const [assignedToFilter, setAssignedToFilter] = useState('all');
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -79,18 +85,31 @@ export default function LeadListClient() {
     const { initiateCall } = useClickToCall();
 
     const { data, isLoading, refetch, isFetching } = useQuery({
-        queryKey: ['leads', searchQuery, statusFilter, priorityFilter],
+        queryKey: ['leads', searchQuery, statusFilter, priorityFilter, assignedToFilter],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (searchQuery) params.append('search', searchQuery);
             if (statusFilter !== 'all') params.append('status', statusFilter);
             if (priorityFilter !== 'all') params.append('priority', priorityFilter);
+            if (assignedToFilter !== 'all') params.append('assignedTo', assignedToFilter);
             const res = await fetch(`/api/crm/leads?${params.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch leads');
             return res.json();
         },
         staleTime: 30000,
     });
+
+    const { data: slaData } = useQuery({
+        queryKey: ['sla-config'],
+        queryFn: async () => {
+            const res = await fetch('/api/crm/sla-config');
+            if (!res.ok) return { configs: [] };
+            return res.json();
+        },
+        staleTime: 300000,
+    });
+
+    const slaConfigs: SLAConfig[] = slaData?.configs || [];
 
     const leads: Lead[] = data?.leads || [];
 
@@ -111,6 +130,8 @@ export default function LeadListClient() {
                 onStatusChange={setStatusFilter}
                 priorityFilter={priorityFilter}
                 onPriorityChange={setPriorityFilter}
+                assignedToFilter={assignedToFilter}
+                onAssignedToChange={setAssignedToFilter}
                 onRefresh={() => refetch()}
                 isFetching={isFetching}
                 onAddNew={() => { setSelectedLeadId(null); setIsSheetOpen(true); }}
@@ -140,21 +161,23 @@ export default function LeadListClient() {
                             <TableHead>Status</TableHead>
                             <TableHead>Priority</TableHead>
                             <TableHead>Source</TableHead>
+                            <TableHead>Assigned</TableHead>
                             <TableHead>Last Call</TableHead>
                             <TableHead>Last SMS</TableHead>
                             <TableHead>Created</TableHead>
+                            <TableHead>Alerts</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                                     Loading leads...
                                 </TableCell>
                             </TableRow>
                         ) : leads.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                                     No leads found. Click &quot;Add Lead&quot; to create your first recruiting lead.
                                 </TableCell>
                             </TableRow>
@@ -205,6 +228,13 @@ export default function LeadListClient() {
                                     <TableCell className="text-sm">
                                         {lead.source.replace(/_/g, ' ')}
                                     </TableCell>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
+                                        <LeadAssignedToCell
+                                            leadId={lead.id}
+                                            assignedTo={lead.assignedTo}
+                                            onAssigned={() => refetch()}
+                                        />
+                                    </TableCell>
                                     <TableCell className="text-xs text-muted-foreground">
                                         {lead.lastCallAt ? (
                                             <div className="flex items-center gap-1">
@@ -221,20 +251,13 @@ export default function LeadListClient() {
                                             </div>
                                         ) : <span className="text-muted-foreground/50">--</span>}
                                     </TableCell>
-                                    <TableCell className="text-sm">
-                                        <span className="text-muted-foreground">
-                                            {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
-                                        </span>
-                                        {lead.nextFollowUpDate && (
-                                            <div className={cn(
-                                                'text-xs mt-0.5',
-                                                isPast(new Date(lead.nextFollowUpDate)) ? 'text-red-500 font-medium' : 'text-muted-foreground'
-                                            )}>
-                                                {isPast(new Date(lead.nextFollowUpDate))
-                                                    ? 'Follow-up overdue'
-                                                    : `Follow-up ${formatDistanceToNow(new Date(lead.nextFollowUpDate), { addSuffix: true })}`}
-                                            </div>
-                                        )}
+                                    <TableCell className="text-sm text-muted-foreground">
+                                        {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
+                                    </TableCell>
+                                    <TableCell>
+                                        <LeadWarningCell
+                                            warnings={computeLeadWarnings(lead, slaConfigs)}
+                                        />
                                     </TableCell>
                                 </TableRow>
                             ))

@@ -226,6 +226,30 @@ export class GeocodingCacheManager {
   }
 
   /**
+   * Normalize fuel station search cache key
+   * Round to 3 decimal places (~111m precision) for dedup
+   */
+  static normalizeFuelKey(lat: number, lng: number, radiusMeters: number): string {
+    const roundedLat = Math.round(lat * 1000) / 1000;
+    const roundedLng = Math.round(lng * 1000) / 1000;
+    return `fuel:${roundedLat},${roundedLng}:r${radiusMeters}`;
+  }
+
+  /**
+   * Normalize toll estimate cache key
+   */
+  static normalizeTollKey(
+    origin: { lat: number; lng: number },
+    destination: { lat: number; lng: number }
+  ): string {
+    const oLat = Math.round(origin.lat * 10000) / 10000;
+    const oLng = Math.round(origin.lng * 10000) / 10000;
+    const dLat = Math.round(destination.lat * 10000) / 10000;
+    const dLng = Math.round(destination.lng * 10000) / 10000;
+    return `toll:${oLat},${oLng}:${dLat},${dLng}`;
+  }
+
+  /**
    * Normalize state abbreviation
    */
   private static normalizeState(state: string): string {

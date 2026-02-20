@@ -27,7 +27,7 @@ const quickActions: QuickAction[] = [
   {
     title: 'Create Load',
     description: 'Add a new load',
-    href: '/dashboard/loads/new',
+    href: '/dashboard/loads?action=new',
     icon: Package,
     color: 'bg-blue-500',
     permission: 'loads.create',
@@ -35,7 +35,7 @@ const quickActions: QuickAction[] = [
   {
     title: 'Add Driver',
     description: 'Register new driver',
-    href: '/dashboard/drivers/new',
+    href: '/dashboard/drivers?action=new',
     icon: Users,
     color: 'bg-green-500',
     permission: 'drivers.create',
@@ -43,7 +43,7 @@ const quickActions: QuickAction[] = [
   {
     title: 'Add Truck',
     description: 'Register new truck',
-    href: '/dashboard/trucks/new',
+    href: '/dashboard/trucks?action=new',
     icon: Truck,
     color: 'bg-purple-500',
     permission: 'trucks.create',
@@ -51,7 +51,7 @@ const quickActions: QuickAction[] = [
   {
     title: 'Add Customer',
     description: 'Register new customer',
-    href: '/dashboard/customers/new',
+    href: '/dashboard/customers?action=new',
     icon: FileText,
     color: 'bg-orange-500',
     permission: 'customers.create',

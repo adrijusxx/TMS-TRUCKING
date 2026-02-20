@@ -10,6 +10,7 @@ import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import LoadStatusUpdate from '@/components/mobile/LoadStatusUpdate';
+import LoadFuelStops from '@/components/mobile/LoadFuelStops';
 import { LoadStatus } from '@prisma/client';
 
 interface Load {
@@ -223,6 +224,9 @@ export default function DriverLoadDetail({ loadId }: DriverLoadDetailProps) {
               </CardContent>
             </Card>
           )}
+
+          {/* Fuel Stops & Tolls */}
+          <LoadFuelStops loadId={loadId} totalMiles={load.totalMiles} />
 
           {/* Revenue */}
           <Card>

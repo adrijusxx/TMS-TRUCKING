@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Loader2, ChevronDown, ChevronUp, Truck, MapPin, DollarSign, TrendingUp, Fuel, Wrench } from 'lucide-react';
 import { apiUrl, formatCurrency, cn } from '@/lib/utils';
+import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
+import type { ColumnFiltersState } from '@tanstack/react-table';
 import {
   Collapsible,
   CollapsibleContent,
@@ -41,19 +43,29 @@ interface LoadStatistics {
   projected?: ProjectedCosts;
 }
 
-async function fetchLoadStatistics(): Promise<LoadStatistics> {
-  const response = await fetch(apiUrl('/api/loads/statistics'));
-  if (!response.ok) throw new Error('Failed to fetch load statistics');
-  const result = await response.json();
-  return result.data;
+interface LoadStatisticsCardProps {
+  filters?: ColumnFiltersState;
 }
 
-export default function LoadStatisticsCard() {
+export default function LoadStatisticsCard({ filters }: LoadStatisticsCardProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
+  // Build query string from active table filters
+  const filterQueryString = React.useMemo(() => {
+    if (!filters || filters.length === 0) return '';
+    const params = convertFiltersToQueryParams(filters);
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  }, [filters]);
+
   const { data: stats, isLoading, error } = useQuery({
-    queryKey: ['load-statistics'],
-    queryFn: fetchLoadStatistics,
+    queryKey: ['load-statistics', filterQueryString],
+    queryFn: async () => {
+      const response = await fetch(apiUrl(`/api/loads/statistics${filterQueryString}`));
+      if (!response.ok) throw new Error('Failed to fetch load statistics');
+      const result = await response.json();
+      return result.data as LoadStatistics;
+    },
     refetchInterval: 30000,
   });
 

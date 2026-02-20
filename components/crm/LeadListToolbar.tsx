@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -34,6 +35,12 @@ const priorityOptions = [
     { value: 'COLD', label: 'Cold' },
 ];
 
+interface StaffUser {
+    id: string;
+    firstName: string;
+    lastName: string;
+}
+
 interface LeadListToolbarProps {
     searchQuery: string;
     onSearchChange: (value: string) => void;
@@ -41,6 +48,8 @@ interface LeadListToolbarProps {
     onStatusChange: (value: string) => void;
     priorityFilter: string;
     onPriorityChange: (value: string) => void;
+    assignedToFilter: string;
+    onAssignedToChange: (value: string) => void;
     onRefresh: () => void;
     isFetching: boolean;
     onAddNew: () => void;
@@ -50,8 +59,17 @@ export default function LeadListToolbar({
     searchQuery, onSearchChange,
     statusFilter, onStatusChange,
     priorityFilter, onPriorityChange,
+    assignedToFilter, onAssignedToChange,
     onRefresh, isFetching, onAddNew,
 }: LeadListToolbarProps) {
+    const [staff, setStaff] = useState<StaffUser[]>([]);
+
+    useEffect(() => {
+        fetch('/api/users/staff?recruiter=true')
+            .then(r => r.json())
+            .then(data => setStaff(Array.isArray(data.data) ? data.data : []))
+            .catch(() => {});
+    }, []);
     return (
         <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 max-w-sm">
@@ -85,6 +103,21 @@ export default function LeadListToolbar({
                     {priorityOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                             {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+
+            <Select value={assignedToFilter} onValueChange={onAssignedToChange}>
+                <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Recruiter" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Recruiters</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {staff.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                            {user.firstName} {user.lastName}
                         </SelectItem>
                     ))}
                 </SelectContent>

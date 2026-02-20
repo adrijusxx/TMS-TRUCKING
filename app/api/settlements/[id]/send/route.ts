@@ -242,7 +242,7 @@ function generateSettlementEmail(settlement: any, company: any, pdfUrl: string):
   <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center; font-size: 12px; color: #6b7280;">
     <p style="margin: 0;">${company?.name || 'Trucking Company'}</p>
     ${company?.address ? `<p style="margin: 5px 0;">${company.address}</p>` : ''}
-    ${company?.city && company?.state ? `<p style="margin: 5px 0;">${company.city}, ${company.state} ${company.zipCode || ''}</p>` : ''}
+    ${company?.city && company?.state ? `<p style="margin: 5px 0;">${company.city}, ${company.state} ${company.zip || ''}</p>` : ''}
     ${company?.phone ? `<p style="margin: 5px 0;">Phone: ${company.phone}</p>` : ''}
     ${company?.email ? `<p style="margin: 5px 0;">Email: ${company.email}</p>` : ''}
   </div>

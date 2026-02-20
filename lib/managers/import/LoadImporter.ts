@@ -198,8 +198,9 @@ export class LoadImporter extends BaseImporter {
             lastNote: context.lastNote,
             onTimeDelivery: context.onTimeDelivery,
             lastUpdate: context.lastUpdate,
-            // Computed fields
-            netProfit: revenue > 0 ? Number((revenue - driverPay).toFixed(2)) : undefined,
+            // Computed fields (netProfit = revenue - driverPay - totalExpenses)
+            totalExpenses: context.totalExpenses || 0,
+            netProfit: revenue > 0 ? Number((revenue - driverPay - (context.totalExpenses || 0)).toFixed(2)) : undefined,
             readyForSettlement: statusAtOrBeyond(status, 'DELIVERED'),
             // Status timestamps based on progression
             assignedAt: statusAtOrBeyond(status, 'ASSIGNED') ? (context.pickupDate || new Date()) : undefined,

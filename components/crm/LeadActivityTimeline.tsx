@@ -5,9 +5,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 import {
     Loader2, Phone, MessageSquare, Mail, FileText, ArrowRight,
-    UserPlus, Play, Clock, Send,
+    UserPlus, Play, Clock, Send, Filter,
 } from 'lucide-react';
 
 interface Activity {
@@ -40,31 +41,82 @@ function formatDuration(minutes: number): string {
     return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+const FILTER_TYPES = [
+    { type: 'CALL', label: 'Calls', icon: Phone },
+    { type: 'SMS', label: 'SMS', icon: MessageSquare },
+    { type: 'EMAIL', label: 'Email', icon: Mail },
+    { type: 'NOTE', label: 'Notes', icon: FileText },
+    { type: 'STATUS_CHANGE', label: 'Status', icon: ArrowRight },
+    { type: 'ASSIGNMENT_CHANGE', label: 'Assign', icon: UserPlus },
+];
+
 export default function LeadActivityTimeline({ leadId }: { leadId: string }) {
     const [activities, setActivities] = useState<Activity[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeFilters, setActiveFilters] = useState<string[]>([]);
+
+    const fetchActivities = async (filters: string[] = []) => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (filters.length > 0) params.set('type', filters.join(','));
+            const res = await fetch(`/api/crm/leads/${leadId}/activities?${params}`);
+            if (!res.ok) throw new Error('Failed to fetch activities');
+            const data = await res.json();
+            setActivities(data.data);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchActivities = async () => {
-            try {
-                const res = await fetch(`/api/crm/leads/${leadId}/activities`);
-                if (!res.ok) throw new Error('Failed to fetch activities');
-                const data = await res.json();
-                setActivities(data.data);
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (leadId) fetchActivities();
+        if (leadId) fetchActivities(activeFilters);
     }, [leadId]);
 
-    if (loading) return <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>;
+    const toggleFilter = (type: string) => {
+        const next = activeFilters.includes(type)
+            ? activeFilters.filter(f => f !== type)
+            : [...activeFilters, type];
+        setActiveFilters(next);
+        fetchActivities(next);
+    };
+
+    const clearFilters = () => {
+        setActiveFilters([]);
+        fetchActivities([]);
+    };
 
     return (
-        <ScrollArea className="h-[500px] pr-4">
+        <div className="space-y-3">
+            {/* Filter bar */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                {FILTER_TYPES.map(({ type, label, icon: Icon }) => (
+                    <Button
+                        key={type}
+                        type="button"
+                        variant={activeFilters.includes(type) ? 'default' : 'outline'}
+                        size="sm"
+                        className={cn('h-7 text-xs gap-1', activeFilters.includes(type) && 'text-white')}
+                        onClick={() => toggleFilter(type)}
+                    >
+                        <Icon className="h-3 w-3" />
+                        {label}
+                    </Button>
+                ))}
+                {activeFilters.length > 0 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearFilters}>
+                        Show All
+                    </Button>
+                )}
+            </div>
+
+            {loading ? (
+                <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
+            ) : (
+            <ScrollArea className="h-[450px] pr-4">
             <div className="space-y-6 pl-2">
                 {activities.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No activity recorded</p>
@@ -135,5 +187,7 @@ export default function LeadActivityTimeline({ leadId }: { leadId: string }) {
                 )}
             </div>
         </ScrollArea>
+            )}
+        </div>
     );
 }

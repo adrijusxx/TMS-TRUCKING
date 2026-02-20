@@ -1,5 +1,5 @@
 
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import { SESClient, SendEmailCommand, SendRawEmailCommand } from "@aws-sdk/client-ses";
 
 
 
@@ -8,6 +8,22 @@ interface EmailOptions {
     subject: string;
     html: string;
     from?: string;
+}
+
+interface EmailAttachment {
+    filename: string;
+    content: Buffer | Uint8Array;
+    contentType: string;
+}
+
+interface EmailWithAttachmentOptions extends EmailOptions {
+    attachments: EmailAttachment[];
+}
+
+interface EmailSendResult {
+    success: boolean;
+    messageId?: string;
+    error?: string;
 }
 
 export class EmailService {
@@ -59,6 +75,61 @@ export class EmailService {
             console.error("Failed to send email:", error);
             // Don't throw, just return false so we don't break the registration flow
             return false;
+        }
+    }
+
+    /**
+     * Send email with PDF attachments via SES SendRawEmail.
+     * Builds a MIME multipart message with inline HTML and file attachments.
+     */
+    static async sendEmailWithAttachment({
+        to, subject, html, from, attachments,
+    }: EmailWithAttachmentOptions): Promise<EmailSendResult> {
+        try {
+            const sender = from || process.env.AWS_SES_FROM_EMAIL || "noreply@yourdomain.com";
+            const recipients = Array.isArray(to) ? to : [to];
+            const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+            let rawMessage = `From: ${sender}\r\n`;
+            rawMessage += `To: ${recipients.join(", ")}\r\n`;
+            rawMessage += `Subject: ${subject}\r\n`;
+            rawMessage += `MIME-Version: 1.0\r\n`;
+            rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
+
+            // HTML body part
+            rawMessage += `--${boundary}\r\n`;
+            rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+            rawMessage += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
+            rawMessage += `${html}\r\n\r\n`;
+
+            // Attachment parts
+            for (const attachment of attachments) {
+                const base64Content = Buffer.from(attachment.content).toString("base64");
+                rawMessage += `--${boundary}\r\n`;
+                rawMessage += `Content-Type: ${attachment.contentType}; name="${attachment.filename}"\r\n`;
+                rawMessage += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n`;
+                rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
+                // Split base64 into 76-char lines per MIME spec
+                rawMessage += base64Content.replace(/(.{76})/g, "$1\r\n") + "\r\n\r\n";
+            }
+
+            rawMessage += `--${boundary}--\r\n`;
+
+            const command = new SendRawEmailCommand({
+                RawMessage: { Data: Buffer.from(rawMessage) },
+                Destinations: recipients,
+                Source: sender,
+            });
+
+            const response = await this.getClient().send(command);
+            console.log("Email with attachment sent:", response.MessageId);
+            return { success: true, messageId: response.MessageId };
+        } catch (error) {
+            console.error("Failed to send email with attachment:", error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : "Unknown error",
+            };
         }
     }
 

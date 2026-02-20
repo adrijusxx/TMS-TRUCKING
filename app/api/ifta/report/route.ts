@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { iftaCalculatorService } from '@/lib/services/IFTACalculatorService';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { hasPermissionAsync } from '@/lib/server-permissions';
 import { z } from 'zod';
 
 const reportSchema = z.object({
@@ -23,6 +24,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: 'UNAUTHORIZED' } },
         { status: 401 }
+      );
+    }
+
+    const role = (session.user as any)?.role || 'CUSTOMER';
+    if (!(await hasPermissionAsync(role, 'ifta.view'))) {
+      return NextResponse.json(
+        { success: false, error: { code: 'FORBIDDEN' } },
+        { status: 403 }
       );
     }
 

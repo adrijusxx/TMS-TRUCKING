@@ -8,7 +8,17 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { FileIcon, Loader2, Download } from 'lucide-react';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { FileIcon, Loader2, Download, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -45,6 +55,7 @@ export default function LeadDocuments({ leadId }: { leadId: string }) {
     const [file, setFile] = useState<File | null>(null);
     const [docType, setDocType] = useState('OTHER');
     const [notes, setNotes] = useState('');
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const fetchDocuments = async () => {
         try {
@@ -104,6 +115,21 @@ export default function LeadDocuments({ leadId }: { leadId: string }) {
             toast.error(error.message || 'Upload failed');
         } finally {
             setUploading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        try {
+            const res = await fetch(`/api/crm/leads/${leadId}/documents?documentId=${deleteId}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) throw new Error('Failed to delete');
+            toast.success('Document deleted');
+            setDeleteId(null);
+            fetchDocuments();
+        } catch {
+            toast.error('Failed to delete document');
         }
     };
 
@@ -189,11 +215,15 @@ export default function LeadDocuments({ leadId }: { leadId: string }) {
                                         {doc.notes && <p className="text-xs text-muted-foreground mt-1">{doc.notes}</p>}
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-1">
                                     <Button variant="ghost" size="icon" asChild>
                                         <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" download>
                                             <Download className="h-4 w-4" />
                                         </a>
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(doc.id)}
+                                        className="text-muted-foreground hover:text-red-600">
+                                        <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </div>
@@ -201,6 +231,23 @@ export default function LeadDocuments({ leadId }: { leadId: string }) {
                     )}
                 </div>
             </ScrollArea>
+
+            <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this document? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

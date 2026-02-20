@@ -47,13 +47,23 @@ export const loadNavItems: DepartmentNavItem[] = [
 // Fleet Department
 export const fleetNavItems: DepartmentNavItem[] = [
   { name: 'Dashboard', href: '/dashboard/fleet', icon: LayoutDashboard },
-  { name: 'Trucks', href: '/dashboard/trucks', icon: Truck },
-  { name: 'Trailers', href: '/dashboard/trailers', icon: Container },
-  { name: 'Devices', href: '/dashboard/fleet/devices', icon: Wifi },
-  { name: 'Diagnostics', href: '/dashboard/fleet/diagnostics', icon: Gauge },
-  { name: 'Maintenance', href: '/dashboard/fleet/maintenance', icon: Wrench },
-  { name: 'Inspections', href: '/dashboard/fleet/inspections', icon: ClipboardCheck },
-  { name: 'Vendors', href: '/dashboard/fleet/vendors', icon: Building2 },
+  {
+    name: 'Vehicles', href: '/dashboard/trucks', icon: Truck,
+    children: [
+      { name: 'Trucks', href: '/dashboard/trucks' },
+      { name: 'Trailers', href: '/dashboard/trailers' },
+      { name: 'Devices', href: '/dashboard/fleet/devices' },
+      { name: 'Diagnostics', href: '/dashboard/fleet/diagnostics' },
+    ],
+  },
+  {
+    name: 'Maintenance', href: '/dashboard/fleet/maintenance', icon: Wrench,
+    children: [
+      { name: 'Work Orders', href: '/dashboard/fleet/maintenance' },
+      { name: 'Inspections', href: '/dashboard/fleet/inspections' },
+      { name: 'Vendors', href: '/dashboard/fleet/vendors' },
+    ],
+  },
   { name: 'Reports', href: '/dashboard/fleet/reports', icon: BarChart3 },
 ];
 
@@ -68,12 +78,37 @@ export const safetyNavItems: DepartmentNavItem[] = [
 
 // Accounting Department
 export const accountingNavItems: DepartmentNavItem[] = [
-  { name: 'Invoices', href: '/dashboard/invoices', icon: FileText },
+  {
+    name: 'Invoices', href: '/dashboard/invoices', icon: FileText,
+    children: [
+      { name: 'All Invoices', href: '/dashboard/invoices' },
+      { name: 'Batches', href: '/dashboard/batches' },
+      { name: 'Aging', href: '/dashboard/invoices?tab=aging' },
+      { name: 'Reconciliation', href: '/dashboard/invoices?tab=reconciliation' },
+      { name: 'Generate', href: '/dashboard/invoices/generate' },
+      { name: 'Reports', href: '/dashboard/invoices?tab=reports' },
+    ],
+  },
   { name: 'Customers', href: '/dashboard/customers', icon: Users },
-  { name: 'Settlements', href: '/dashboard/batches', icon: CreditCard },
+  {
+    name: 'Settlements', href: '/dashboard/settlements', icon: CreditCard,
+    children: [
+      { name: 'Pending', href: '/dashboard/settlements?tab=pending' },
+      { name: 'Batches', href: '/dashboard/settlements?tab=batches' },
+      { name: 'All Settlements', href: '/dashboard/settlements?tab=statements' },
+      { name: 'Reports', href: '/dashboard/settlements?tab=report' },
+      { name: 'Balances', href: '/dashboard/settlements?tab=balances' },
+    ],
+  },
   { name: 'Expenses', href: '/dashboard/accounting/expenses', icon: Receipt },
   { name: 'IFTA', href: '/dashboard/accounting/ifta', icon: Fuel },
-  { name: 'Factoring', href: '/dashboard/accounting/factoring', icon: Building2 },
+  {
+    name: 'Factoring', href: '/dashboard/accounting/factoring', icon: Building2,
+    children: [
+      { name: 'Dashboard', href: '/dashboard/accounting/factoring' },
+      { name: 'Companies', href: '/dashboard/accounting/factoring?tab=companies' },
+    ],
+  },
   { name: 'Settings', href: '/dashboard/accounting/settings', icon: Sliders },
 ];
 
@@ -86,22 +121,38 @@ export const hrNavItems: DepartmentNavItem[] = [
 // CRM / Recruiting Department
 export const crmNavItems: DepartmentNavItem[] = [
   { name: 'Dashboard', href: '/dashboard/crm', icon: LayoutDashboard },
-  { name: 'Leads', href: '/dashboard/crm/leads', icon: Users },
-  { name: 'Kanban', href: '/dashboard/crm/kanban', icon: LayoutGrid },
-  { name: 'Onboarding', href: '/dashboard/crm/onboarding', icon: ClipboardCheck },
+  {
+    name: 'Leads', href: '/dashboard/crm/leads', icon: Users,
+    children: [
+      { name: 'All Leads', href: '/dashboard/crm/leads' },
+      { name: 'Kanban', href: '/dashboard/crm/kanban' },
+      { name: 'Onboarding', href: '/dashboard/crm/onboarding' },
+      { name: 'Campaigns', href: '/dashboard/crm/campaigns' },
+    ],
+  },
   { name: 'Reports', href: '/dashboard/crm/reports', icon: BarChart3 },
-  { name: 'Campaigns', href: '/dashboard/crm/campaigns', icon: Megaphone },
   { name: 'Settings', href: '/dashboard/crm/settings', icon: Settings },
 ];
 
 // Analytics
 export const analyticsNavItems: DepartmentNavItem[] = [
   { name: 'Overview', href: '/dashboard/analytics', icon: BarChart3 },
-  { name: 'Profitability', href: '/dashboard/analytics/profitability', icon: TrendingUp },
-  { name: 'Lane Analysis', href: '/dashboard/analytics/lanes', icon: Map },
-  { name: 'Drivers', href: '/dashboard/analytics/drivers', icon: Users },
-  { name: 'Fuel', href: '/dashboard/analytics/fuel', icon: Fuel },
-  { name: 'Revenue Forecast', href: '/dashboard/analytics/revenue-forecast', icon: LineChart },
-  { name: 'Empty Miles', href: '/dashboard/analytics/empty-miles', icon: TrendingDown },
+  {
+    name: 'Analysis', href: '/dashboard/analytics/profitability', icon: TrendingUp,
+    children: [
+      { name: 'Profitability', href: '/dashboard/analytics/profitability' },
+      { name: 'Lane Analysis', href: '/dashboard/analytics/lanes' },
+      { name: 'Drivers', href: '/dashboard/analytics/drivers' },
+      { name: 'Fuel', href: '/dashboard/analytics/fuel' },
+    ],
+  },
+  {
+    name: 'Forecasting', href: '/dashboard/analytics/revenue-forecast', icon: LineChart,
+    children: [
+      { name: 'Revenue Forecast', href: '/dashboard/analytics/revenue-forecast' },
+      { name: 'Empty Miles', href: '/dashboard/analytics/empty-miles' },
+      { name: 'Fleet Utilization', href: '/dashboard/analytics/fleet-utilization' },
+    ],
+  },
   { name: 'Deep Insights', href: '/dashboard/analytics/deep-insights', icon: Target, badge: 'NEW' },
 ];

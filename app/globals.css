@@ -6,6 +6,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     /* Light theme - improved contrast */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -92,6 +93,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     /* Main background - dark blue-gray */
     --background: 222 47% 11%;
     --foreground: 213 31% 91%;
@@ -154,6 +156,7 @@
   }
 
   .amber {
+    color-scheme: dark;
     /* Premium Sunset Amber - High Contrast Professional */
     --background: 20 18% 4.5%;
     /* Deep black-charcoal with a hint of warmth */

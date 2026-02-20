@@ -1281,6 +1281,12 @@ model Truck {
 
   maintenanceSchedules MaintenanceSchedule[]
 
+  // Long-term Out of Service tracking
+  longTermOutOfService Boolean   @default(false)
+  outOfServiceReason   String?
+  outOfServiceSince    DateTime?
+  expectedReturnDate   DateTime?
+
   isActive Boolean @default(true)
 
   // Migration metadata - stores unmapped fields from source TMS
@@ -1358,8 +1364,14 @@ model Trailer {
   operatorDriver   Driver? @relation("TrailerDriver", fields: [operatorDriverId], references: [id])
 
   // Status
-  status      String? // Status from Excel
+  status      TrailerStatus @default(AVAILABLE)
   fleetStatus String? // Fleet Status from Excel
+
+  // Long-term Out of Service tracking
+  longTermOutOfService Boolean   @default(false)
+  outOfServiceReason   String?
+  outOfServiceSince    DateTime?
+  expectedReturnDate   DateTime?
 
   // Registration & Insurance
   registrationExpiry DateTime?
@@ -1451,6 +1463,16 @@ enum FuelType {
 }
 
 enum TruckStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  MAINTENANCE_DUE
+  OUT_OF_SERVICE
+  INACTIVE
+  NEEDS_REPAIR
+}
+
+enum TrailerStatus {
   AVAILABLE
   IN_USE
   MAINTENANCE
@@ -2221,6 +2243,7 @@ model Invoice {
   tags               InvoiceTag[]
   accessorialCharges AccessorialCharge[]
   rateConfirmation   RateConfirmation?
+  emailLogs          BatchEmailLog[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId])
@@ -2849,12 +2872,17 @@ model InvoiceBatch {
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
+  // Email tracking
+  emailStatus String   @default("NOT_SENT") // NOT_SENT, SENDING, SENT, PARTIAL, FAILED
+  sentAt      DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  items    InvoiceBatchItem[]
-  invoices Invoice[]
+  items     InvoiceBatchItem[]
+  invoices  Invoice[]
+  emailLogs BatchEmailLog[]
 
   @@unique([companyId, batchNumber])
   @@index([companyId])
@@ -2863,6 +2891,7 @@ model InvoiceBatch {
   @@index([createdById])
   @@index([factoringCompanyId])
   @@index([customerId])
+  @@index([emailStatus])
 }
 
 model InvoiceBatchItem {
@@ -2883,6 +2912,25 @@ enum BatchPostStatus {
   UNPOSTED
   POSTED
   PAID
+}
+
+model BatchEmailLog {
+  id             String       @id @default(cuid())
+  invoiceBatchId String
+  invoiceBatch   InvoiceBatch @relation(fields: [invoiceBatchId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id])
+  recipientEmail String
+  recipientType  String // CUSTOMER or FACTORING
+  status         String       @default("PENDING") // PENDING, SENT, FAILED
+  errorMessage   String?
+  sentAt         DateTime?
+  messageId      String? // SES message ID for tracking
+  createdAt      DateTime     @default(now())
+
+  @@index([invoiceBatchId])
+  @@index([invoiceId])
+  @@index([status])
 }
 
 // ============================================
@@ -3320,6 +3368,8 @@ enum NotificationType {
   LEAD_FOLLOW_UP_DUE
   LEAD_SLA_ALERT
   LEAD_NEW_APPLICATION
+  DORMANT_EQUIPMENT
+  DRIVER_IDLE_ALERT
 }
 
 model NotificationPreferences {

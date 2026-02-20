@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
-import { getLoadFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { buildBaseWhereClause, parseQueryParams, applyQueryFilters } from '@/lib/managers/LoadQueryManager';
+import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,68 +24,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 3. Build MC Filter
-    const mcWhere = await buildMcNumberWhereClause(session, request);
+    // 3. Build where clause using shared LoadQueryManager
+    const where: any = await buildBaseWhereClause(session, request);
+    const params = parseQueryParams(request);
+    applyQueryFilters(where, params);
 
-    // 4. Apply role-based filtering
-    const roleFilter = await getLoadFilter(
-      createFilterContext(
-        session.user.id,
-        session.user.role as any,
-        session.user.companyId
-      )
-    );
-
-    // 5. Build where clause from filters
-    const { searchParams } = new URL(request.url);
-    const where: any = {
-      ...mcWhere,
-      ...roleFilter,
-      deletedAt: null,
-    };
-
-    // Apply filters
-    const statusFilter = searchParams.get('status');
-    if (statusFilter && statusFilter !== 'all') {
-      if (statusFilter === 'IN_TRANSIT') {
-        where.status = {
-          in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'],
-        };
-      } else {
-        where.status = statusFilter;
-      }
-    }
-
-    const dispatcherId = searchParams.get('dispatcherId');
-    if (dispatcherId) where.dispatcherId = dispatcherId;
-
-    const customerId = searchParams.get('customerId');
-    if (customerId) where.customerId = customerId;
-
-    const driverId = searchParams.get('driverId');
-    if (driverId) where.driverId = driverId;
-
-    const pickupCity = searchParams.get('pickupCity');
-    if (pickupCity) where.pickupCity = { contains: pickupCity, mode: 'insensitive' };
-
-    const deliveryCity = searchParams.get('deliveryCity');
-    if (deliveryCity) where.deliveryCity = { contains: deliveryCity, mode: 'insensitive' };
-
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-    if (startDate && endDate) {
-      where.OR = [
-        { pickupDate: { gte: new Date(startDate), lte: new Date(endDate) } },
-        { deliveryDate: { gte: new Date(startDate), lte: new Date(endDate) } },
-      ];
-    }
-
-    // 6. Fetch operational metrics for projections
+    // 4. Fetch operational metrics for projections
     const systemConfig = await prisma.systemConfig.findUnique({
       where: { companyId: session.user.companyId },
     });
 
-    // 7. Calculate statistics - fetch all required fields
+    // 5. Calculate statistics - fetch all required fields including driver pay profile
     const loads = await prisma.load.findMany({
       where,
       select: {
@@ -97,6 +46,12 @@ export async function GET(request: NextRequest) {
         netProfit: true,
         fuelAdvance: true,
         totalExpenses: true,
+        driver: {
+          select: {
+            payType: true,
+            payRate: true,
+          },
+        },
         segments: {
           select: {
             loadedMiles: true,
@@ -118,19 +73,33 @@ export async function GET(request: NextRequest) {
     let totalFuelAdvance = 0;
     let totalLoadExpenses = 0;
 
+    const DEFAULT_PAY_TYPE = 'PER_MILE' as const;
+    const DEFAULT_PAY_RATE = 0.65;
+
     loads.forEach((load) => {
-      // Add revenue, driverPay, netProfit
+      // Compute driverPay on-the-fly if missing, using driver profile or default 0.65 CPM
+      let effectiveDriverPay = load.driverPay || 0;
+      if (effectiveDriverPay === 0 && load.driver) {
+        const payType = load.driver.payType || DEFAULT_PAY_TYPE;
+        const payRate = load.driver.payRate ?? DEFAULT_PAY_RATE;
+        effectiveDriverPay = calculateDriverPay(
+          { payType, payRate },
+          {
+            totalMiles: load.totalMiles,
+            loadedMiles: load.loadedMiles,
+            emptyMiles: load.emptyMiles,
+            revenue: load.revenue,
+          }
+        );
+      }
+
       totalRevenue += load.revenue || 0;
-      totalDriverPay += load.driverPay || 0;
+      totalDriverPay += effectiveDriverPay;
       totalFuelAdvance += load.fuelAdvance || 0;
       totalLoadExpenses += load.totalExpenses || 0;
 
-      // Calculate profit: use stored netProfit if available, otherwise revenue - driverPay
-      if (load.netProfit !== null && load.netProfit !== undefined) {
-        totalProfit += load.netProfit;
-      } else {
-        totalProfit += (load.revenue || 0) - (load.driverPay || 0);
-      }
+      // Calculate profit from source fields
+      totalProfit += (load.revenue || 0) - effectiveDriverPay - (load.totalExpenses || 0);
 
       // Calculate miles - only count what we actually know
       const loadTotalMiles = load.totalMiles || 0;
@@ -202,12 +171,11 @@ export async function GET(request: NextRequest) {
     const projectedNetProfit = totalRevenue - totalDriverPay - projectedTotalOpCost;
     const projectedAvgProfitPerLoad = totalLoads > 0 ? projectedNetProfit / totalLoads : 0;
 
-    // Active loads count (standalone query to ignore status filter if applied)
+    // Active loads count (uses base filters without status/date overrides)
+    const baseWhere = await buildBaseWhereClause(session, request);
     const activeLoads = await prisma.load.count({
       where: {
-        ...mcWhere,
-        ...roleFilter,
-        deletedAt: null,
+        ...baseWhere,
         status: {
           in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
         },

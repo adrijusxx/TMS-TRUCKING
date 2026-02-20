@@ -1,19 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -21,486 +11,262 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatCurrency, apiUrl } from '@/lib/utils';
-import { CheckCircle2, XCircle, Download, Mail, FileSpreadsheet } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { apiUrl } from '@/lib/utils';
+import { toast } from 'sonner';
+import {
+  Download,
+  FileSpreadsheet,
+  Mail,
+  Calculator,
+  Loader2,
+  RefreshCw,
+  HelpCircle,
+} from 'lucide-react';
+import { IFTASummaryCards } from './ifta/IFTASummaryCards';
+import { IFTAStateTable } from './ifta/IFTAStateTable';
+import { IFTACalculateDialog } from './ifta/IFTACalculateDialog';
 
-interface IFTAStateMileage {
-  state: string;
-  miles: number;
-  tax: number;
-  deduction: number;
-}
-
-interface IFTARow {
-  driverId: string;
-  driverName: string;
-  truckId: string | null;
-  truckNumber: string | null;
-  stateMileages: IFTAStateMileage[];
+interface IFTAReportData {
+  companyId: string;
+  quarter: number;
+  year: number;
+  periodStart: string;
+  periodEnd: string;
   totalMiles: number;
-  totalTax: number;
-  totalDeduction: number;
-  loads: Array<{ loadId: string; loadNumber: string }>;
+  totalGallons: number;
+  mpg: number;
+  stateBreakdown: Array<{
+    state: string;
+    stateName: string;
+    miles: number;
+    taxableMiles: number;
+    taxRate: number;
+    taxDue: number;
+    taxPaid: number;
+    netTax: number;
+  }>;
+  totalTaxDue: number;
+  totalTaxPaid: number;
+  netTaxDue: number;
+  loadsIncluded: number;
 }
 
-interface IFTAConfig {
-  stateRates: Record<string, number>;
-}
-
-async function fetchIFTAReport(params: {
-  periodType: 'QUARTER' | 'MONTH';
-  periodYear: number;
-  periodQuarter?: number;
-  periodMonth?: number;
-  driverId?: string;
-}) {
-  const searchParams = new URLSearchParams({
-    periodType: params.periodType,
-    periodYear: params.periodYear.toString(),
-  });
-  if (params.periodQuarter) searchParams.set('periodQuarter', params.periodQuarter.toString());
-  if (params.periodMonth) searchParams.set('periodMonth', params.periodMonth.toString());
-  if (params.driverId) searchParams.set('driverId', params.driverId);
-
-  const response = await fetch(apiUrl(`/api/ifta/report?${searchParams}`));
+async function fetchIFTAReport(quarter: number, year: number) {
+  const params = new URLSearchParams({ quarter: quarter.toString(), year: year.toString() });
+  const response = await fetch(apiUrl(`/api/ifta/report?${params}`));
   if (!response.ok) throw new Error('Failed to fetch IFTA report');
   return response.json();
 }
 
-async function fetchIFTAConfig() {
-  const response = await fetch(apiUrl('/api/ifta/config'));
-  if (!response.ok) throw new Error('Failed to fetch IFTA config');
-  return response.json();
-}
-
-async function updateIFTAConfig(stateRates: Record<string, number>) {
-  const response = await fetch(apiUrl('/api/ifta/config'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stateRates }),
-  });
-  if (!response.ok) throw new Error('Failed to update IFTA config');
-  return response.json();
+async function downloadPDF(quarter: number, year: number) {
+  const response = await fetch(apiUrl(`/api/ifta/report/pdf?quarter=${quarter}&year=${year}`));
+  if (!response.ok) throw new Error('Failed to download PDF');
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ifta-report-Q${quarter}-${year}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
 }
 
 export default function IFTAReport() {
-  const [periodType, setPeriodType] = useState<'QUARTER' | 'MONTH'>('QUARTER');
-  const [reportType, setReportType] = useState<'DRIVER' | 'TRUCK'>('DRIVER');
-  const [periodYear, setPeriodYear] = useState(new Date().getFullYear());
-  const [periodQuarter, setPeriodQuarter] = useState<number>(
-    Math.floor(new Date().getMonth() / 3) + 1
-  );
-  const [periodMonth, setPeriodMonth] = useState(new Date().getMonth() + 1);
-  const [selectedDriverId, setSelectedDriverId] = useState<string>('all');
-  const [taxRates, setTaxRates] = useState<Record<string, string>>({
-    KY: '0.0285',
-    NM: '0.04378',
-    OR: '0.237',
-    NY: '0.0546',
-    CT: '0.1',
-  });
+  const now = new Date();
+  const [quarter, setQuarter] = useState(Math.ceil((now.getMonth() + 1) / 3));
+  const [year, setYear] = useState(now.getFullYear());
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [calcDialogOpen, setCalcDialogOpen] = useState(false);
 
-  const queryClient = useQueryClient();
-
-  // Fetch IFTA config
-  const { data: configData } = useQuery({
-    queryKey: ['ifta-config'],
-    queryFn: fetchIFTAConfig,
-  });
-
-  // Initialize tax rates from config
-  React.useEffect(() => {
-    if (configData?.data?.stateRates) {
-      const rates: Record<string, string> = {};
-      Object.entries(configData.data.stateRates).forEach(([state, rate]) => {
-        rates[state] = (typeof rate === 'number' ? rate : parseFloat(String(rate)) || 0).toString();
-      });
-      setTaxRates(rates);
-    }
-  }, [configData]);
-
-  // Fetch report
   const { data, isLoading, refetch } = useQuery({
-    queryKey: [
-      'ifta-report',
-      periodType,
-      periodYear,
-      periodQuarter,
-      periodMonth,
-      selectedDriverId,
-    ],
-    queryFn: () =>
-      fetchIFTAReport({
-        periodType,
-        periodYear,
-        periodQuarter: periodType === 'QUARTER' ? periodQuarter : undefined,
-        periodMonth: periodType === 'MONTH' ? periodMonth : undefined,
-        driverId: selectedDriverId !== 'all' ? selectedDriverId : undefined,
-      }),
-    enabled: false, // Don't auto-fetch, wait for "Run report" button
+    queryKey: ['ifta-report', quarter, year],
+    queryFn: () => fetchIFTAReport(quarter, year),
   });
 
-  // Update config mutation
-  const updateConfigMutation = useMutation({
-    mutationFn: updateIFTAConfig,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ifta-config'] });
-    },
-  });
-
-  const handleRunReport = () => {
-    // Update config with current tax rates
-    const rates: Record<string, number> = {};
-    Object.entries(taxRates).forEach(([state, rate]) => {
-      const numRate = parseFloat(rate);
-      if (!isNaN(numRate)) {
-        rates[state] = numRate;
-      }
-    });
-
-    updateConfigMutation.mutate(rates, {
-      onSuccess: () => {
-        refetch();
-      },
-    });
-  };
-
-  const handleSetToDefault = () => {
-    const defaultRates: Record<string, string> = {
-      KY: '0.0285',
-      NM: '0.04378',
-      OR: '0.237',
-      NY: '0.0546',
-      CT: '0.1',
-    };
-    setTaxRates(defaultRates);
-  };
-
-  const entries: IFTARow[] = data?.data?.entries || [];
-  const states = ['KY', 'NM', 'OR', 'NY', 'CT'];
-
-  // Get all unique states from entries
-  const allStates = new Set<string>();
-  entries.forEach((entry) => {
-    entry.stateMileages.forEach((sm) => allStates.add(sm.state));
-  });
-  const sortedStates = Array.from(allStates).sort();
-
-  // Generate quarters
-  const quarters = [
-    { value: 1, label: '1Q' },
-    { value: 2, label: '2Q' },
-    { value: 3, label: '3Q' },
-    { value: 4, label: '4Q' },
-  ];
-
-  // Generate months
-  const months = [
-    { value: 1, label: 'January' },
-    { value: 2, label: 'February' },
-    { value: 3, label: 'March' },
-    { value: 4, label: 'April' },
-    { value: 5, label: 'May' },
-    { value: 6, label: 'June' },
-    { value: 7, label: 'July' },
-    { value: 8, label: 'August' },
-    { value: 9, label: 'September' },
-    { value: 10, label: 'October' },
-    { value: 11, label: 'November' },
-    { value: 12, label: 'December' },
-  ];
-
-  // Calculate totals
-  const totals = entries.reduce(
-    (acc, entry) => {
-      acc.totalMiles += entry.totalMiles;
-      acc.totalTax += entry.totalTax;
-      acc.totalDeduction += entry.totalDeduction;
-
-      entry.stateMileages.forEach((sm) => {
-        if (!acc.stateMileages[sm.state]) {
-          acc.stateMileages[sm.state] = { miles: 0, tax: 0, deduction: 0 };
-        }
-        acc.stateMileages[sm.state].miles += sm.miles;
-        acc.stateMileages[sm.state].tax += sm.tax;
-        acc.stateMileages[sm.state].deduction += sm.deduction;
-      });
-
-      return acc;
-    },
-    {
-      totalMiles: 0,
-      totalTax: 0,
-      totalDeduction: 0,
-      stateMileages: {} as Record<string, { miles: number; tax: number; deduction: number }>,
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    try {
+      await downloadPDF(quarter, year);
+      toast.success('PDF downloaded');
+    } catch {
+      toast.error('Failed to download PDF');
+    } finally {
+      setPdfLoading(false);
     }
-  );
+  };
+
+  const report: IFTAReportData | null = data?.data || null;
+
+  const quarters = [
+    { value: '1', label: 'Q1 (Jan-Mar)' },
+    { value: '2', label: 'Q2 (Apr-Jun)' },
+    { value: '3', label: 'Q3 (Jul-Sep)' },
+    { value: '4', label: 'Q4 (Oct-Dec)' },
+  ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">KY, NM, OR, NY, CT</h1>
-        <p className="text-muted-foreground">IFTA Tax Report</p>
+        <div className="flex items-center gap-2">
+          <h1 className="text-3xl font-bold">IFTA Report</h1>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
+                  <HelpCircle className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-sm text-sm leading-relaxed">
+                <p className="font-semibold mb-1">How IFTA Works</p>
+                <p className="mb-2">
+                  IFTA (International Fuel Tax Agreement) requires motor carriers to report
+                  miles driven and fuel purchased in each US/Canadian jurisdiction quarterly.
+                </p>
+                <p className="font-semibold mb-1">Steps:</p>
+                <ol className="list-decimal pl-4 space-y-1">
+                  <li><strong>Calculate Quarter</strong> — processes delivered loads using
+                    Google Maps routing to determine miles driven in each state.</li>
+                  <li><strong>Run Report</strong> — aggregates state mileages and fuel
+                    purchases to compute tax owed vs. tax paid per state.</li>
+                  <li><strong>Download PDF</strong> — exports the report for filing.</li>
+                </ol>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Fuel purchases are sourced from the Fuel Entries module.
+                  Loads must have a driver assigned to be included.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <p className="text-muted-foreground">Quarterly fuel tax reporting and state mileage breakdown</p>
       </div>
 
-      {/* Report Controls */}
-      <div className="border rounded-lg p-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Period Selection */}
-          <div className="space-y-2">
-            <Label>Period</Label>
-            <RadioGroup value={periodType} onValueChange={(v) => setPeriodType(v as 'QUARTER' | 'MONTH')}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="QUARTER" id="quarter" />
-                <Label htmlFor="quarter">by quarter</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="MONTH" id="month" />
-                <Label htmlFor="month">by month</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {/* Report Type */}
-          <div className="space-y-2">
-            <Label>Report Type</Label>
-            <RadioGroup
-              value={reportType}
-              onValueChange={(v) => setReportType(v as 'DRIVER' | 'TRUCK')}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="DRIVER" id="driver" />
-                <Label htmlFor="driver">by driver</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="TRUCK" id="truck" />
-                <Label htmlFor="truck">by truck</Label>
-              </div>
-            </RadioGroup>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Period Selection */}
-          {periodType === 'QUARTER' ? (
-            <div className="space-y-2">
-              <Label htmlFor="quarter">Select Quarter</Label>
-              <Select
-                value={periodQuarter.toString()}
-                onValueChange={(v) => setPeriodQuarter(parseInt(v, 10))}
-              >
-                <SelectTrigger id="quarter">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {quarters.map((q) => (
-                    <SelectItem key={q.value} value={q.value.toString()}>
-                      {q.label}{periodYear}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor="month">Select Month</Label>
-              <Select
-                value={periodMonth.toString()}
-                onValueChange={(v) => setPeriodMonth(parseInt(v, 10))}
-              >
-                <SelectTrigger id="month">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map((m) => (
-                    <SelectItem key={m.value} value={m.value.toString()}>
-                      {m.label} {periodYear}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Driver Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="driver">Driver</Label>
-            <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-              <SelectTrigger id="driver">
-                <SelectValue />
-              </SelectTrigger>
+      {/* Controls */}
+      <div className="border rounded-lg p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="space-y-1.5">
+            <Label>Quarter</Label>
+            <Select value={quarter.toString()} onValueChange={(v) => setQuarter(parseInt(v, 10))}>
+              <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All drivers</SelectItem>
-                {/* TODO: Fetch and populate actual drivers */}
+                {quarters.map((q) => (
+                  <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Year */}
-          <div className="space-y-2">
-            <Label htmlFor="year">Year</Label>
+          <div className="space-y-1.5">
+            <Label>Year</Label>
             <Input
-              id="year"
               type="number"
-              value={periodYear}
-              onChange={(e) => setPeriodYear(parseInt(e.target.value, 10))}
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value, 10))}
               min={2020}
               max={2100}
+              className="w-[100px]"
             />
           </div>
-        </div>
 
-        {/* Tax Rate Inputs */}
-        <div className="space-y-2">
-          <Label>Tax Rates (per mile)</Label>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {states.map((state) => (
-              <div key={state} className="space-y-1">
-                <Label htmlFor={`rate-${state}`}>{state}</Label>
-                <Input
-                  id={`rate-${state}`}
-                  type="number"
-                  step="0.00001"
-                  value={taxRates[state] || '0'}
-                  onChange={(e) =>
-                    setTaxRates({ ...taxRates, [state]: e.target.value })
-                  }
-                  placeholder="0.0000"
-                />
-              </div>
-            ))}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Enter your tax rate for KY, NM, OR, NY, CT or leave it blank
-          </p>
-        </div>
+          <Button onClick={() => refetch()} disabled={isLoading}>
+            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Run Report
+          </Button>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
-          <Button onClick={handleRunReport} className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4" />
-            Run report
+          <Button variant="outline" onClick={() => setCalcDialogOpen(true)}>
+            <Calculator className="h-4 w-4 mr-2" />
+            Calculate Quarter
           </Button>
-          <Button onClick={handleSetToDefault} variant="outline" className="flex items-center gap-2">
-            <XCircle className="h-4 w-4" />
-            Set to default
-          </Button>
+
+          {report && report.stateBreakdown.length > 0 && (
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={pdfLoading}>
+                {pdfLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                PDF
+              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" disabled>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />Excel
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Coming soon</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" disabled>
+                      <Mail className="h-4 w-4 mr-2" />Email
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Coming soon</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Export Options */}
-      {entries.length > 0 && (
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            PDF
-          </Button>
-          <Button variant="outline" size="sm">
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Excel
-          </Button>
-          <Button variant="outline" size="sm">
-            <Mail className="h-4 w-4 mr-2" />
-            Email
-          </Button>
-        </div>
-      )}
-
-      {/* Report Table */}
+      {/* Report Content */}
       {isLoading ? (
-        <div className="text-center py-8">Loading report...</div>
-      ) : entries.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          No data available. Click &quot;Run report&quot; to generate.
-        </div>
+        <div className="text-center py-8 text-muted-foreground">Loading report...</div>
+      ) : report ? (
+        report.loadsIncluded === 0 && report.stateBreakdown.length === 0 ? (
+          <div className="border rounded-lg p-8 text-center space-y-3">
+            <Calculator className="h-10 w-10 text-muted-foreground mx-auto" />
+            <h3 className="text-lg font-semibold">No IFTA Data for Q{report.quarter} {report.year}</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              No calculated loads found for this quarter. To generate IFTA data:
+            </p>
+            <ol className="text-sm text-muted-foreground text-left max-w-md mx-auto list-decimal pl-6 space-y-1">
+              <li>Ensure loads have a <strong>driver assigned</strong> and a <strong>delivery date</strong></li>
+              <li>Click <strong>Calculate Quarter</strong> to process state mileage</li>
+              <li>Click <strong>Run Report</strong> to view the results</li>
+            </ol>
+          </div>
+        ) : (
+          <>
+            <IFTASummaryCards
+              totalMiles={report.totalMiles}
+              totalGallons={report.totalGallons}
+              mpg={report.mpg}
+              loadsIncluded={report.loadsIncluded}
+              totalTaxDue={report.totalTaxDue}
+              totalTaxPaid={report.totalTaxPaid}
+              netTaxDue={report.netTaxDue}
+            />
+            <IFTAStateTable
+              stateBreakdown={report.stateBreakdown}
+              totalTaxDue={report.totalTaxDue}
+              totalTaxPaid={report.totalTaxPaid}
+              netTaxDue={report.netTaxDue}
+            />
+          </>
+        )
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <input type="checkbox" className="rounded" />
-                </TableHead>
-                <TableHead>Driver/Truck</TableHead>
-                {sortedStates.map((state) => (
-                  <TableHead key={state} className="text-center">
-                    {state}
-                    <div className="text-xs font-normal">
-                      (miles, tax $, deduction $)
-                    </div>
-                  </TableHead>
-                ))}
-                <TableHead className="text-right">Total tax, $</TableHead>
-                <TableHead className="text-right">Total deduction, $</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {/* Total Row */}
-              <TableRow className="font-semibold">
-                <TableCell>
-                  <input type="checkbox" className="rounded" />
-                </TableCell>
-                <TableCell>-</TableCell>
-                {sortedStates.map((state) => {
-                  const stateData = totals.stateMileages[state] || {
-                    miles: 0,
-                    tax: 0,
-                    deduction: 0,
-                  };
-                  return (
-                    <TableCell key={state} className="text-center">
-                      <div>miles {stateData.miles.toFixed(2)}</div>
-                      <div>tax $ {stateData.tax.toFixed(2)}</div>
-                      <div>deduction $ {stateData.deduction.toFixed(2)}</div>
-                    </TableCell>
-                  );
-                })}
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(totals.totalTax)}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(totals.totalDeduction)}
-                </TableCell>
-              </TableRow>
-
-              {/* Data Rows */}
-              {entries.map((entry) => (
-                <TableRow key={entry.driverId}>
-                  <TableCell>
-                    <input type="checkbox" className="rounded" />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {entry.driverName} {reportType === 'TRUCK' && entry.truckNumber && `[${entry.truckNumber}]`}
-                  </TableCell>
-                  {sortedStates.map((state) => {
-                    const stateData =
-                      entry.stateMileages.find((sm) => sm.state === state) || {
-                        state,
-                        miles: 0,
-                        tax: 0,
-                        deduction: 0,
-                      };
-                    return (
-                      <TableCell key={state} className="text-center">
-                        <div>miles {stateData.miles.toFixed(2)}</div>
-                        <div>tax $ {stateData.tax.toFixed(2)}</div>
-                        <div>deduction $ {stateData.deduction.toFixed(2)}</div>
-                      </TableCell>
-                    );
-                  })}
-                  <TableCell className="text-right">
-                    {formatCurrency(entry.totalTax)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(entry.totalDeduction)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="text-center py-8 text-muted-foreground">
+          Select a quarter and click &quot;Run Report&quot; to generate.
         </div>
       )}
+
+      {/* Calculate Dialog */}
+      <IFTACalculateDialog
+        open={calcDialogOpen}
+        onOpenChange={setCalcDialogOpen}
+        quarter={quarter}
+        year={year}
+        onComplete={() => refetch()}
+      />
     </div>
   );
 }
-

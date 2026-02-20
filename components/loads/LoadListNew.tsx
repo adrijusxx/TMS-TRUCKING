@@ -89,6 +89,11 @@ export default function LoadListNew() {
   const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
   const [initialCreateData, setInitialCreateData] = React.useState<any>(undefined);
   const searchParams = useSearchParams();
+  const [activeFilters, setActiveFilters] = React.useState<ColumnFiltersState>([]);
+
+  const handleFiltersChange = React.useCallback((filters: ColumnFiltersState) => {
+    setActiveFilters(filters);
+  }, []);
 
   // Deep linking support
   React.useEffect(() => {
@@ -248,12 +253,13 @@ export default function LoadListNew() {
   return (
     <div className="space-y-2">
       {/* Statistics Card - Moved to top */}
-      <LoadStatisticsCard />
+      <LoadStatisticsCard filters={activeFilters} />
 
       {/* Data Table */}
       <DataTableWrapper
         config={loadsTableConfig}
         fetchData={fetchLoads}
+        onFiltersChange={handleFiltersChange}
         onRowClick={(row) => openSheet(can('loads.edit') ? 'edit' : 'view', row.id)}
         emptyMessage="No loads found. Create your first load."
         enableColumnVisibility={can('data.column_visibility')}

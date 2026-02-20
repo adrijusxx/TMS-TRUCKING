@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Calendar } from 'lucide-react';
 
 interface Invoice {
   id: string;
@@ -38,46 +38,52 @@ interface BatchInvoiceSelectorProps {
   excludeInvoiceIds?: string[];
 }
 
-async function fetchAvailableInvoices() {
-  // Fetch all invoices
-  const response = await fetch(apiUrl('/api/invoices?limit=1000'));
+function getDefaultDateRange() {
+  const today = new Date();
+  const weekAgo = new Date(today);
+  weekAgo.setDate(today.getDate() - 7);
+  return {
+    startDate: weekAgo.toISOString().split('T')[0],
+    endDate: today.toISOString().split('T')[0],
+  };
+}
+
+async function fetchAvailableInvoices(startDate: string, endDate: string) {
+  const params = new URLSearchParams({ limit: '1000' });
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+
+  const response = await fetch(apiUrl(`/api/invoices?${params}`));
   if (!response.ok) throw new Error('Failed to fetch invoices');
   const invoiceData = await response.json();
-  
+
   // Fetch all batches to get invoice IDs that are already in batches
   const batchesResponse = await fetch(apiUrl('/api/batches?limit=1000'));
   const invoiceIdsInBatches = new Set<string>();
-  
+
   if (batchesResponse.ok) {
     const batchesData = await batchesResponse.json();
     if (batchesData.success && batchesData.data) {
-      // Extract invoice IDs from all batches
       for (const batch of batchesData.data) {
         if (batch.items && Array.isArray(batch.items)) {
           for (const item of batch.items) {
-            if (item.invoiceId) {
-              invoiceIdsInBatches.add(item.invoiceId);
-            }
-            if (item.invoice && item.invoice.id) {
-              invoiceIdsInBatches.add(item.invoice.id);
-            }
+            if (item.invoiceId) invoiceIdsInBatches.add(item.invoiceId);
+            if (item.invoice?.id) invoiceIdsInBatches.add(item.invoice.id);
           }
         }
       }
     }
   }
-  
-  // Filter invoices: exclude PAID invoices and those already in batches
+
+  // Filter: exclude PAID invoices and those already in batches
   if (invoiceData.success && invoiceData.data) {
     invoiceData.data = invoiceData.data.filter((inv: Invoice) => {
-      // Exclude PAID invoices
       if (inv.status === 'PAID') return false;
-      // Exclude invoices already in batches
       if (invoiceIdsInBatches.has(inv.id)) return false;
       return true;
     });
   }
-  
+
   return invoiceData;
 }
 
@@ -87,10 +93,13 @@ export default function BatchInvoiceSelector({
   excludeInvoiceIds = [],
 }: BatchInvoiceSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const defaults = getDefaultDateRange();
+  const [startDate, setStartDate] = useState(defaults.startDate);
+  const [endDate, setEndDate] = useState(defaults.endDate);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['available-invoices'],
-    queryFn: fetchAvailableInvoices,
+    queryKey: ['available-invoices', startDate, endDate],
+    queryFn: () => fetchAvailableInvoices(startDate, endDate),
   });
 
   const invoices: Invoice[] = (data?.data || []).filter(
@@ -135,13 +144,47 @@ export default function BatchInvoiceSelector({
 
   return (
     <div className="space-y-4 h-full flex flex-col min-h-0">
-      <div className="space-y-2 flex-shrink-0">
-        <Label>Search Invoices</Label>
-        <Input
-          placeholder="Search by invoice number, customer, or MC number..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+      <div className="flex flex-wrap items-end gap-4 flex-shrink-0">
+        <div className="flex-1 min-w-[200px] space-y-2">
+          <Label>Search Invoices</Label>
+          <Input
+            placeholder="Search by invoice number, customer, or MC number..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">From</Label>
+            <div className="relative">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  onSelectionChange([]);
+                }}
+                className="w-[140px] h-9 pr-8"
+              />
+              <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">To</Label>
+            <div className="relative">
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  onSelectionChange([]);
+                }}
+                className="w-[140px] h-9 pr-8"
+              />
+              <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="border rounded-lg flex-1 min-h-0 overflow-hidden flex flex-col">

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { z } from 'zod';
+import { BatchEmailManager } from '@/lib/managers/invoice/BatchEmailManager';
 
-const sendBatchSchema = z.object({
-  factoringCompany: z.string().optional(),
-  notes: z.string().optional(),
-});
-
+/**
+ * POST /api/batches/:id/send
+ * Validates the batch, then sends emails with merged PDF packages to all invoice recipients.
+ * Blocks if any invoice is missing required documents or a valid recipient email.
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,111 +23,74 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
-    const validated = sendBatchSchema.parse(body);
-
     const batch = await prisma.invoiceBatch.findFirst({
-      where: {
-        id: id,
-        companyId: session.user.companyId,
-      },
-      include: {
-        items: {
-          include: {
-            invoice: true,
-          },
-        },
-      },
+      where: { id, companyId: session.user.companyId },
     });
 
     if (!batch) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'NOT_FOUND', message: 'Batch not found' },
-        },
+        { success: false, error: { code: 'NOT_FOUND', message: 'Batch not found' } },
         { status: 404 }
       );
     }
 
     if (batch.postStatus === 'PAID') {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'INVALID_STATUS',
-            message: 'Cannot send a PAID batch',
-          },
-        },
+        { success: false, error: { code: 'INVALID_STATUS', message: 'Cannot send a PAID batch' } },
         { status: 400 }
       );
     }
 
-    // Update batch status and send information
-    const updated = await prisma.invoiceBatch.update({
-      where: { id: id },
-      data: {
-        postStatus: 'POSTED',
-        sentToFactoringAt: new Date(),
-        factoringCompanyId: validated.factoringCompany || null,
-        notes: validated.notes || batch.notes,
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        items: {
-          include: {
-            invoice: {
-              include: {
-                customer: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...updated,
-        invoiceCount: updated.items?.length || 0,
-      },
-      message: 'Batch sent successfully',
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+    // Validate all invoices before sending
+    const validation = await BatchEmailManager.validateBatch(id);
+    if (!validation.ready) {
       return NextResponse.json(
         {
           success: false,
           error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid request data',
-            details: error.issues,
+            code: 'VALIDATION_FAILED',
+            message: `${validation.errors.length} invoice(s) have issues that must be resolved before sending`,
+            validationErrors: validation.errors,
           },
         },
         { status: 400 }
       );
     }
 
+    // Send all emails
+    const sendResult = await BatchEmailManager.sendBatch(
+      id,
+      session.user.companyId,
+      session.user.id
+    );
+
+    // Log activity
+    try {
+      const { createActivityLog } = await import('@/lib/activity-log');
+      await createActivityLog({
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        action: 'SEND',
+        entityType: 'Invoice',
+        entityId: id,
+        description: `Batch ${batch.batchNumber} sent: ${sendResult.totalSent} succeeded, ${sendResult.totalFailed} failed`,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+    } catch {
+      // Activity log failure should not fail the request
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: sendResult,
+      message: `Batch sent: ${sendResult.totalSent} emails delivered, ${sendResult.totalFailed} failed`,
+    });
+  } catch (error) {
     console.error('Send batch error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
       { status: 500 }
     );
   }
 }
-

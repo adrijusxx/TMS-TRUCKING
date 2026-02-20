@@ -264,7 +264,7 @@ interface CompanyHeaderProps {
     address?: string;
     city?: string;
     state?: string;
-    zipCode?: string;
+    zip?: string;
     phone?: string;
     email?: string;
     mcNumber?: string;
@@ -290,7 +290,7 @@ export const CompanyHeader: React.FC<CompanyHeaderProps> = ({
             )}
             {(company.city || company.state) && (
               <Text style={baseStyles.companyAddress}>
-                {company.city}, {company.state} {company.zipCode}
+                {company.city}, {company.state} {company.zip}
               </Text>
             )}
             {company.phone && (

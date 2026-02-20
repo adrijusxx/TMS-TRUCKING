@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const limit = parseInt(searchParams.get('limit') || '20');
+    const recruiterOnly = searchParams.get('recruiter') === 'true';
 
     const where: any = {
       companyId: session.user.companyId,
@@ -26,6 +27,11 @@ export async function GET(request: NextRequest) {
       isActive: true,
       role: { notIn: ['DRIVER', 'CUSTOMER'] }, // Exclude drivers and customers
     };
+
+    // Filter to only users with an active RecruiterProfile
+    if (recruiterOnly) {
+      where.recruiterProfile = { isActive: true };
+    }
 
     if (search) {
       where.OR = [

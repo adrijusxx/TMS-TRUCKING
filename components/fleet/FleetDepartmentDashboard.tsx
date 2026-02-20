@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, LayoutDashboard, AlertTriangle, BarChart3, Users, History } from 'lucide-react';
+import { Plus, LayoutDashboard, AlertTriangle, BarChart3, Users, History, Activity } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import MaintenanceList from '@/components/maintenance/MaintenanceList';
 import TelegramFullWidget from '@/components/telegram/TelegramFullWidget';
 import { Search, Wrench } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
+import FleetMonitoringTab from './monitoring/FleetMonitoringTab';
 
 export default function FleetDepartmentDashboard() {
   const { can } = usePermissions();
@@ -66,11 +67,17 @@ export default function FleetDepartmentDashboard() {
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="overview" value={tab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
             <span className="hidden sm:inline">Overview</span>
           </TabsTrigger>
+          {can('fleet.monitoring') && (
+            <TabsTrigger value="monitoring" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              <span className="hidden sm:inline">Monitoring</span>
+            </TabsTrigger>
+          )}
           {can('maintenance.view') && (
             <TabsTrigger value="maintenance" className="flex items-center gap-2">
               <Wrench className="h-4 w-4" />
@@ -134,6 +141,11 @@ export default function FleetDepartmentDashboard() {
               </div>
             </details>
           )}
+        </TabsContent>
+
+        {/* Tab 2: Monitoring */}
+        <TabsContent value="monitoring" className="mt-4">
+          <FleetMonitoringTab />
         </TabsContent>
 
         {/* Tab 5: Maintenance */}

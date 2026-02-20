@@ -60,7 +60,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
         }
 
-        return NextResponse.json({ lead });
+        return NextResponse.json({ lead, currentUserId: session.user.id });
     } catch (error) {
         console.error('[CRM Lead GET] Error:', error);
         return NextResponse.json(

@@ -10,6 +10,7 @@ import LeadDocuments from './LeadDocuments';
 import LeadPersonalTab from './LeadPersonalTab';
 import LeadCDLTab from './LeadCDLTab';
 import LeadStatusTab from './LeadStatusTab';
+import LeadOverviewTab from './LeadOverviewTab';
 import HireLeadDialog from './HireLeadDialog';
 import LeadQuickActions from './LeadQuickActions';
 import DuplicateLeadWarning from './DuplicateLeadWarning';
@@ -65,6 +66,7 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
     const [leadData, setLeadData] = useState<any>(null);
+    const [currentUserId, setCurrentUserId] = useState<string>('');
     const [hireDialogOpen, setHireDialogOpen] = useState(false);
     const isEditing = !!leadId;
 
@@ -73,54 +75,69 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
         defaultValues,
     });
 
+    const fetchLead = () => {
+        if (!leadId || !open) return;
+        setIsFetching(true);
+        fetch(`/api/crm/leads/${leadId}`)
+            .then((res) => res.json())
+            .then((data) => {
+                if (data.lead) {
+                    setLeadData(data.lead);
+                    if (data.currentUserId) setCurrentUserId(data.currentUserId);
+                    form.reset({
+                        firstName: data.lead.firstName || '',
+                        lastName: data.lead.lastName || '',
+                        phone: data.lead.phone || '',
+                        email: data.lead.email || '',
+                        address: data.lead.address || '',
+                        city: data.lead.city || '',
+                        state: data.lead.state || '',
+                        zip: data.lead.zip || '',
+                        cdlNumber: data.lead.cdlNumber || '',
+                        cdlClass: data.lead.cdlClass || '',
+                        yearsExperience: data.lead.yearsExperience || undefined,
+                        status: data.lead.status || 'NEW',
+                        priority: data.lead.priority || 'WARM',
+                        source: data.lead.source || 'OTHER',
+                    });
+                }
+            })
+            .finally(() => setIsFetching(false));
+    };
+
     useEffect(() => {
         if (leadId && open) {
-            setIsFetching(true);
-            fetch(`/api/crm/leads/${leadId}`)
-                .then((res) => res.json())
-                .then((data) => {
-                    if (data.lead) {
-                        setLeadData(data.lead);
-                        form.reset({
-                            firstName: data.lead.firstName || '',
-                            lastName: data.lead.lastName || '',
-                            phone: data.lead.phone || '',
-                            email: data.lead.email || '',
-                            address: data.lead.address || '',
-                            city: data.lead.city || '',
-                            state: data.lead.state || '',
-                            zip: data.lead.zip || '',
-                            cdlNumber: data.lead.cdlNumber || '',
-                            cdlClass: data.lead.cdlClass || '',
-                            yearsExperience: data.lead.yearsExperience || undefined,
-                            status: data.lead.status || 'NEW',
-                            priority: data.lead.priority || 'WARM',
-                            source: data.lead.source || 'OTHER',
-                        });
-                    }
-                })
-                .finally(() => setIsFetching(false));
+            fetchLead();
         } else if (!leadId && open) {
             setLeadData(null);
             form.reset(defaultValues);
         }
-    }, [leadId, open, form]);
+    }, [leadId, open]);
 
     const { initiateCall } = useClickToCall();
     const handleCall = (phone: string) => initiateCall(phone);
 
-    const handleScoreUpdate = (score: number, summary: string) => {
-        setLeadData((prev: any) => ({
-            ...prev,
-            aiScore: score,
-            aiScoreSummary: summary,
-            aiScoreUpdatedAt: new Date().toISOString(),
-        }));
+    const handleRefresh = () => {
+        fetchLead();
         onSuccess?.();
     };
 
+    const handleStatusChange = async (status: string) => {
+        try {
+            const res = await fetch(`/api/crm/leads/${leadId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status }),
+            });
+            if (!res.ok) throw new Error('Failed to update status');
+            toast.success(`Status changed to ${status.replace(/_/g, ' ')}`);
+            handleRefresh();
+        } catch {
+            toast.error('Failed to change status');
+        }
+    };
+
     const onSubmit = async (values: LeadFormValues) => {
-        // Intercept HIRED: redirect to proper hire flow with driver creation
         if (isEditing && values.status === 'HIRED' && leadData?.status !== 'HIRED') {
             setHireDialogOpen(true);
             return;
@@ -155,10 +172,10 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                     <SheetDescription>
                         {isEditing
                             ? 'Update lead information and track progress'
-                            : 'Enter lead details to add them to the recruiting pipeline'}
+                            : 'Enter CDL-A driver lead details to add them to the recruiting pipeline'}
                     </SheetDescription>
                     {isEditing && leadId && (
-                        <LeadQuickActions leadId={leadId} onSuccess={onSuccess} />
+                        <LeadQuickActions leadId={leadId} leadData={leadData} onSuccess={handleRefresh} />
                     )}
                 </SheetHeader>
 
@@ -175,16 +192,29 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                                     email={form.watch('email')}
                                 />
                             )}
-                            <Tabs defaultValue="personal" className="w-full">
-                                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-7' : 'grid-cols-3'}`}>
+                            <Tabs defaultValue={isEditing ? 'overview' : 'personal'} className="w-full">
+                                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-8' : 'grid-cols-3'}`}>
+                                    {isEditing && <TabsTrigger value="overview">Overview</TabsTrigger>}
                                     <TabsTrigger value="personal">Personal</TabsTrigger>
-                                    <TabsTrigger value="cdl">CDL Info</TabsTrigger>
+                                    <TabsTrigger value="cdl">CDL</TabsTrigger>
                                     <TabsTrigger value="status">Status</TabsTrigger>
-                                    {isEditing && <TabsTrigger value="import">Import Data</TabsTrigger>}
                                     {isEditing && <TabsTrigger value="notes">Notes</TabsTrigger>}
                                     {isEditing && <TabsTrigger value="activity">Activity</TabsTrigger>}
                                     {isEditing && <TabsTrigger value="documents">Docs</TabsTrigger>}
+                                    {isEditing && <TabsTrigger value="import">Import</TabsTrigger>}
                                 </TabsList>
+
+                                {isEditing && leadData && (
+                                    <TabsContent value="overview" className="mt-4">
+                                        <LeadOverviewTab
+                                            leadId={leadId!}
+                                            leadData={leadData}
+                                            onUpdated={handleRefresh}
+                                            onStatusChange={handleStatusChange}
+                                            onHire={() => setHireDialogOpen(true)}
+                                        />
+                                    </TabsContent>
+                                )}
 
                                 <TabsContent value="personal" className="mt-4">
                                     <LeadPersonalTab form={form} onCall={handleCall} />
@@ -198,20 +228,15 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                                     <LeadStatusTab
                                         form={form}
                                         isEditing={isEditing}
-                                        leadId={leadId}
                                         leadData={leadData}
-                                        onScoreUpdate={handleScoreUpdate}
                                     />
                                 </TabsContent>
 
                                 {isEditing && (
                                     <>
-                                        <TabsContent value="import" className="mt-4">
-                                            <ImportMetadataCard metadata={leadData?.metadata} />
-                                        </TabsContent>
                                         <TabsContent value="notes" className="mt-4">
                                             <div className="bg-muted/10 p-1 rounded-lg">
-                                                <LeadNotes leadId={leadId!} />
+                                                <LeadNotes leadId={leadId!} currentUserId={currentUserId} />
                                             </div>
                                         </TabsContent>
                                         <TabsContent value="activity" className="mt-4">
@@ -223,6 +248,9 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                                             <div className="bg-muted/10 p-1 rounded-lg">
                                                 <LeadDocuments leadId={leadId!} />
                                             </div>
+                                        </TabsContent>
+                                        <TabsContent value="import" className="mt-4">
+                                            <ImportMetadataCard metadata={leadData?.metadata} />
                                         </TabsContent>
                                     </>
                                 )}

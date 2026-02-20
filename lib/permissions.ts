@@ -132,6 +132,10 @@ export type Permission =
   | 'fuel.create'
   | 'fuel.edit'
   | 'fuel.delete'
+  // IFTA
+  | 'ifta.view'
+  | 'ifta.calculate'
+  | 'ifta.manage'
   | 'vendors.view'
   | 'vendors.create'
   | 'vendors.edit'
@@ -144,6 +148,8 @@ export type Permission =
   | 'fleet.communications'
   | 'fleet.hotspots'
   | 'fleet.on_call'
+  | 'fleet.monitoring'
+  | 'fleet.monitoring.settings'
   // Data Management
   | 'import.view'
   | 'import.execute'
@@ -264,9 +270,10 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'inspections.view', 'inspections.create', 'inspections.edit', 'inspections.delete',
     'inspections.bulk_edit', 'inspections.bulk_delete',
     'fuel.view', 'fuel.create', 'fuel.edit', 'fuel.delete',
+    'ifta.view', 'ifta.calculate', 'ifta.manage',
     'vendors.view', 'vendors.create', 'vendors.edit', 'vendors.delete',
     'vendors.bulk_edit', 'vendors.bulk_delete',
-    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call',
+    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call', 'fleet.monitoring', 'fleet.monitoring.settings',
     'import.view', 'import.execute',
     'export.view', 'export.execute',
     'mc_numbers.view', 'mc_numbers.create', 'mc_numbers.edit', 'mc_numbers.delete',
@@ -329,9 +336,10 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'breakdowns.view', 'breakdowns.create', 'breakdowns.edit', 'breakdowns.delete',
     'inspections.view', 'inspections.create', 'inspections.edit', 'inspections.delete',
     'fuel.view', 'fuel.create', 'fuel.edit', 'fuel.delete',
+    'ifta.view', 'ifta.calculate', 'ifta.manage',
     'vendors.view', 'vendors.create', 'vendors.edit', 'vendors.delete',
     // Extended Fleet Operations
-    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call',
+    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call', 'fleet.monitoring', 'fleet.monitoring.settings',
     // Data Management
     'import.view', 'import.execute',
     'export.view', 'export.execute',
@@ -379,6 +387,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'settings.view',
     // Basic fleet operations (Specific access instead of full department)
     'breakdowns.view',
+    'fleet.monitoring',
     'calendar.view', 'calendar.edit',
     'loadboard.view', 'loadboard.post',
     // Data Management
@@ -402,6 +411,8 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'batches.view', 'batches.create', 'batches.edit', 'batches.delete', 'batches.post',
     'deduction_rules.view', 'deduction_rules.create', 'deduction_rules.edit', 'deduction_rules.delete',
     'advances.view', 'advances.create', 'advances.approve', 'advances.delete',
+    // IFTA
+    'ifta.view', 'ifta.calculate',
     // Department Access
     'departments.accounting.view',
     'departments.reports.view',
@@ -476,9 +487,10 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'breakdowns.view', 'breakdowns.create', 'breakdowns.edit', 'breakdowns.delete',
     'inspections.view', 'inspections.create', 'inspections.edit', 'inspections.delete',
     'fuel.view', 'fuel.create', 'fuel.edit', 'fuel.delete',
+    'ifta.view',
     'vendors.view', 'vendors.create', 'vendors.edit', 'vendors.delete',
     // Extended Fleet Operations
-    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call',
+    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call', 'fleet.monitoring', 'fleet.monitoring.settings',
     // Department Access
     'departments.fleet.view',
     'departments.reports.view',
@@ -579,10 +591,12 @@ export function getAllPermissions(): Permission[] {
     'inspections.view', 'inspections.create', 'inspections.edit', 'inspections.delete',
     'inspections.bulk_edit', 'inspections.bulk_delete',
     'fuel.view', 'fuel.create', 'fuel.edit', 'fuel.delete',
+    // IFTA
+    'ifta.view', 'ifta.calculate', 'ifta.manage',
     'vendors.view', 'vendors.create', 'vendors.edit', 'vendors.delete',
     'vendors.bulk_edit', 'vendors.bulk_delete',
     // Extended Fleet Operations
-    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call',
+    'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call', 'fleet.monitoring', 'fleet.monitoring.settings',
     // Data Management
     'import.view', 'import.execute',
     'export.view', 'export.execute',

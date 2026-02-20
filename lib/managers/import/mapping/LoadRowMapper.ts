@@ -110,6 +110,7 @@ export class LoadRowMapper {
             revenue: finalRevenue,
             driverPay,
             fuelAdvance,
+            totalExpenses: expenses,
             totalMiles: finalTotalMiles,
             loadedMiles: finalLoadedMiles,
             emptyMiles,

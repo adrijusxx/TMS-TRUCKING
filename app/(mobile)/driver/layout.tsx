@@ -9,7 +9,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Home, Truck, DollarSign, LifeBuoy, LogOut } from 'lucide-react';
+import { Home, Truck, Fuel, DollarSign, LifeBuoy, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { signOut, useSession } from 'next-auth/react';
 import { OfflineIndicator } from '@/components/driver/OfflineIndicator';
@@ -37,6 +37,11 @@ export default function DriverMobileLayout({
       href: '/driver/loads',
       icon: Truck,
       label: 'Loads',
+    },
+    {
+      href: '/driver/fuel',
+      icon: Fuel,
+      label: 'Fuel',
     },
     {
       href: '/driver/settlements',

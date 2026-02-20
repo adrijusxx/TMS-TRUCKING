@@ -479,7 +479,7 @@ export default function LoadDetailsTab({
             <textarea
               value={formData.dispatchNotes || load.dispatchNotes || ''}
               onChange={(e) => updateField('dispatchNotes', e.target.value)}
-              className="w-full min-h-[60px] p-2 text-xs border rounded resize-none"
+              className="w-full min-h-[60px] p-2 text-xs border border-input bg-background text-foreground rounded resize-none"
               placeholder="Dispatch notes..."
             />
           ) : (

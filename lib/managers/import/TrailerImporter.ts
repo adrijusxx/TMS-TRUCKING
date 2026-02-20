@@ -1,5 +1,5 @@
 
-import { PrismaClient, EquipmentType } from '@prisma/client';
+import { PrismaClient, EquipmentType, TrailerStatus } from '@prisma/client';
 import { BaseImporter, ImportResult } from './BaseImporter';
 import { getRowValue, parseImportDate, parseLocationString } from '@/lib/import-export/import-utils';
 import { normalizeState } from '@/lib/utils/state-utils';
@@ -241,12 +241,14 @@ export class TrailerImporter extends BaseImporter {
         return EquipmentType.DRY_VAN;
     }
 
-    private mapTrailerStatusSmart(value: any): string {
-        if (!value) return 'AVAILABLE';
+    private mapTrailerStatusSmart(value: any): TrailerStatus {
+        if (!value) return TrailerStatus.AVAILABLE;
         const v = String(value).toUpperCase().trim();
-        if (v.includes('IN_USE') || v.includes('INUSE') || v.includes('ACTIVE')) return 'IN_USE';
-        if (v.includes('MAINT') || v.includes('SHOP')) return 'MAINTENANCE';
-        if (v.includes('OUT') || v.includes('SERVICE')) return 'OUT_OF_SERVICE';
-        return 'AVAILABLE';
+        if (v.includes('IN_USE') || v.includes('INUSE') || v.includes('ACTIVE')) return TrailerStatus.IN_USE;
+        if (v.includes('MAINT') || v.includes('SHOP')) return TrailerStatus.MAINTENANCE;
+        if (v.includes('OUT') || v.includes('SERVICE')) return TrailerStatus.OUT_OF_SERVICE;
+        if (v.includes('INACTIVE')) return TrailerStatus.INACTIVE;
+        if (v.includes('REPAIR')) return TrailerStatus.NEEDS_REPAIR;
+        return TrailerStatus.AVAILABLE;
     }
 }

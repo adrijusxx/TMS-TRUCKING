@@ -486,7 +486,7 @@ export default function WeeklyScheduleView() {
                 setPageSize(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="border rounded px-2 py-1 text-sm"
+              className="border border-input bg-background text-foreground rounded px-2 py-1 text-sm"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
