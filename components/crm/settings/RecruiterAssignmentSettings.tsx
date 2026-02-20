@@ -77,7 +77,7 @@ export default function RecruiterAssignmentSettings() {
     });
 
     const allStaff: { id: string; firstName: string; lastName: string; email: string }[] =
-        staffData?.users ?? staffData ?? [];
+        staffData?.data ?? staffData?.users ?? [];
 
     // Recruiters not yet added
     const availableToAdd = allStaff.filter((u) => !recruiters.find((r) => r.userId === u.id));
