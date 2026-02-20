@@ -70,6 +70,7 @@ jobs:
             package.json \
             package-lock.json \
             prisma/schema.prisma \
+            prisma/migrations \
             ecosystem.config.js \
             scripts/start-app-with-secrets.sh \
             scripts/run-migration-with-secrets.sh \
@@ -77,6 +78,7 @@ jobs:
             scripts/run-migration-with-secrets.js \
             scripts/resolve-migration.js \
             scripts/assign-super-admin.js \
+            scripts/baseline-migrations.js \
             scripts/rollback.sh
 
       - name: Deploy to AWS EC2 via SCP
