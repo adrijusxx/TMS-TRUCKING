@@ -85,11 +85,6 @@ export class LeadAssignmentManager {
                 weight: true,
                 lastAssignedAt: true,
                 maxCapacity: true,
-                _count: {
-                    select: {
-                        // Count active leads (not HIRED, REJECTED, or CANCELLED)
-                    },
-                },
             },
         });
 
