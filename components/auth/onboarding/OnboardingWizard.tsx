@@ -7,10 +7,11 @@ import { Step2CompanyDetails } from './Step2CompanyDetails';
 import { Step4PlanSelection } from './Step4PlanSelection';
 import type { CompanyDetailsInput } from './Step2CompanyDetails';
 import type { PlanSelectionInput } from './Step4PlanSelection';
-import { Truck, ArrowLeft } from 'lucide-react';
+import { Truck, ArrowLeft, Building2, User, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { apiUrl, cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // =============================================================================
 // TYPES
@@ -30,9 +31,9 @@ interface RegistrationData {
 }
 
 const STEPS = [
-    { label: 'Account', description: 'Your details' },
-    { label: 'Company', description: 'Business info' },
-    { label: 'Plan', description: 'Get started' },
+    { label: 'Account', description: 'Your details', icon: User },
+    { label: 'Company', description: 'Business info', icon: Building2 },
+    { label: 'Plan', description: 'Get started', icon: CreditCard },
 ];
 
 // =============================================================================
@@ -126,118 +127,200 @@ export function OnboardingWizard() {
     // RENDER
     // -------------------------------------------------------------------------
     return (
-        <div className="min-h-screen flex bg-slate-950">
+        <div className="min-h-screen flex bg-slate-950 selection:bg-purple-500/30">
             {/* Left Panel - Progress */}
-            <div className="hidden lg:flex lg:w-[420px] bg-gradient-to-br from-purple-900/40 via-slate-900 to-slate-950 p-8 flex-col relative overflow-hidden">
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%239C92AC%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
+            <div className="hidden lg:flex lg:w-[480px] relative overflow-hidden flex-col p-12">
+                {/* Animated Background */}
+                <div className="absolute inset-0 bg-slate-950 z-0">
+                    <motion.div
+                        animate={{
+                            scale: [1, 1.2, 1],
+                            opacity: [0.2, 0.4, 0.2]
+                        }}
+                        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                        className="absolute top-[-10%] left-[-20%] w-[80%] h-[80%] bg-indigo-600/20 blur-[120px] rounded-full"
+                    />
+                    <motion.div
+                        animate={{
+                            scale: [1, 1.4, 1],
+                            opacity: [0.1, 0.3, 0.1]
+                        }}
+                        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+                        className="absolute bottom-[-10%] right-[-20%] w-[70%] h-[70%] bg-purple-600/20 blur-[100px] rounded-full"
+                    />
+                    <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%239C92AC%22%20fill-opacity%3D%220.03%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-40 z-0" />
+                </div>
 
-                <div className="relative z-10">
-                    <Link href="/" className="flex items-center space-x-2 mb-10">
-                        <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-purple-700">
-                            <Truck className="h-5 w-5 text-white" />
+                <div className="relative z-10 flex-1 flex flex-col">
+                    <Link href="/" className="flex items-center space-x-3 mb-16 inline-block">
+                        <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20">
+                            <Truck className="h-6 w-6 text-white" />
                         </div>
-                        <span className="text-lg font-bold text-white">TMS Pro</span>
+                        <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">TMS Pro</span>
                     </Link>
 
-                    <h2 className="text-2xl font-bold text-white mb-2">Get Started</h2>
-                    <p className="text-slate-400 text-sm mb-8">
-                        Set up your account in just a few minutes
+                    <h2 className="text-4xl font-extrabold text-white mb-4 tracking-tight">
+                        Start your <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">journey</span>
+                    </h2>
+                    <p className="text-slate-400 text-lg mb-12 font-light leading-relaxed max-w-sm">
+                        Set up your workspace in just 3 quick steps and modernize your fleet operations.
                     </p>
 
                     {/* Custom vertical step display */}
-                    <div className="space-y-4">
+                    <div className="space-y-8 mt-4 relative">
+                        {/* Connecting Line */}
+                        <div className="absolute left-[19px] top-6 bottom-6 w-[2px] bg-white/5 rounded-full" />
+                        <motion.div
+                            className="absolute left-[19px] top-6 w-[2px] bg-gradient-to-b from-purple-500 to-indigo-500 rounded-full"
+                            initial={{ height: 0 }}
+                            animate={{ height: `${(currentStep - 1) * 50}%` }}
+                            transition={{ duration: 0.5, ease: "easeInOut" }}
+                        />
+
                         {STEPS.map((step, index) => {
                             const stepNum = index + 1;
                             const isCompleted = stepNum < currentStep;
                             const isActive = stepNum === currentStep;
+                            const StepIcon = step.icon;
 
                             return (
-                                <div key={index} className="flex items-center gap-3">
+                                <motion.div
+                                    key={index}
+                                    className="flex items-start gap-5 relative z-10"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.2 + (index * 0.1) }}
+                                >
                                     <div className={cn(
-                                        'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0',
-                                        isCompleted ? 'bg-green-500 text-white' :
-                                            isActive ? 'bg-purple-500 text-white' :
-                                                'bg-slate-700 text-slate-400'
+                                        'w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 transition-all duration-500 shadow-lg border relative',
+                                        isCompleted ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-transparent shadow-purple-500/20' :
+                                            isActive ? 'bg-white/10 text-white border-purple-500/50 backdrop-blur-md shadow-purple-500/10' :
+                                                'bg-white/[0.02] text-slate-500 border-white/5'
                                     )}>
-                                        {isCompleted ? '✓' : stepNum}
+                                        {isCompleted ? '✓' : <StepIcon className="w-4 h-4" />}
+
+                                        {/* Glow effect for active state */}
+                                        {isActive && (
+                                            <div className="absolute inset-0 rounded-xl bg-purple-500/20 blur-md -z-10" />
+                                        )}
                                     </div>
-                                    <div>
+                                    <div className="pt-2">
                                         <div className={cn(
-                                            'font-medium text-sm',
-                                            isActive ? 'text-white' : isCompleted ? 'text-slate-300' : 'text-slate-500'
+                                            'font-semibold text-base transition-colors duration-300 tracking-wide',
+                                            isActive ? 'text-white' : isCompleted ? 'text-slate-300' : 'text-slate-600'
                                         )}>
                                             {step.label}
                                         </div>
-                                        <div className="text-xs text-slate-500">{step.description}</div>
+                                        <div className={cn(
+                                            "text-sm mt-1 transition-colors duration-300 font-light",
+                                            isActive ? 'text-slate-400' : 'text-slate-600'
+                                        )}>{step.description}</div>
                                     </div>
-                                </div>
+                                </motion.div>
                             );
                         })}
                     </div>
                 </div>
 
-                <div className="relative z-10 mt-auto text-xs text-slate-500">
-                    <p>No credit card required • Cancel anytime</p>
+                <div className="relative z-10 mt-auto text-sm text-slate-500 font-medium">
+                    <p>No credit card required for setup • Cancel anytime</p>
                 </div>
             </div>
 
             {/* Right Panel - Form */}
-            <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
-                <div className="w-full max-w-md">
+            <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative z-10 bg-slate-950/50 backdrop-blur-xl border-l border-white/5 overflow-y-auto">
+                <div className="absolute inset-0 bg-gradient-to-b from-purple-500/5 to-transparent pointer-events-none" />
+
+                <div className="w-full max-w-lg relative z-10 py-10">
                     {/* Mobile Header */}
-                    <div className="lg:hidden mb-6">
-                        <Link href="/" className="flex items-center space-x-2 mb-4">
-                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-purple-700">
-                                <Truck className="h-4 w-4 text-white" />
+                    <div className="lg:hidden mb-10 flex justify-center">
+                        <Link href="/" className="flex items-center space-x-3">
+                            <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20">
+                                <Truck className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-lg font-bold text-white">TMS Pro</span>
+                            <span className="text-2xl font-bold tracking-tight text-white">TMS Pro</span>
                         </Link>
                     </div>
 
                     {/* Back Button */}
-                    {currentStep > 1 && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleBack}
-                            className="mb-4 text-slate-400 hover:text-white -ml-2"
-                            disabled={isSubmitting}
-                        >
-                            <ArrowLeft className="h-4 w-4 mr-1" />
-                            Back
-                        </Button>
-                    )}
+                    <div className="h-10 mb-6 flex items-center">
+                        {currentStep > 1 && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleBack}
+                                className="text-slate-400 hover:text-white hover:bg-white/5 -ml-3 transition-colors rounded-lg"
+                                disabled={isSubmitting}
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                <span className="font-medium">Back</span>
+                            </Button>
+                        )}
+                    </div>
 
                     {/* Error Message */}
-                    {error && (
-                        <div className="mb-4 p-3 text-sm text-red-400 bg-red-500/10 rounded-lg border border-red-500/20">
-                            {error}
-                        </div>
-                    )}
+                    <AnimatePresence>
+                        {error && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                                exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                                className="mb-8 p-4 text-sm font-medium text-red-400 bg-red-500/10 rounded-xl border border-red-500/20"
+                            >
+                                {error}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {/* Step Content */}
-                    {currentStep === 1 && (
-                        <Step1AccountDetails
-                            onComplete={handleStep1Complete}
-                            isLoading={isSubmitting}
-                            defaultValues={registrationData.step1}
-                        />
-                    )}
+                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-3xl p-8 backdrop-blur-xl shadow-2xl">
+                        {currentStep === 1 && (
+                            <motion.div
+                                key="step1"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <Step1AccountDetails
+                                    onComplete={handleStep1Complete}
+                                    isLoading={isSubmitting}
+                                    defaultValues={registrationData.step1}
+                                />
+                            </motion.div>
+                        )}
 
-                    {currentStep === 2 && (
-                        <Step2CompanyDetails
-                            onComplete={handleStep2Complete}
-                            isLoading={isSubmitting}
-                            defaultValues={registrationData.step2}
-                        />
-                    )}
+                        {currentStep === 2 && (
+                            <motion.div
+                                key="step2"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <Step2CompanyDetails
+                                    onComplete={handleStep2Complete}
+                                    isLoading={isSubmitting}
+                                    defaultValues={registrationData.step2}
+                                />
+                            </motion.div>
+                        )}
 
-                    {currentStep === 3 && (
-                        <Step4PlanSelection
-                            onComplete={handlePlanComplete}
-                            isLoading={isSubmitting}
-                        />
-                    )}
+                        {currentStep === 3 && (
+                            <motion.div
+                                key="step3"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <Step4PlanSelection
+                                    onComplete={handlePlanComplete}
+                                    isLoading={isSubmitting}
+                                />
+                            </motion.div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
