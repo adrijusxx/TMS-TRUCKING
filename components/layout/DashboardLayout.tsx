@@ -217,7 +217,7 @@ export default function DashboardLayout({
       {!shouldHideMainNav && (
         <aside
           className={cn(
-            'fixed top-0 left-0 z-50 h-full bg-secondary text-secondary-foreground border-r border-border/50 shadow-lg transform transition-all duration-300 ease-in-out',
+            'fixed top-0 left-0 z-50 h-full flex flex-col bg-secondary text-secondary-foreground border-r border-border/50 shadow-lg transform transition-all duration-300 ease-in-out',
             // Mobile: slide in/out (always available)
             sidebarOpen ? 'translate-x-0' : '-translate-x-full',
             // Desktop: hide if mainSidebarHidden is true, otherwise show

@@ -191,7 +191,7 @@ export default function SidebarNav({ collapsed, onItemClick }: SidebarNavProps) 
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Navigation */}
       <nav className="flex-1 p-2 overflow-y-auto">
         <TooltipProvider delayDuration={300}>
