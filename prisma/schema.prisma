@@ -111,6 +111,9 @@ model User {
   // Custom Permissions
   permissionOverrides UserPermissionOverride[]
 
+  // Recruiter assignment profile
+  recruiterProfile RecruiterProfile? @relation("RecruiterProfile")
+
   @@index([companyId])
   @@index([email])
   @@index([mcNumberId])
@@ -395,6 +398,8 @@ model Company {
   leads                  Lead[]
   onboardingChecklists   OnboardingChecklist[]
   recruitingSLAConfigs   RecruitingSLAConfig[]
+  recruiterProfiles      RecruiterProfile[]
+  recruiterAssignmentConfig RecruiterAssignmentConfig?
   onboardingTemplates    OnboardingTemplate[]
   integrationSettings    IntegrationSettings?
   // Campaign & Automation
@@ -7416,6 +7421,39 @@ model RecruitingSLAConfig {
   updatedAt DateTime   @updatedAt
 
   @@unique([companyId, status])
+  @@index([companyId])
+}
+
+// Recruiter capacity and assignment weight per user
+model RecruiterProfile {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  userId         String   @unique
+  user           User     @relation("RecruiterProfile", fields: [userId], references: [id])
+  isActive       Boolean  @default(true)
+  weight         Int      @default(1)   // Relative weight for weighted assignment (1-10)
+  maxCapacity    Int      @default(50)  // Max concurrent active leads
+  lastAssignedAt DateTime?              // For round-robin tracking
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([companyId, userId])
+  @@index([companyId])
+  @@index([isActive])
+}
+
+// Company-level auto-assignment configuration
+model RecruiterAssignmentConfig {
+  id               String   @id @default(cuid())
+  companyId        String   @unique
+  company          Company  @relation(fields: [companyId], references: [id])
+  enabled          Boolean  @default(false) // Auto-assign on lead creation
+  strategy         String   @default("ROUND_ROBIN") // ROUND_ROBIN | WEIGHTED | LEAST_LOADED
+  assignOnSources  String[] @default([])    // Only auto-assign for these LeadSource values (empty = all)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
   @@index([companyId])
 }
 

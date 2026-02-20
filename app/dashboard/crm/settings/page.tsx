@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import CrmSettingsList from '@/components/crm/CrmSettingsList';
 import ApplicationUrlConfig from '@/components/crm/ApplicationUrlConfig';
 import SLAConfigEditor from '@/components/crm/settings/SLAConfigEditor';
+import RecruiterAssignmentSettings from '@/components/crm/settings/RecruiterAssignmentSettings';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata = {
@@ -50,6 +51,7 @@ async function SettingsData() {
         <>
             <ApplicationUrlConfig currentSlug={company?.slug || null} />
             <SLAConfigEditor />
+            <RecruiterAssignmentSettings />
             <CrmSettingsList mcNumbers={mcNumbers} />
         </>
     );

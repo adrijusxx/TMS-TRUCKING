@@ -5,6 +5,9 @@ import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { inngest } from '@/lib/inngest/client';
 import { handleApiError } from '@/lib/api/route-helpers';
+import { LeadAssignmentManager } from '@/lib/managers/LeadAssignmentManager';
+
+const assignmentManager = new LeadAssignmentManager();
 
 // GET /api/crm/leads - List all leads
 export async function GET(request: NextRequest) {
@@ -165,6 +168,11 @@ export async function POST(request: NextRequest) {
                 userId: session.user.id,
             },
         });
+
+        // Auto-assign to a recruiter if configured (non-critical, fire-and-forget)
+        assignmentManager
+            .autoAssign(lead.id, companyId, lead.source)
+            .catch((err) => console.warn('[CRM Leads POST] Auto-assign failed:', err));
 
         // Fire-and-forget: automation rules + AI summary generation (non-critical)
         Promise.all([
