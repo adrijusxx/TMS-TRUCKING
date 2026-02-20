@@ -79,6 +79,8 @@ jobs:
             scripts/resolve-migration.js \
             scripts/assign-super-admin.js \
             scripts/baseline-migrations.js \
+            scripts/db-push-aws.js \
+            scripts/db-reset-aws.js \
             scripts/rollback.sh
 
       - name: Deploy to AWS EC2 via SCP
