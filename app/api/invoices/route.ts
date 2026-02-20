@@ -7,6 +7,7 @@ import { McStateManager } from '@/lib/managers/McStateManager';
 import { getInvoiceFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 import { calculateAgingDays } from '@/lib/utils/aging';
+import { handleApiError } from '@/lib/api/route-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -293,14 +294,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Invoice list error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 

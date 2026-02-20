@@ -1,4 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { DepartmentDashboard } from '@/components/layout/DepartmentDashboard';
 import { DriverPerformanceMetrics } from '@/components/hr/DriverPerformanceMetrics';
 import { SettlementSummary } from '@/components/hr/SettlementSummary';
 import { DriverRetention } from '@/components/hr/DriverRetention';
@@ -13,11 +14,10 @@ export default function HRDashboardPage() {
   return (
     <SubscriptionGate module={"HR" as any}>
       <Breadcrumb items={[{ label: 'HR Department', href: '/dashboard/hr' }]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Human Resources Dashboard</h1>
-        </div>
-
+      <DepartmentDashboard
+        title="Human Resources Dashboard"
+        description="Driver performance, settlements, retention, and bonuses"
+      >
         {/* Key Metrics */}
         <HRDashboardMetrics />
 
@@ -58,7 +58,7 @@ export default function HRDashboardPage() {
             <BonusCalculations />
           </TabsContent>
         </Tabs>
-      </div>
+      </DepartmentDashboard>
     </SubscriptionGate>
   );
 }

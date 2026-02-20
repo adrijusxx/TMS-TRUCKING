@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { revalidatePath } from 'next/cache';
-import { UserRole } from '@prisma/client';
+// UserRole enum removed — using string role checks
 
 /**
  * Universal server action to perform bulk delete operations
@@ -28,7 +28,7 @@ export async function bulkDeleteEntities(
     }
 
     // 2. Security check - Only Admins can perform bulk delete
-    if (session.user.role !== UserRole.ADMIN) {
+    if (session.user.role !== 'ADMIN') {
       return {
         success: false,
         error: 'Forbidden: Only Administrators can perform bulk delete operations',
@@ -52,10 +52,16 @@ export async function bulkDeleteEntities(
     switch (normalizedType) {
       case 'driver':
       case 'drivers': {
-        const result = await prisma.driver.deleteMany({
+        // Soft delete to preserve financial history (settlements, advances, etc.)
+        const result = await prisma.driver.updateMany({
           where: {
             id: { in: ids },
             companyId: session.user.companyId,
+            deletedAt: null,
+          },
+          data: {
+            deletedAt: new Date(),
+            isActive: false,
           },
         });
         deletedCount = result.count;

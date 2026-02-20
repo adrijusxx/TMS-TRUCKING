@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
-import { Package, Users, Truck, Calendar, CheckSquare, Wifi, WifiOff } from 'lucide-react';
+import { Package, Users, Truck, Calendar, CheckSquare, Wifi, WifiOff, AlertCircle, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import LoadAssignmentDialog from './LoadAssignmentDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import RouteOptimizer from '@/components/routes/RouteOptimizer';
 import { useRealtimeDispatch } from '@/hooks/useRealtime';
+import { LoadingState } from '@/components/ui/loading-state';
+import { SelfFetchingTrackingBadge } from '@/components/loads/LoadTrackingBadge';
 
 async function fetchDispatchBoard(date: string) {
   const response = await fetch(apiUrl(`/api/dispatch/board?date=${date}`));
@@ -38,7 +40,7 @@ export default function DispatchBoard() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedLoads, setSelectedLoads] = useState<Set<string>>(new Set());
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dispatch-board', selectedDate],
     queryFn: () => fetchDispatchBoard(selectedDate),
   });
@@ -99,9 +101,19 @@ export default function DispatchBoard() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-6 text-xs text-muted-foreground">Loading...</div>
+        <LoadingState message="Loading dispatch board..." size="sm" className="py-8" />
       ) : error ? (
-        <div className="text-center py-6 text-xs text-destructive">Error loading board</div>
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="rounded-xl bg-destructive/10 p-3 mb-3">
+            <AlertCircle className="h-6 w-6 text-destructive" />
+          </div>
+          <p className="text-sm font-medium mb-1">Error loading board</p>
+          <p className="text-xs text-muted-foreground mb-3">{(error as Error).message}</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </Button>
+        </div>
       ) : (
         <>
           {selectedLoads.size >= 2 && (
@@ -205,6 +217,7 @@ export default function DispatchBoard() {
                               </p>
                             )}
                             <Badge variant="outline" className="text-[10px] h-4 mt-1">{load.status}</Badge>
+                            <SelfFetchingTrackingBadge loadId={load.id} loadStatus={load.status} compact />
                           </div>
                           <p className="font-medium text-green-600">{formatCurrency(load.revenue)}</p>
                         </div>

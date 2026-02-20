@@ -52,7 +52,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ChevronDown, ChevronUp, Info, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DataTableProps, ExtendedColumnDef } from './types';
 import { ColumnFilter } from './ColumnFilter';
@@ -60,6 +60,8 @@ import { DataTableBulkActions } from '@/components/ui/data-table-bulk-actions';
 import { DataTableToolbar } from '@/components/ui/data-table-toolbar';
 import { InlineFilterRow } from './InlineFilterRow';
 import { DraggableTableHeader } from './DraggableTableHeader';
+import { DataTableSkeleton } from '@/components/ui/data-table-skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 
 /**
  * Core DataTable component built on TanStack Table
@@ -70,6 +72,7 @@ export function DataTable<TData extends Record<string, any>>({
   data,
   isLoading = false,
   error = null,
+  onRetry,
   rowSelection: controlledRowSelection,
   onRowSelectionChange,
   sorting: controlledSorting,
@@ -363,44 +366,24 @@ export function DataTable<TData extends Record<string, any>>({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-32">
-        <div className="text-center">
-          <p className="text-destructive text-xs mb-1">Error loading data</p>
-          <p className="text-[11px] text-muted-foreground">{error.message}</p>
+      <div className="flex flex-col items-center justify-center py-12 px-4">
+        <div className="rounded-xl bg-destructive/10 p-3 mb-3">
+          <AlertCircle className="h-6 w-6 text-destructive" />
         </div>
+        <p className="text-sm font-medium text-foreground mb-1">Error loading data</p>
+        <p className="text-xs text-muted-foreground mb-3 max-w-sm text-center">{error.message}</p>
+        {onRetry && (
+          <Button variant="outline" size="sm" onClick={onRetry} className="gap-1.5">
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </Button>
+        )}
       </div>
     );
   }
 
   if (isLoading && showLoadingSkeleton) {
-    return (
-      <div className="space-y-2">
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {tableColumns.slice(0, 5).map((_, index) => (
-                  <TableHead key={index}>
-                    <div className="h-3 w-16 bg-muted animate-pulse rounded" />
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 8 }).map((_, rowIndex) => (
-                <TableRow key={rowIndex}>
-                  {tableColumns.slice(0, 5).map((_, colIndex) => (
-                    <TableCell key={colIndex}>
-                      <div className="h-3 w-full bg-muted animate-pulse rounded" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    );
+    return <DataTableSkeleton columns={Math.min(tableColumns.length, 6)} rows={8} />;
   }
 
   return (
@@ -441,6 +424,12 @@ export function DataTable<TData extends Record<string, any>>({
                     {enableColumnReorder ? (
                       <DraggableTableHeader
                         headers={headerGroup.headers}
+                        enableInlineFilters={enableInlineFilters}
+                        entityType={entityType}
+                        columnFilters={columnFilters}
+                        onColumnFilterChange={onColumnFilterChange}
+                        setColumnFilters={setColumnFilters}
+                        isCompact={isCompact}
                       />
                     ) : (
                       headerGroup.headers.map((header) => {
@@ -635,15 +624,19 @@ export function DataTable<TData extends Record<string, any>>({
                   <TableRow>
                     <TableCell
                       colSpan={tableColumns.length + (rowActions ? 1 : 0)}
-                      className="h-16 text-center"
+                      className="p-0"
                     >
                       {isLoading ? (
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex items-center justify-center gap-1 py-8">
                           <Loader2 className="h-3 w-3 animate-spin" />
                           <span className="text-muted-foreground text-[11px]">Loading...</span>
                         </div>
                       ) : (
-                        <div className="text-muted-foreground text-[11px]">{emptyMessage}</div>
+                        <EmptyState
+                          title={emptyMessage}
+                          description="Try adjusting your filters or search criteria."
+                          className="py-12"
+                        />
                       )}
                     </TableCell>
                   </TableRow>

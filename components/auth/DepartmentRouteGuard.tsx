@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { hasRouteAccess } from '@/lib/department-access';
-import type { UserRole } from '@/lib/permissions';
 
 interface DepartmentRouteGuardProps {
   children: React.ReactNode;
@@ -22,7 +21,7 @@ export default function DepartmentRouteGuard({ children }: DepartmentRouteGuardP
 
     // Only check department access for routes that require it (not dashboard home)
     if (pathname && pathname !== '/dashboard' && pathname.startsWith('/dashboard/')) {
-      const role = (session.user.role || 'CUSTOMER') as UserRole;
+      const role = session.user.role || 'CUSTOMER';
       const hasAccess = hasRouteAccess(role, pathname);
 
       if (!hasAccess) {
@@ -34,4 +33,3 @@ export default function DepartmentRouteGuard({ children }: DepartmentRouteGuardP
 
   return <>{children}</>;
 }
-

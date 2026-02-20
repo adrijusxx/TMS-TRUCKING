@@ -8,6 +8,7 @@ import WatchdogList from '@/components/watchdogs/WatchdogList';
 import InvoiceReports from '@/components/invoices/InvoiceReports';
 import ReconciliationPage from '@/app/dashboard/invoices/reconciliation/page';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { PageTransition } from '@/components/ui/page-transition';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { FileText, Clock, AlertTriangle, BarChart3, CheckCircle2 } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export default function InvoicesPage() {
   return (
     <>
       <Breadcrumb items={[{ label: 'Invoices', href: '/dashboard/invoices' }]} />
+      <PageTransition>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Invoices</h1>
@@ -84,6 +86,7 @@ export default function InvoicesPage() {
           </TabsContent>
         </Tabs>
       </div>
+      </PageTransition>
     </>
   );
 }

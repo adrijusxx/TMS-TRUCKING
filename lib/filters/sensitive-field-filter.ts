@@ -1,4 +1,4 @@
-import { type UserRole, type Permission, hasPermission } from '@/lib/permissions';
+import { type Permission, hasPermission } from '@/lib/permissions';
 
 /**
  * Sensitive field categories and their required permissions
@@ -66,9 +66,10 @@ const SENSITIVE_FIELDS: Record<string, { fields: string[]; permissions: Permissi
 /**
  * Check if a role can view a specific field
  */
-function canViewField(field: string, role: UserRole): boolean {
+function canViewField(field: string, role: string): boolean {
   // Admin can view everything
-  if (role === 'ADMIN') {
+  const roleNorm = role.toUpperCase().replace('-', '_');
+  if (roleNorm === 'ADMIN' || roleNorm === 'SUPER_ADMIN') {
     return true;
   }
 
@@ -95,14 +96,15 @@ function canViewField(field: string, role: UserRole): boolean {
  */
 export function filterSensitiveFields<T extends Record<string, any>>(
   data: T,
-  role: UserRole
+  role: string
 ): Partial<T> {
   if (!data || typeof data !== 'object') {
     return data;
   }
 
   // Admin sees everything
-  if (role === 'ADMIN') {
+  const roleNorm = role.toUpperCase().replace('-', '_');
+  if (roleNorm === 'ADMIN' || roleNorm === 'SUPER_ADMIN') {
     return data;
   }
 
@@ -127,7 +129,7 @@ export function filterSensitiveFields<T extends Record<string, any>>(
  */
 function filterSensitiveFieldsArray<T extends Record<string, any>>(
   data: T[],
-  role: UserRole
+  role: string
 ): Partial<T>[] {
   if (!Array.isArray(data)) {
     return data;
@@ -139,8 +141,9 @@ function filterSensitiveFieldsArray<T extends Record<string, any>>(
 /**
  * Get list of sensitive fields that should be hidden for a role
  */
-function getHiddenFields(role: UserRole): string[] {
-  if (role === 'ADMIN') {
+function getHiddenFields(role: string): string[] {
+  const roleNorm = role.toUpperCase().replace('-', '_');
+  if (roleNorm === 'ADMIN' || roleNorm === 'SUPER_ADMIN') {
     return [];
   }
 
@@ -162,8 +165,9 @@ function getHiddenFields(role: UserRole): string[] {
 /**
  * Check if a field path (e.g., "load.revenue" or "driver.ssn") should be hidden
  */
-function shouldHideField(fieldPath: string, role: UserRole): boolean {
-  if (role === 'ADMIN') {
+function shouldHideField(fieldPath: string, role: string): boolean {
+  const roleNorm = role.toUpperCase().replace('-', '_');
+  if (roleNorm === 'ADMIN' || roleNorm === 'SUPER_ADMIN') {
     return false;
   }
 

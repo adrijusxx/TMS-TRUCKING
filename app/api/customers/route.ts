@@ -8,6 +8,7 @@ import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause } from '@/lib/m
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { generateUniqueCustomerNumber } from '@/lib/utils/customer-numbering';
 import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
+import { handleApiError } from '@/lib/api/route-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -169,14 +170,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Customer list error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'An error occurred processing your request' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -382,27 +376,6 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
-            details: error.issues,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('Customer creation error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

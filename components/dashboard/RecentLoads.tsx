@@ -8,6 +8,8 @@ import { Package, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate, formatCurrency, apiUrl } from '@/lib/utils';
 import { LoadStatus } from '@prisma/client';
+import { LoadingState } from '@/components/ui/loading-state';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface Load {
   id: string;
@@ -78,13 +80,9 @@ export default function RecentLoads() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            Loading loads...
-          </div>
+          <LoadingState message="Loading loads..." size="sm" className="py-4" />
         ) : loads.length === 0 ? (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            No loads found
-          </div>
+          <EmptyState icon={Package} title="No loads found" description="No recent load activity to display." className="py-6" />
         ) : (
           <div className="space-y-3">
             {loads.map((load) => (

@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSession } from 'next-auth/react';
 import DispatchStatusSelector, { DispatchStatusBadge } from './DispatchStatusSelector';
+import { LoadDetailTrackingCard } from './LoadDetailTrackingCard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -370,6 +371,9 @@ export default function LoadDetail({
           <p className="text-yellow-700">{load.billingHoldReason || 'Rate Con update required'}</p>
         </div>
       )}
+
+      {/* Live Tracking */}
+      <LoadDetailTrackingCard loadId={load.id} loadStatus={load.status} />
 
       {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

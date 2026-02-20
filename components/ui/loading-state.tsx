@@ -1,11 +1,15 @@
+'use client';
+
 import { Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import common from '@/lib/content/common.json';
 
-interface LoadingStateProps extends React.HTMLAttributes<HTMLDivElement> {
+interface LoadingStateProps {
     message?: string;
     size?: 'sm' | 'default' | 'lg';
     spinner?: boolean;
+    className?: string;
 }
 
 export function LoadingState({
@@ -13,7 +17,6 @@ export function LoadingState({
     size = 'default',
     spinner = true,
     className,
-    ...props
 }: LoadingStateProps) {
 
     const sizeClasses = {
@@ -23,12 +26,14 @@ export function LoadingState({
     };
 
     return (
-        <div
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
             className={cn(
-                "flex flex-col items-center justify-center p-8 text-muted-foreground animate-in fade-in-50",
+                "flex flex-col items-center justify-center p-8 text-muted-foreground",
                 className
             )}
-            {...props}
         >
             {spinner && (
                 <Loader2 className={cn("animate-spin mb-2", sizeClasses[size])} />
@@ -43,6 +48,6 @@ export function LoadingState({
                     {message}
                 </p>
             )}
-        </div>
+        </motion.div>
     );
 }

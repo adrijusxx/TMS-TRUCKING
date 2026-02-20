@@ -1,5 +1,4 @@
 import 'next-auth';
-import { UserRole } from '@prisma/client';
 
 declare module 'next-auth' {
   interface Session {
@@ -9,7 +8,11 @@ declare module 'next-auth' {
       name: string;
       firstName?: string;
       lastName?: string;
-      role: UserRole;
+      /** @deprecated Use roleId/roleSlug instead. Kept during migration. */
+      role: string;
+      roleId?: string;
+      roleSlug: string;
+      roleName: string;
       companyId: string;
       currentCompanyId?: string;
       mcNumberId?: string;
@@ -19,7 +22,10 @@ declare module 'next-auth' {
   }
 
   interface User {
-    role: UserRole;
+    role: string;
+    roleId?: string;
+    roleSlug: string;
+    roleName: string;
     companyId: string;
     firstName?: string;
     lastName?: string;
@@ -32,7 +38,10 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     id: string;
-    role: UserRole;
+    role: string;
+    roleId?: string;
+    roleSlug: string;
+    roleName: string;
     companyId: string;
     currentCompanyId?: string;
     mcNumberId?: string;
@@ -42,4 +51,3 @@ declare module 'next-auth/jwt' {
     lastName?: string;
   }
 }
-

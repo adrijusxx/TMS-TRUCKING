@@ -56,6 +56,7 @@ import { autoScoreLead } from './auto-score-lead';
 import { executeCampaign } from './execute-campaign';
 import { processDripSteps } from './process-drip-steps';
 import { processAutomation } from './process-automation';
+import { generateLeadSummary } from './generate-lead-summary';
 
 export { syncCrmLeads } from './sync-crm-leads';
 export { checkLeadFollowUps } from './check-lead-follow-ups';
@@ -64,6 +65,7 @@ export { autoScoreLead } from './auto-score-lead';
 export { executeCampaign } from './execute-campaign';
 export { processDripSteps } from './process-drip-steps';
 export { processAutomation } from './process-automation';
+export { generateLeadSummary } from './generate-lead-summary';
 
 export const allFunctions = [
   // Settlements
@@ -90,5 +92,7 @@ export const allFunctions = [
   processDripSteps,
   // Automation
   processAutomation,
+  // Lead AI Summary
+  generateLeadSummary,
 ];
 

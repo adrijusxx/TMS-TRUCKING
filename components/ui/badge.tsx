@@ -19,27 +19,27 @@ const badgeVariants = cva(
 
         // Status variants (solid)
         success:
-          "border-transparent bg-status-success text-status-success-foreground hover:bg-status-success/90",
+          "border-transparent bg-status-success text-status-success-foreground shadow-xs hover:bg-status-success/90",
         warning:
-          "border-transparent bg-status-warning text-status-warning-foreground hover:bg-status-warning/90",
+          "border-transparent bg-status-warning text-status-warning-foreground shadow-xs hover:bg-status-warning/90",
         error:
-          "border-transparent bg-status-error text-status-error-foreground hover:bg-status-error/90",
+          "border-transparent bg-status-error text-status-error-foreground shadow-xs hover:bg-status-error/90",
         info:
-          "border-transparent bg-status-info text-status-info-foreground hover:bg-status-info/90",
+          "border-transparent bg-status-info text-status-info-foreground shadow-xs hover:bg-status-info/90",
         neutral:
-          "border-transparent bg-status-neutral text-status-neutral-foreground hover:bg-status-neutral/90",
+          "border-transparent bg-status-neutral text-status-neutral-foreground shadow-xs hover:bg-status-neutral/90",
 
         // Status variants (outline)
         "success-outline":
-          "border-status-success text-status-success bg-status-success-muted hover:bg-status-success/10",
+          "border-status-success text-status-success bg-status-success-muted backdrop-blur-sm hover:bg-status-success/10",
         "warning-outline":
-          "border-status-warning text-status-warning bg-status-warning-muted hover:bg-status-warning/10",
+          "border-status-warning text-status-warning bg-status-warning-muted backdrop-blur-sm hover:bg-status-warning/10",
         "error-outline":
-          "border-status-error text-status-error bg-status-error-muted hover:bg-status-error/10",
+          "border-status-error text-status-error bg-status-error-muted backdrop-blur-sm hover:bg-status-error/10",
         "info-outline":
-          "border-status-info text-status-info bg-status-info-muted hover:bg-status-info/10",
+          "border-status-info text-status-info bg-status-info-muted backdrop-blur-sm hover:bg-status-info/10",
         "neutral-outline":
-          "border-status-neutral text-status-neutral bg-status-neutral-muted hover:bg-status-neutral/10",
+          "border-status-neutral text-status-neutral bg-status-neutral-muted backdrop-blur-sm hover:bg-status-neutral/10",
       },
       size: {
         xs: "px-1.5 py-0 text-[9px] h-4",

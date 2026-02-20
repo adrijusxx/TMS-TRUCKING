@@ -17,19 +17,32 @@ async function KanbanData() {
 
     const mcWhere = await buildMcNumberWhereClause(session, requestStub());
 
-    // We need to fetch leads with assigned user
     const leads = await prisma.lead.findMany({
         where: {
             ...mcWhere,
             deletedAt: null
         },
-        include: {
-            assignedTo: {
-                select: {
-                    firstName: true,
-                    lastName: true
-                }
-            }
+        select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            status: true,
+            priority: true,
+            phone: true,
+            email: true,
+            updatedAt: true,
+            nextFollowUpDate: true,
+            lastCallAt: true,
+            lastSmsAt: true,
+            lastContactedAt: true,
+            aiSummary: true,
+            source: true,
+            assignedTo: { select: { firstName: true, lastName: true } },
+            notes: {
+                orderBy: { createdAt: 'desc' as const },
+                take: 1,
+                select: { content: true },
+            },
         },
         orderBy: {
             updatedAt: 'desc'
@@ -45,7 +58,12 @@ async function KanbanData() {
         phone: lead.phone,
         email: lead.email,
         assignedTo: lead.assignedTo,
-        updatedAt: lead.updatedAt.toISOString()
+        updatedAt: lead.updatedAt.toISOString(),
+        nextFollowUpDate: lead.nextFollowUpDate?.toISOString() ?? null,
+        lastCallAt: lead.lastCallAt?.toISOString() ?? null,
+        lastSmsAt: lead.lastSmsAt?.toISOString() ?? null,
+        aiSummary: lead.aiSummary,
+        latestNote: lead.notes[0]?.content ?? null,
     }));
 
     return <KanbanBoard leads={formattedLeads} />;

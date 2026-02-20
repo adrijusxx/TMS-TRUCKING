@@ -18,6 +18,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
 import type { MapAsset } from './UnifiedWarRoom';
 import type { TruckSensors, TruckDiagnostics } from '@/lib/maps/live-map-service';
+import { calculateETA, getETAStatusColor, type ETAResult } from '@/lib/maps/eta-calculator';
 
 interface AssetDetailCardProps {
   asset: MapAsset;
@@ -133,8 +134,23 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
     return asset.speed || 0;
   })();
 
-  // Calculate ETA (simplified - would need actual route data)
-  const eta = loadData?.delivery ? calculateSimpleETA(speed, 100) : null;
+  // Calculate real ETA using truck GPS + destination stop coordinates
+  const eta = (() => {
+    if (!truckData?.location || !truckData?.activeLoad?.stops?.length) return null;
+    const stops = truckData.activeLoad.stops;
+    // Pick the last delivery stop as destination (or last stop if all pickups)
+    const destStop = [...stops].reverse().find((s: any) => s.stopType === 'DELIVERY') || stops[stops.length - 1];
+    if (!destStop?.lat || !destStop?.lng) return null;
+
+    return calculateETA({
+      currentLat: truckData.location.lat,
+      currentLng: truckData.location.lng,
+      destinationLat: destStop.lat,
+      destinationLng: destStop.lng,
+      currentSpeed: speed,
+      scheduledArrival: destStop.scheduledTime ? new Date(destStop.scheduledTime) : undefined,
+    });
+  })();
 
   return (
     <Card
@@ -452,8 +468,8 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                   </div>
                   {eta ? (
                     <>
-                      <p className="text-2xl font-bold text-primary">{eta.time}</p>
-                      <p className="text-xs text-muted-foreground">{eta.distance} mi remaining</p>
+                      <p className="text-2xl font-bold text-primary">{eta.etaFormatted}</p>
+                      <p className="text-xs text-muted-foreground">{eta.remainingMiles} mi remaining</p>
                       <Badge
                         variant="outline"
                         className={cn(
@@ -465,6 +481,9 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
                       >
                         {eta.status === 'ON_TIME' ? 'On Time' : eta.status === 'AT_RISK' ? 'At Risk' : 'Running Late'}
                       </Badge>
+                      {eta.statusReason && (
+                        <p className="text-[10px] text-muted-foreground mt-1">{eta.statusReason}</p>
+                      )}
                     </>
                   ) : (
                     <p className="text-lg font-medium text-muted-foreground">—</p>
@@ -491,40 +510,4 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
   );
 }
 
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-interface ETAResult {
-  time: string;
-  distance: number;
-  status: 'ON_TIME' | 'AT_RISK' | 'LATE';
-}
-
-function calculateSimpleETA(currentSpeed: number, remainingMiles: number): ETAResult | null {
-  if (remainingMiles <= 0) return null;
-
-  // Use average speed of 55 mph if currently stopped
-  const avgSpeed = currentSpeed > 0 ? Math.min(currentSpeed, 65) : 55;
-  const hoursRemaining = remainingMiles / avgSpeed;
-  const arrivalTime = new Date(Date.now() + hoursRemaining * 3600000);
-
-  // Format time
-  const time = arrivalTime.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-
-  // Determine status (simplified)
-  let status: ETAResult['status'] = 'ON_TIME';
-  if (hoursRemaining > 8) status = 'AT_RISK';
-  if (currentSpeed === 0 && remainingMiles > 50) status = 'LATE';
-
-  return {
-    time,
-    distance: Math.round(remainingMiles),
-    status,
-  };
-}
 

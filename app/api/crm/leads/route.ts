@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { inngest } from '@/lib/inngest/client';
+import { handleApiError } from '@/lib/api/route-helpers';
 
 // GET /api/crm/leads - List all leads
 export async function GET(request: NextRequest) {
@@ -48,22 +49,47 @@ export async function GET(request: NextRequest) {
 
         const leads = await prisma.lead.findMany({
             where,
-            include: {
+            select: {
+                id: true,
+                leadNumber: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                status: true,
+                priority: true,
+                source: true,
+                createdAt: true,
+                updatedAt: true,
+                lastContactedAt: true,
+                lastCallAt: true,
+                lastSmsAt: true,
+                nextFollowUpDate: true,
+                aiSummary: true,
+                aiScore: true,
                 assignedTo: {
                     select: { firstName: true, lastName: true },
+                },
+                notes: {
+                    orderBy: { createdAt: 'desc' as const },
+                    take: 1,
+                    select: { content: true },
                 },
             },
             orderBy: { createdAt: 'desc' },
             take: limit,
         });
 
-        return NextResponse.json({ leads });
+        // Flatten latestNote for convenience
+        const leadsWithNote = leads.map(lead => ({
+            ...lead,
+            latestNote: lead.notes[0]?.content ?? null,
+            notes: undefined,
+        }));
+
+        return NextResponse.json({ leads: leadsWithNote });
     } catch (error) {
-        console.error('[CRM Leads GET] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to fetch leads' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }
 
@@ -140,22 +166,20 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        // Fire-and-forget: automation rules (non-critical)
-        inngest.send({
-            name: 'automation/lead-event',
-            data: {
-                leadId: lead.id,
-                companyId,
-                event: 'new_lead',
-            },
-        }).catch((err) => console.warn('[CRM Leads POST] Inngest event failed:', err));
+        // Fire-and-forget: automation rules + AI summary generation (non-critical)
+        Promise.all([
+            inngest.send({
+                name: 'automation/lead-event',
+                data: { leadId: lead.id, companyId, event: 'new_lead' },
+            }),
+            inngest.send({
+                name: 'crm/generate-lead-summary',
+                data: { leadId: lead.id },
+            }),
+        ]).catch((err) => console.warn('[CRM Leads POST] Inngest event failed:', err));
 
         return NextResponse.json({ lead }, { status: 201 });
     } catch (error) {
-        console.error('[CRM Leads POST] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to create lead' },
-            { status: 500 }
-        );
+        return handleApiError(error);
     }
 }

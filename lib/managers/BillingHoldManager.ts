@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { inngest } from '@/lib/inngest/client';
 import { notifyBillingHold } from '@/lib/notifications/triggers';
 import { LoadStatus } from '@prisma/client';
+import { logger } from '@/lib/utils/logger';
 
 interface BillingHoldResult {
   billingHoldSet: boolean;
@@ -97,7 +98,7 @@ export class BillingHoldManager {
         allowsSettlement: true,
       };
     } catch (error: any) {
-      console.error('Error applying billing hold:', error);
+      logger.error('Error applying billing hold', { error: error instanceof Error ? error.message : String(error) });
       return {
         billingHoldSet: false,
         reason: error.message || 'Failed to apply billing hold',
@@ -161,7 +162,7 @@ export class BillingHoldManager {
         loadStatus: load.status,
       };
     } catch (error: any) {
-      console.error('Error checking invoicing eligibility:', error);
+      logger.error('Error checking invoicing eligibility', { error: error instanceof Error ? error.message : String(error) });
       return {
         eligible: false,
         reason: error.message || 'Failed to check invoicing eligibility',
@@ -241,7 +242,7 @@ export class BillingHoldManager {
           },
         });
       } catch (e) {
-        console.error('Failed to emit load/status-changed on billing hold clearance:', e);
+        logger.error('Failed to emit load/status-changed on billing hold clearance', { error: e instanceof Error ? e.message : String(e) });
       }
 
       return {
@@ -249,7 +250,7 @@ export class BillingHoldManager {
         newStatus: 'READY_TO_BILL',
       };
     } catch (error: any) {
-      console.error('Error clearing billing hold:', error);
+      logger.error('Error clearing billing hold', { error: error instanceof Error ? error.message : String(error) });
       return {
         cleared: false,
         reason: error.message || 'Failed to clear billing hold',

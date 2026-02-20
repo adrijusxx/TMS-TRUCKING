@@ -10,6 +10,7 @@ import { AccountingSyncManager } from './AccountingSyncManager';
 import { LoadCostingManager } from './LoadCostingManager';
 import { InvoiceManager } from './InvoiceManager';
 import { BillingHoldManager } from './BillingHoldManager';
+import { logger } from '@/lib/utils/logger';
 // import { notifyLoadCompleted } from '@/lib/notifications/triggers'; // TODO: Implement notification trigger
 
 interface LoadCompletionResult {
@@ -145,7 +146,7 @@ export class LoadCompletionManager {
           }
         }
       } catch (error: any) {
-        console.error('Auto-invoice error:', error);
+        logger.error('Auto-invoice error', { error: error instanceof Error ? error.message : String(error) });
         // Don't fail the whole completion flow for invoicing error, just log it
       }
 

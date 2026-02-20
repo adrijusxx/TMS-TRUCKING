@@ -68,6 +68,14 @@ export function parseQueryParams(request: NextRequest): LoadQueryParams {
     };
 }
 
+/** Maps frontend column IDs to valid Prisma Load field names */
+const SORT_FIELD_MAP: Record<string, string> = {
+    miles: 'totalMiles',
+    customer: 'customerId',
+    driver: 'driverId',
+    truck: 'truckId',
+};
+
 /**
  * Build orderBy clause for Prisma query (supports multi-column sorting)
  */
@@ -75,5 +83,8 @@ export function buildOrderByClause(params: LoadQueryParams): Array<Record<string
     if (params.sortFields.length === 0) {
         return [{ createdAt: 'desc' }];
     }
-    return params.sortFields.map(({ field, order }) => ({ [field]: order }));
+    return params.sortFields.map(({ field, order }) => {
+        const mappedField = SORT_FIELD_MAP[field] || field;
+        return { [mappedField]: order };
+    });
 }

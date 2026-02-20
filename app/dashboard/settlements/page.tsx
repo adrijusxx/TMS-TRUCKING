@@ -1,4 +1,5 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { PageTransition } from '@/components/ui/page-transition';
 import SalaryModuleLayout from '@/components/salary/SalaryModuleLayout';
 import { SubscriptionGate } from '@/components/saas/SubscriptionGate';
 
@@ -9,7 +10,9 @@ export default async function SettlementsPage() {
         { label: 'Accounting', href: '/dashboard/accounting' },
         { label: 'Settlements', href: '/dashboard/settlements' }
       ]} />
-      <SalaryModuleLayout />
+      <PageTransition>
+        <SalaryModuleLayout />
+      </PageTransition>
     </SubscriptionGate>
   );
 }

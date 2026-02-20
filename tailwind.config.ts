@@ -102,6 +102,14 @@ const config = {
         'caption': ['var(--text-caption)', { lineHeight: '1.4', fontWeight: '400' }],
         'micro': ['var(--text-micro)', { lineHeight: '1.3', fontWeight: '500' }],
       },
+      boxShadow: {
+        'xs': 'var(--shadow-xs)',
+        'sm': 'var(--shadow-sm)',
+        'md': 'var(--shadow-md)',
+        'lg': 'var(--shadow-lg)',
+        'card': 'var(--shadow-sm)',
+        'card-hover': 'var(--shadow-md)',
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
@@ -116,10 +124,15 @@ const config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "shimmer": {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "shimmer": "shimmer 1.5s ease-in-out infinite",
       },
     },
   },

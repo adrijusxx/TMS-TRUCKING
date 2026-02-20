@@ -125,7 +125,7 @@ export class AIRouteOptimizer extends AIService {
       deliveryState: load.deliveryState || '',
       pickupDate: load.pickupDate?.toISOString() || null,
       deliveryDate: load.deliveryDate?.toISOString() || null,
-      distance: load.route?.totalDistance || load.totalMiles || 0,
+      totalMiles: load.route?.totalDistance || load.totalMiles || 0,
       revenue: load.revenue || 0,
       customerName: load.customer?.name || '',
     }));
@@ -143,7 +143,7 @@ Load ${i + 1}:
 - Number: ${load.loadNumber}
 - Pickup: ${load.pickupCity}, ${load.pickupState} (${load.pickupDate || 'N/A'})
 - Delivery: ${load.deliveryCity}, ${load.deliveryState} (${load.deliveryDate || 'N/A'})
-- Distance: ${load.distance} miles
+- Distance: ${load.totalMiles} miles
 - Revenue: $${load.revenue.toFixed(2)}
 - Customer: ${load.customerName}
 `).join('\n')}

@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { revalidatePath } from 'next/cache';
-import { UserRole } from '@prisma/client';
+// UserRole enum removed — using string role checks
 
 /**
  * Universal server action to import bulk data
@@ -28,7 +28,7 @@ export async function importBulkData(
     }
 
     // 2. Security check - Only Admins can perform bulk import
-    if (session.user.role !== UserRole.ADMIN) {
+    if (session.user.role !== 'ADMIN') {
       return {
         success: false,
         error: 'Forbidden: Only Administrators can perform bulk import operations',

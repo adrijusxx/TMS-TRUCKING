@@ -159,11 +159,12 @@ export default function LoadListNew() {
             sort.id === 'pickupDate' ? 'pickupDate' :
               sort.id === 'deliveryDate' ? 'deliveryDate' :
                 sort.id === 'revenue' ? 'revenue' :
-                  sort.id === 'customer' ? 'customerId' :
-                    sort.id === 'driver' ? 'driverId' :
-                      sort.id === 'truck' ? 'truckId' :
-                        sort.id === 'status' ? 'status' :
-                          sort.id;
+                  sort.id === 'miles' ? 'totalMiles' :
+                    sort.id === 'customer' ? 'customerId' :
+                      sort.id === 'driver' ? 'driverId' :
+                        sort.id === 'truck' ? 'truckId' :
+                          sort.id === 'status' ? 'status' :
+                            sort.id;
         sortFields.push(sortField);
         sortOrders.push(sort.desc ? 'desc' : 'asc');
       });

@@ -1,5 +1,6 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DepartmentDashboard } from '@/components/layout/DepartmentDashboard';
 import { FileText, CreditCard, Receipt, Fuel, Building2, Sliders, Users } from 'lucide-react';
 import Link from 'next/link';
 
@@ -59,15 +60,10 @@ export default function AccountingDashboardPage() {
   return (
     <>
       <Breadcrumb items={[{ label: 'Accounting', href: '/dashboard/accounting' }]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Accounting</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage invoicing, settlements, expenses, and compliance
-          </p>
-        </div>
-
-        {/* Quick Access Cards */}
+      <DepartmentDashboard
+        title="Accounting"
+        description="Manage invoicing, settlements, expenses, and compliance"
+      >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {accountingPages.map((page) => {
             const Icon = page.icon;
@@ -90,7 +86,7 @@ export default function AccountingDashboardPage() {
             );
           })}
         </div>
-      </div>
+      </DepartmentDashboard>
     </>
   );
 }

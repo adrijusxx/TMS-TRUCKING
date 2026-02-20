@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { hasPermission } from '@/lib/permissions';
+import { PermissionResolutionEngine } from '@/lib/managers/PermissionResolutionEngine';
+import type { Permission } from '@/lib/permissions';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
-import { AppError, UnauthorizedError, ForbiddenError, ValidationError, NotFoundError } from '@/lib/errors';
+import { AppError, UnauthorizedError, ForbiddenError, ValidationError, NotFoundError, ConflictError, BadRequestError } from '@/lib/errors';
+import { Prisma } from '@prisma/client';
 import { ZodSchema } from 'zod';
 import { logger } from '@/lib/utils/logger';
 import type { Session } from 'next-auth';
@@ -23,6 +26,31 @@ export function handleApiError(error: unknown): NextResponse {
     });
 
     return NextResponse.json(error.toJSON(), { status: error.statusCode });
+  }
+
+  // Handle Prisma known request errors (unique constraint, not found, FK, etc.)
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (error.code) {
+      case 'P2002': {
+        const fields = (error.meta?.target as string[])?.join(', ') || 'unknown';
+        return handleApiError(new ConflictError(`Record already exists (duplicate: ${fields})`, { fields: error.meta?.target }));
+      }
+      case 'P2025':
+        return handleApiError(new NotFoundError('Record'));
+      case 'P2003': {
+        const fkField = (error.meta?.field_name as string) || 'unknown';
+        return handleApiError(new BadRequestError(`Referenced record not found (${fkField})`, { field: fkField }));
+      }
+      case 'P2014':
+        return handleApiError(new BadRequestError('Cannot delete: record has dependent data', { relation: error.meta?.relation_name }));
+      default:
+        logger.error('Unhandled Prisma error', { code: error.code, meta: error.meta, message: error.message });
+    }
+  }
+
+  // Handle Prisma validation errors (invalid data types, missing fields)
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return handleApiError(new ValidationError('Invalid data sent to database'));
   }
 
   // Handle Zod validation errors
@@ -97,8 +125,12 @@ export function withPermission(
   handler: (request: NextRequest, session: Session, ...args: any[]) => Promise<NextResponse>
 ) {
   return withAuth(async (request, session, ...args) => {
-    const role = (session.user.role as any) || 'CUSTOMER';
-    if (!hasPermission(role, permission as any)) {
+    // Use resolution engine if user has roleId, otherwise fall back to legacy
+    const hasAccess = session.user.roleId
+      ? await PermissionResolutionEngine.hasPermission(session.user.id, permission as Permission)
+      : hasPermission(session.user.role || 'CUSTOMER', permission as Permission);
+
+    if (!hasAccess) {
       throw new ForbiddenError(`Insufficient permissions. Required: ${permission}`);
     }
 
@@ -227,8 +259,11 @@ export async function handleApiRequest<T = unknown>(
 
     // Check permission if provided
     if (options?.permission) {
-      const role = (session.user.role as any) || 'CUSTOMER';
-      if (!hasPermission(role, options.permission as any)) {
+      const hasAccess = session.user.roleId
+        ? await PermissionResolutionEngine.hasPermission(session.user.id, options.permission as Permission)
+        : hasPermission(session.user.role || 'CUSTOMER', options.permission as Permission);
+
+      if (!hasAccess) {
         throw new ForbiddenError(`Insufficient permissions. Required: ${options.permission}`);
       }
     }

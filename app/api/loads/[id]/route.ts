@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { LoadStatus } from '@prisma/client';
 import { LoadUpdateManager } from '@/lib/managers/LoadUpdateManager';
 import { hasPermission } from '@/lib/permissions';
+import { handleApiError } from '@/lib/api/route-helpers';
+import { NotFoundError, ForbiddenError, ValidationError } from '@/lib/errors';
 
 export async function GET(
   request: NextRequest,
@@ -174,14 +176,7 @@ export async function GET(
       data: load,
     });
   } catch (error) {
-    console.error('Load fetch error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -209,47 +204,20 @@ export async function PATCH(
       data: load,
       meta
     });
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
-            details: error.issues,
-          },
-        },
-        { status: 400 }
-      );
+  } catch (error: unknown) {
+    // Map LoadUpdateManager plain Error messages to proper AppErrors
+    if (error instanceof Error && !(error instanceof z.ZodError)) {
+      if (error.message === 'Load not found') {
+        return handleApiError(new NotFoundError('Load'));
+      }
+      if (error.message.startsWith('Forbidden')) {
+        return handleApiError(new ForbiddenError(error.message));
+      }
+      if (error.message.includes('Missing documents') || error.message.includes('not found')) {
+        return handleApiError(new ValidationError(error.message));
+      }
     }
-
-    if (error.message === 'Load not found') {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Load not found' } },
-        { status: 404 }
-      );
-    }
-
-    if (error.message.startsWith('Forbidden')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: error.message } },
-        { status: 403 }
-      );
-    }
-
-    if (error.message.includes('Missing documents') || error.message.includes('not found')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: error.message } },
-        { status: 400 }
-      );
-    }
-
-    console.error('Load update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -316,14 +284,7 @@ export async function DELETE(
       message: 'Load deleted successfully',
     });
   } catch (error) {
-    console.error('Load deletion error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 

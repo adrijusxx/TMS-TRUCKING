@@ -130,9 +130,39 @@ export function ImportUploadStep({ wizard }: ImportUploadStepProps) {
               Treat as historical data (recommended)
             </label>
             <p className="text-xs text-muted-foreground">
-              All loads will be marked as fully completed (PAID). Uncheck only if importing in-progress loads.
+              All loads will be set to PAID status — use this for past/completed loads.
+              Uncheck if you are importing active loads that still need to be dispatched or delivered.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Auto-create entity toggles (loads only) */}
+      {wizard.entityType === 'loads' && wizard.selectedFile && (
+        <div className="space-y-2 pt-2">
+          <Label className="text-xs font-medium">Auto-create missing entities</Label>
+          <p className="text-xs text-muted-foreground">
+            When checked, if a driver/customer/truck/trailer in your file doesn&apos;t exist in the system, it will be created automatically with placeholder data. If you plan to import drivers, customers, trucks, or trailers separately with full details, uncheck these first — otherwise you&apos;ll end up with duplicates and will need to manually clean up every affected load.
+          </p>
+          {([
+            { key: 'customers' as const, label: 'Auto-create customers' },
+            { key: 'drivers' as const, label: 'Auto-create drivers' },
+            { key: 'trucks' as const, label: 'Auto-create trucks' },
+            { key: 'trailers' as const, label: 'Auto-create trailers' },
+          ]).map(({ key, label }) => (
+            <div key={key} className="flex items-center space-x-2">
+              <Checkbox
+                id={`auto-create-${key}`}
+                checked={wizard.autoCreate[key]}
+                onCheckedChange={(checked) =>
+                  wizard.setAutoCreate((prev: typeof wizard.autoCreate) => ({ ...prev, [key]: checked === true }))
+                }
+              />
+              <label htmlFor={`auto-create-${key}`} className="text-sm leading-none">
+                {label}
+              </label>
+            </div>
+          ))}
         </div>
       )}
 

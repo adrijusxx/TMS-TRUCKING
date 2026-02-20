@@ -64,6 +64,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
   const [selectedMcNumberId, setSelectedMcNumberId] = useState('');
   const [updateExisting, setUpdateExisting] = useState(false);
   const [treatAsHistorical, setTreatAsHistorical] = useState(true);
+  const [autoCreate, setAutoCreate] = useState({ drivers: true, customers: true, trucks: true, trailers: true });
 
   // Preview
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -216,6 +217,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
     setPreviewData(null);
     setImportProgress({ status: 'idle', message: '', progress: 0 });
     setSelectedMcNumberId('');
+    setAutoCreate({ drivers: true, customers: true, trucks: true, trailers: true });
     setLogs([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
@@ -250,6 +252,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
           updateExisting,
           previewOnly: true,
           treatAsHistorical: entityType === 'loads' ? treatAsHistorical : undefined,
+          autoCreate: entityType === 'loads' ? autoCreate : undefined,
         }),
       });
       const data = await res.json();
@@ -324,6 +327,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
               updateExisting,
               importMode: entityType === 'drivers' && updateExisting ? 'upsert' : undefined,
               treatAsHistorical: entityType === 'loads' ? treatAsHistorical : undefined,
+              autoCreate: entityType === 'loads' ? autoCreate : undefined,
             }),
           });
           const data = await res.json();
@@ -380,6 +384,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
     selectedMcNumberId, setSelectedMcNumberId,
     updateExisting, setUpdateExisting,
     treatAsHistorical, setTreatAsHistorical,
+    autoCreate, setAutoCreate,
     previewData, setPreviewData, previewMutation,
     importProgress, importDetails, importMutation,
     logs, logsEndRef,

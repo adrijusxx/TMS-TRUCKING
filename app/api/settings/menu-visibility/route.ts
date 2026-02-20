@@ -3,12 +3,10 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import type { MenuVisibilityConfig } from '@/lib/managers/MenuVisibilityManager';
-import type { UserRole } from '@/lib/permissions';
-
 const menuVisibilityConfigSchema = z.object({
   config: z.record(z.string(), z.object({
-    hiddenForRoles: z.array(z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET'])).optional(),
-    visibleForRoles: z.array(z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET'])).optional(),
+    hiddenForRoles: z.array(z.string()).optional(),
+    visibleForRoles: z.array(z.string()).optional(),
   })),
 });
 
@@ -29,7 +27,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Only admin can view menu visibility config
-    if (session.user.role !== 'ADMIN') {
+    const roleSlug = session.user.roleSlug || session.user.role?.toLowerCase().replace('_', '-') || '';
+    if (roleSlug !== 'admin' && roleSlug !== 'super-admin') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
         { status: 403 }
@@ -81,7 +80,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Only admin can update menu visibility config
-    if (session.user.role !== 'ADMIN') {
+    const roleSlug = session.user.roleSlug || session.user.role?.toLowerCase().replace('_', '-') || '';
+    if (roleSlug !== 'admin' && roleSlug !== 'super-admin') {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Permission denied' } },
         { status: 403 }

@@ -60,12 +60,6 @@ const ENTITY_CONFIG: Record<string, {
     fields: ['id', 'title', 'type', 'fileName', 'deletedAt', 'createdAt'],
     nameField: 'title',
   },
-  equipment: {
-    model: 'equipment',
-    displayName: 'Equipment',
-    fields: ['id', 'name', 'type', 'status', 'deletedAt'],
-    nameField: 'name',
-  },
   tag: {
     model: 'tag',
     displayName: 'Tags',
@@ -83,18 +77,6 @@ const ENTITY_CONFIG: Record<string, {
     displayName: 'Accidents',
     fields: ['id', 'incidentNumber', 'date', 'location', 'severity', 'deletedAt'],
     nameField: 'incidentNumber',
-  },
-  maintenanceRecord: {
-    model: 'maintenanceRecord',
-    displayName: 'Maintenance Records',
-    fields: ['id', 'type', 'description', 'cost', 'date', 'deletedAt'],
-    nameField: 'type',
-  },
-  fuelTransaction: {
-    model: 'fuelTransaction',
-    displayName: 'Fuel Transactions',
-    fields: ['id', 'location', 'gallons', 'totalAmount', 'date', 'deletedAt'],
-    nameField: 'location',
   },
   insurancePolicy: {
     model: 'insurancePolicy',
@@ -279,7 +261,7 @@ export class RestoreService {
     });
 
     // Some models don't have companyId (User has companyId but we filter by company for all)
-    const modelsWithCompanyId = ['truck', 'trailer', 'driver', 'load', 'invoice', 'customer', 'user', 'equipment', 'document', 'tag', 'mcNumber', 'accident', 'maintenanceRecord', 'fuelTransaction', 'insurancePolicy'];
+    const modelsWithCompanyId = ['truck', 'trailer', 'driver', 'load', 'invoice', 'customer', 'user', 'document', 'tag', 'mcNumber', 'accident', 'insurancePolicy'];
     
     const where: any = {
       deletedAt: { not: null },
@@ -330,7 +312,7 @@ export class RestoreService {
         const model = prisma[config.model];
         if (!model) continue;
 
-        const modelsWithCompanyId = ['truck', 'trailer', 'driver', 'load', 'invoice', 'customer', 'user', 'equipment', 'document', 'tag', 'mcNumber', 'accident', 'maintenanceRecord', 'fuelTransaction', 'insurancePolicy'];
+        const modelsWithCompanyId = ['truck', 'trailer', 'driver', 'load', 'invoice', 'customer', 'user', 'document', 'tag', 'mcNumber', 'accident', 'insurancePolicy'];
         
         const where: any = {
           deletedAt: { not: null },

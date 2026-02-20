@@ -27,6 +27,7 @@ export class LoadImporter extends BaseImporter {
 
     async importLoads(data: any[], options: any): Promise<ImportResult> {
         const { previewOnly, updateExisting, columnMapping, importBatchId, treatAsHistorical } = options;
+        const autoCreate = options.autoCreate ?? { drivers: true, customers: true, trucks: true, trailers: true };
         const maps = await this.preFetchLookups();
         const entityService = new ImporterEntityService(this.prisma, this.companyId, maps.defaultMcId);
 
@@ -49,11 +50,11 @@ export class LoadImporter extends BaseImporter {
                     || this.getValue(row, 'customerId', columnMapping, ['Customer ID', 'customer_id', 'Customer #']);
                 const customerName = customerNameRaw || locations.pickup.location;
 
-                const customerId = await entityService.resolveCustomer(customerName, maps.customerMap, previewOnly, importBatchId);
-                const driverId = await entityService.resolveDriver(this.getValue(row, 'driverId', columnMapping, ['Driver', 'driver', 'driver/carrier', 'Driver/Carrier', 'Driver Name']), maps.driverMap, previewOnly, importBatchId);
-                const coDriverId = await entityService.resolveDriver(this.getValue(row, 'coDriverId', columnMapping, ['Co-Driver', 'co-driver', 'co_driver', 'Team Driver']), maps.driverMap, previewOnly, importBatchId);
-                const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId);
-                const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId);
+                const customerId = await entityService.resolveCustomer(customerName, maps.customerMap, previewOnly, importBatchId, autoCreate.customers !== false);
+                const driverId = await entityService.resolveDriver(this.getValue(row, 'driverId', columnMapping, ['Driver', 'driver', 'driver/carrier', 'Driver/Carrier', 'Driver Name']), maps.driverMap, previewOnly, importBatchId, autoCreate.drivers !== false);
+                const coDriverId = await entityService.resolveDriver(this.getValue(row, 'coDriverId', columnMapping, ['Co-Driver', 'co-driver', 'co_driver', 'Team Driver']), maps.driverMap, previewOnly, importBatchId, autoCreate.drivers !== false);
+                const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId, autoCreate.trucks !== false);
+                const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId, autoCreate.trailers !== false);
 
                 // 3. Status & Type Mapping
                 const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'load_status', 'Current Status']);

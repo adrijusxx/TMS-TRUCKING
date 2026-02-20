@@ -4,6 +4,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { handleApiError } from '@/lib/api/route-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,19 +95,8 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     });
-  } catch (error: any) {
-    console.error('Settlement list error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error?.message || 'Something went wrong',
-          details: process.env.NODE_ENV === 'development' ? String(error) : undefined,
-        },
-      },
-      { status: 500 }
-    );
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 

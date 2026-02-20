@@ -46,6 +46,10 @@ export async function POST(req: Request) {
             // Start with dependent entities
             await tx.load.deleteMany({ where: { importBatchId: batchId } });
 
+            // Clean up settlements for imported drivers before deleting them
+            await tx.settlement.deleteMany({ where: { driver: { importBatchId: batchId } } });
+            await tx.driverAdvance.deleteMany({ where: { driver: { importBatchId: batchId } } });
+
             // Then reference entities
             await tx.driver.deleteMany({ where: { importBatchId: batchId } });
             await tx.truck.deleteMany({ where: { importBatchId: batchId } });

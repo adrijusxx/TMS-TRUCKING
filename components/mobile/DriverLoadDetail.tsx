@@ -44,7 +44,7 @@ interface Load {
   revenue: number;
   commodity?: string;
   weight?: number;
-  distance?: number;
+  totalMiles?: number;
   notes?: string;
 }
 
@@ -193,7 +193,7 @@ export default function DriverLoadDetail({ loadId }: DriverLoadDetailProps) {
           </Card>
 
           {/* Load Details */}
-          {(load.commodity || load.weight || load.distance) && (
+          {(load.commodity || load.weight || load.totalMiles) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -214,10 +214,10 @@ export default function DriverLoadDetail({ loadId }: DriverLoadDetailProps) {
                     <p className="font-medium">{load.weight.toLocaleString()} lbs</p>
                   </div>
                 )}
-                {load.distance && (
+                {load.totalMiles && (
                   <div>
                     <p className="text-sm text-muted-foreground">Distance</p>
-                    <p className="font-medium">{load.distance.toLocaleString()} miles</p>
+                    <p className="font-medium">{load.totalMiles.toLocaleString()} miles</p>
                   </div>
                 )}
               </CardContent>

@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { UsageManager } from '@/lib/managers/UsageManager';
 import { hasPermission } from '@/lib/permissions';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
+import { handleApiError } from '@/lib/api/route-helpers';
 import {
   parseQueryParams,
   buildBaseWhereClause,
@@ -27,6 +28,7 @@ import {
   computeDriverPay,
   buildLoadCreateData,
   checkLoadNumberExists,
+  geocodeLoadStops,
 } from '@/lib/managers/LoadCreationManager';
 
 /**
@@ -108,17 +110,7 @@ export async function GET(request: NextRequest) {
       stats: filteredStats,
     });
   } catch (error) {
-    console.error('Load list error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Something went wrong',
-        },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -234,8 +226,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // 10. Track usage
+    // 10. Track usage + geocode stops (fire-and-forget)
     await UsageManager.trackUsage(session.user.companyId, 'LOADS_CREATED');
+    geocodeLoadStops(load.id).catch(() => {});
 
     // 11. Return success response
     return NextResponse.json(
@@ -255,51 +248,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
-            details: error.issues,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    // Handle Prisma validation errors with detailed messages
-    const errorMessage = error instanceof Error ? error.message : 'Something went wrong';
-    const errorName = error instanceof Error ? error.name : 'UnknownError';
-
-    // Extract field information from Prisma errors
-    let details: string | undefined;
-    let code = 'INTERNAL_ERROR';
-
-    if (errorMessage.includes('Invalid value for argument')) {
-      code = 'PRISMA_VALIDATION_ERROR';
-      // Extract the field name from the error message
-      const fieldMatch = errorMessage.match(/Invalid value for argument `(\w+)`/);
-      const field = fieldMatch ? fieldMatch[1] : 'unknown';
-      details = `Field "${field}" has an invalid value. This is often caused by invalid date formats. Please check the data and try again.`;
-    } else if (errorName === 'PrismaClientValidationError') {
-      code = 'PRISMA_VALIDATION_ERROR';
-      details = 'Database validation failed. Please check all field values are correct.';
-    }
-
-    console.error('Load creation error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code,
-          message: errorMessage,
-          details,
-          timestamp: new Date().toISOString(),
-        },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
         if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-        const notes = await prisma.leadNote.findMany({
+        const rawNotes = await prisma.leadNote.findMany({
             where: { leadId: id },
             orderBy: { createdAt: 'desc' },
             include: {
@@ -34,6 +34,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 }
             }
         });
+
+        // Map createdBy → user so the LeadNotes component can access note.user
+        const notes = rawNotes.map(n => ({
+            ...n,
+            user: n.createdBy,
+        }));
 
         return NextResponse.json({ data: notes });
     } catch (error) {

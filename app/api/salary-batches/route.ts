@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { SettlementManager } from '@/lib/managers/SettlementManager';
 import { DriverStatus } from '@prisma/client';
+import { handleApiError } from '@/lib/api/route-helpers';
 
 const createBatchSchema = z.object({
     periodStart: z.string().datetime(),
@@ -35,8 +36,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ success: true, data: batches });
     } catch (error) {
-        console.error('[SalaryBatches] List error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error);
     }
 }
 
@@ -78,13 +78,14 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        // 2. Identify Drivers with Loads in Period
+        // 2. Identify Drivers with unsettled loads
         const drivers = await prisma.driver.findMany({
             where: {
                 companyId: session.user.companyId,
-                status: { not: 'INACTIVE' as DriverStatus }, // Ensure we process active/available drivers
+                status: { not: 'INACTIVE' as DriverStatus },
                 deletedAt: null,
             },
+            select: { id: true, driverNumber: true },
         });
 
         const manager = new SettlementManager();
@@ -92,52 +93,41 @@ export async function POST(request: NextRequest) {
         let totalGeneratedAmount = 0;
         const errors = [];
 
-        // 3. Loop and Generate
+        // 3. Loop and Generate — use load-ID-based dedup (same pattern as processCompanySettlements)
         for (const driver of drivers) {
             try {
-                // Check if there are any loads for this driver in this period
-                // We do this check here to avoid "No loads found" errors clogging logs
-                // and to skip drivers who didn't work.
-                const loadCount = await prisma.load.count({
+                // Fetch load IDs already in active (non-rejected) settlements
+                const existingSettlements = await prisma.settlement.findMany({
+                    where: { driverId: driver.id, approvalStatus: { not: 'REJECTED' } },
+                    select: { loadIds: true },
+                });
+                const settledLoadIds = new Set(existingSettlements.flatMap(s => s.loadIds));
+
+                // Find eligible loads — same criteria as Orchestrator and draft-batch
+                const eligibleLoads = await prisma.load.findMany({
                     where: {
                         driverId: driver.id,
                         companyId: session.user.companyId,
                         deletedAt: null,
                         status: { in: ['DELIVERED', 'INVOICED', 'PAID', 'BILLING_HOLD', 'READY_TO_BILL'] },
-                        AND: [
-                            {
-                                OR: [
-                                    {
-                                        deliveredAt: {
-                                            gte: periodStart,
-                                            lte: periodEnd,
-                                        },
-                                    },
-                                    {
-                                        deliveredAt: null,
-                                        updatedAt: {
-                                            gte: periodStart,
-                                            lte: periodEnd,
-                                        },
-                                    },
-                                ],
-                            },
-                            {
-                                OR: [
-                                    { readyForSettlement: true },
-                                    { status: { in: ['INVOICED', 'PAID'] } }
-                                ],
-                            }
+                        OR: [
+                            { readyForSettlement: true },
+                            { status: { in: ['INVOICED', 'PAID'] } },
                         ],
-                    }
+                    },
+                    select: { id: true },
                 });
 
-                if (loadCount === 0) continue;
+                // Exclude already-settled loads
+                const unsettledLoads = eligibleLoads.filter(l => !settledLoadIds.has(l.id));
+                if (unsettledLoads.length === 0) continue;
 
                 const settlement = await manager.generateSettlement({
                     driverId: driver.id,
                     periodStart,
                     periodEnd,
+                    loadIds: unsettledLoads.map(l => l.id),
+                    forceIncludeNotReady: true,
                     notes: `Batch ${batchNumber}`,
                     salaryBatchId: batch.id,
                 });
@@ -148,11 +138,8 @@ export async function POST(request: NextRequest) {
                 }
 
             } catch (err: any) {
-                // If it's just "No completed loads", ignore. Otherwise log.
-                if (err.message !== 'No completed loads found for the settlement period') {
-                    console.warn(`[Batch Generate] Failed for driver ${driver.driverNumber}:`, err.message);
-                    errors.push({ driver: driver.driverNumber, error: err.message });
-                }
+                console.warn(`[Batch Generate] Failed for driver ${driver.driverNumber}:`, err.message);
+                errors.push({ driver: driver.driverNumber, error: err.message });
             }
         }
 
@@ -179,10 +166,6 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json({ error: 'Validation Error', details: error.issues }, { status: 400 });
-        }
-        console.error('[SalaryBatches] Create error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return handleApiError(error);
     }
 }

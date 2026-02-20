@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { createGoogleSheetsClient, SheetRow } from '@/lib/integrations/google/sheets';
 import { LeadPriority, LeadSource, LeadStatus } from '@prisma/client';
+import { inngest } from '@/lib/inngest/client';
 
 type ColumnMappings = Record<string, string>;
 
@@ -318,6 +319,12 @@ export async function processCrmIntegration(integrationId: string, triggeredByUs
                     userId: userId
                 }
             });
+
+            // Fire-and-forget: generate AI summary for imported lead
+            inngest.send({
+                name: 'crm/generate-lead-summary',
+                data: { leadId: lead.id },
+            }).catch(() => {});
 
             result.created++;
             createdLeads.push(lead);

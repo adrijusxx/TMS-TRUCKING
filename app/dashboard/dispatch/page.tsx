@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { PageTransition } from '@/components/ui/page-transition';
 import DispatchBoard from '@/components/dispatch/DispatchBoard';
 import WeeklyScheduleView from '@/components/dispatch/WeeklyScheduleView';
 import LoadCalendar from '@/components/calendar/LoadCalendar';
@@ -13,6 +14,7 @@ export default function DispatchPage() {
   return (
     <>
       <Breadcrumb items={[{ label: 'Dispatch', href: '/dashboard/dispatch' }]} />
+      <PageTransition>
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Dispatch</h1>
@@ -34,6 +36,7 @@ export default function DispatchPage() {
         </TabsContent>
         </Tabs>
       </div>
+      </PageTransition>
     </>
   );
 }

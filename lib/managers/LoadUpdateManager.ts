@@ -6,6 +6,7 @@ import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications
 import { emitLoadStatusChanged, emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
 import { inngest } from '@/lib/inngest/client';
+import { logger } from '@/lib/utils/logger';
 import { Session } from 'next-auth';
 import { LoadSyncManager } from './LoadSyncManager';
 
@@ -229,7 +230,7 @@ export class LoadUpdateManager {
                 });
             } catch (e) {
                 // Non-critical: don't break the request if Inngest is unavailable
-                console.error('Failed to emit load/status-changed event:', e);
+                logger.error('Failed to emit load/status-changed event', { error: e instanceof Error ? e.message : String(e) });
             }
 
             // Completion Workflow

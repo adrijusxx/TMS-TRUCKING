@@ -13,7 +13,7 @@ import HRSettings from '@/components/settings/role-specific/HRSettings';
 import SafetySettings from '@/components/settings/role-specific/SafetySettings';
 import FleetSettings from '@/components/settings/role-specific/FleetSettings';
 import { User, Settings, Bell, Eye, Shield, Package, DollarSign, Truck, Users, AlertTriangle, Wrench, Phone } from 'lucide-react';
-import type { UserRole } from '@/lib/permissions';
+// UserRole removed — using string-based roleSlug
 import { usePermissions } from '@/hooks/usePermissions';
 
 import YokomobileIntegration from '@/components/settings/integrations/YokomobileIntegration';

@@ -37,6 +37,12 @@ export abstract class BaseImporter {
         columnMapping?: Record<string, string>;
         importBatchId?: string;
         treatAsHistorical?: boolean;
+        autoCreate?: {
+            drivers?: boolean;
+            customers?: boolean;
+            trucks?: boolean;
+            trailers?: boolean;
+        };
     }): Promise<ImportResult>;
 
     protected error(row: number, error: string, field?: string) {

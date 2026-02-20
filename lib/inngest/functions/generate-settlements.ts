@@ -291,6 +291,7 @@ export async function processCompanySettlements(
         periodStart,
         periodEnd,
         loadIds: unsettledLoads.map(l => l.id),
+        forceIncludeNotReady: true,
       });
 
       settlementsGenerated++;

@@ -83,13 +83,22 @@ export async function GET(request: NextRequest) {
           },
         });
 
+        const isCuid = (v: string) => /^c[a-z0-9]{20,}$/i.test(v);
         const driverMap = new Map<string, { label: string; count: number }>();
         loads.forEach((load) => {
           if (load.driverId && load.driver) {
             const key = load.driverId;
-            const label = load.driver.user
-              ? `${load.driver.driverNumber} - ${load.driver.user.firstName} ${load.driver.user.lastName}`
-              : load.driver.driverNumber;
+            const driverNum = load.driver.driverNumber;
+            const hasMeaningfulNumber = driverNum && !isCuid(driverNum);
+
+            let label: string;
+            if (load.driver.user) {
+              const fullName = `${load.driver.user.firstName} ${load.driver.user.lastName}`.trim();
+              label = hasMeaningfulNumber ? `${driverNum} - ${fullName}` : fullName;
+            } else {
+              label = hasMeaningfulNumber ? driverNum : `Driver (${driverNum.slice(0, 8)}...)`;
+            }
+
             if (driverMap.has(key)) {
               driverMap.get(key)!.count++;
             } else {

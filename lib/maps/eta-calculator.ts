@@ -3,6 +3,8 @@
  * Calculates estimated time of arrival based on current location, speed, and destination
  */
 
+import { haversineDistanceMiles } from '@/lib/utils/geo';
+
 export interface ETAResult {
   etaTime: Date;
   etaFormatted: string;
@@ -22,30 +24,6 @@ export interface ETAInput {
 }
 
 /**
- * Calculate distance between two coordinates using Haversine formula
- */
-function haversineDistance(
-  lat1: number, lng1: number, 
-  lat2: number, lng2: number
-): number {
-  const R = 3959; // Earth's radius in miles
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  
-  const a = 
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function toRad(deg: number): number {
-  return deg * (Math.PI / 180);
-}
-
-/**
  * Calculate ETA based on current position, speed, and destination
  */
 export function calculateETA(input: ETAInput): ETAResult | null {
@@ -62,7 +40,7 @@ export function calculateETA(input: ETAInput): ETAResult | null {
   }
 
   // Calculate straight-line distance
-  const straightLineDistance = haversineDistance(
+  const straightLineDistance = haversineDistanceMiles(
     currentLat, currentLng,
     destinationLat, destinationLng
   );

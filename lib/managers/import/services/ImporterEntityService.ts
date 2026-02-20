@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, EquipmentType } from '@prisma/client';
+import { PrismaClient, EquipmentType } from '@prisma/client';
 
 /**
  * ImporterEntityService
@@ -20,7 +20,8 @@ export class ImporterEntityService {
         name: string,
         customerMap: Map<string, string>,
         previewOnly: boolean = false,
-        importBatchId?: string
+        importBatchId?: string,
+        allowCreate: boolean = true
     ): Promise<string | null> {
         if (!name) return null;
         const normalizedName = name.trim();
@@ -36,7 +37,9 @@ export class ImporterEntityService {
             }
         }
 
-        if (previewOnly) return `PREVIEW_NEW_CUST_${normalizedName.replace(/[^a-zA-Z0-9]/g, '')}`;
+        if (previewOnly) return allowCreate
+            ? `PREVIEW_NEW_CUST_${normalizedName.replace(/[^a-zA-Z0-9]/g, '')}`
+            : `SKIPPED_CUST_${normalizedName.replace(/[^a-zA-Z0-9]/g, '')}`;
 
         // DB Check (race condition protection)
         const existing = await this.prisma.customer.findFirst({
@@ -48,6 +51,8 @@ export class ImporterEntityService {
             customerMap.set(lowerName, existing.id);
             return existing.id;
         }
+
+        if (!allowCreate) return null;
 
         // Create new customer
         const shortName = normalizedName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
@@ -78,14 +83,17 @@ export class ImporterEntityService {
         name: string,
         driverMap: Map<string, string>,
         previewOnly: boolean = false,
-        importBatchId?: string
+        importBatchId?: string,
+        allowCreate: boolean = true
     ): Promise<string | null> {
         if (!name) return null;
         const lowerName = name.toLowerCase().trim();
         let id = driverMap.get(lowerName);
         if (id) return id;
 
-        if (previewOnly) return `PREVIEW_NEW_DRV_${lowerName.replace(/[^a-zA-Z0-9]/g, '')}`;
+        if (previewOnly) return allowCreate
+            ? `PREVIEW_NEW_DRV_${lowerName.replace(/[^a-zA-Z0-9]/g, '')}`
+            : `SKIPPED_DRV_${lowerName.replace(/[^a-zA-Z0-9]/g, '')}`;
 
         let dNumber = name;
         let dFirst = 'Driver';
@@ -116,6 +124,8 @@ export class ImporterEntityService {
             return existing.id;
         }
 
+        if (!allowCreate) return null;
+
         // We need an MC ID to create a User (database constraint)
         if (!this.defaultMcId) {
             console.warn(`[Importer] Skipping User creation for driver ${name} - No MC ID available.`);
@@ -129,7 +139,7 @@ export class ImporterEntityService {
                     firstName: dFirst,
                     lastName: dLast,
                     password: 'Imported123!',
-                    role: UserRole.DRIVER,
+                    role: 'DRIVER',
                     companyId: this.companyId,
                     mcNumberId: this.defaultMcId,
                     isActive: true
@@ -190,14 +200,17 @@ export class ImporterEntityService {
         number: string,
         truckMap: Map<string, string>,
         previewOnly: boolean = false,
-        importBatchId?: string
+        importBatchId?: string,
+        allowCreate: boolean = true
     ): Promise<string | null> {
         if (!number) return null;
         const normalized = number.toLowerCase().trim();
         let id = truckMap.get(normalized) || truckMap.get(normalized.replace(/^0+/, ''));
         if (id) return id;
 
-        if (previewOnly) return `PREVIEW_NEW_TRK_${normalized.replace(/[^a-zA-Z0-9]/g, '')}`;
+        if (previewOnly) return allowCreate
+            ? `PREVIEW_NEW_TRK_${normalized.replace(/[^a-zA-Z0-9]/g, '')}`
+            : `SKIPPED_TRK_${normalized.replace(/[^a-zA-Z0-9]/g, '')}`;
 
         const existing = await this.prisma.truck.findFirst({
             where: { companyId: this.companyId, truckNumber: { equals: number, mode: 'insensitive' } },
@@ -208,6 +221,8 @@ export class ImporterEntityService {
             truckMap.set(normalized, existing.id);
             return existing.id;
         }
+
+        if (!allowCreate) return null;
 
         try {
             const newTrk = await this.prisma.truck.create({
@@ -243,14 +258,17 @@ export class ImporterEntityService {
         number: string,
         trailerMap: Map<string, string>,
         previewOnly: boolean = false,
-        importBatchId?: string
+        importBatchId?: string,
+        allowCreate: boolean = true
     ): Promise<string | null> {
         if (!number) return null;
         const normalized = number.toLowerCase().trim();
         let id = trailerMap.get(normalized) || trailerMap.get(normalized.replace(/^0+/, ''));
         if (id) return id;
 
-        if (previewOnly) return `PREVIEW_NEW_TRL_${normalized.replace(/[^a-zA-Z0-9]/g, '')}`;
+        if (previewOnly) return allowCreate
+            ? `PREVIEW_NEW_TRL_${normalized.replace(/[^a-zA-Z0-9]/g, '')}`
+            : `SKIPPED_TRL_${normalized.replace(/[^a-zA-Z0-9]/g, '')}`;
 
         const existing = await this.prisma.trailer.findFirst({
             where: { companyId: this.companyId, trailerNumber: { equals: number, mode: 'insensitive' } },
@@ -261,6 +279,8 @@ export class ImporterEntityService {
             trailerMap.set(normalized, existing.id);
             return existing.id;
         }
+
+        if (!allowCreate) return null;
 
         try {
             const newTrl = await this.prisma.trailer.create({

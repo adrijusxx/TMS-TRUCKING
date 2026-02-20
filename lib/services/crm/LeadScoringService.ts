@@ -61,6 +61,57 @@ export class LeadScoringService extends AIService {
         }
     }
 
+    /**
+     * Generate a short card-friendly summary from lead data + metadata.
+     * Distinct from aiScoreSummary (which is hiring-recommendation focused).
+     */
+    async generateSummary(leadId: string): Promise<string> {
+        const lead = await prisma.lead.findUnique({
+            where: { id: leadId },
+            include: {
+                notes: { orderBy: { createdAt: 'desc' }, take: 3 },
+            },
+        });
+
+        if (!lead) throw new Error('Lead not found');
+
+        const metadataStr = lead.metadata
+            ? Object.entries(lead.metadata as Record<string, unknown>)
+                .slice(0, 10)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(', ')
+            : 'None';
+
+        const userPrompt = `Summarize this driver candidate in 1-2 short sentences for a recruiter's quick glance:
+
+Name: ${lead.firstName} ${lead.lastName}
+Experience: ${lead.yearsExperience ?? 'Unknown'} years
+CDL Class: ${lead.cdlClass || 'Unknown'}
+Endorsements: ${lead.endorsements.join(', ') || 'None'}
+Freight Types: ${lead.freightTypes.join(', ') || 'None'}
+State: ${lead.state || 'Unknown'}
+Source: ${lead.source || 'Unknown'}
+Import Metadata: ${metadataStr}
+Recent Notes: ${lead.notes.map(n => n.content).join(' | ') || 'None'}
+
+Output a plain text 1-2 sentence brief. No JSON, no formatting.`;
+
+        const result = await this.callAI<string>(userPrompt, {
+            systemPrompt: 'You produce concise, factual summaries of trucking driver candidates. Output only the summary text.',
+            temperature: 0.3,
+            maxTokens: 100,
+        });
+
+        const summary = typeof result.data === 'string' ? result.data : String(result.data);
+
+        await prisma.lead.update({
+            where: { id: leadId },
+            data: { aiSummary: summary },
+        });
+
+        return summary;
+    }
+
     private async analyzeLead(lead: LeadWithDetails): Promise<LeadScoreResult> {
         const systemPrompt = `You are an expert Trucking Recruiter AI. 
         Your goal is to evaluate driver candidates associated with a Motor Carrier.

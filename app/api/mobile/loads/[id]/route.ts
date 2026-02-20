@@ -128,6 +128,7 @@ export async function GET(
       },
       commodity: load.commodity,
       weight: load.weight,
+      totalMiles: load.totalMiles,
       revenue: load.revenue,
       notes: load.dispatchNotes || null,
       statusHistory: load.statusHistory.map((h) => ({

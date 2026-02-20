@@ -230,24 +230,32 @@ export async function hardDeleteItems(entityType: DeletableEntity, ids: string[]
                     break;
 
                 case 'drivers':
-                    // Drivers are linked to Loads, Settlements, Trucks, Trailers.
-                    // 1. Unlink from active Loads (set driverId = null)
-                    await tx.load.updateMany({
-                        where: { driverId: { in: ids } },
-                        data: { driverId: null }
-                    });
+                    // Drivers have many FK-constrained children. Clean up in correct order.
+                    // 1. Unlink from Loads and Trucks
+                    await tx.load.updateMany({ where: { driverId: { in: ids } }, data: { driverId: null } });
+                    await tx.loadSegment.updateMany({ where: { driverId: { in: ids } }, data: { driverId: null } });
+                    await tx.truck.updateMany({ where: { currentDriverId: { in: ids } }, data: { currentDriverId: null } });
 
-                    // 2. Unlink from Trucks/Trailers (Current Assignment)
-                    await tx.truck.updateMany({
-                        where: { currentDriverId: { in: ids } },
-                        data: { currentDriverId: null }
-                    });
+                    // 2. Nullify settlement refs on child records before deleting settlements
+                    await tx.driverAdvance.updateMany({ where: { settlement: { driverId: { in: ids } } }, data: { settlementId: null } });
+                    await tx.loadExpense.updateMany({ where: { settlement: { driverId: { in: ids } } }, data: { settlementId: null } });
+                    await tx.driverNegativeBalance.updateMany({ where: { originalSettlement: { driverId: { in: ids } } }, data: { originalSettlementId: null } });
+                    await tx.driverNegativeBalance.updateMany({ where: { appliedSettlement: { driverId: { in: ids } } }, data: { appliedSettlementId: null } });
 
-                    // 3. Finally Delete Driver.
-                    // Note: Driver is linked to User. The User usually remains?
-                    // Re-reading request: "delete that data".
-                    // If we delete Driver, we should probably check if User has other roles.
-                    // But to be safe, let's just delete the Driver profile.
+                    // 3. Delete settlements (cascades to SettlementDeduction, SettlementApproval)
+                    await tx.settlement.deleteMany({ where: { driverId: { in: ids } } });
+
+                    // 4. Delete remaining RESTRICT-constrained children
+                    await tx.driverAdvance.deleteMany({ where: { driverId: { in: ids } } });
+                    await tx.hOSRecord.deleteMany({ where: { driverId: { in: ids } } });
+                    await tx.fuelEntry.deleteMany({ where: { driverId: { in: ids } } });
+                    await tx.deductionRule.deleteMany({ where: { driverId: { in: ids } } });
+                    await tx.communication.deleteMany({ where: { driverId: { in: ids } } });
+                    await tx.onboardingChecklist.deleteMany({ where: { driverId: { in: ids } } });
+                    await tx.breakdown.updateMany({ where: { driverId: { in: ids } }, data: { driverId: null } });
+                    await tx.inspection.updateMany({ where: { driverId: { in: ids } }, data: { driverId: null } });
+
+                    // 5. Delete driver (cascades to DriverNegativeBalance, DriverTruckHistory, etc.)
                     const deletedDrivers = await tx.driver.deleteMany({ where: { id: { in: ids } } });
                     count = deletedDrivers.count;
                     break;

@@ -16,6 +16,7 @@ import BillingSubscriptionCategory from '@/components/settings/categories/Billin
 import DataManagementCategory from '@/components/settings/categories/DataManagementCategory';
 import DeletedItemsCategory from '@/components/settings/categories/DeletedItemsCategory';
 import AuditHistoryCategory from '@/components/settings/categories/AuditHistoryCategory';
+import ScheduledJobsCategory from '@/components/settings/categories/ScheduledJobsCategory';
 
 import MyProfileCategory from '@/components/settings/categories/MyProfileCategory';
 
@@ -38,6 +39,7 @@ const tabMapping: Record<string, string> = {
   'deleted-items': 'deleted-items',
   'audit-history': 'audit-history',
   'customizations': 'customizations',
+  'scheduled-jobs': 'scheduled-jobs',
 };
 
 export default function AdminSettingsPage() {
@@ -110,6 +112,8 @@ export default function AdminSettingsPage() {
         return <DeletedItemsCategory />;
       case 'audit-history':
         return <AuditHistoryCategory />;
+      case 'scheduled-jobs':
+        return <ScheduledJobsCategory />;
       default:
         return <CompanyOrganizationCategory />;
     }

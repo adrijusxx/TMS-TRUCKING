@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { SettlementManager } from '@/lib/managers/SettlementManager';
-import { hasPermission, UserRole } from '@/lib/permissions';
+import { hasPermission } from '@/lib/permissions';
+import { handleApiError } from '@/lib/api/route-helpers';
 
 export async function POST(
     request: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
             );
         }
 
-        if (!hasPermission(session.user.role as UserRole, 'settlements.edit')) {
+        if (!hasPermission(session.user.role, 'settlements.edit')) {
             return NextResponse.json(
                 { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
                 { status: 403 }
@@ -37,14 +38,7 @@ export async function POST(
             data: updatedSettlement,
             message: 'Settlement recalculated successfully',
         });
-    } catch (error: any) {
-        console.error('Recalculate error:', error);
-        return NextResponse.json(
-            {
-                success: false,
-                error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to recalculate settlement' },
-            },
-            { status: 500 }
-        );
+    } catch (error) {
+        return handleApiError(error);
     }
 }

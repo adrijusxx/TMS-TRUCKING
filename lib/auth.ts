@@ -1,7 +1,7 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from './prisma';
-import { UserRole } from '@prisma/client';
+
 import bcrypt from 'bcryptjs';
 
 // Validate and set NEXTAUTH_SECRET
@@ -21,6 +21,9 @@ if (!nextAuthSecret) {
 export const authOptions: NextAuthConfig = {
   secret: nextAuthSecret,
   trustHost: true, // Required for proxy/ALB deployments
+  // basePath is derived from AUTH_URL/NEXTAUTH_URL automatically
+  // Setting it explicitly while NEXTAUTH_URL has a pathname causes env-url-basepath-mismatch warning
+  logger: { warn: (code) => { if (code !== 'env-url-basepath-mismatch') console.warn(`[auth][warn] ${code}`); } },
   basePath: '/api/auth',
   // Use non-secure cookies when behind ALB proxy (ALB terminates SSL)
   // The __Secure- and __Host- prefixes don't work when app receives HTTP from ALB
@@ -32,7 +35,7 @@ export const authOptions: NextAuthConfig = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' }
       },
-      async authorize(credentials, request): Promise<{ id: string; email: string; name: string; role: UserRole; companyId: string; mcAccess: string[] } | null> {
+      async authorize(credentials, request): Promise<{ id: string; email: string; name: string; role: string; roleId?: string; roleSlug: string; roleName: string; companyId: string; mcAccess: string[] } | null> {
         try {
           if (!credentials?.email || !credentials?.password) {
             return null;
@@ -49,6 +52,8 @@ export const authOptions: NextAuthConfig = {
               firstName: true,
               lastName: true,
               role: true,
+              roleId: true,
+              customRole: { select: { id: true, slug: true, name: true } },
               companyId: true,
               mcAccess: true,
               isActive: true,
@@ -113,11 +118,18 @@ export const authOptions: NextAuthConfig = {
             effectiveCompanyId = user.userCompanies[0].companyId;
           }
 
+          // Determine role info from custom Role table or fallback to legacy enum
+          const roleSlug = user.customRole?.slug || user.role.toLowerCase().replace('_', '-');
+          const roleName = user.customRole?.name || user.role;
+
           return {
             id: user.id,
             email: user.email,
             name: `${user.firstName} ${user.lastName}`,
-            role: user.role,
+            role: user.role, // legacy enum, kept for backward compat
+            roleId: user.roleId || undefined,
+            roleSlug,
+            roleName,
             companyId: effectiveCompanyId, // Use the determined company ID
             mcAccess: user.mcAccess || []
           };
@@ -132,7 +144,10 @@ export const authOptions: NextAuthConfig = {
     async jwt({ token, user, trigger, session: sessionData, request }: { token: any; user?: any; trigger?: string; session?: any; request?: any }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.role = user.role; // legacy enum
+        token.roleId = user.roleId;
+        token.roleSlug = user.roleSlug;
+        token.roleName = user.roleName;
         token.companyId = user.companyId;
         token.mcAccess = user.mcAccess || [];
       }
@@ -173,7 +188,10 @@ export const authOptions: NextAuthConfig = {
     async session({ session, token }: { session: any; token: any }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
+        session.user.role = token.role as string; // legacy enum
+        session.user.roleId = token.roleId as string | undefined;
+        session.user.roleSlug = (token.roleSlug as string) || token.role?.toString().toLowerCase().replace('_', '-') || '';
+        session.user.roleName = (token.roleName as string) || token.role?.toString() || '';
         session.user.companyId = token.companyId as string;
         if (token.currentCompanyId) {
           session.user.currentCompanyId = token.currentCompanyId as string;

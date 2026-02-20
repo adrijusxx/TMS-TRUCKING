@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { SettlementManager } from '@/lib/managers/SettlementManager';
-import { hasPermission, UserRole } from '@/lib/permissions';
+import { hasPermission } from '@/lib/permissions';
 import { LoadStatus } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        if (!hasPermission(session.user.role as UserRole, 'settlements.create')) {
+        if (!hasPermission(session.user.role, 'settlements.create')) {
             return NextResponse.json(
                 { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
                 { status: 403 }

@@ -25,6 +25,8 @@ model User {
   tags           String[]  @default([]) // User tags (e.g., REMOTE, ON-SITE, FULL-TIME, PART-TIME)
   notes          String? // Additional notes about the user
   role           UserRole
+  roleId         String? // FK to custom Role table (nullable during migration, required after)
+  customRole     Role?     @relation("UserCustomRole", fields: [roleId], references: [id])
   companyId      String // Primary/default company
   company        Company   @relation(fields: [companyId], references: [id])
   mcNumberId     String // MC Number assignment (required for all users; for DRIVER role, synced from Driver record)
@@ -98,35 +100,42 @@ model User {
   completedOnboardingSteps   OnboardingStep[]       @relation("OnboardingStepCompletedBy")
 
   // Campaign & Automation
-  campaignsCreated           Campaign[]             @relation("CampaignCreator")
-  messageTemplatesCreated    MessageTemplate[]      @relation("MessageTemplateCreator")
-  automationRulesCreated     AutomationRule[]       @relation("AutomationRuleCreator")
+  campaignsCreated        Campaign[]        @relation("CampaignCreator")
+  messageTemplatesCreated MessageTemplate[] @relation("MessageTemplateCreator")
+  automationRulesCreated  AutomationRule[]  @relation("AutomationRuleCreator")
 
   // Import Features
   importMappingProfiles ImportMappingProfile[] @relation("UserImportProfiles")
   importBatches         ImportBatch[]          @relation("UserImportBatches")
 
+  // Custom Permissions
+  permissionOverrides UserPermissionOverride[]
+
   @@index([companyId])
   @@index([email])
   @@index([mcNumberId])
   @@index([employeeNumber])
+  @@index([roleId])
 }
 
 // Multi-company support - Users can access multiple companies
 model UserCompany {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  role      UserRole // User's role in this specific company
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role       UserRole // User's role in this specific company (legacy, kept during migration)
+  roleId     String? // FK to custom Role table (nullable during migration, required after)
+  customRole Role?    @relation("UserCompanyCustomRole", fields: [roleId], references: [id])
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([userId, companyId])
   @@index([userId])
   @@index([companyId])
+  @@index([roleId])
 }
 
 enum UserRole {
@@ -152,6 +161,101 @@ model RolePermission {
   @@unique([role, permission])
   @@index([role])
   @@index([permission])
+}
+
+// ============================================
+// CUSTOM ROLES & PERMISSIONS (v2)
+// ============================================
+
+model Role {
+  id           String   @id @default(cuid())
+  name         String // Display name: "Administrator", "Senior Dispatcher"
+  slug         String // Code identifier: "admin", "senior-dispatcher"
+  description  String?
+  isSystem     Boolean  @default(false) // true for the 9 original roles (non-deletable)
+  parentRoleId String? // Live hierarchy: child inherits parent permissions
+  parentRole   Role?    @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  childRoles   Role[]   @relation("RoleHierarchy")
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users           User[]                @relation("UserCustomRole")
+  userCompanies   UserCompany[]         @relation("UserCompanyCustomRole")
+  rolePermissions RolePermissionEntry[]
+  roleGroups      RolePermissionGroup[]
+
+  @@unique([slug, companyId])
+  @@index([companyId])
+  @@index([parentRoleId])
+}
+
+model RolePermissionEntry {
+  id         String   @id @default(cuid())
+  roleId     String
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission String
+  createdAt  DateTime @default(now())
+
+  @@unique([roleId, permission])
+  @@index([roleId])
+}
+
+model UserPermissionOverride {
+  id         String                 @id @default(cuid())
+  userId     String
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission String
+  type       PermissionOverrideType // GRANT or REVOKE
+  reason     String?
+  grantedBy  String? // userId of admin who created this
+  createdAt  DateTime               @default(now())
+
+  @@unique([userId, permission])
+  @@index([userId])
+}
+
+enum PermissionOverrideType {
+  GRANT
+  REVOKE
+}
+
+model PermissionGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items           PermissionGroupItem[]
+  roleAssignments RolePermissionGroup[]
+
+  @@unique([name, companyId])
+  @@index([companyId])
+}
+
+model PermissionGroupItem {
+  id         String          @id @default(cuid())
+  groupId    String
+  group      PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  permission String
+
+  @@unique([groupId, permission])
+  @@index([groupId])
+}
+
+model RolePermissionGroup {
+  id      String          @id @default(cuid())
+  roleId  String
+  role    Role            @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  groupId String
+  group   PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, groupId])
 }
 
 model Company {
@@ -303,6 +407,10 @@ model Company {
   // Import Features
   importMappingProfiles ImportMappingProfile[]
   importBatches         ImportBatch[]
+
+  // Custom Roles & Permissions
+  roles            Role[]
+  permissionGroups PermissionGroup[]
 }
 
 // ============================================
@@ -567,6 +675,11 @@ model LoadStop {
   signature       String?
   signatureDate   DateTime?
   proofOfDelivery String?
+
+  // Geocoded coordinates (cached from Google Maps)
+  lat        Float?
+  lng        Float?
+  geocodedAt DateTime?
 
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
@@ -927,7 +1040,7 @@ model Driver {
   safetyRecognitions        SafetyRecognition[]
   iftaEntries               IFTAEntry[]
   telegramMapping           TelegramDriverMapping? // Telegram integration
-  recruitingLead            Lead?                  @relation("RecruitingLead")
+  recruitingLead            Lead?                     @relation("RecruitingLead")
   onboardingChecklist       OnboardingChecklist?
 
   @@unique([userId, companyId])
@@ -2273,7 +2386,7 @@ model SettlementDeduction {
   settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
 
   deductionType DeductionType
-  category      String @default("deduction") // "addition" | "deduction"
+  category      String        @default("deduction") // "addition" | "deduction"
   description   String
   amount        Float
 
@@ -7112,13 +7225,14 @@ model Lead {
   tags         String[]
 
   // Conversion — links to Driver after hiring
-  driverId String?  @unique
-  driver   Driver?  @relation("RecruitingLead", fields: [driverId], references: [id])
+  driverId String? @unique
+  driver   Driver? @relation("RecruitingLead", fields: [driverId], references: [id])
 
-  // AI Scoring (future)
+  // AI Scoring
   aiScore          Float?
   aiScoreSummary   String?
   aiScoreUpdatedAt DateTime?
+  aiSummary        String? // Card-friendly 1-2 sentence AI brief
 
   // Import Metadata - stores extra fields from Facebook forms, spreadsheets, etc.
   metadata Json?
@@ -7127,20 +7241,22 @@ model Lead {
   nextFollowUpDate DateTime?
   nextFollowUpNote String?
 
-  // Timestamps
+  // Timestamps & Contact Tracking
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
   lastContactedAt DateTime?
+  lastCallAt      DateTime?
+  lastSmsAt       DateTime?
   createdById     String
   createdBy       User      @relation("LeadCreator", fields: [createdById], references: [id])
 
   // Relations
   notes               LeadNote[]
-  activities           LeadActivity[]
-  documents            LeadDocument[]
-  onboardingChecklist  OnboardingChecklist?
-  campaignRecipients   CampaignRecipient[]
+  activities          LeadActivity[]
+  documents           LeadDocument[]
+  onboardingChecklist OnboardingChecklist?
+  campaignRecipients  CampaignRecipient[]
 
   @@unique([companyId, leadNumber])
   @@index([companyId])
@@ -7152,6 +7268,8 @@ model Lead {
   @@index([companyId, mcNumberId, status])
   @@index([nextFollowUpDate])
   @@index([assignedToId, nextFollowUpDate])
+  @@index([lastCallAt])
+  @@index([lastSmsAt])
 }
 
 model LeadNote {
@@ -7208,18 +7326,18 @@ model LeadDocument {
 // ============================================
 
 model OnboardingChecklist {
-  id        String           @id @default(cuid())
-  companyId String
-  company   Company          @relation(fields: [companyId], references: [id])
-  driverId  String           @unique
-  driver    Driver           @relation(fields: [driverId], references: [id])
-  leadId    String?          @unique
-  lead      Lead?            @relation(fields: [leadId], references: [id])
-  status    OnboardingStatus @default(NOT_STARTED)
+  id          String           @id @default(cuid())
+  companyId   String
+  company     Company          @relation(fields: [companyId], references: [id])
+  driverId    String           @unique
+  driver      Driver           @relation(fields: [driverId], references: [id])
+  leadId      String?          @unique
+  lead        Lead?            @relation(fields: [leadId], references: [id])
+  status      OnboardingStatus @default(NOT_STARTED)
   startedAt   DateTime?
   completedAt DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   steps OnboardingStep[]
 
@@ -7228,21 +7346,21 @@ model OnboardingChecklist {
 }
 
 model OnboardingStep {
-  id            String             @id @default(cuid())
+  id            String              @id @default(cuid())
   checklistId   String
   checklist     OnboardingChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
   stepType      OnboardingStepType
   label         String
   description   String?
-  required      Boolean            @default(true)
-  status        StepStatus         @default(PENDING)
-  sortOrder     Int                @default(0)
+  required      Boolean             @default(true)
+  status        StepStatus          @default(PENDING)
+  sortOrder     Int                 @default(0)
   completedAt   DateTime?
   completedById String?
-  completedBy   User?              @relation("OnboardingStepCompletedBy", fields: [completedById], references: [id])
+  completedBy   User?               @relation("OnboardingStepCompletedBy", fields: [completedById], references: [id])
   notes         String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([checklistId])
   @@index([status])
@@ -7253,14 +7371,14 @@ model OnboardingStep {
 // ============================================
 
 model OnboardingTemplate {
-  id          String                   @id @default(cuid())
+  id          String   @id @default(cuid())
   companyId   String
-  company     Company                  @relation(fields: [companyId], references: [id])
+  company     Company  @relation(fields: [companyId], references: [id])
   name        String
   description String?
-  isDefault   Boolean                  @default(false)
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   steps OnboardingTemplateStep[]
 
@@ -7269,16 +7387,16 @@ model OnboardingTemplate {
 }
 
 model OnboardingTemplateStep {
-  id          String               @id @default(cuid())
+  id          String             @id @default(cuid())
   templateId  String
-  template    OnboardingTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template    OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   stepType    OnboardingStepType
   label       String
   description String?
-  required    Boolean              @default(true)
-  sortOrder   Int                  @default(0)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  required    Boolean            @default(true)
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   @@index([templateId])
 }
@@ -7451,7 +7569,7 @@ model Campaign {
   isDrip Boolean @default(false) // false = one-time blast, true = multi-step drip
 
   createdById String
-  createdBy   User   @relation("CampaignCreator", fields: [createdById], references: [id])
+  createdBy   User     @relation("CampaignCreator", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -7535,7 +7653,7 @@ model AutomationRule {
 
   // Trigger
   triggerType  String // "status_change", "new_lead", "tag_added", "no_contact_days"
-  triggerValue Json   // e.g. { fromStatus: "NEW", toStatus: "CONTACTED" } or { days: 3 }
+  triggerValue Json // e.g. { fromStatus: "NEW", toStatus: "CONTACTED" } or { days: 3 }
 
   // Action — what to send
   templateId String?
@@ -7544,7 +7662,7 @@ model AutomationRule {
   body       String?
 
   createdById String
-  createdBy   User   @relation("AutomationRuleCreator", fields: [createdById], references: [id])
+  createdBy   User     @relation("AutomationRuleCreator", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

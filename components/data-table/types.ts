@@ -285,6 +285,10 @@ export interface DataTableProps<TData extends TableData = TableData> {
    */
   error?: Error | null;
   /**
+   * Retry handler for error state
+   */
+  onRetry?: () => void;
+  /**
    * Row selection state
    */
   rowSelection?: RowSelectionState;

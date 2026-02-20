@@ -18,6 +18,7 @@ import {
   Database,
   RotateCcw,
   History,
+  Timer,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -81,6 +82,14 @@ export function getSettingsNavigationCategories(baseSettingsPath: string): NavCa
           href: baseSettingsPath,
           icon: Settings,
           query: 'tab=system',
+          category: 'Main Settings',
+          adminOnly: true
+        },
+        {
+          name: 'Scheduled Jobs',
+          href: baseSettingsPath,
+          icon: Timer,
+          query: 'tab=scheduled-jobs',
           category: 'Main Settings',
           adminOnly: true
         },

@@ -74,10 +74,13 @@ export interface TruckMapEntry {
     status: string;
     stops: Array<{
       id: string;
+      stopType?: string;
       city: string | null;
       state: string | null;
       formattedAddress: string | null;
       scheduledTime: Date | null;
+      lat: number | null;
+      lng: number | null;
     }>;
   } | null;
 }
@@ -435,10 +438,13 @@ export class LiveMapService {
             orderBy: { sequence: 'asc' },
             select: {
               id: true,
+              stopType: true,
               city: true,
               state: true,
               address: true,
               earliestArrival: true,
+              lat: true,
+              lng: true,
             }
           }
         }
@@ -497,10 +503,13 @@ export class LiveMapService {
           status: truck.activeLoad.status,
           stops: truck.activeLoad.stops.map((stop: any) => ({
             id: stop.id,
+            stopType: stop.stopType,
             city: stop.city,
             state: stop.state,
-            formattedAddress: stop.address, // Map address to formattedAddress for UI compatibility
-            scheduledTime: stop.earliestArrival, // Map earliestArrival to scheduledTime
+            formattedAddress: stop.address,
+            scheduledTime: stop.earliestArrival,
+            lat: stop.lat ?? null,
+            lng: stop.lng ?? null,
           })),
         } : null,
       };

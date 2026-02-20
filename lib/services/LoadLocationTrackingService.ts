@@ -1,12 +1,14 @@
 /**
  * Load Location Tracking Service
- * 
+ *
  * Polls Samsara for truck locations and automatically updates load status
  * when drivers arrive at pickup/delivery stops based on geofence proximity.
  */
 
 import { prisma } from '@/lib/prisma';
 import { getSamsaraVehicleLocations } from '@/lib/integrations/samsara';
+import { geocodeAddress } from '@/lib/maps/google-maps';
+import { haversineDistanceKm } from '@/lib/utils/geo';
 import { LoadStatus } from '@prisma/client';
 import { DetentionManager } from '../managers/DetentionManager';
 
@@ -38,50 +40,8 @@ interface StopCoordinates {
         lng: number | null;
         city: string;
         state: string;
+        address: string;
     }>;
-    // Fallback for single pickup/delivery loads
-    pickupLat?: number | null;
-    pickupLng?: number | null;
-    deliveryLat?: number | null;
-    deliveryLng?: number | null;
-}
-
-/**
- * Calculate haversine distance between two coordinates in km
- */
-function haversineDistance(
-    lat1: number, lng1: number,
-    lat2: number, lng2: number
-): number {
-    const R = 6371; // Earth's radius in km
-    const dLat = toRad(lat2 - lat1);
-    const dLng = toRad(lng2 - lng1);
-
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-}
-
-function toRad(deg: number): number {
-    return deg * (Math.PI / 180);
-}
-
-/**
- * Check if truck is within geofence of a stop
- */
-function isTruckNearStop(
-    truckLat: number,
-    truckLng: number,
-    stopLat: number,
-    stopLng: number,
-    radiusKm: number = DEFAULT_GEOFENCE_RADIUS_KM
-): boolean {
-    const distance = haversineDistance(truckLat, truckLng, stopLat, stopLng);
-    return distance <= radiusKm;
 }
 
 /**
@@ -94,7 +54,6 @@ function determineNextStatus(
     approachingPickup: boolean,
     approachingDelivery: boolean
 ): LoadStatus | null {
-    // Status transition logic based on location
     switch (currentStatus) {
         case 'ASSIGNED':
         case 'EN_ROUTE_PICKUP':
@@ -103,7 +62,6 @@ function determineNextStatus(
         case 'AT_PICKUP':
         case 'LOADED':
             if (approachingDelivery) return 'AT_DELIVERY';
-            // Use nearPickup (with exit buffer) to decide if we've left
             if (!nearPickup) return 'EN_ROUTE_DELIVERY';
             break;
         case 'EN_ROUTE_DELIVERY':
@@ -111,6 +69,24 @@ function determineNextStatus(
             break;
     }
     return null;
+}
+
+/**
+ * Resolve stop coordinates — use cached lat/lng from DB, fall back to geocoding
+ */
+async function resolveStopCoords(
+    stop: StopCoordinates['stops'][0]
+): Promise<{ lat: number; lng: number } | null> {
+    // Use stored coordinates if available (from schema migration)
+    if (stop.lat != null && stop.lng != null) {
+        return { lat: stop.lat, lng: stop.lng };
+    }
+
+    // Fall back to cached geocoding
+    if (!stop.city || !stop.state) return null;
+    const fullAddress = [stop.address, stop.city, stop.state].filter(Boolean).join(', ');
+    const result = await geocodeAddress(fullAddress);
+    return result ? { lat: result.lat, lng: result.lng } : null;
 }
 
 export class LoadLocationTrackingService {
@@ -142,9 +118,13 @@ export class LoadLocationTrackingService {
                 deletedAt: null,
             },
             include: {
-                truck: true,
+                truck: { select: { samsaraId: true } },
                 stops: {
                     orderBy: { sequence: 'asc' },
+                    select: {
+                        id: true, stopType: true, sequence: true, status: true,
+                        lat: true, lng: true, city: true, state: true, address: true,
+                    },
                 },
             },
         });
@@ -153,23 +133,19 @@ export class LoadLocationTrackingService {
             loadId: load.id,
             loadNumber: load.loadNumber,
             currentStatus: load.status,
-            truckSamsaraId: load.truck?.samsaraVehicleId || null,
+            truckSamsaraId: load.truck?.samsaraId || null,
             companyId: load.companyId,
             stops: (load.stops || []).map((stop: any) => ({
                 id: stop.id,
                 stopType: stop.stopType,
                 sequence: stop.sequence,
                 status: stop.status,
-                lat: null, // Stops don't have lat/lng directly - would need geocoding
-                lng: null,
+                lat: stop.lat ?? null,
+                lng: stop.lng ?? null,
                 city: stop.city,
                 state: stop.state,
+                address: stop.address || '',
             })),
-            // Use main load pickup/delivery for geofence (simplified approach)
-            pickupLat: null, // Would need geocoding service
-            pickupLng: null,
-            deliveryLat: null,
-            deliveryLng: null,
         }));
     }
 
@@ -225,7 +201,6 @@ export class LoadLocationTrackingService {
                 }),
             ]);
 
-            // If we arrived at a stop, trigger detention tracking
             if (stopId && (newStatus === 'AT_PICKUP' || newStatus === 'AT_DELIVERY')) {
                 const detentionManager = new DetentionManager();
                 await detentionManager.handleGeofenceEntry(stopId);
@@ -235,39 +210,6 @@ export class LoadLocationTrackingService {
         } catch (error) {
             console.error(`[LoadLocationTracking] Failed to update load ${loadId}:`, error);
             return false;
-        }
-    }
-
-    /**
-     * Geocode an address to lat/lng using Google Maps API
-     */
-    private async geocodeAddress(
-        address: string,
-        city: string,
-        state: string,
-        zip?: string
-    ): Promise<{ lat: number; lng: number } | null> {
-        try {
-            const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-            if (!apiKey) {
-                console.debug('[LoadLocationTracking] Google Maps API key not configured');
-                return null;
-            }
-
-            const fullAddress = [address, city, state, zip].filter(Boolean).join(', ');
-            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${apiKey}`;
-
-            const response = await fetch(url);
-            if (!response.ok) return null;
-
-            const data = await response.json();
-            if (data.status !== 'OK' || !data.results?.[0]) return null;
-
-            const location = data.results[0].geometry.location;
-            return { lat: location.lat, lng: location.lng };
-        } catch (error) {
-            console.debug('[LoadLocationTracking] Geocoding failed:', error);
-            return null;
         }
     }
 
@@ -283,7 +225,6 @@ export class LoadLocationTrackingService {
             const loads = await this.getActiveLoadsWithTrucks();
             processed = loads.length;
 
-            // Get unique Samsara vehicle IDs
             const samsaraIds = loads
                 .map((l) => l.truckSamsaraId)
                 .filter((id): id is string => !!id);
@@ -293,10 +234,8 @@ export class LoadLocationTrackingService {
                 return { processed, updated, errors };
             }
 
-            // Fetch all truck locations at once from Samsara
             const truckLocations = await this.getTruckLocations(samsaraIds);
 
-            // Process each load
             for (const load of loads) {
                 if (!load.truckSamsaraId) continue;
 
@@ -305,7 +244,6 @@ export class LoadLocationTrackingService {
 
                 const { latitude: truckLat, longitude: truckLng } = truckLocation.location;
 
-                // Get first pickup stop and last delivery stop for geofence comparison
                 const pickupStop = load.stops.find((s) => s.stopType === 'PICKUP');
                 const deliveryStop = [...load.stops].reverse().find((s) => s.stopType === 'DELIVERY');
 
@@ -314,43 +252,36 @@ export class LoadLocationTrackingService {
                 let approachingPickup = false;
                 let approachingDelivery = false;
 
-                // Check proximity to pickup
-                if (pickupStop && pickupStop.city && pickupStop.state) {
-                    const pickupCoords = await this.geocodeAddress('', pickupStop.city, pickupStop.state);
-                    if (pickupCoords) {
-                        const dist = haversineDistance(truckLat, truckLng, pickupCoords.lat, pickupCoords.lng);
+                if (pickupStop) {
+                    const coords = await resolveStopCoords(pickupStop);
+                    if (coords) {
+                        const dist = haversineDistanceKm(truckLat, truckLng, coords.lat, coords.lng);
                         approachingPickup = dist <= this.geofenceRadiusKm;
                         nearPickup = dist <= (this.geofenceRadiusKm * EXIT_RADIUS_MULTIPLIER);
                     }
                 }
 
-                // Check proximity to delivery
-                if (deliveryStop && deliveryStop.city && deliveryStop.state) {
-                    const deliveryCoords = await this.geocodeAddress('', deliveryStop.city, deliveryStop.state);
-                    if (deliveryCoords) {
-                        const dist = haversineDistance(truckLat, truckLng, deliveryCoords.lat, deliveryCoords.lng);
+                if (deliveryStop) {
+                    const coords = await resolveStopCoords(deliveryStop);
+                    if (coords) {
+                        const dist = haversineDistanceKm(truckLat, truckLng, coords.lat, coords.lng);
                         approachingDelivery = dist <= this.geofenceRadiusKm;
                         nearDelivery = dist <= (this.geofenceRadiusKm * EXIT_RADIUS_MULTIPLIER);
                     }
                 }
 
-                // Determine status change based on proximity
                 const newStatus = determineNextStatus(
-                    load.currentStatus,
-                    nearPickup,
-                    nearDelivery,
-                    approachingPickup,
-                    approachingDelivery
+                    load.currentStatus, nearPickup, nearDelivery,
+                    approachingPickup, approachingDelivery
                 );
+
                 if (newStatus && newStatus !== load.currentStatus) {
-                    // Identify which stop ID to update
                     let targetStopId: string | undefined;
                     if (newStatus === 'AT_PICKUP' && pickupStop) targetStopId = pickupStop.id;
                     if (newStatus === 'AT_DELIVERY' && deliveryStop) targetStopId = deliveryStop.id;
 
                     const success = await this.updateLoadStatus(
-                        load.loadId,
-                        newStatus,
+                        load.loadId, newStatus,
                         { latitude: truckLat, longitude: truckLng },
                         targetStopId
                     );
@@ -374,7 +305,8 @@ export class LoadLocationTrackingService {
 }
 
 /**
- * Process location tracking for all companies with Samsara integration
+ * Process location tracking for all companies with Samsara integration.
+ * Checks both SamsaraSettings and legacy Integration tables.
  */
 export async function processAllCompanies(): Promise<{
     companies: number;
@@ -383,34 +315,39 @@ export async function processAllCompanies(): Promise<{
     errors: string[];
 }> {
     const errors: string[] = [];
-    let companies = 0;
     let totalProcessed = 0;
     let totalUpdated = 0;
 
     try {
-        // Get all companies with active Samsara integration
-        const companiesWithSamsara = await prisma.integration.findMany({
-            where: {
-                provider: 'SAMSARA',
-                isActive: true,
-            },
-            select: { companyId: true },
-        });
+        // Query both tables and deduplicate by companyId
+        const [samsaraSettings, legacyIntegrations] = await Promise.all([
+            prisma.samsaraSettings.findMany({ select: { companyId: true } }),
+            prisma.integration.findMany({
+                where: { provider: 'SAMSARA', isActive: true },
+                select: { companyId: true },
+            }),
+        ]);
 
-        companies = companiesWithSamsara.length;
+        const companyIds = [
+            ...new Set([
+                ...samsaraSettings.map((s) => s.companyId),
+                ...legacyIntegrations.map((i) => i.companyId),
+            ]),
+        ];
 
-        for (const { companyId } of companiesWithSamsara) {
+        for (const companyId of companyIds) {
             const service = new LoadLocationTrackingService(companyId);
             const result = await service.processAllActiveLoads();
             totalProcessed += result.processed;
             totalUpdated += result.updated;
             errors.push(...result.errors);
         }
+
+        return { companies: companyIds.length, totalProcessed, totalUpdated, errors };
     } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
         errors.push(msg);
         console.error('[LoadLocationTracking] Error processing companies:', error);
+        return { companies: 0, totalProcessed, totalUpdated, errors };
     }
-
-    return { companies, totalProcessed, totalUpdated, errors };
 }

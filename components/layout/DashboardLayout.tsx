@@ -1,58 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { signOut } from 'next-auth/react';
 import {
-  LayoutDashboard,
-  Package,
-  Users,
   Truck,
-  Container,
-  Calendar,
-  Building2,
-  BarChart3,
-  Settings,
   Menu,
   X,
-  LogOut,
-  FileText,
-  DollarSign,
-  Search,
-  RefreshCw,
-  MapPin,
-  Shield,
-  Wrench,
-  Warehouse,
-  ClipboardCheck,
-  AlertTriangle,
-  TrendingUp,
-  CreditCard,
-  Store,
-  Navigation,
-  Hash,
-  Grid,
-  Tag,
-  Palette,
-  Sliders,
-  Layers,
-  FileCheck,
-  ChartBar,
-  Network,
-  Calculator,
-  Box,
-  FolderTree,
-  Plug,
-  ShoppingBag,
   ChevronLeft,
   ChevronRight,
   Pin,
   PinOff,
-  History,
-  Key,
-  Bot,
-  UserPlus,
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -62,98 +19,26 @@ import GlobalSearch from '@/components/search/GlobalSearch';
 import McViewSelector from '@/components/mc-numbers/McViewSelector';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { FontSizeToggle } from '@/components/theme/FontSizeToggle';
-import { usePermissions } from '@/hooks/usePermissions';
-import type { Permission } from '@/lib/permissions';
 import { useSession } from 'next-auth/react';
-import { getDepartmentForRoute, hasRouteAccess } from '@/lib/department-access';
-import type { UserRole } from '@/lib/permissions';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import AppVersionBadge from '@/components/layout/AppVersionBadge';
-import { MenuVisibilityManager } from '@/lib/managers/MenuVisibilityManager';
-import type { MenuItemId } from '@/lib/managers/MenuVisibilityManager';
-import SafetyHeaderNav from '@/components/safety/SafetyHeaderNav';
-import AccountingHeaderNav from '@/components/accounting/AccountingHeaderNav';
-import FleetHeaderNav from '@/components/fleet/FleetHeaderNav';
-import LoadHeaderNav from '@/components/loads/LoadHeaderNav';
-import HRHeaderNav from '@/components/hr/HRHeaderNav';
-import CRMHeaderNav from '@/components/crm/CRMHeaderNav';
-import AnalyticsHeaderNav from '@/components/analytics/AnalyticsHeaderNav';
+import SidebarNav from '@/components/layout/SidebarNav';
+import { DepartmentNav } from '@/components/layout/DepartmentNav';
+import {
+  loadNavItems,
+  fleetNavItems,
+  safetyNavItems,
+  accountingNavItems,
+  hrNavItems,
+  crmNavItems,
+  analyticsNavItems,
+} from '@/lib/config/department-nav';
 import AIAssistantChat from '@/components/ai/AIAssistantChat';
 import { SmsMessengerProvider, useSmsMessenger } from '@/lib/contexts/SmsMessengerContext';
 import LeadSmsMessenger from '@/components/crm/LeadSmsMessenger';
 import { SoftphoneProvider } from '@/lib/contexts/SoftphoneContext';
 import Softphone from '@/components/communications/Softphone';
 
-
-interface NavigationItem {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  permission?: Permission;
-  badge?: string; // For "NEW" badges
-}
-
-// Main navigation items (no submenus)
-const mainNavigation: NavigationItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: undefined },
-  { name: 'Load Management', href: '/dashboard/loads', icon: Package, permission: 'loads.view' },
-  { name: 'Fleet Department', href: '/dashboard/fleet', icon: Truck, permission: 'departments.fleet.view' },
-  // Fleet sub-items (visible if user has permission but NOT fleet department view)
-  { name: 'Trucks', href: '/dashboard/trucks', icon: Truck, permission: 'trucks.view' },
-  { name: 'Trailers', href: '/dashboard/trailers', icon: Container, permission: 'trailers.view' },
-  { name: 'Breakdowns', href: '/dashboard/fleet/breakdowns', icon: AlertTriangle, permission: 'breakdowns.view' },
-  { name: 'Accounting Department', href: '/dashboard/accounting', icon: DollarSign, permission: 'departments.accounting.view' },
-  { name: 'Safety Department', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
-  { name: 'HR Management', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },
-  { name: 'Recruiting', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, permission: 'analytics.view' },
-  { name: 'Reports', href: '/dashboard/reports', icon: ChartBar, permission: 'departments.reports.view' },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings, permission: 'departments.settings.view' },
-];
-
-// Super Admin navigation (only visible to SUPER_ADMIN role)
-const superAdminNavigation: NavigationItem[] = [
-  { name: 'Super Admin Dashboard', href: '/dashboard/super-admin', icon: Shield, permission: undefined },
-  { name: 'API Keys', href: '/dashboard/super-admin/api-keys', icon: Key, permission: undefined },
-  { name: 'Audit Logs', href: '/dashboard/super-admin/audit', icon: History, permission: undefined },
-];
-
-function UserProfileSection({ collapsed }: { collapsed?: boolean }) {
-  const { data: session } = useSession();
-
-  if (!session?.user) {
-    return null;
-  }
-
-  const userName = session.user.name || `${session.user.firstName || ''} ${session.user.lastName || ''}`.trim() || 'User';
-  const userEmail = session.user.email || '';
-
-  if (collapsed) {
-    return (
-      <div className="flex items-center justify-center py-2">
-        <div className="rounded-full bg-accent/20 p-2">
-          <Users className="h-4 w-4 text-primary" />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center space-x-3 px-2 py-2">
-      <div className="rounded-full bg-primary/20 p-2">
-        <Users className="h-4 w-4 text-primary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-foreground truncate">
-          {userName}
-        </div>
-        <div className="text-xs text-muted-foreground truncate">
-          {userEmail}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function SmsMessengerOverlay() {
   const { activeLead, closeSmsMessenger } = useSmsMessenger();
@@ -183,7 +68,6 @@ export default function DashboardLayout({
   const [mainSidebarAlwaysShow, setMainSidebarAlwaysShow] = useState(false); // Toggle to always show vs auto-hide
   const [isHovering, setIsHovering] = useState(false);
   const [justManuallyToggled, setJustManuallyToggled] = useState(false);
-  const { can, isAdmin } = usePermissions();
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load main sidebar preferences from localStorage
@@ -317,56 +201,6 @@ export default function DashboardLayout({
   // Check if we're in Analytics section
   const isAnalyticsSection = pathname?.startsWith('/dashboard/analytics');
 
-
-
-
-
-  // Filter navigation items based on permissions, department access, and menu visibility config
-
-
-
-
-  // Filter navigation items based on permissions, department access, and menu visibility config
-  const role = (session?.user?.role || 'CUSTOMER') as UserRole;
-  // Fetch onboarding status to show/hide the link
-
-
-  const visibleNavigation = mainNavigation.filter((item) => {
-    // Dashboard is always visible
-    if (!item.permission) return true;
-
-    // Special handling for Fleet sub-items
-    // If user has access to full Fleet Department, hide individual Truck/Trailer links to avoid clutter
-    if (['Trucks', 'Trailers', 'Breakdowns'].includes(item.name)) {
-      const hasFleetDeptAccess = can('departments.fleet.view');
-      if (hasFleetDeptAccess) return false;
-    }
-
-    // Check both the permission and department access
-    const hasPermission = can(item.permission);
-    const hasDeptAccess = hasRouteAccess(role, item.href);
-    const baseVisibility = hasPermission && hasDeptAccess;
-
-    // Apply menu visibility configuration
-    const menuVisibility = MenuVisibilityManager.isMenuItemVisible(
-      item.href as MenuItemId,
-      role,
-      baseVisibility
-    );
-
-    return menuVisibility;
-  });
-
-  // Debug: Log visible navigation items (only once on mount)
-  useEffect(() => {
-    if (session?.user) {
-      console.log('[DashboardLayout] Session:', {
-        role: session.user.role,
-        visibleItems: visibleNavigation.map(i => i.name)
-      });
-    }
-  }, []); // Empty deps - only log once on mount
-
   return (
     <SoftphoneProvider>
     <SmsMessengerProvider>
@@ -383,7 +217,7 @@ export default function DashboardLayout({
       {!shouldHideMainNav && (
         <aside
           className={cn(
-            'fixed top-0 left-0 z-50 h-full bg-secondary text-secondary-foreground border-r border-border transform transition-all duration-300 ease-in-out',
+            'fixed top-0 left-0 z-50 h-full bg-secondary text-secondary-foreground border-r border-border/50 shadow-lg transform transition-all duration-300 ease-in-out',
             // Mobile: slide in/out (always available)
             sidebarOpen ? 'translate-x-0' : '-translate-x-full',
             // Desktop: hide if mainSidebarHidden is true, otherwise show
@@ -434,253 +268,76 @@ export default function DashboardLayout({
             }
           }}
         >
-          <div className="flex flex-col h-full">
-            {/* Logo */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <div className={cn(
-                'flex items-center space-x-2 transition-opacity',
-                mainSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
-              )}>
-                <div className="rounded-lg bg-primary p-2">
-                  <Truck className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <span className="font-bold text-lg dark:text-foreground whitespace-nowrap">TMS</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Always Show / Auto-Hide Toggle */}
-                <TooltipProvider delayDuration={300}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
-                        onClick={toggleMainSidebarAlwaysShow}
-                      >
-                        {mainSidebarAlwaysShow ? (
-                          <Pin className="h-4 w-4" />
-                        ) : (
-                          <PinOff className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{mainSidebarAlwaysShow ? 'Always show (click to auto-hide)' : 'Auto-hide after 10s (click to always show)'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
-                  onClick={() => {
-                    // Clear any pending timeout
-                    if (hoverTimeoutRef.current) {
-                      clearTimeout(hoverTimeoutRef.current);
-                      hoverTimeoutRef.current = null;
-                    }
-
-                    const newState = !mainSidebarCollapsed;
-                    setMainSidebarCollapsed(newState);
-                    localStorage.setItem('mainSidebarCollapsed', String(newState));
-
-                    // Mark as manually toggled to prevent immediate hover re-expansion
-                    setJustManuallyToggled(true);
-
-                    // Toggle lock state - if expanding manually, lock it open; if collapsing, unlock for hover
-                    // But only if "always show" is disabled
-                    if (!mainSidebarAlwaysShow) {
-                      if (!newState) {
-                        // Expanding - lock it open
-                        localStorage.setItem('mainSidebarManuallyLocked', 'true');
-                      } else {
-                        // Collapsing - unlock for hover behavior, but prevent immediate re-expansion
-                        localStorage.setItem('mainSidebarManuallyLocked', 'false');
-                        // Reset the flag after a short delay to allow hover behavior again
-                        setTimeout(() => {
-                          setJustManuallyToggled(false);
-                        }, 500); // 500ms delay before hover can expand again
-                      }
-                    }
-
-                    // Reset flag when expanding
-                    if (!newState) {
-                      setTimeout(() => {
-                        setJustManuallyToggled(false);
-                      }, 100);
-                    }
-                  }}
-                  title={mainSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                >
-                  {mainSidebarCollapsed ? (
-                    <ChevronRight className="h-5 w-5" />
-                  ) : (
-                    <ChevronLeft className="h-5 w-5" />
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-accent/10"
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Navigation */}
-            <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-              <TooltipProvider delayDuration={300}>
-                {visibleNavigation.map((item) => {
-                  // Get settings URL based on role
-                  const settingsUrl = item.href === '/dashboard/settings'
-                    ? (isAdmin ? '/dashboard/settings/admin' : '/dashboard/settings/employee')
-                    : item.href;
-
-                  // Dashboard should only be active when exactly on /dashboard, not sub-routes
-                  // Other items can be active when on the exact route or sub-routes
-                  const isActive = item.href === '/dashboard'
-                    ? pathname === '/dashboard'
-                    : pathname === item.href || pathname?.startsWith(item.href + '/');
-
-                  const navItem = (
-                    <Link
-                      key={item.name}
-                      href={settingsUrl}
-                      className={cn(
-                        'flex items-center rounded-lg text-sm font-medium transition-colors',
-                        mainSidebarCollapsed ? 'justify-center px-2 py-2' : 'space-x-3 px-3 py-2',
-                        isActive
-                          ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
-                          : 'text-muted-foreground hover:bg-accent/10 hover:text-foreground'
-                      )}
-                      onClick={() => setSidebarOpen(false)}
-                    >
-                      <item.icon className="h-4 w-4 flex-shrink-0" />
-                      {!mainSidebarCollapsed && <span>{item.name}</span>}
-                    </Link>
-                  );
-
-                  if (mainSidebarCollapsed) {
-                    return (
-                      <Tooltip key={item.name}>
-                        <TooltipTrigger asChild>
-                          {navItem}
-                        </TooltipTrigger>
-                        <TooltipContent side="right">
-                          <p>{item.name}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  }
-
-                  return navItem;
-                })}
-
-                {/* Super Admin Section - Only for SUPER_ADMIN role */}
-                {session?.user?.role === 'SUPER_ADMIN' && (
-                  <>
-                    {!mainSidebarCollapsed && (
-                      <div className="px-3 py-2 mt-4 text-xs font-semibold text-status-error/80 uppercase tracking-wider">
-                        System
-                      </div>
-                    )}
-                    {superAdminNavigation.map((item) => {
-                      const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
-
-                      const navItem = (
-                        <Link
-                          key={item.name}
-                          href={item.href}
-                          className={cn(
-                            'flex items-center rounded-lg text-sm font-medium transition-colors',
-                            mainSidebarCollapsed ? 'justify-center p-3' : 'px-3 py-2',
-                            isActive
-                              ? 'bg-status-error text-status-error-foreground shadow-sm shadow-status-error/20'
-                              : 'text-muted-foreground hover:bg-status-error/10 hover:text-status-error'
-                          )}
-                        >
-                          <item.icon className={cn('flex-shrink-0', mainSidebarCollapsed ? 'h-5 w-5' : 'h-5 w-5 mr-3')} />
-                          {!mainSidebarCollapsed && <span>{item.name}</span>}
-                        </Link>
-                      );
-
-                      if (mainSidebarCollapsed) {
-                        return (
-                          <Tooltip key={item.name}>
-                            <TooltipTrigger asChild>{navItem}</TooltipTrigger>
-                            <TooltipContent side="right">{item.name}</TooltipContent>
-                          </Tooltip>
-                        );
-                      }
-
-                      return navItem;
-                    })}
-                  </>
-                )}
-              </TooltipProvider>
-            </nav>
-
-
-            {/* User Profile & Logout */}
+          {/* Logo */}
+          <div className="flex items-center justify-between p-4 border-b border-border">
             <div className={cn(
-              'border-t border-slate-800 dark:border-border space-y-2 transition-opacity',
-              mainSidebarCollapsed ? 'p-2' : 'p-4'
+              'flex items-center space-x-2 transition-opacity',
+              mainSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
             )}>
-              {/* User Profile */}
-              <UserProfileSection collapsed={mainSidebarCollapsed} />
-
-              {/* Logout */}
+              <div className="rounded-lg bg-primary p-2">
+                <Truck className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <span className="font-bold text-lg dark:text-foreground whitespace-nowrap">TMS</span>
+            </div>
+            <div className="flex items-center gap-2">
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      className={cn(
-                        'w-full transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/10',
-                        mainSidebarCollapsed ? 'justify-center px-2' : 'justify-start'
-                      )}
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        try {
-                          const basePath = typeof window !== 'undefined'
-                            ? (process.env.NEXT_PUBLIC_BASE_PATH || '')
-                            : '';
-                          const loginPath = basePath ? `${basePath}/login` : '/login';
-                          await signOut({
-                            redirect: false,
-                            callbackUrl: loginPath
-                          });
-                          // Force navigation even if signOut fails
-                          window.location.href = loginPath;
-                        } catch (error) {
-                          console.error('Logout error:', error);
-                          // Force navigation on error
-                          const basePath = typeof window !== 'undefined'
-                            ? (process.env.NEXT_PUBLIC_BASE_PATH || '')
-                            : '';
-                          const loginPath = basePath ? `${basePath}/login` : '/login';
-                          window.location.href = loginPath;
-                        }
-                      }}
+                      size="icon"
+                      className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                      onClick={toggleMainSidebarAlwaysShow}
                     >
-                      <LogOut className="h-4 w-4 flex-shrink-0" />
-                      {!mainSidebarCollapsed && <span className="ml-3">Sign Out</span>}
+                      {mainSidebarAlwaysShow ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
                     </Button>
                   </TooltipTrigger>
-                  {mainSidebarCollapsed && (
-                    <TooltipContent side="right">
-                      <p>Sign Out</p>
-                    </TooltipContent>
-                  )}
+                  <TooltipContent side="right">
+                    <p>{mainSidebarAlwaysShow ? 'Always show (click to auto-hide)' : 'Auto-hide after 10s (click to always show)'}</p>
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                onClick={() => {
+                  if (hoverTimeoutRef.current) {
+                    clearTimeout(hoverTimeoutRef.current);
+                    hoverTimeoutRef.current = null;
+                  }
+                  const newState = !mainSidebarCollapsed;
+                  setMainSidebarCollapsed(newState);
+                  localStorage.setItem('mainSidebarCollapsed', String(newState));
+                  setJustManuallyToggled(true);
+                  if (!mainSidebarAlwaysShow) {
+                    localStorage.setItem('mainSidebarManuallyLocked', newState ? 'false' : 'true');
+                    setTimeout(() => setJustManuallyToggled(false), newState ? 500 : 100);
+                  } else {
+                    setTimeout(() => setJustManuallyToggled(false), 100);
+                  }
+                }}
+                title={mainSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {mainSidebarCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
             </div>
-            <AppVersionBadge collapsed={mainSidebarCollapsed} />
           </div>
+
+          {/* Grouped Navigation + User Profile + Logout */}
+          <SidebarNav
+            collapsed={mainSidebarCollapsed}
+            onItemClick={() => setSidebarOpen(false)}
+          />
+          <AppVersionBadge collapsed={mainSidebarCollapsed} />
         </aside>
       )}
 
@@ -692,7 +349,7 @@ export default function DashboardLayout({
         !shouldHideMainNav && !mainSidebarHidden && !mainSidebarCollapsed && 'lg:pl-64'
       )}>
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-background border-b border-border dark:bg-card">
+        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 dark:bg-card/80">
           <div className="flex items-center gap-2 px-4 py-3 header-container">
             <Button
               variant="ghost"
@@ -715,48 +372,13 @@ export default function DashboardLayout({
             </Button>
 
             {/* Department Header Navigation - shown only on respective routes */}
-            {isLoadManagementSection && (
-              <>
-                <LoadHeaderNav />
-                <div className="h-6 w-px bg-border flex-shrink-0" />
-              </>
-            )}
-            {isHRSection && (
-              <>
-                <HRHeaderNav />
-                <div className="h-6 w-px bg-border flex-shrink-0" />
-              </>
-            )}
-            {isSafetySection && (
-              <>
-                <SafetyHeaderNav />
-                <div className="h-6 w-px bg-border flex-shrink-0" />
-              </>
-            )}
-            {isAccountingSection && (
-              <>
-                <AccountingHeaderNav />
-                <div className="h-6 w-px bg-border flex-shrink-0" />
-              </>
-            )}
-            {isFleetSection && (
-              <>
-                <FleetHeaderNav />
-                <div className="h-6 w-px bg-border flex-shrink-0" />
-              </>
-            )}
-            {isCRMSection && (
-              <>
-                <CRMHeaderNav />
-                <div className="h-6 w-px bg-border flex-shrink-0" />
-              </>
-            )}
-            {isAnalyticsSection && (
-              <>
-                <AnalyticsHeaderNav />
-                <div className="h-6 w-px bg-border flex-shrink-0" />
-              </>
-            )}
+            {isLoadManagementSection && <DepartmentNav items={loadNavItems} basePath="/dashboard/loads" />}
+            {isFleetSection && <DepartmentNav items={fleetNavItems} basePath="/dashboard/fleet" />}
+            {isSafetySection && <DepartmentNav items={safetyNavItems} basePath="/dashboard/safety" />}
+            {isAccountingSection && <DepartmentNav items={accountingNavItems} />}
+            {isHRSection && <DepartmentNav items={hrNavItems} basePath="/dashboard/hr" />}
+            {isCRMSection && <DepartmentNav items={crmNavItems} basePath="/dashboard/crm" />}
+            {isAnalyticsSection && <DepartmentNav items={analyticsNavItems} basePath="/dashboard/analytics" />}
 
 
             <div className="flex-1 min-w-0" />

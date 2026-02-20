@@ -10,6 +10,7 @@ import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-fi
 import { getDriverFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
+import { handleApiError } from '@/lib/api/route-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -354,14 +355,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Driver list error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 
@@ -563,28 +557,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
-            details: error.issues,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('Driver creation error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 

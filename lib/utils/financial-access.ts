@@ -4,22 +4,22 @@
  * Helper functions to check if a user can access/modify financial data
  */
 
-import type { UserRole } from '@/lib/permissions';
-
 /**
  * Check if user can write/update financial fields
  * Only ADMIN and ACCOUNTANT roles can modify financial data
  */
-export function canWriteFinancialFields(role: UserRole): boolean {
-  return role === 'ADMIN' || role === 'ACCOUNTANT';
+export function canWriteFinancialFields(role: string): boolean {
+  const r = role.toUpperCase().replace('-', '_');
+  return r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'ACCOUNTANT';
 }
 
 /**
  * Check if user can read financial fields
  * ADMIN, ACCOUNTANT, and DISPATCHER can read (dispatchers are read-only)
  */
-function canReadFinancialFields(role: UserRole): boolean {
-  return role === 'ADMIN' || role === 'ACCOUNTANT' || role === 'DISPATCHER';
+function canReadFinancialFields(role: string): boolean {
+  const r = role.toUpperCase().replace('-', '_');
+  return r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'ACCOUNTANT' || r === 'DISPATCHER';
 }
 
 /**

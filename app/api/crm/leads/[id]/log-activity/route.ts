@@ -47,8 +47,10 @@ export async function POST(
             },
         });
 
-        // Update lead: set lastContactedAt and optionally follow-up
+        // Update lead: set lastContactedAt, type-specific timestamp, and optionally follow-up
         const updateData: any = { lastContactedAt: new Date() };
+        if (type === 'CALL') updateData.lastCallAt = new Date();
+        if (type === 'SMS') updateData.lastSmsAt = new Date();
         if (nextFollowUpDate !== undefined) {
             updateData.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
         }

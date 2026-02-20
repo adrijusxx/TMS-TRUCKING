@@ -1,4 +1,4 @@
-import type { Permission, UserRole } from './permissions';
+import type { Permission } from './permissions';
 import { hasPermission } from './permissions';
 
 /**
@@ -41,16 +41,17 @@ export function getDepartmentForRoute(pathname: string): Permission | null {
 }
 
 /**
- * Check if a role has access to a specific department
+ * Check if a role has access to a specific department (sync fallback)
  */
-function hasDepartmentAccess(role: UserRole, department: Permission): boolean {
+function hasDepartmentAccess(role: string, department: Permission): boolean {
   return hasPermission(role, department);
 }
 
 /**
- * Check if a role has access to a route based on its pathname
+ * Check if a role has access to a route based on its pathname.
+ * Accepts roleSlug or legacy UserRole enum string.
  */
-export function hasRouteAccess(role: UserRole, pathname: string): boolean {
+export function hasRouteAccess(role: string, pathname: string): boolean {
   const departmentPermission = getDepartmentForRoute(pathname);
 
   // If no department permission is required, allow access

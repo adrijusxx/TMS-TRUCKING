@@ -4,6 +4,7 @@ import { UsageManager } from '../UsageManager';
 import { SettlementCalculationEngine } from './CalculationEngine';
 import { SettlementGenerationParams } from './types';
 import { LoadStatus } from '@prisma/client';
+import { logger } from '@/lib/utils/logger';
 
 export class SettlementOrchestrator {
     private calculationEngine: SettlementCalculationEngine;
@@ -190,7 +191,7 @@ export class SettlementOrchestrator {
             },
         });
 
-        try { await UsageManager.trackUsage(driver.companyId, 'SETTLEMENTS_GENERATED'); } catch (e) { console.error(e); }
+        try { await UsageManager.trackUsage(driver.companyId, 'SETTLEMENTS_GENERATED'); } catch (e) { logger.error('Failed to track settlement usage', { error: e instanceof Error ? e.message : String(e) }); }
 
         return await prisma.settlement.findUnique({
             where: { id: settlement.id },

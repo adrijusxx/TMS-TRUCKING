@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
+import { LoadingState } from '@/components/ui/loading-state';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -26,13 +27,6 @@ export default function SettingsPage() {
     }
   }, [session, status, isAdmin, router]);
 
-  // Show loading state while redirecting
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <p className="text-muted-foreground">Redirecting to settings...</p>
-      </div>
-    </div>
-  );
+  return <LoadingState message="Redirecting to settings..." className="min-h-[50vh]" />;
 }
 

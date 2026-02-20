@@ -14,6 +14,7 @@ import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSumm
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
 import TodayAtAGlance from '@/components/dashboard/TodayAtAGlance';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { PageTransition } from '@/components/ui/page-transition';
 import OnboardingGuide from '@/components/dashboard/OnboardingGuide';
 import { LoadStatus } from '@prisma/client';
 import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
@@ -227,6 +228,7 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-4 sm:space-y-6">
         <Breadcrumb items={[{ label: 'Dashboard' }]} />
+        <PageTransition>
         <div>
           <h1 className="text-xl sm:text-3xl font-bold">Dashboard</h1>
         </div>
@@ -339,6 +341,7 @@ export default async function DashboardPage() {
             </div>
           </section>
         )}
+        </PageTransition>
       </div>
     );
   } catch (error) {

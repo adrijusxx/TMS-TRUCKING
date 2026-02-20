@@ -1,13 +1,14 @@
 'use client';
 
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import MaintenanceForm from '@/components/maintenance/MaintenanceForm';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { apiUrl } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
-export default function EditMaintenancePage({ params }: { params: { id: string } }) {
-    const { id } = params;
+export default function EditMaintenancePage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = React.use(params);
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['maintenance', id],

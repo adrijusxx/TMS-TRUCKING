@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
         if (error.name === 'ZodError') {
             return NextResponse.json(
-                { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.errors } },
+                { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
                 { status: 400 }
             );
         }

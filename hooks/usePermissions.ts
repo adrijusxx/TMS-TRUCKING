@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
-import { type Permission, type UserRole } from '@/lib/permissions';
+import { type Permission } from '@/lib/permissions';
 import { hasPermission } from '@/lib/permissions'; // Fallback for loading state
 
 /**
@@ -12,9 +12,13 @@ import { hasPermission } from '@/lib/permissions'; // Fallback for loading state
 export function usePermissions() {
   const { data: session, status } = useSession();
 
-  // Fetch permissions from API (database-backed)
+  const roleSlug = session?.user?.roleSlug || session?.user?.role?.toLowerCase().replace('_', '-') || 'customer';
+  const roleId = session?.user?.roleId;
+  const roleName = session?.user?.roleName || session?.user?.role || 'Customer';
+
+  // Fetch effective permissions from API (resolution engine)
   const { data: permissionsData, isLoading: permissionsLoading } = useQuery({
-    queryKey: ['user-permissions', session?.user?.role],
+    queryKey: ['user-permissions', session?.user?.id, roleId, roleSlug],
     queryFn: async () => {
       if (!session?.user) return null;
 
@@ -23,74 +27,70 @@ export function usePermissions() {
         throw new Error('Failed to fetch permissions');
       }
       const result = await response.json();
-      return result.data as { role: UserRole; permissions: Permission[] };
+      return result.data as { roleSlug: string; roleName: string; permissions: Permission[] };
     },
-    enabled: !!session?.user, // Only fetch if session exists
+    enabled: !!session?.user,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: 1,
   });
 
   // Return default permissions if session is loading or not available
   if (status === 'loading' || !session || permissionsLoading) {
-    const defaultRole = (session?.user?.role || 'CUSTOMER') as UserRole;
+    const defaultRole = (session?.user?.role || 'CUSTOMER') as string;
 
     return {
+      /** @deprecated Use roleSlug instead */
       role: defaultRole,
+      roleSlug,
+      roleId,
+      roleName,
       can: (permission: Permission) => hasPermission(defaultRole, permission),
       canAny: (permissions: Permission[]) => permissions.some((p) => hasPermission(defaultRole, p)),
       canAll: (permissions: Permission[]) => permissions.every((p) => hasPermission(defaultRole, p)),
-      isAdmin: defaultRole === 'ADMIN' || defaultRole === 'SUPER_ADMIN',
-      isDispatcher: defaultRole === 'DISPATCHER',
-      isAccountant: defaultRole === 'ACCOUNTANT',
-      isDriver: defaultRole === 'DRIVER',
-      isCustomer: defaultRole === 'CUSTOMER',
-      isEmployee: defaultRole !== 'ADMIN',
+      isAdmin: roleSlug === 'admin' || roleSlug === 'super-admin',
+      isDispatcher: roleSlug === 'dispatcher',
+      isAccountant: roleSlug === 'accountant',
+      isDriver: roleSlug === 'driver',
+      isCustomer: roleSlug === 'customer',
+      isEmployee: roleSlug !== 'admin' && roleSlug !== 'super-admin',
+      isSystemRole: true, // assume system during loading
       isLoading: true,
     };
   }
 
-  const role = (session?.user?.role || 'CUSTOMER') as UserRole;
-  // Ensure permissions is always an array
   const permissions = Array.isArray(permissionsData?.permissions) ? permissionsData.permissions : [];
 
   const can = (permission: Permission): boolean => {
-    // Use database permissions if available, otherwise fallback to static
-    if (Array.isArray(permissions) && permissions.length > 0) {
-      return permissions.includes(permission);
-    }
-    return hasPermission(role, permission);
+    if (roleSlug === 'super-admin') return true;
+    if (permissions.length > 0) return permissions.includes(permission);
+    // Fallback to static defaults
+    return hasPermission(session.user.role || 'CUSTOMER', permission);
   };
 
   const canAny = (permissionsList: Permission[]): boolean => {
-    if (Array.isArray(permissions) && permissions.length > 0) {
-      return permissionsList.some((permission) => permissions.includes(permission));
-    }
-    return permissionsList.some((permission) => hasPermission(role, permission));
+    return permissionsList.some((p) => can(p));
   };
 
   const canAll = (permissionsList: Permission[]): boolean => {
-    if (Array.isArray(permissions) && permissions.length > 0) {
-      return permissionsList.every((permission) => permissions.includes(permission));
-    }
-    return permissionsList.every((permission) => hasPermission(role, permission));
-  };
-
-  const isEmployee = (): boolean => {
-    return role !== 'ADMIN';
+    return permissionsList.every((p) => can(p));
   };
 
   return {
-    role,
+    /** @deprecated Use roleSlug instead */
+    role: session.user.role || roleSlug.toUpperCase(),
+    roleSlug,
+    roleId,
+    roleName,
     can,
     canAny,
     canAll,
-    isAdmin: role === 'ADMIN' || role === 'SUPER_ADMIN',
-    isDispatcher: role === 'DISPATCHER',
-    isAccountant: role === 'ACCOUNTANT',
-    isDriver: role === 'DRIVER',
-    isCustomer: role === 'CUSTOMER',
-    isEmployee: isEmployee(),
+    isAdmin: roleSlug === 'admin' || roleSlug === 'super-admin',
+    isDispatcher: roleSlug === 'dispatcher',
+    isAccountant: roleSlug === 'accountant',
+    isDriver: roleSlug === 'driver',
+    isCustomer: roleSlug === 'customer',
+    isEmployee: roleSlug !== 'admin' && roleSlug !== 'super-admin',
+    isSystemRole: !roleId || ['super-admin', 'admin', 'dispatcher', 'driver', 'customer', 'accountant', 'hr', 'safety', 'fleet'].includes(roleSlug),
     isLoading: false,
   };
 }
-

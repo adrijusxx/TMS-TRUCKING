@@ -3,46 +3,22 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    Plus,
-    Search,
-    Phone,
-    RefreshCw,
-    ArrowRight,
-    UserPlus,
-    Upload,
-    MessageSquare,
-    Mail,
-} from 'lucide-react';
-import Link from 'next/link';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Phone, MessageSquare, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow, isPast } from 'date-fns';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import LeadSheet from './LeadSheet';
+import LeadListToolbar from './LeadListToolbar';
+import LeadBulkActionBar from './LeadBulkActionBar';
 import LogActivityDialog from './LogActivityDialog';
 import BulkStatusDialog from './BulkStatusDialog';
 import BulkAssignDialog from './BulkAssignDialog';
 import BulkSmsDialog from './BulkSmsDialog';
 import BulkEmailDialog from './BulkEmailDialog';
-import ExportLeadsButton from './ExportLeadsButton';
 import { useSmsMessenger } from '@/lib/contexts/SmsMessengerContext';
 import { useClickToCall } from '@/lib/hooks/useClickToCall';
 
@@ -59,7 +35,11 @@ interface Lead {
     assignedTo: { firstName: string; lastName: string } | null;
     createdAt: string;
     lastContactedAt: string | null;
+    lastCallAt: string | null;
+    lastSmsAt: string | null;
     nextFollowUpDate: string | null;
+    aiSummary: string | null;
+    latestNote: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -80,25 +60,8 @@ const priorityColors: Record<string, string> = {
     COLD: 'bg-slate-500/20 text-slate-600 border-slate-500/30',
 };
 
-const statusOptions = [
-    { value: 'all', label: 'All Statuses' },
-    { value: 'NEW', label: 'New' },
-    { value: 'CONTACTED', label: 'Contacted' },
-    { value: 'QUALIFIED', label: 'Qualified' },
-    { value: 'DOCUMENTS_PENDING', label: 'Docs Pending' },
-    { value: 'DOCUMENTS_COLLECTED', label: 'Docs Collected' },
-    { value: 'INTERVIEW', label: 'Interview' },
-    { value: 'OFFER', label: 'Offer' },
-    { value: 'HIRED', label: 'Hired' },
-    { value: 'REJECTED', label: 'Rejected' },
-];
-
-const priorityOptions = [
-    { value: 'all', label: 'All Priorities' },
-    { value: 'HOT', label: 'Hot' },
-    { value: 'WARM', label: 'Warm' },
-    { value: 'COLD', label: 'Cold' },
-];
+const formatStatus = (status: string) =>
+    status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
 export default function LeadListClient() {
     const [searchQuery, setSearchQuery] = useState('');
@@ -113,6 +76,7 @@ export default function LeadListClient() {
     const [bulkEmailOpen, setBulkEmailOpen] = useState(false);
     const [emailDialogLeadId, setEmailDialogLeadId] = useState<string | null>(null);
     const { openSmsMessenger } = useSmsMessenger();
+    const { initiateCall } = useClickToCall();
 
     const { data, isLoading, refetch, isFetching } = useQuery({
         queryKey: ['leads', searchQuery, statusFilter, priorityFilter],
@@ -121,7 +85,6 @@ export default function LeadListClient() {
             if (searchQuery) params.append('search', searchQuery);
             if (statusFilter !== 'all') params.append('status', statusFilter);
             if (priorityFilter !== 'all') params.append('priority', priorityFilter);
-
             const res = await fetch(`/api/crm/leads?${params.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch leads');
             return res.json();
@@ -131,163 +94,37 @@ export default function LeadListClient() {
 
     const leads: Lead[] = data?.leads || [];
 
-    const handleRowClick = (leadId: string) => {
-        setSelectedLeadId(leadId);
-        setIsSheetOpen(true);
-    };
+    const toggleSelect = (id: string) =>
+        setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
-    const handleAddNew = () => {
-        setSelectedLeadId(null);
-        setIsSheetOpen(true);
-    };
+    const toggleSelectAll = () =>
+        setSelectedIds(selectedIds.length === leads.length ? [] : leads.map((l) => l.id));
 
-    const formatStatus = (status: string) => {
-        return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    };
-
-    const { initiateCall } = useClickToCall();
-
-    const toggleSelect = (id: string) => {
-        setSelectedIds((prev) =>
-            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-        );
-    };
-
-    const toggleSelectAll = () => {
-        if (selectedIds.length === leads.length) {
-            setSelectedIds([]);
-        } else {
-            setSelectedIds(leads.map((l) => l.id));
-        }
-    };
-
-    const handleBulkSuccess = () => {
-        setSelectedIds([]);
-        refetch();
-    };
+    const handleBulkSuccess = () => { setSelectedIds([]); refetch(); };
 
     return (
         <div className="space-y-4">
-            {/* Filters */}
-            <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search leads..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9"
-                    />
-                </div>
+            <LeadListToolbar
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                statusFilter={statusFilter}
+                onStatusChange={setStatusFilter}
+                priorityFilter={priorityFilter}
+                onPriorityChange={setPriorityFilter}
+                onRefresh={() => refetch()}
+                isFetching={isFetching}
+                onAddNew={() => { setSelectedLeadId(null); setIsSheetOpen(true); }}
+            />
 
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[160px]">
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {statusOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            <LeadBulkActionBar
+                selectedCount={selectedIds.length}
+                onChangeStatus={() => setBulkStatusOpen(true)}
+                onAssign={() => setBulkAssignOpen(true)}
+                onSendSms={() => setBulkSmsOpen(true)}
+                onSendEmail={() => setBulkEmailOpen(true)}
+                onClear={() => setSelectedIds([])}
+            />
 
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-[140px]">
-                        <SelectValue placeholder="Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {priorityOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <div className="flex-1" />
-
-                <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => refetch()}
-                    disabled={isFetching}
-                >
-                    <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-                </Button>
-
-                <ExportLeadsButton
-                    status={statusFilter !== 'all' ? statusFilter : undefined}
-                    priority={priorityFilter !== 'all' ? priorityFilter : undefined}
-                />
-
-                <Button variant="outline" asChild>
-                    <Link href="/dashboard/crm/import">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Import
-                    </Link>
-                </Button>
-
-                <Button onClick={handleAddNew}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Lead
-                </Button>
-            </div>
-
-            {/* Bulk Action Bar */}
-            {selectedIds.length > 0 && (
-                <div className="flex items-center gap-3 rounded-lg border bg-muted/50 p-3">
-                    <span className="text-sm font-medium">
-                        {selectedIds.length} selected
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBulkStatusOpen(true)}
-                        className="gap-1"
-                    >
-                        <ArrowRight className="h-3.5 w-3.5" />
-                        Change Status
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBulkAssignOpen(true)}
-                        className="gap-1"
-                    >
-                        <UserPlus className="h-3.5 w-3.5" />
-                        Assign
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBulkSmsOpen(true)}
-                        className="gap-1"
-                    >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        Send SMS
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBulkEmailOpen(true)}
-                        className="gap-1"
-                    >
-                        <Mail className="h-3.5 w-3.5" />
-                        Send Email
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedIds([])}
-                    >
-                        Clear
-                    </Button>
-                </div>
-            )}
-
-            {/* Table */}
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
@@ -303,19 +140,21 @@ export default function LeadListClient() {
                             <TableHead>Status</TableHead>
                             <TableHead>Priority</TableHead>
                             <TableHead>Source</TableHead>
+                            <TableHead>Last Call</TableHead>
+                            <TableHead>Last SMS</TableHead>
                             <TableHead>Created</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                                     Loading leads...
                                 </TableCell>
                             </TableRow>
                         ) : leads.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                                     No leads found. Click &quot;Add Lead&quot; to create your first recruiting lead.
                                 </TableCell>
                             </TableRow>
@@ -327,7 +166,7 @@ export default function LeadListClient() {
                                         'cursor-pointer hover:bg-muted/50',
                                         selectedIds.includes(lead.id) && 'bg-muted/30'
                                     )}
-                                    onClick={() => handleRowClick(lead.id)}
+                                    onClick={() => { setSelectedLeadId(lead.id); setIsSheetOpen(true); }}
                                 >
                                     <TableCell onClick={(e) => e.stopPropagation()}>
                                         <Checkbox
@@ -336,80 +175,64 @@ export default function LeadListClient() {
                                         />
                                     </TableCell>
                                     <TableCell className="font-medium">
-                                        {lead.firstName} {lead.lastName}
-                                    </TableCell>
-                                    <TableCell onClick={(e) => e.stopPropagation()}>
-                                        <TooltipProvider delayDuration={300}>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-sm text-muted-foreground truncate max-w-[120px]">
-                                                {lead.phone}
-                                            </span>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <button
-                                                        onClick={(e) => initiateCall(lead.phone, e)}
-                                                        className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-muted-foreground hover:text-blue-600 transition-colors"
-                                                    >
-                                                        <Phone className="h-3.5 w-3.5" />
-                                                    </button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Call</TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <button
-                                                        onClick={() => openSmsMessenger({
-                                                            leadId: lead.id,
-                                                            leadName: `${lead.firstName} ${lead.lastName}`,
-                                                            leadPhone: lead.phone,
-                                                        })}
-                                                        className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-muted-foreground hover:text-green-600 transition-colors"
-                                                    >
-                                                        <MessageSquare className="h-3.5 w-3.5" />
-                                                    </button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>SMS</TooltipContent>
-                                            </Tooltip>
-                                            {lead.email && (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <button
-                                                            onClick={() => setEmailDialogLeadId(lead.id)}
-                                                            className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/30 text-muted-foreground hover:text-purple-600 transition-colors"
-                                                        >
-                                                            <Mail className="h-3.5 w-3.5" />
-                                                        </button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>Email</TooltipContent>
-                                                </Tooltip>
+                                        <div>
+                                            {lead.firstName} {lead.lastName}
+                                            {lead.aiSummary && (
+                                                <p className="text-xs text-muted-foreground font-normal line-clamp-1 mt-0.5">
+                                                    {lead.aiSummary}
+                                                </p>
                                             )}
                                         </div>
-                                        </TooltipProvider>
+                                    </TableCell>
+                                    <TableCell onClick={(e) => e.stopPropagation()}>
+                                        <ContactCell
+                                            lead={lead}
+                                            onCall={initiateCall}
+                                            onSms={openSmsMessenger}
+                                            onEmail={setEmailDialogLeadId}
+                                        />
                                     </TableCell>
                                     <TableCell>
-                                        <Badge
-                                            variant="outline"
-                                            className={cn('text-xs', statusColors[lead.status])}
-                                        >
+                                        <Badge variant="outline" className={cn('text-xs', statusColors[lead.status])}>
                                             {formatStatus(lead.status)}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge
-                                            variant="outline"
-                                            className={cn('text-xs', priorityColors[lead.priority])}
-                                        >
+                                        <Badge variant="outline" className={cn('text-xs', priorityColors[lead.priority])}>
                                             {lead.priority}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-sm">
                                         {lead.source.replace(/_/g, ' ')}
                                     </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">
+                                        {lead.lastCallAt ? (
+                                            <div className="flex items-center gap-1">
+                                                <Phone className="h-3 w-3" />
+                                                {formatDistanceToNow(new Date(lead.lastCallAt), { addSuffix: true })}
+                                            </div>
+                                        ) : <span className="text-muted-foreground/50">--</span>}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">
+                                        {lead.lastSmsAt ? (
+                                            <div className="flex items-center gap-1">
+                                                <MessageSquare className="h-3 w-3" />
+                                                {formatDistanceToNow(new Date(lead.lastSmsAt), { addSuffix: true })}
+                                            </div>
+                                        ) : <span className="text-muted-foreground/50">--</span>}
+                                    </TableCell>
                                     <TableCell className="text-sm">
-                                        <span className="text-muted-foreground">{formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}</span>
+                                        <span className="text-muted-foreground">
+                                            {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
+                                        </span>
                                         {lead.nextFollowUpDate && (
-                                            <div className={cn('text-xs mt-0.5', isPast(new Date(lead.nextFollowUpDate)) ? 'text-red-500 font-medium' : 'text-muted-foreground')}>
-                                                {isPast(new Date(lead.nextFollowUpDate)) ? 'Follow-up overdue' : `Follow-up ${formatDistanceToNow(new Date(lead.nextFollowUpDate), { addSuffix: true })}`}
+                                            <div className={cn(
+                                                'text-xs mt-0.5',
+                                                isPast(new Date(lead.nextFollowUpDate)) ? 'text-red-500 font-medium' : 'text-muted-foreground'
+                                            )}>
+                                                {isPast(new Date(lead.nextFollowUpDate))
+                                                    ? 'Follow-up overdue'
+                                                    : `Follow-up ${formatDistanceToNow(new Date(lead.nextFollowUpDate), { addSuffix: true })}`}
                                             </div>
                                         )}
                                     </TableCell>
@@ -420,56 +243,85 @@ export default function LeadListClient() {
                 </Table>
             </div>
 
-            {/* Lead Sheet */}
             <LeadSheet
                 open={isSheetOpen}
                 onOpenChange={setIsSheetOpen}
                 leadId={selectedLeadId}
-                onSuccess={() => {
-                    refetch();
-                    setIsSheetOpen(false);
-                }}
+                onSuccess={() => { refetch(); setIsSheetOpen(false); }}
             />
 
-            {/* Bulk Dialogs */}
-            <BulkStatusDialog
-                open={bulkStatusOpen}
-                onOpenChange={setBulkStatusOpen}
-                selectedIds={selectedIds}
-                onSuccess={handleBulkSuccess}
-            />
-            <BulkAssignDialog
-                open={bulkAssignOpen}
-                onOpenChange={setBulkAssignOpen}
-                selectedIds={selectedIds}
-                onSuccess={handleBulkSuccess}
-            />
-            <BulkSmsDialog
-                open={bulkSmsOpen}
-                onOpenChange={setBulkSmsOpen}
-                selectedIds={selectedIds}
-                onSuccess={handleBulkSuccess}
-            />
-            <BulkEmailDialog
-                open={bulkEmailOpen}
-                onOpenChange={setBulkEmailOpen}
-                selectedIds={selectedIds}
-                onSuccess={handleBulkSuccess}
-            />
+            <BulkStatusDialog open={bulkStatusOpen} onOpenChange={setBulkStatusOpen} selectedIds={selectedIds} onSuccess={handleBulkSuccess} />
+            <BulkAssignDialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen} selectedIds={selectedIds} onSuccess={handleBulkSuccess} />
+            <BulkSmsDialog open={bulkSmsOpen} onOpenChange={setBulkSmsOpen} selectedIds={selectedIds} onSuccess={handleBulkSuccess} />
+            <BulkEmailDialog open={bulkEmailOpen} onOpenChange={setBulkEmailOpen} selectedIds={selectedIds} onSuccess={handleBulkSuccess} />
 
-            {/* Per-row email dialog */}
             {emailDialogLeadId && (
                 <LogActivityDialog
                     open={!!emailDialogLeadId}
                     onOpenChange={(open) => { if (!open) setEmailDialogLeadId(null); }}
                     leadId={emailDialogLeadId}
                     activityType="EMAIL"
-                    onSuccess={() => {
-                        setEmailDialogLeadId(null);
-                        refetch();
-                    }}
+                    onSuccess={() => { setEmailDialogLeadId(null); refetch(); }}
                 />
             )}
         </div>
+    );
+}
+
+interface ContactCellProps {
+    lead: Lead;
+    onCall: (phone: string, e?: React.MouseEvent) => void;
+    onSms: (data: { leadId: string; leadName: string; leadPhone: string }) => void;
+    onEmail: (leadId: string) => void;
+}
+
+function ContactCell({ lead, onCall, onSms, onEmail }: ContactCellProps) {
+    return (
+        <TooltipProvider delayDuration={300}>
+            <div className="flex items-center gap-1.5">
+                <span className="text-sm text-muted-foreground truncate max-w-[120px]">
+                    {lead.phone}
+                </span>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            onClick={(e) => onCall(lead.phone, e)}
+                            className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-muted-foreground hover:text-blue-600 transition-colors"
+                        >
+                            <Phone className="h-3.5 w-3.5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Call</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <button
+                            onClick={() => onSms({
+                                leadId: lead.id,
+                                leadName: `${lead.firstName} ${lead.lastName}`,
+                                leadPhone: lead.phone,
+                            })}
+                            className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-muted-foreground hover:text-green-600 transition-colors"
+                        >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent>SMS</TooltipContent>
+                </Tooltip>
+                {lead.email && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                onClick={() => onEmail(lead.id)}
+                                className="p-1 rounded hover:bg-purple-100 dark:hover:bg-purple-900/30 text-muted-foreground hover:text-purple-600 transition-colors"
+                            >
+                                <Mail className="h-3.5 w-3.5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Email</TooltipContent>
+                    </Tooltip>
+                )}
+            </div>
+        </TooltipProvider>
     );
 }

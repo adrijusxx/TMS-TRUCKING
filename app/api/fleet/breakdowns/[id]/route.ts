@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { UserRole } from '@prisma/client';
+// UserRole enum removed — using string role checks
 
 export async function DELETE(
     request: NextRequest,
@@ -25,7 +25,7 @@ export async function DELETE(
             select: { role: true },
         });
 
-        if (user?.role !== UserRole.ADMIN) {
+        if (user?.role !== 'ADMIN') {
             return NextResponse.json(
                 { success: false, error: 'Forbidden: Only Admins can delete breakdowns' },
                 { status: 403 }

@@ -1,18 +1,20 @@
-import { type UserRole } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
 
 /**
  * Role-based data filtering utilities
  * These functions return Prisma where clauses to filter data based on user role and assignments
- * 
+ *
  * NOTE: These filters handle role-based access (e.g., dispatcher sees their loads)
  * MC filtering should be applied separately using buildMcNumberWhereClause
  * The filters returned here should be combined with MC filters in API routes
+ *
+ * The `role` field accepts either legacy UserRole enum strings (e.g., 'DISPATCHER')
+ * or new roleSlug strings (e.g., 'dispatcher'). Both are matched case-insensitively.
  */
 
 interface RoleFilterContext {
   userId: string;
-  role: UserRole;
+  role: string; // UserRole enum or roleSlug
   companyId: string;
   mcNumberId?: string | { in: string[] }; // Can be single ID or array for multi-MC
 }
@@ -37,7 +39,8 @@ export async function getLoadFilter(context: RoleFilterContext): Promise<any> {
     deletedAt: null,
   };
 
-  switch (role) {
+  const roleNorm = role.toUpperCase().replace('-', '_'); // normalize slug → enum format
+  switch (roleNorm) {
     case 'DISPATCHER': {
       // Check company setting for dispatcher load visibility
       const companySettings = await prisma.companySettings.findUnique({
@@ -174,7 +177,8 @@ export async function getDriverFilter(context: RoleFilterContext): Promise<any> 
 
   // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
 
-  switch (role) {
+  const driverRoleNorm = role.toUpperCase().replace('-', '_');
+  switch (driverRoleNorm) {
     case 'DISPATCHER':
       return {
         ...baseFilter,
@@ -195,6 +199,7 @@ export async function getDriverFilter(context: RoleFilterContext): Promise<any> 
     case 'FLEET':
     case 'ACCOUNTANT':
     case 'ADMIN':
+    case 'SUPER_ADMIN':
     case 'DRIVER':
     case 'CUSTOMER':
     default:
@@ -281,7 +286,8 @@ export async function getInvoiceFilter(context: RoleFilterContext): Promise<any>
   // NOTE: mcNumberId filtering removed - apply separately via buildMcNumberWhereClause
 
   // Accountants and admins see all invoices (filtered by company through customer)
-  if (role === 'ACCOUNTANT' || role === 'ADMIN') {
+  const invoiceRoleNorm = role.toUpperCase().replace('-', '_');
+  if (invoiceRoleNorm === 'ACCOUNTANT' || invoiceRoleNorm === 'ADMIN' || invoiceRoleNorm === 'SUPER_ADMIN') {
     // If viewing all companies (admin), remove company filter
     if (companyId === 'ADMIN_ALL_COMPANIES') {
       return {
@@ -337,7 +343,8 @@ export async function getSettlementFilter(context: RoleFilterContext): Promise<a
   // Settlement model doesn't have deletedAt field, so we don't filter by it
 
   // Accountants see all settlements (company filtering via driver relation)
-  if (role === 'ACCOUNTANT' || role === 'ADMIN') {
+  const settlementRoleNorm = role.toUpperCase().replace('-', '_');
+  if (settlementRoleNorm === 'ACCOUNTANT' || settlementRoleNorm === 'ADMIN' || settlementRoleNorm === 'SUPER_ADMIN') {
     return baseFilter;
   }
 
@@ -376,7 +383,7 @@ export async function getSettlementFilter(context: RoleFilterContext): Promise<a
  */
 export function createFilterContext(
   userId: string,
-  role: UserRole,
+  role: string,
   companyId: string,
   mcNumberId?: string | { in: string[] }
 ): RoleFilterContext {

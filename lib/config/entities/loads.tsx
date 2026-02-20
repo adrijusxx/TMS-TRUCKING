@@ -15,6 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { SelfFetchingTrackingBadge } from '@/components/loads/LoadTrackingBadge';
 
 interface LoadData {
   id: string;
@@ -235,6 +236,21 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       value: status,
       label: formatStatus(status as LoadStatus),
     })),
+  },
+  {
+    id: 'tracking',
+    header: 'Tracking',
+    cell: ({ row }) => (
+      <SelfFetchingTrackingBadge
+        loadId={row.original.id}
+        loadStatus={row.original.status}
+        compact
+      />
+    ),
+    defaultVisible: false,
+    enableSorting: false,
+    enableColumnFilter: false,
+    tooltip: 'Live GPS tracking: ETA, speed, and proximity to next stop via Samsara.',
   },
   {
     id: 'origin',

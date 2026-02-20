@@ -33,7 +33,7 @@ export default function LeadNotes({ leadId }: { leadId: string }) {
             setNotes(data.data);
         } catch (error) {
             console.error(error);
-            toast.error('Failed to load notes');
+            toast.error('Failed to load notes', { id: `notes-error-${leadId}` });
         } finally {
             setInitialLoading(false);
         }

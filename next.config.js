@@ -48,6 +48,9 @@ const nextConfig = {
   // REQUIRED for AWS EC2 Deployment
   output: 'standalone',
 
+  // Ensure node-cron is resolved at runtime (not bundled)
+  serverExternalPackages: ['node-cron'],
+
   // Reduce logging verbosity
   logging: {
     fetches: {

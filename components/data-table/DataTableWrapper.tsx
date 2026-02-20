@@ -299,6 +299,18 @@ export function DataTableWrapper<TData extends Record<string, any>>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.entityType, enableColumnVisibility, defaultVisibilityString]); // Use stringified version for comparison
 
+  // Initialize column order from visible columns if not yet set (e.g. no saved preferences)
+  React.useEffect(() => {
+    if (enableColumnReorder && columnOrder.length === 0 && visibleColumns.length > 0) {
+      const ids = visibleColumns.map(
+        (col) => col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : '')
+      ).filter(Boolean);
+      if (ids.length > 0) {
+        setColumnOrder(ids);
+      }
+    }
+  }, [enableColumnReorder, columnOrder.length, visibleColumns]);
+
   // Apply column visibility to columns
   const filteredColumns = React.useMemo(() => {
     return visibleColumns.filter((column) => {
@@ -653,6 +665,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
         data={data?.data || []}
         isLoading={isLoading}
         error={error}
+        onRetry={refetch}
         rowSelection={rowSelection}
         onRowSelectionChange={handleRowSelectionChange}
         sorting={sorting}

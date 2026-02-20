@@ -143,7 +143,7 @@ export function DataTable<TData extends Record<string, any>>({
       />
 
       {/* 2. The Table Grid */}
-      <div className="rounded-md border">
+      <div className="rounded-xl border shadow-card overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

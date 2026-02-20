@@ -223,8 +223,8 @@ export type Permission =
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER' | 'HR' | 'SAFETY' | 'FLEET';
 
-// Default permissions for each role
-export const rolePermissions: Record<UserRole, Permission[]> = {
+// Default permissions for each system role (used for seeding and sync fallback)
+export const systemRoleDefaults: Record<string, Permission[]> = {
   SUPER_ADMIN: [
     // Full access to everything - explicitly listed for UI compatibility
     'loads.view', 'loads.create', 'loads.edit', 'loads.delete', 'loads.assign',
@@ -486,13 +486,16 @@ export const rolePermissions: Record<UserRole, Permission[]> = {
   ],
 };
 
+/** @deprecated Use systemRoleDefaults instead */
+export const rolePermissions = systemRoleDefaults as Record<UserRole, Permission[]>;
+
 /**
  * Check if a role has a specific permission (synchronous - uses defaults)
- * For database-backed permissions, use PermissionService.hasPermission() instead
+ * For database-backed permissions, use PermissionResolutionEngine.hasPermission() instead
  */
-export function hasPermission(role: UserRole, permission: Permission): boolean {
-  if (role === 'SUPER_ADMIN') return true;
-  const permissions = rolePermissions[role] || [];
+export function hasPermission(role: UserRole | string, permission: Permission): boolean {
+  if (role === 'SUPER_ADMIN' || role === 'super-admin') return true;
+  const permissions = systemRoleDefaults[role] || [];
   return permissions.includes(permission);
 }
 
@@ -514,10 +517,10 @@ function hasAllPermissions(role: UserRole, permissions: Permission[]): boolean {
 
 /**
  * Get all permissions for a role (synchronous - uses defaults)
- * For database-backed permissions, use PermissionService.getRolePermissions() instead
+ * For database-backed permissions, use PermissionResolutionEngine instead
  */
-export function getRolePermissions(role: UserRole): Permission[] {
-  return rolePermissions[role] || [];
+export function getRolePermissions(role: UserRole | string): Permission[] {
+  return systemRoleDefaults[role] || [];
 }
 
 

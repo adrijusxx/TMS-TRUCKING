@@ -73,8 +73,8 @@ export async function POST(
             },
         });
 
-        // Update lead: lastContactedAt + optional follow-up
-        const updateData: Record<string, any> = { lastContactedAt: new Date() };
+        // Update lead: lastContactedAt, lastSmsAt + optional follow-up
+        const updateData: Record<string, any> = { lastContactedAt: new Date(), lastSmsAt: new Date() };
         if (nextFollowUpDate !== undefined) {
             updateData.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
         }

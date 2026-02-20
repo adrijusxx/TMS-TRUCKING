@@ -1,5 +1,5 @@
 
-import { PrismaClient, UserRole } from '@prisma/client';
+// PrismaClient inherited from BaseImporter
 import { BaseImporter, ImportResult } from './BaseImporter';
 import { getRowValue } from '@/lib/import-export/import-utils';
 import * as bcrypt from 'bcryptjs';
@@ -154,20 +154,20 @@ export class EmployeeImporter extends BaseImporter {
     }
 
 
-    private mapUserRoleSmart(value: any, entity?: string): UserRole {
+    private mapUserRoleSmart(value: any, entity?: string): string {
         if (!value) {
-            if (entity === 'dispatchers') return UserRole.DISPATCHER;
-            if (entity === 'employees') return UserRole.DISPATCHER;
-            return UserRole.DISPATCHER;
+            if (entity === 'dispatchers') return 'DISPATCHER';
+            if (entity === 'employees') return 'DISPATCHER';
+            return 'DISPATCHER';
         }
 
         const v = String(value).toUpperCase().trim();
-        if (v.includes('ADMIN')) return UserRole.ADMIN;
-        if (v.includes('DISPATCH')) return UserRole.DISPATCHER;
-        if (v.includes('ACCOUNT') || v.includes('BILLING')) return UserRole.ACCOUNTANT;
-        if (v.includes('DRIVER')) return UserRole.DRIVER;
-        if (v.includes('SUPER')) return UserRole.SUPER_ADMIN;
+        if (v.includes('ADMIN')) return 'ADMIN';
+        if (v.includes('DISPATCH')) return 'DISPATCHER';
+        if (v.includes('ACCOUNT') || v.includes('BILLING')) return 'ACCOUNTANT';
+        if (v.includes('DRIVER')) return 'DRIVER';
+        if (v.includes('SUPER')) return 'SUPER_ADMIN';
 
-        return UserRole.DISPATCHER;
+        return 'DISPATCHER';
     }
 }

@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 import { CreateLoadInput } from '@/lib/validations/load';
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
+import { geocodeAddress } from '@/lib/maps/google-maps';
 
 /**
  * Safely parse a date value - returns null if invalid
@@ -410,5 +411,32 @@ export async function checkLoadNumberExists(
     },
   });
   return !!existingLoad;
+}
+
+/**
+ * Geocode all stops for a load that don't have coordinates yet.
+ * Best-effort — failures are logged but don't break anything.
+ * Call fire-and-forget after load creation.
+ */
+export async function geocodeLoadStops(loadId: string): Promise<void> {
+  try {
+    const stops = await prisma.loadStop.findMany({
+      where: { loadId, lat: null },
+      select: { id: true, address: true, city: true, state: true, zip: true },
+    });
+
+    for (const stop of stops) {
+      const fullAddress = [stop.address, stop.city, stop.state, stop.zip].filter(Boolean).join(', ');
+      const result = await geocodeAddress(fullAddress);
+      if (result) {
+        await prisma.loadStop.update({
+          where: { id: stop.id },
+          data: { lat: result.lat, lng: result.lng, geocodedAt: new Date() },
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`[geocodeLoadStops] Failed for load ${loadId}:`, error);
+  }
 }
 
