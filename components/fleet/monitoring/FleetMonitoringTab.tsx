@@ -6,6 +6,8 @@ import { Settings, RefreshCw } from 'lucide-react';
 import MonitoringStatsCards from './MonitoringStatsCards';
 import IdleDriversTable from './IdleDriversTable';
 import DormantEquipmentTable from './DormantEquipmentTable';
+import TruckInventoryTable from './TruckInventoryTable';
+import TrailerInventoryTable from './TrailerInventoryTable';
 import MonitoringSettingsDialog from './MonitoringSettingsDialog';
 import type { FleetMonitoringSnapshot } from '@/lib/managers/fleet-monitoring/types';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -76,6 +78,13 @@ export default function FleetMonitoringTab() {
           loading={loading}
           onMarkOOS={fetchData}
         />
+      </div>
+
+      {/* Fleet Inventory */}
+      <div className="space-y-4 mt-6">
+        <h3 className="text-lg font-semibold">Fleet Inventory</h3>
+        <TruckInventoryTable />
+        <TrailerInventoryTable />
       </div>
 
       {/* Settings Dialog */}

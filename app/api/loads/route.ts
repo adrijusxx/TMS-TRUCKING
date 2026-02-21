@@ -29,6 +29,7 @@ import {
   buildLoadCreateData,
   checkLoadNumberExists,
   geocodeLoadStops,
+  calculateLoadOpCosts,
 } from '@/lib/managers/LoadCreationManager';
 
 /**
@@ -204,14 +205,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 9. Build and create the load
+    // 9. Calculate estimated operating costs (fuel, maint, fixed)
+    const totalMiles = validated.totalMiles
+      ?? (validated.loadedMiles != null && validated.emptyMiles != null ? validated.loadedMiles + validated.emptyMiles : null);
+    const estimatedOpCosts = await calculateLoadOpCosts(
+      session.user.companyId,
+      totalMiles,
+      validated.truckId,
+    );
+
+    // 10. Build and create the load
     const loadCreateData = buildLoadCreateData(
       validated,
       session,
       location,
       dates,
       mcResult.mcNumberId,
-      calculatedDriverPay
+      calculatedDriverPay,
+      estimatedOpCosts,
     );
 
     const load = await prisma.load.create({

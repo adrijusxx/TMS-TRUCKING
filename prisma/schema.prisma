@@ -87,6 +87,7 @@ model User {
   columnPreferences          UserColumnPreference[]
   // Samsara Integration
   reviewedSamsaraDevices     SamsaraDeviceQueue[]
+  resolvedTelegramReviewItems TelegramReviewItem[] @relation("TelegramReviewResolver")
   resolvedFaults             TruckFaultHistory[]
   // Fleet Vendors
   createdVendors             Vendor[]               @relation("VendorCreatedBy")
@@ -392,6 +393,8 @@ model Company {
   samsaraDeviceQueue     SamsaraDeviceQueue[]
   truckFaultHistory      TruckFaultHistory[]
   knowledgeBaseDocuments KnowledgeBaseDocument[]
+  aiAgents               AIAgent[]
+  telegramReviewItems    TelegramReviewItem[]
   apiKeys                ApiKeyConfig[]
   salaryBatches          SalaryBatch[]
   // CRM Relations
@@ -531,6 +534,13 @@ model Load {
   accountingSyncStatus AccountingSyncStatus @default(NOT_SYNCED)
   totalExpenses        Float                @default(0) // Calculated from LoadExpense
   netProfit            Float? // Calculated: revenue - driverPay - totalExpenses
+
+  // Estimated Operating Costs (auto-calculated from miles + SystemConfig)
+  estimatedFuelCost  Float? // (totalMiles / mpg) * fuelPrice
+  estimatedMaintCost Float? // totalMiles * maintenanceCpm
+  estimatedFixedCost Float? // transitDays * fixedCostPerDay
+  estimatedOpCost    Float? // Sum of above three
+
   podUploadedAt        DateTime?
   readyForSettlement   Boolean              @default(false)
 
@@ -1045,6 +1055,7 @@ model Driver {
   safetyRecognitions        SafetyRecognition[]
   iftaEntries               IFTAEntry[]
   telegramMapping           TelegramDriverMapping? // Telegram integration
+  telegramReviewItems       TelegramReviewItem[]      @relation("TelegramReviewItems")
   recruitingLead            Lead?                     @relation("RecruitingLead")
   onboardingChecklist       OnboardingChecklist?
 
@@ -1273,6 +1284,8 @@ model Truck {
   lastOdometerReading Float? // Latest odometer from Samsara
   lastOdometerUpdate  DateTime? // When odometer was updated
   lastEngineHours     Float? // Latest engine hours from Samsara
+  averageMpg          Float? // Truck-specific MPG (from Samsara or manual)
+  mpgLastUpdated      DateTime? // When MPG was last synced/entered
 
   // Additional Fields from Excel
   legacyTags Json? // Tags as JSON array (legacy, use tags relation instead)
@@ -1684,6 +1697,9 @@ model Breakdown {
   // Payments
   payments Payment[]
 
+  // Telegram review queue
+  telegramReviewItems TelegramReviewItem[]
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
@@ -1819,6 +1835,7 @@ model Communication {
 
   // Relations
   aiResponseLogs    AIResponseLog[] // AI analysis logs for this communication
+  telegramReviewItem TelegramReviewItem?
   telegramMessageId Int? // Telegram message ID for tracking
 
   @@unique([companyId, ticketNumber])
@@ -6924,8 +6941,85 @@ model TelegramSettings {
 }
 
 // ============================================
+// TELEGRAM REVIEW QUEUE
+// ============================================
+
+model TelegramReviewItem {
+  id              String               @id @default(cuid())
+  companyId       String
+  company         Company              @relation(fields: [companyId], references: [id])
+
+  type            TelegramReviewType
+  status          TelegramReviewStatus @default(PENDING)
+
+  telegramChatId  String
+  chatTitle       String?
+  senderName      String?
+  messageContent  String               @db.Text
+  messageDate     DateTime
+
+  aiCategory      String?
+  aiConfidence    Float?
+  aiUrgency       String?
+  aiAnalysis      Json?
+
+  communicationId String?              @unique
+  communication   Communication?       @relation(fields: [communicationId], references: [id])
+  driverId        String?
+  driver          Driver?              @relation("TelegramReviewItems", fields: [driverId], references: [id])
+
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedBy      User?                @relation("TelegramReviewResolver", fields: [resolvedById], references: [id])
+  resolvedNote    String?
+
+  breakdownId     String?
+  breakdown       Breakdown?           @relation(fields: [breakdownId], references: [id])
+
+  createdAt       DateTime             @default(now())
+
+  @@index([companyId, status])
+  @@index([telegramChatId])
+  @@index([status])
+}
+
+enum TelegramReviewType {
+  CASE_APPROVAL
+  DRIVER_LINK_NEEDED
+}
+
+enum TelegramReviewStatus {
+  PENDING
+  APPROVED
+  DISMISSED
+}
+
+// ============================================
 // AI KNOWLEDGE BASE (RAG)
 // ============================================
+
+model AIAgent {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+
+  slug        String // 'telegram-driver', 'web-chatbot'
+  name        String
+  description String?
+  systemPrompt String @db.Text
+  model       String  @default("gpt-4o-mini")
+  temperature Float   @default(0.3)
+  maxTokens   Int     @default(500)
+  isActive    Boolean @default(true)
+
+  documents KnowledgeBaseDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+}
 
 model KnowledgeBaseDocument {
   id        String  @id @default(cuid())
@@ -6942,12 +7036,16 @@ model KnowledgeBaseDocument {
   errorMessage String?
   metadata     Json?
 
+  agentId String?
+  agent   AIAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
   chunks DocumentChunk[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([companyId])
+  @@index([companyId, agentId])
 }
 
 model DocumentChunk {

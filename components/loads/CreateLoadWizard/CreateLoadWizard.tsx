@@ -126,7 +126,6 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [savedDrafts, setSavedDrafts] = useState<LoadDraftListItem[]>([]);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [lastDriverId, setLastDriverId] = useState<string | undefined>(undefined);
 
   // Fetch resources for assignment
   const { data: driversData } = useQuery({
@@ -146,23 +145,6 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
   const trucks = trucksData?.data || [];
   const trailers = trailersData?.data || [];
   const selectedDriver = drivers.find((d) => d.id === loadData.driverId);
-
-  // Auto-fill truck/trailer when driver is selected
-  useEffect(() => {
-    if (selectedDriver && loadData.driverId !== lastDriverId) {
-      if (selectedDriver.currentTruck?.id && !loadData.truckId) {
-        setLoadData((prev) => ({ ...prev, truckId: selectedDriver.currentTruck!.id }));
-      }
-      if (selectedDriver.currentTrailer?.id && !(loadData as any).trailerId) {
-        setLoadData((prev) => ({
-          ...prev,
-          trailerId: selectedDriver.currentTrailer!.id,
-          trailerNumber: selectedDriver.currentTrailer!.trailerNumber,
-        }));
-      }
-      setLastDriverId(loadData.driverId ?? undefined);
-    }
-  }, [selectedDriver, loadData.driverId, lastDriverId, loadData.truckId, loadData.trailerNumber]);
 
   // Load draft from URL
   useEffect(() => {
@@ -441,7 +423,25 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
                       value={loadData.driverId || ''}
                       onValueChange={(value) => {
                         handleFieldChange('driverId', value);
-                        setLastDriverId(undefined);
+                        // Auto-fill truck and trailer from driver's current assignments
+                        const driver = drivers.find((d) => d.id === value);
+                        console.log('[CreateLoadWizard] Driver selected:', value);
+                        console.log('[CreateLoadWizard] Driver data:', JSON.stringify(driver, null, 2));
+                        console.log('[CreateLoadWizard] currentTruck:', driver?.currentTruck);
+                        console.log('[CreateLoadWizard] currentTrailer:', driver?.currentTrailer);
+                        console.log('[CreateLoadWizard] trucks count:', trucks.length, 'trailers count:', trailers.length);
+                        if (driver) {
+                          handleFieldChange('truckId', driver.currentTruck?.id || '');
+                          handleFieldChange('trailerId' as any, driver.currentTrailer?.id || '');
+                          handleFieldChange('trailerNumber', driver.currentTrailer?.trailerNumber || '');
+                          console.log('[CreateLoadWizard] Auto-fill truckId:', driver.currentTruck?.id || '(none)');
+                          console.log('[CreateLoadWizard] Auto-fill trailerId:', driver.currentTrailer?.id || '(none)');
+                        } else {
+                          console.log('[CreateLoadWizard] Driver NOT found in drivers array!');
+                          handleFieldChange('truckId', '');
+                          handleFieldChange('trailerId' as any, '');
+                          handleFieldChange('trailerNumber', '');
+                        }
                       }}
                       selectedDriver={selectedDriver}
                       placeholder="Select driver..."

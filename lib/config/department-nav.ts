@@ -33,6 +33,7 @@ import {
   TrendingDown,
   LineChart,
   Target,
+  MessageSquare,
 } from 'lucide-react';
 import type { DepartmentNavItem } from '@/components/layout/DepartmentNav';
 
@@ -64,6 +65,8 @@ export const fleetNavItems: DepartmentNavItem[] = [
       { name: 'Vendors', href: '/dashboard/fleet/vendors' },
     ],
   },
+  { name: 'Communications', href: '/dashboard/fleet/communications', icon: MessageSquare },
+  { name: 'Knowledge Base', href: '/dashboard/fleet/knowledge-base', icon: BookOpen },
   { name: 'Reports', href: '/dashboard/fleet/reports', icon: BarChart3 },
 ];
 

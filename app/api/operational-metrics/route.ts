@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { prisma } from '@/lib/prisma';
 import { samsaraRequest } from '@/lib/integrations/samsara/client';
 
 /**
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { action } = body; // 'sync_fuel_price' | 'sync_mpg' | 'sync_all'
+        const { action } = body; // 'sync_fuel_price' | 'sync_mpg' | 'sync_truck_mpg' | 'sync_all'
 
         const results: Record<string, any> = {};
 
@@ -32,6 +33,11 @@ export async function POST(request: NextRequest) {
         // --- Sync Fleet Average MPG from Samsara ---
         if (action === 'sync_mpg' || action === 'sync_all') {
             results.mpg = await fetchFleetAverageMpg(session.user.companyId);
+        }
+
+        // --- Sync Per-Truck MPG from Samsara ---
+        if (action === 'sync_truck_mpg' || action === 'sync_all') {
+            results.truckMpg = await syncPerTruckMpg(session.user.companyId);
         }
 
         return NextResponse.json({ success: true, data: results });
@@ -217,5 +223,74 @@ async function fetchFleetAverageMpg(companyId: string): Promise<{
             source: 'Samsara',
             error: 'Failed to fetch from Samsara. Check API connection.',
         };
+    }
+}
+
+/**
+ * Sync per-truck MPG from Samsara. Maps each vehicle's efficiency to the
+ * corresponding Truck record via samsaraId.
+ */
+async function syncPerTruckMpg(companyId: string): Promise<{
+    updated: number;
+    total: number;
+    source: string;
+    error?: string;
+}> {
+    try {
+        const endTime = new Date().toISOString();
+        const startTime = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+        const params = new URLSearchParams();
+        params.set('startTime', startTime);
+        params.set('endTime', endTime);
+
+        const result = await samsaraRequest<{
+            data?: Array<{
+                vehicle?: { id: string; name?: string };
+                fuelUsageMl?: number;
+                distanceMeters?: number;
+                efficiencyMpge?: number;
+            }>;
+        }>(`/fleet/reports/vehicles/fuel-energy?${params.toString()}`, {}, companyId);
+
+        if (!result?.data || result.data.length === 0) {
+            return { updated: 0, total: 0, source: 'Samsara', error: 'No fuel data from Samsara.' };
+        }
+
+        let updated = 0;
+        const now = new Date();
+
+        for (const entry of result.data) {
+            const samsaraId = entry.vehicle?.id;
+            if (!samsaraId) continue;
+
+            let mpg: number | null = null;
+            if (entry.efficiencyMpge && entry.efficiencyMpge > 0) {
+                mpg = Math.round(entry.efficiencyMpge * 10) / 10;
+            } else if (entry.distanceMeters && entry.fuelUsageMl && entry.fuelUsageMl > 0) {
+                const miles = entry.distanceMeters * 0.000621371;
+                const gallons = entry.fuelUsageMl * 0.000264172;
+                mpg = gallons > 0 ? Math.round((miles / gallons) * 10) / 10 : null;
+            }
+
+            if (mpg && mpg > 0) {
+                const truck = await prisma.truck.findFirst({
+                    where: { samsaraId, companyId, deletedAt: null },
+                    select: { id: true },
+                });
+                if (truck) {
+                    await prisma.truck.update({
+                        where: { id: truck.id },
+                        data: { averageMpg: mpg, mpgLastUpdated: now },
+                    });
+                    updated++;
+                }
+            }
+        }
+
+        return { updated, total: result.data.length, source: 'Samsara (30-day per-truck)' };
+    } catch (error: any) {
+        console.error('[OperationalMetrics] Per-truck MPG sync error:', error.message);
+        return { updated: 0, total: 0, source: 'Samsara', error: 'Failed to sync per-truck MPG.' };
     }
 }

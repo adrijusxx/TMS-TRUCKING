@@ -40,6 +40,11 @@ interface LoadStatistics {
   rpmLoadedMiles?: number | null;
   rpmEmptyMiles?: number | null;
   rpmTotalMiles?: number | null;
+  // Estimated operating costs (per-load aggregated)
+  totalEstimatedOpCost?: number;
+  estimatedNetProfit?: number;
+  estimatedAvgProfitPerLoad?: number;
+  hasEstimatedCosts?: boolean;
   projected?: ProjectedCosts;
 }
 
@@ -120,27 +125,38 @@ export default function LoadStatisticsCard({ filters }: LoadStatisticsCardProps)
                 <span className="font-semibold">{formatCurrency(stats.totalRevenue)}</span>
               </div>
 
-              {/* Profit (Actual) */}
-              <div className="flex items-center gap-1.5">
-                <TrendingUp className="h-3 w-3 text-muted-foreground" />
-                <span className="text-muted-foreground">Profit:</span>
-                <span className={cn(
-                  "font-semibold",
-                  stats.totalProfit >= 0 ? "text-green-600" : "text-red-600"
-                )}>
-                  {formatCurrency(stats.totalProfit)}
-                </span>
-              </div>
-
-              {/* Projected Net Profit (if configured) */}
-              {hasProjected && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground">Proj:</span>
+              {/* Estimated Profit (primary — includes estimated op costs) */}
+              {stats.hasEstimatedCosts ? (
+                <div className="flex items-center gap-1.5" title="Revenue - Driver Pay - Expenses - Est. Operating Costs (fuel, maint, fixed)">
+                  <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Est. Profit:</span>
+                  <span className={cn(
+                    "font-semibold",
+                    (stats.estimatedNetProfit ?? 0) >= 0 ? "text-green-600" : "text-red-600"
+                  )}>
+                    {formatCurrency(stats.estimatedNetProfit ?? 0)}
+                  </span>
+                </div>
+              ) : hasProjected ? (
+                <div className="flex items-center gap-1.5" title="Projected: Revenue - Driver Pay - Projected Op Costs">
+                  <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Proj. Profit:</span>
                   <span className={cn(
                     "font-semibold",
                     (stats.projected?.netProfit || 0) >= 0 ? "text-green-600" : "text-red-600"
                   )}>
                     {formatCurrency(stats.projected?.netProfit || 0)}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5" title="Revenue - Driver Pay - Expenses (no op cost estimates)">
+                  <TrendingUp className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Profit:</span>
+                  <span className={cn(
+                    "font-semibold",
+                    stats.totalProfit >= 0 ? "text-green-600" : "text-red-600"
+                  )}>
+                    {formatCurrency(stats.totalProfit)}
                   </span>
                 </div>
               )}
@@ -200,12 +216,32 @@ export default function LoadStatisticsCard({ filters }: LoadStatisticsCardProps)
                 </div>
               )}
               <div>
+                <span className="text-muted-foreground">Gross Profit:</span>
+                <span className={cn(
+                  "font-medium ml-1",
+                  stats.totalProfit >= 0 ? "text-green-600" : "text-red-600"
+                )}>
+                  {formatCurrency(stats.totalProfit)}
+                </span>
+              </div>
+              {stats.hasEstimatedCosts && (
+                <div>
+                  <span className="text-muted-foreground">Est. Op Cost:</span>
+                  <span className="font-medium ml-1 text-red-500">
+                    {formatCurrency(stats.totalEstimatedOpCost ?? 0)}
+                  </span>
+                </div>
+              )}
+              <div>
                 <span className="text-muted-foreground">Avg Profit:</span>
                 <span className={cn(
                   "font-medium ml-1",
-                  stats.averageProfitPerLoad >= 0 ? "text-green-600" : "text-red-600"
+                  (stats.hasEstimatedCosts ? (stats.estimatedAvgProfitPerLoad ?? 0) : stats.averageProfitPerLoad) >= 0
+                    ? "text-green-600" : "text-red-600"
                 )}>
-                  {formatCurrency(stats.averageProfitPerLoad)}/load
+                  {formatCurrency(stats.hasEstimatedCosts
+                    ? (stats.estimatedAvgProfitPerLoad ?? 0)
+                    : stats.averageProfitPerLoad)}/load
                 </span>
               </div>
             </div>

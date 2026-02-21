@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { User, Truck, Package, Info } from 'lucide-react';
@@ -64,8 +63,6 @@ export default function Step2ResourceAssignment({
   onTruckChange,
   onTrailerChange,
 }: Step2ResourceAssignmentProps) {
-  const [lastDriverId, setLastDriverId] = useState<string | undefined>(undefined);
-  const [hasManuallyChanged, setHasManuallyChanged] = useState({ truck: false, trailer: false });
 
   const { data: driversData, isLoading: isLoadingDrivers, error: driversError } = useQuery({
     queryKey: ['drivers', 'wizard'],
@@ -94,39 +91,17 @@ export default function Step2ResourceAssignment({
   const trailers = trailersData?.data || (Array.isArray(trailersData) ? trailersData : []);
   const selectedDriver = drivers.find((d) => d.id === driverId);
 
-  // Auto-fill truck and trailer when driver is selected
-  useEffect(() => {
-    if (selectedDriver && driverId && driverId !== lastDriverId) {
-      // Driver changed - reset manual change flags and auto-fill
-      setHasManuallyChanged({ truck: false, trailer: false });
-      
-      if (selectedDriver.currentTruck?.id && !truckId) {
-        onTruckChange(selectedDriver.currentTruck.id);
-      }
-      if (selectedDriver.currentTrailer?.trailerNumber && !trailerNumber) {
-        onTrailerChange(selectedDriver.currentTrailer.trailerNumber);
-      }
-      
-      setLastDriverId(driverId);
+  // Handle driver selection with auto-fill of truck and trailer
+  const handleDriverSelect = (value: string) => {
+    onDriverChange(value);
+    const driver = drivers.find((d) => d.id === value);
+    if (driver) {
+      onTruckChange(driver.currentTruck?.id || '');
+      onTrailerChange(driver.currentTrailer?.trailerNumber || '');
+    } else {
+      onTruckChange('');
+      onTrailerChange('');
     }
-  }, [selectedDriver, driverId, lastDriverId, truckId, trailerNumber, onTruckChange, onTrailerChange]);
-
-  // Also auto-fill when trucks load if driver was already selected
-  useEffect(() => {
-    if (selectedDriver && trucks.length > 0 && !truckId && selectedDriver.currentTruck?.id && !hasManuallyChanged.truck) {
-      onTruckChange(selectedDriver.currentTruck.id);
-    }
-  }, [selectedDriver, trucks, truckId, hasManuallyChanged.truck, onTruckChange]);
-
-  // Track manual changes
-  const handleTruckChange = (truckId: string) => {
-    setHasManuallyChanged((prev) => ({ ...prev, truck: true }));
-    onTruckChange(truckId);
-  };
-
-  const handleTrailerChange = (trailerNumber: string) => {
-    setHasManuallyChanged((prev) => ({ ...prev, trailer: true }));
-    onTrailerChange(trailerNumber);
   };
 
   return (
@@ -156,10 +131,7 @@ export default function Step2ResourceAssignment({
             )}
             <DriverCombobox
               value={driverId || ''}
-              onValueChange={(value) => {
-                onDriverChange(value);
-                setLastDriverId(undefined); // Reset to trigger auto-fill
-              }}
+              onValueChange={handleDriverSelect}
               placeholder={isLoadingDrivers ? 'Loading drivers...' : 'Search driver by name or number...'}
               drivers={drivers}
               disabled={isLoadingDrivers}
@@ -180,15 +152,14 @@ export default function Step2ResourceAssignment({
           </div>
 
           {/* Auto-fill Notification */}
-          {selectedDriver && 
-           (selectedDriver.currentTruck || selectedDriver.currentTrailer) && 
-           (truckId === selectedDriver.currentTruck?.id || trailerNumber === selectedDriver.currentTrailer?.trailerNumber) &&
-           !hasManuallyChanged.truck && !hasManuallyChanged.trailer && (
+          {selectedDriver &&
+           (selectedDriver.currentTruck || selectedDriver.currentTrailer) &&
+           (truckId === selectedDriver.currentTruck?.id || trailerNumber === selectedDriver.currentTrailer?.trailerNumber) && (
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-sm">
-                {selectedDriver.currentTruck && selectedDriver.currentTrailer && 
-                 truckId === selectedDriver.currentTruck.id && 
+                {selectedDriver.currentTruck && selectedDriver.currentTrailer &&
+                 truckId === selectedDriver.currentTruck.id &&
                  trailerNumber === selectedDriver.currentTrailer.trailerNumber
                   ? `Auto-filled Truck #${selectedDriver.currentTruck.truckNumber} and Trailer #${selectedDriver.currentTrailer.trailerNumber} from driver's default assignments. You can override if needed.`
                   : selectedDriver.currentTruck && truckId === selectedDriver.currentTruck.id
@@ -207,7 +178,7 @@ export default function Step2ResourceAssignment({
             </Label>
             <TruckCombobox
               value={truckId || ''}
-              onValueChange={handleTruckChange}
+              onValueChange={onTruckChange}
               placeholder="Search truck by number..."
               trucks={trucks}
             />
@@ -225,7 +196,7 @@ export default function Step2ResourceAssignment({
             </Label>
             <TrailerCombobox
               value={trailerNumber || ''}
-              onValueChange={handleTrailerChange}
+              onValueChange={onTrailerChange}
               placeholder="Search trailer by number..."
               trailers={trailers}
             />

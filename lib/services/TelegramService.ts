@@ -102,9 +102,9 @@ export class TelegramService {
             this.setupMessageListener();
             await this.updateConnectionStatus(true);
 
-            // Auto-initialize AI if enabled
+            // Auto-initialize AI processing if auto-response or auto-case-creation is enabled
             const settings = await prisma.telegramSettings.findFirst();
-            if (settings && settings.aiAutoResponse) {
+            if (settings && (settings.aiAutoResponse || settings.autoCreateCases)) {
                 await this.initializeAIProcessing(settings.companyId);
             }
         } catch (error) {
@@ -193,7 +193,7 @@ export class TelegramService {
 
     async initializeAIProcessing(companyId: string): Promise<void> {
         const settings = await prisma.telegramSettings.findUnique({ where: { companyId } });
-        if (!settings || !settings.aiAutoResponse) return;
+        if (!settings || (!settings.aiAutoResponse && !settings.autoCreateCases)) return;
 
         const { TelegramMessageProcessor } = await import('./TelegramMessageProcessor');
         const processor = new TelegramMessageProcessor(companyId);

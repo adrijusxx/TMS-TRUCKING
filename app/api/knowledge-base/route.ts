@@ -18,8 +18,17 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'No company found' }, { status: 400 });
         }
 
+        // Optional agent filter
+        const { searchParams } = new URL(request.url);
+        const agentFilter = searchParams.get('agentId');
+
         const documents = await prisma.knowledgeBaseDocument.findMany({
-            where: { companyId: user.companyId },
+            where: {
+                companyId: user.companyId,
+                ...(agentFilter === 'shared' ? { agentId: null }
+                    : agentFilter ? { agentId: agentFilter }
+                    : {}),
+            },
             orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
@@ -31,6 +40,8 @@ export async function GET(request: NextRequest) {
                 url: true,
                 createdAt: true,
                 metadata: true,
+                agentId: true,
+                agent: { select: { id: true, name: true, slug: true } },
                 _count: {
                     select: { chunks: true }
                 }

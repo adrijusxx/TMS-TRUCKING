@@ -6,23 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type { DormantEquipment } from '@/lib/managers/fleet-monitoring/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { OOS_REASON_CATEGORIES } from '@/lib/managers/fleet-monitoring/types';
+import type { OOSEquipmentRef } from '@/lib/managers/fleet-monitoring/types';
 
 interface Props {
-  equipment: DormantEquipment;
+  equipment: OOSEquipmentRef;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
 export default function MarkOOSDialog({ equipment, open, onOpenChange, onSuccess }: Props) {
-  const [reason, setReason] = useState('');
+  const [category, setCategory] = useState('');
+  const [notes, setNotes] = useState('');
   const [expectedReturn, setExpectedReturn] = useState('');
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit() {
     setSaving(true);
     try {
+      const reason = category
+        ? notes ? `${category}: ${notes}` : category
+        : notes || undefined;
+
       const res = await fetch('/api/fleet/equipment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -30,12 +37,15 @@ export default function MarkOOSDialog({ equipment, open, onOpenChange, onSuccess
           equipmentId: equipment.id,
           equipmentType: equipment.type,
           longTermOutOfService: true,
-          outOfServiceReason: reason || undefined,
+          outOfServiceReason: reason,
           expectedReturnDate: expectedReturn || undefined,
         }),
       });
 
       if (res.ok) {
+        setCategory('');
+        setNotes('');
+        setExpectedReturn('');
         onSuccess();
       }
     } catch (error) {
@@ -57,12 +67,25 @@ export default function MarkOOSDialog({ equipment, open, onOpenChange, onSuccess
             This will exclude it from dormant equipment alerts.
           </p>
           <div className="space-y-2">
-            <Label htmlFor="reason">Reason</Label>
+            <Label>Reason Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a reason..." />
+              </SelectTrigger>
+              <SelectContent>
+                {OOS_REASON_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notes">Additional Notes</Label>
             <Textarea
-              id="reason"
-              placeholder="e.g., Engine rebuild, waiting for parts..."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              id="notes"
+              placeholder="e.g., Engine rebuild at Smith's Garage..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               rows={2}
             />
           </div>

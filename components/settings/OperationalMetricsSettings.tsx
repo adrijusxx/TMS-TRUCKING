@@ -64,6 +64,7 @@ export default function OperationalMetricsSettings() {
     const [syncStatus, setSyncStatus] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({
         fuel: 'idle',
         mpg: 'idle',
+        truckMpg: 'idle',
     });
 
     const { data: config, isLoading } = useQuery({
@@ -137,6 +138,25 @@ export default function OperationalMetricsSettings() {
         setTimeout(() => setSyncStatus((s) => ({ ...s, mpg: 'idle' })), 4000);
     };
 
+    // Sync per-truck MPG from Samsara
+    const handleSyncTruckMpg = async () => {
+        setSyncStatus((s) => ({ ...s, truckMpg: 'loading' }));
+        try {
+            const result = await syncMetric('sync_truck_mpg');
+            if (result?.truckMpg?.updated > 0) {
+                toast.success(`Per-truck MPG synced: ${result.truckMpg.updated}/${result.truckMpg.total} trucks updated`);
+                setSyncStatus((s) => ({ ...s, truckMpg: 'success' }));
+            } else {
+                toast.error(result?.truckMpg?.error || 'No per-truck MPG data from Samsara');
+                setSyncStatus((s) => ({ ...s, truckMpg: 'error' }));
+            }
+        } catch {
+            toast.error('Per-truck MPG sync failed');
+            setSyncStatus((s) => ({ ...s, truckMpg: 'error' }));
+        }
+        setTimeout(() => setSyncStatus((s) => ({ ...s, truckMpg: 'idle' })), 4000);
+    };
+
     const onSubmit = (data: OperationalMetrics) => saveMutation.mutate(data);
 
     if (isLoading) return <div className="p-6">Loading...</div>;
@@ -188,11 +208,18 @@ export default function OperationalMetricsSettings() {
                             <div className="space-y-1.5">
                                 <div className="flex items-center justify-between">
                                     <Label htmlFor="averageMpg" className="text-xs">Fleet Avg MPG</Label>
-                                    <SyncButton
-                                        status={syncStatus.mpg}
-                                        onClick={handleSyncMpg}
-                                        tooltip="Pull from Samsara"
-                                    />
+                                    <div className="flex items-center gap-2">
+                                        <SyncButton
+                                            status={syncStatus.truckMpg}
+                                            onClick={handleSyncTruckMpg}
+                                            tooltip="Per-Truck MPG"
+                                        />
+                                        <SyncButton
+                                            status={syncStatus.mpg}
+                                            onClick={handleSyncMpg}
+                                            tooltip="Fleet Avg"
+                                        />
+                                    </div>
                                 </div>
                                 <Input
                                     id="averageMpg"

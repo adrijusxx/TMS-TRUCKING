@@ -1,9 +1,8 @@
 import { NewMessageEvent } from 'telegram/events';
-import { Api } from 'telegram/tl';
 import { prisma } from '@/lib/prisma';
 import { AIMessageService } from './AIMessageService';
 import { getTelegramService } from './TelegramService';
-import { BreakdownType } from '@prisma/client';
+import { TelegramCaseCreator } from '@/lib/managers/telegram/TelegramCaseCreator';
 
 /**
  * Telegram Message Processor
@@ -13,10 +12,12 @@ import { BreakdownType } from '@prisma/client';
 export class TelegramMessageProcessor {
     private companyId: string;
     private aiService: AIMessageService;
+    private caseCreator: TelegramCaseCreator;
 
     constructor(companyId: string) {
         this.companyId = companyId;
         this.aiService = new AIMessageService(companyId);
+        this.caseCreator = new TelegramCaseCreator(companyId);
     }
 
     /**
@@ -66,8 +67,12 @@ export class TelegramMessageProcessor {
 
             console.log(`[Telegram] AI Analysis: `, {
                 isBreakdown: analysis.isBreakdown,
+                isSafetyIncident: analysis.isSafetyIncident,
+                isMaintenanceRequest: analysis.isMaintenanceRequest,
+                category: analysis.category,
                 confidence: analysis.confidence,
                 urgency: analysis.urgency,
+                driverLinked: !!driver,
             });
 
             // Get settings
@@ -80,10 +85,12 @@ export class TelegramMessageProcessor {
                 return;
             }
 
+            console.log(`[Telegram] Settings: autoCreateCases=${settings.autoCreateCases}, aiAutoResponse=${settings.aiAutoResponse}, threshold=${settings.confidenceThreshold}, requireStaffApproval=${settings.requireStaffApproval}`);
+
             let caseId: string | undefined;
             let caseNumber: string | undefined;
 
-            // Auto-create cases based on detection (Only if linked to a Driver)
+            // Auto-create cases based on detection
             if (driver && settings.autoCreateCases && analysis.confidence >= settings.confidenceThreshold) {
                 if (analysis.isBreakdown) {
                     // Check for existing open breakdown for this truck to prevent duplicates
@@ -95,7 +102,7 @@ export class TelegramMessageProcessor {
                     });
 
                     if (!existingBreakdown) {
-                        const breakdown = await this.createBreakdownCase(driver.id, driver.currentTruck?.id, analysis, message.message);
+                        const breakdown = await this.caseCreator.createBreakdownCase(driver.id, driver.currentTruck?.id, driver.currentTruck?.samsaraId, analysis, message.message);
                         caseId = breakdown.id;
                         caseNumber = breakdown.breakdownNumber;
                         console.log(`[Telegram] Created breakdown case: ${caseNumber}`);
@@ -105,42 +112,39 @@ export class TelegramMessageProcessor {
                         caseNumber = existingBreakdown.breakdownNumber;
                     }
                 } else if (analysis.isSafetyIncident) {
-                    const incident = await this.createSafetyIncident(driver.id, driver.currentTruck?.id, analysis, message.message);
+                    const incident = await this.caseCreator.createSafetyIncident(driver.id, driver.currentTruck?.id, analysis, message.message);
                     caseId = incident.id;
                     caseNumber = incident.incidentNumber;
                     console.log(`[Telegram] Created safety incident: ${caseNumber}`);
                 } else if (analysis.isMaintenanceRequest) {
-                    const record = await this.createMaintenanceRequest(driver.id, driver.currentTruck?.id, analysis, message.message);
+                    const record = await this.caseCreator.createMaintenanceRequest(driver.id, driver.currentTruck?.id, analysis, message.message);
                     caseId = record.id;
                     caseNumber = record.maintenanceNumber || record.id;
                     console.log(`[Telegram] Created maintenance request: ${caseNumber}`);
                 }
-            } else if (!driver && analysis.confidence >= settings.confidenceThreshold) {
-                console.log('[Telegram] Skipped case creation: User is not linked to a driver profile');
+            } else if (!driver) {
+                console.log(`[Telegram] Skipped case creation: Chat ${senderId} not linked to a driver profile`);
+            } else if (!settings.autoCreateCases) {
+                console.log('[Telegram] Skipped case creation: autoCreateCases is disabled');
+            } else if (analysis.confidence < settings.confidenceThreshold) {
+                console.log(`[Telegram] Skipped case creation: confidence ${analysis.confidence} < threshold ${settings.confidenceThreshold}`);
             }
 
-            // Log communication
-            // We log for both linked and unlinked users
+            // Determine if this needs a review queue item
+            const needsReview = !caseId && (analysis.isBreakdown || analysis.isSafetyIncident || analysis.isMaintenanceRequest);
 
-            // Prepare common data
+            // Log communication (linked to breakdown if one was created/found)
             const communicationData = {
                 companyId: settings.companyId,
-                type: analysis.category === 'BREAKDOWN' ? 'BREAKDOWN_REPORT' : 'MESSAGE', // Use AI category for type
-                channel: 'TELEGRAM', // Explicitly set channel
+                type: analysis.category === 'BREAKDOWN' ? 'BREAKDOWN_REPORT' : 'MESSAGE',
+                channel: 'TELEGRAM',
                 direction: 'INBOUND',
-                content: message.message, // Use message.message for content
-                telegramMessageId: message.id, // Use message.id for telegramMessageId
-                telegramChatId: senderId, // For private chats, senderId is usually chatId
-                // fromNumber: dialog.entity?.phone || driverMapping?.phoneNumber, // 'dialog' and 'phoneNumber' not available here
-                driverId: driver?.id, // Optional
-                status: 'DELIVERED', // Original status was DELIVERED
-                // receivedAt: new Date(), // Original didn't have receivedAt
-                // mediaUrls: mediaUrl ? [mediaUrl] : [], // 'mediaUrl' not available here
-                // metadata: { // 'dialog' not available here
-                //     senderName: dialog.title || 'Unknown',
-                //     isGroup: dialog.isGroup,
-                //     isChannel: dialog.isChannel
-                // }
+                content: message.message,
+                telegramMessageId: message.id,
+                telegramChatId: senderId,
+                driverId: driver?.id,
+                breakdownId: caseId || undefined,
+                status: 'DELIVERED',
             };
 
             // Create Communication record
@@ -160,6 +164,20 @@ export class TelegramMessageProcessor {
                     wasAutoSent: false, // Updated later if sent
                 },
             });
+
+            // Create review queue item if case was skipped but AI detected something actionable
+            if (needsReview) {
+                const reviewType = !driver ? 'DRIVER_LINK_NEEDED' : 'CASE_APPROVAL';
+                await this.createReviewItem({
+                    type: reviewType as any,
+                    telegramChatId: senderId,
+                    senderName: driverName !== 'Unknown User' ? driverName : undefined,
+                    messageContent: message.message,
+                    analysis,
+                    communicationId: communication.id,
+                    driverId: driver?.id,
+                });
+            }
 
             // Determine if we should auto-respond
             const shouldAutoRespond = await this.shouldAutoRespond(settings, analysis, driverMapping);
@@ -214,8 +232,19 @@ export class TelegramMessageProcessor {
                 } else {
                     console.warn(`[Telegram] Response generation returned empty/null.`);
                 }
-            } else if (analysis.requiresHumanReview || settings.requireStaffApproval) { // This `else if` was outside the `if (shouldAutoRespond)` block
-                // Queue for staff review
+            } else if (analysis.requiresHumanReview || settings.requireStaffApproval) {
+                // Queue for staff review (only if not already queued above)
+                if (!needsReview) {
+                    await this.createReviewItem({
+                        type: 'CASE_APPROVAL',
+                        telegramChatId: senderId,
+                        senderName: driverName !== 'Unknown User' ? driverName : undefined,
+                        messageContent: message.message,
+                        analysis,
+                        communicationId: communication.id,
+                        driverId: driver?.id,
+                    });
+                }
                 console.log('[Telegram] Message queued for staff review');
             }
 
@@ -225,144 +254,43 @@ export class TelegramMessageProcessor {
     }
 
     /**
-     * Create a breakdown case from AI analysis
+     * Create a review queue item for staff to approve
      */
-    private async createBreakdownCase(
-        driverId: string,
-        truckId: string | undefined,
-        analysis: any,
-        originalMessage: string
-    ) {
-        const breakdownNumber = await this.generateBreakdownNumber();
-
-        const priorityMap: Record<string, any> = {
-            LOW: 'LOW',
-            MEDIUM: 'MEDIUM',
-            HIGH: 'HIGH',
-            CRITICAL: 'CRITICAL',
-        };
-
-        const breakdown = await prisma.breakdown.create({
-            data: {
-                companyId: this.companyId,
-                breakdownNumber,
-                truckId: truckId || '',
-                driverId,
-                breakdownType: BreakdownType.OTHER,
-                priority: priorityMap[analysis.urgency] || 'MEDIUM',
-                problem: analysis.problemDescription || 'Unknown',
-                description: originalMessage,
-                location: analysis.location || 'Unknown',
-                odometerReading: 0,
-                status: 'REPORTED',
-                reportedAt: new Date(),
-            },
+    private async createReviewItem(params: {
+        type: 'CASE_APPROVAL' | 'DRIVER_LINK_NEEDED';
+        telegramChatId: string;
+        senderName?: string;
+        messageContent: string;
+        analysis: any;
+        communicationId: string;
+        driverId?: string;
+    }): Promise<void> {
+        // Dedup: skip if a PENDING item of same type already exists for this chat
+        const existing = await prisma.telegramReviewItem.findFirst({
+            where: { telegramChatId: params.telegramChatId, type: params.type as any, status: 'PENDING' },
         });
-
-        return breakdown;
-    }
-
-    /**
-     * Create a safety incident from AI analysis
-     */
-    private async createSafetyIncident(
-        driverId: string,
-        truckId: string | undefined,
-        analysis: any,
-        originalMessage: string
-    ) {
-        const incidentNumber = await this.generateCaseNumber('SI', 'safetyIncident', 'incidentNumber');
-
-        const incident = await prisma.safetyIncident.create({
-            data: {
-                companyId: this.companyId,
-                incidentNumber,
-                driverId,
-                truckId: truckId || null,
-                incidentType: 'OTHER', // Default, AI could refine this later
-                severity: (analysis.urgency === 'CRITICAL' || analysis.urgency === 'HIGH') ? 'MAJOR' : 'MINOR',
-                date: new Date(),
-                location: analysis.location || 'Unknown',
-                description: analysis.problemDescription || originalMessage,
-                status: 'REPORTED',
-            },
-        });
-
-        return incident;
-    }
-
-    /**
-     * Create a maintenance request from AI analysis
-     */
-    private async createMaintenanceRequest(
-        driverId: string,
-        truckId: string | undefined,
-        analysis: any,
-        originalMessage: string
-    ) {
-        if (!truckId) {
-            throw new Error('Truck ID is required for maintenance requests');
+        if (existing) {
+            console.log(`[Telegram] Review item already exists for ${params.telegramChatId} (${params.type})`);
+            return;
         }
 
-        const recordNumber = await this.generateCaseNumber('MAINT', 'maintenanceRecord', 'maintenanceNumber');
-
-        const record = await prisma.maintenanceRecord.create({
+        await prisma.telegramReviewItem.create({
             data: {
                 companyId: this.companyId,
-                maintenanceNumber: recordNumber,
-                truckId: truckId,
-                type: 'REPAIR',
-                description: analysis.problemDescription || originalMessage,
-                cost: 0,
-                odometer: 0, // Should be updated with real data if available
-                date: new Date(),
-                status: 'OPEN',
+                type: params.type as any,
+                telegramChatId: params.telegramChatId,
+                senderName: params.senderName,
+                messageContent: params.messageContent,
+                messageDate: new Date(),
+                aiCategory: params.analysis.category,
+                aiConfidence: params.analysis.confidence,
+                aiUrgency: params.analysis.urgency,
+                aiAnalysis: params.analysis,
+                communicationId: params.communicationId,
+                driverId: params.driverId,
             },
         });
-
-        return record;
-    }
-
-    /**
-     * Generate unique case number for various models
-     */
-    private async generateCaseNumber(
-        prefix: string,
-        model: string,
-        field: string
-    ): Promise<string> {
-        const year = new Date().getFullYear();
-        const basePrefix = `${prefix}-${year}-`;
-
-        // @ts-ignore - dynamic prisma access
-        const lastRecord = await (prisma[model] as any).findFirst({
-            where: {
-                [field]: {
-                    startsWith: basePrefix,
-                },
-            },
-            orderBy: {
-                [field]: 'desc',
-            },
-        });
-
-        let nextNumber = 1;
-        if (lastRecord) {
-            const parts = lastRecord[field].split('-');
-            const lastNum = parseInt(parts[parts.length - 1]);
-            if (!isNaN(lastNum)) {
-                nextNumber = lastNum + 1;
-            }
-        }
-
-        return `${basePrefix}${nextNumber.toString().padStart(4, '0')}`;
-    }
-
-    /**
-     * Generate unique breakdown number (DEPRECATED: using generateCaseNumber)
-     */
-    private async generateBreakdownNumber(): Promise<string> {
-        return this.generateCaseNumber('BD', 'breakdown', 'breakdownNumber');
+        console.log(`[Telegram] Review item created: type=${params.type}, chat=${params.telegramChatId}`);
     }
 
     /**
@@ -382,7 +310,8 @@ export class TelegramMessageProcessor {
         }
 
         // 2. Check Global Settings
-        if (!settings.enableAiAutoResponse) {
+        if (!settings.aiAutoResponse) {
+            console.log('[Telegram] Auto-Reply OFF: aiAutoResponse is disabled globally');
             return false;
         }
 

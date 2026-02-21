@@ -21,12 +21,12 @@ export async function POST(request: NextRequest) {
 
         const formData = await request.formData();
         const file = formData.get('file') as File;
+        const agentId = formData.get('agentId') as string | null;
 
         if (!file) {
             return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
         }
 
-        // Validate file type
         // Validate file type
         const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown'];
         const isMd = file.name.toLowerCase().endsWith('.md');
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
 
         const kbService = new KnowledgeBaseService(user.companyId);
-        const docId = await kbService.processDocument(buffer, file.name, file.type);
+        const docId = await kbService.processDocument(buffer, file.name, file.type, agentId || undefined);
 
         return NextResponse.json({
             success: true,

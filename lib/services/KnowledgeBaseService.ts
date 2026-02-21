@@ -19,7 +19,8 @@ export class KnowledgeBaseService {
     async processDocument(
         fileBuffer: Buffer,
         filename: string,
-        fileType: string
+        fileType: string,
+        agentId?: string
     ): Promise<string> {
         try {
             // 1. Create Document Record
@@ -30,8 +31,9 @@ export class KnowledgeBaseService {
                     filename,
                     fileType,
                     fileSize: fileBuffer.length,
-                    url: 'local', // In a real app, upload to S3/Blob and put URL here
+                    url: 'local',
                     status: 'PROCESSING',
+                    agentId: agentId || null,
                 },
             });
 
@@ -67,7 +69,8 @@ export class KnowledgeBaseService {
     async processTextSegment(
         text: string,
         title: string,
-        metadata?: any
+        metadata?: any,
+        agentId?: string
     ): Promise<string> {
         try {
             // 1. Create Document Record
@@ -81,6 +84,7 @@ export class KnowledgeBaseService {
                     url: 'internal',
                     status: 'PROCESSING',
                     metadata: metadata,
+                    agentId: agentId || null,
                 },
             });
 
@@ -136,7 +140,7 @@ export class KnowledgeBaseService {
      * Search knowledge base - MEMORY EFFICIENT VERSION
      * Uses batched streaming to avoid loading all embeddings at once
      */
-    async search(query: string, limit = 5): Promise<any[]> {
+    async search(query: string, limit = 5, agentId?: string): Promise<any[]> {
         try {
             // 1. Generate query embedding
             const response = await this.openai.embeddings.create({
@@ -145,9 +149,13 @@ export class KnowledgeBaseService {
             });
             const queryEmbedding = response.data[0].embedding;
 
-            // 2. Get document IDs for this company (lightweight query)
+            // 2. Get document IDs for this company (agent-scoped + shared)
             const documents = await prisma.knowledgeBaseDocument.findMany({
-                where: { companyId: this.companyId, status: 'READY' },
+                where: {
+                    companyId: this.companyId,
+                    status: 'READY',
+                    ...(agentId ? { OR: [{ agentId }, { agentId: null }] } : {}),
+                },
                 select: { id: true, title: true },
             });
 

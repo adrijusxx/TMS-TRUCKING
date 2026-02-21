@@ -179,7 +179,7 @@ export class DormantEquipmentDetector {
     return { dormant, excludedCount };
   }
 
-  private async getLastLoadsByTruck(truckIds: string[]) {
+  async getLastLoadsByTruck(truckIds: string[]) {
     const loads = await prisma.load.findMany({
       where: {
         truckId: { in: truckIds },
@@ -200,7 +200,7 @@ export class DormantEquipmentDetector {
     return map;
   }
 
-  private async getLastLoadsByTrailer(trailerIds: string[]) {
+  async getLastLoadsByTrailer(trailerIds: string[]) {
     const loads = await prisma.load.findMany({
       where: {
         trailerId: { in: trailerIds },

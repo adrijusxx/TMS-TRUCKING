@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiUrl } from '@/lib/utils';
 
-type EventType = string;
 type EventData = unknown;
 
 interface RealtimeEvent {
@@ -26,17 +25,20 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<RealtimeEvent | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const onEventRef = useRef(onEvent);
+
+  // Keep the ref up to date without triggering the effect
+  onEventRef.current = onEvent;
+
+  const typesKey = useMemo(() => eventTypes.join(','), [eventTypes.join(',')]);
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
 
-    // Build SSE URL
-    const typesParam = eventTypes.join(',');
-    const url = `${apiUrl(`/api/realtime/events?types=${typesParam}`)}`;
+    const url = `${apiUrl(`/api/realtime/events?types=${typesKey}`)}`;
 
-    // Create EventSource connection
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
 
@@ -48,27 +50,21 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
       try {
         const data = JSON.parse(event.data) as RealtimeEvent;
         setLastEvent(data);
-
-        // Call custom handler if provided
-        if (onEvent) {
-          onEvent(data);
-        }
+        onEventRef.current?.(data);
       } catch (error) {
         console.error('Error parsing SSE event:', error);
       }
     };
 
-    eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
+    eventSource.onerror = () => {
       setIsConnected(false);
     };
 
-    // Cleanup on unmount
     return () => {
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [eventTypes.join(','), enabled, onEvent]);
+  }, [typesKey, enabled]);
 
   return {
     isConnected,
@@ -112,8 +108,6 @@ export function useRealtimeBreakdowns(onEvent?: (event: RealtimeEvent) => void) 
     onEvent,
   });
 }
-
-
 
 
 

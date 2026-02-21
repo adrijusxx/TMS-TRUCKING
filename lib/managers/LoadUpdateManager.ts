@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { updateLoadSchema, UpdateLoadInput } from '@/lib/validations/load';
 import { hasPermission } from '@/lib/permissions';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
+import { calculateOperatingCosts } from '@/lib/utils/calculateOperatingCosts';
+import { resolveMpg } from '@/lib/utils/resolveMpg';
 import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications/triggers';
 import { emitLoadStatusChanged, emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
@@ -184,6 +186,39 @@ export class LoadUpdateManager {
             const finalDriverPay = updateData.driverPay ?? validated.driverPay ?? existingLoad.driverPay ?? 0;
             const finalExpenses = validated.totalExpenses ?? existingLoad.totalExpenses ?? 0;
             updateData.netProfit = Number((finalRevenue - finalDriverPay - finalExpenses).toFixed(2));
+        }
+
+        // Recalculate estimated operating costs when miles or truck changes
+        const opCostTrigger = validated.totalMiles !== undefined || validated.truckId !== undefined
+            || validated.loadedMiles !== undefined || validated.emptyMiles !== undefined;
+        if (opCostTrigger || financialsChanged) {
+            const finalMiles = validated.totalMiles ?? existingLoad.totalMiles;
+            if (finalMiles && finalMiles > 0) {
+                const effectiveTruckId = validated.truckId !== undefined
+                    ? (validated.truckId || null)
+                    : existingLoad.truckId;
+
+                const [systemConfig, truck] = await Promise.all([
+                    prisma.systemConfig.findUnique({ where: { companyId: existingLoad.companyId } }),
+                    effectiveTruckId
+                        ? prisma.truck.findUnique({ where: { id: effectiveTruckId }, select: { averageMpg: true } })
+                        : null,
+                ]);
+
+                const { mpg } = resolveMpg(truck?.averageMpg, systemConfig?.averageMpg);
+                const opCosts = calculateOperatingCosts({
+                    totalMiles: finalMiles,
+                    mpg,
+                    fuelPrice: systemConfig?.averageFuelPrice,
+                    maintenanceCpm: systemConfig?.maintenanceCpm,
+                    fixedCostPerDay: systemConfig?.fixedCostPerDay,
+                });
+
+                updateData.estimatedFuelCost = opCosts.estimatedFuelCost;
+                updateData.estimatedMaintCost = opCosts.estimatedMaintCost;
+                updateData.estimatedFixedCost = opCosts.estimatedFixedCost;
+                updateData.estimatedOpCost = opCosts.estimatedOpCost;
+            }
         }
     }
 

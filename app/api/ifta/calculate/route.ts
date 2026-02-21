@@ -1,13 +1,12 @@
 /**
  * IFTA Calculation API
  *
- * Triggers IFTA calculations with optional driver/truck filters and force recalculate.
- * Falls back to direct calculation when Inngest is not configured (local dev).
+ * Processes loads directly via Google Maps routing to calculate state-by-state mileage.
+ * Supports optional driver/truck filters and force recalculate.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { inngest } from '@/lib/inngest/client';
 import { hasPermissionAsync } from '@/lib/server-permissions';
 import { iftaCalculatorService } from '@/lib/services/IFTACalculatorService';
 import { prisma } from '@/lib/prisma';
@@ -44,23 +43,8 @@ export async function POST(request: NextRequest) {
     const { quarter, year, driverId, truckId, forceRecalculate } = calculateSchema.parse(body);
     const companyId = session.user.companyId;
 
-    // Try Inngest first (only for full-quarter, no filters — Inngest doesn't support filters yet)
-    if (!driverId && !truckId && !forceRecalculate) {
-      try {
-        await inngest.send({
-          name: 'ifta/calculate-quarter',
-          data: { companyId, quarter, year },
-        });
-        return NextResponse.json({
-          success: true,
-          data: { message: `IFTA calculation started for Q${quarter} ${year}`, quarter, year },
-        });
-      } catch {
-        // Inngest unavailable — fall through to direct calculation
-      }
-    }
-
-    // Direct calculation with filters
+    // Always use direct calculation so we can return real results to the UI.
+    // Inngest is used for scheduled cron jobs only.
     const monthMap: Record<number, number> = { 1: 0, 2: 3, 3: 6, 4: 9 };
     const periodStart = new Date(year, monthMap[quarter], 1);
     const periodEnd = new Date(year, monthMap[quarter] + 3, 0);

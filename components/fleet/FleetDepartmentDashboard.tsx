@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, LayoutDashboard, AlertTriangle, BarChart3, Users, History, Activity } from 'lucide-react';
+import { Plus, LayoutDashboard, AlertTriangle, BarChart3, Users, History, ClipboardCheck } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import FleetStatsCards from './shared/FleetStatsCards';
 import BreakdownsDataTable from './shared/BreakdownsDataTable';
-import CommunicationHub from './CommunicationHub';
 import CreateCaseModal from './CreateCaseModal';
 import BreakdownHotspots from './BreakdownHotspots';
 import BreakdownCostTracking from './BreakdownCostTracking';
@@ -17,9 +16,13 @@ import OnCallSchedule from './OnCallSchedule';
 import PreventiveMaintenance from './PreventiveMaintenance';
 import MaintenanceList from '@/components/maintenance/MaintenanceList';
 import TelegramFullWidget from '@/components/telegram/TelegramFullWidget';
+import TelegramReviewQueue from '@/components/telegram/TelegramReviewQueue';
 import { Search, Wrench } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/hooks/usePermissions';
-import FleetMonitoringTab from './monitoring/FleetMonitoringTab';
+import { useQuery } from '@tanstack/react-query';
+import { apiUrl } from '@/lib/utils';
+
 
 export default function FleetDepartmentDashboard() {
   const { can } = usePermissions();
@@ -29,6 +32,17 @@ export default function FleetDepartmentDashboard() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { data: reviewStats } = useQuery({
+    queryKey: ['telegram-review-stats'],
+    queryFn: async () => {
+      const res = await fetch(apiUrl('/api/telegram/review-queue?status=PENDING&pageSize=0'));
+      if (!res.ok) return null;
+      return (await res.json()).data?.counts;
+    },
+    refetchInterval: 30000,
+    enabled: can('fleet.communications'),
+  });
 
 
 
@@ -72,10 +86,13 @@ export default function FleetDepartmentDashboard() {
             <LayoutDashboard className="h-4 w-4" />
             <span className="hidden sm:inline">Overview</span>
           </TabsTrigger>
-          {can('fleet.monitoring') && (
-            <TabsTrigger value="monitoring" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              <span className="hidden sm:inline">Monitoring</span>
+          {can('fleet.communications') && (
+            <TabsTrigger value="review" className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Review Queue</span>
+              {(reviewStats?.pending ?? 0) > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 min-w-5 text-[10px]">{reviewStats.pending}</Badge>
+              )}
             </TabsTrigger>
           )}
           {can('maintenance.view') && (
@@ -96,59 +113,36 @@ export default function FleetDepartmentDashboard() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Overview */}
-        <TabsContent value="overview" className="mt-4 space-y-4">
-          {/* Detailed Stats */}
-          <FleetStatsCards variant="full" />
-
-          {/* Active Cases - Full View substituted for previous compact view */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Active & Recent Cases</h3>
-            </div>
-            <BreakdownsDataTable
-              mode="full"
-              searchQuery={searchQuery}
-              showFilters={true}
-            />
-          </div>
-
-          {/* Telegram Messages - Full Width - Only if has permission */}
-          {can('fleet.communications') && (
-            <div className="space-y-2">
-              <TelegramFullWidget />
-            </div>
-          )}
-
-          {/* Communication Hub - Collapsible - Only if has permission */}
-          {can('fleet.communications') && (
-            <details className="group" open>
-              <summary className="cursor-pointer list-none">
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
-                  <h3 className="text-lg font-semibold">Communication Hub</h3>
-                  <svg
-                    className="w-5 h-5 transition-transform group-open:rotate-180"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </summary>
-              <div className="mt-2">
-                <CommunicationHub />
+        {/* Tab 1: Overview — Two-panel layout */}
+        <TabsContent value="overview" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left Panel: Telegram Messages */}
+            {can('fleet.communications') && (
+              <div>
+                <TelegramFullWidget />
               </div>
-            </details>
-          )}
+            )}
+
+            {/* Right Panel: Active Cases */}
+            <div className={can('fleet.communications') ? '' : 'lg:col-span-2'}>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Active & Recent Cases</h3>
+                <BreakdownsDataTable
+                  mode="full"
+                  searchQuery={searchQuery}
+                  showFilters={true}
+                />
+              </div>
+            </div>
+          </div>
         </TabsContent>
 
-        {/* Tab 2: Monitoring */}
-        <TabsContent value="monitoring" className="mt-4">
-          <FleetMonitoringTab />
+        {/* Tab 2: Review Queue */}
+        <TabsContent value="review" className="mt-4">
+          <TelegramReviewQueue />
         </TabsContent>
 
-        {/* Tab 5: Maintenance */}
+        {/* Tab 3: Maintenance */}
         <TabsContent value="maintenance" className="mt-4 space-y-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">

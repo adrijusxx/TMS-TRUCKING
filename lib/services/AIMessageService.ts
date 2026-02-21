@@ -14,6 +14,7 @@ export interface AIAnalysis {
     truckNumber?: string;
     location?: string;
     problemDescription?: string;
+    breakdownType?: string; // Maps to BreakdownType enum (ENGINE_FAILURE, TIRE_FLAT, etc.)
     urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     suggestedResponse?: string;
     requiresHumanReview: boolean;
@@ -145,7 +146,8 @@ export class AIMessageService {
                     message: (context as any).originalMessage || analysis.problemDescription || "I have a problem with my truck.",
                     userId: 'driver-auto-reply',
                     conversationHistory: (context as any).conversationHistory,
-                    companyId: 'cmjlj0l8u0000uosscqdvk1fz', // TODO: Get from context or settings
+                    companyId: this.companyId,
+                    agentSlug: 'telegram-driver',
                     systemContext: `
                         You are replying to ${context.driverName}.
                         Issue detected: ${analysis.category} - ${analysis.problemDescription || 'General Inquiry'}.
@@ -186,6 +188,7 @@ Analyze the message and return a JSON object with the following structure:
   "truckNumber": string | null,
   "location": string | null,
   "problemDescription": string | null,
+  "breakdownType": "ENGINE_FAILURE" | "TRANSMISSION_FAILURE" | "BRAKE_FAILURE" | "TIRE_FLAT" | "TIRE_BLOWOUT" | "ELECTRICAL_ISSUE" | "COOLING_SYSTEM" | "FUEL_SYSTEM" | "SUSPENSION" | "ACCIDENT_DAMAGE" | "WEATHER_RELATED" | "OTHER" | null,
   "urgency": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "suggestedResponse": string | null,
   "requiresHumanReview": boolean,

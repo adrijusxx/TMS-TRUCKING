@@ -46,6 +46,11 @@ type InlineCaseFormData = z.infer<typeof inlineCaseSchema>;
 interface CreateCaseModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultValues?: {
+    description?: string;
+    truckId?: string;
+    breakdownType?: string;
+  };
 }
 
 async function searchTrucks(query: string) {
@@ -68,7 +73,7 @@ async function createBreakdown(data: InlineCaseFormData) {
   return response.json();
 }
 
-export default function CreateCaseModal({ open, onOpenChange }: CreateCaseModalProps) {
+export default function CreateCaseModal({ open, onOpenChange, defaultValues: prefill }: CreateCaseModalProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [truckSearchOpen, setTruckSearchOpen] = useState(false);
@@ -77,7 +82,12 @@ export default function CreateCaseModal({ open, onOpenChange }: CreateCaseModalP
 
   const { register, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<InlineCaseFormData>({
     resolver: zodResolver(inlineCaseSchema),
-    defaultValues: { priority: 'MEDIUM', breakdownType: 'OTHER' },
+    defaultValues: {
+      priority: 'MEDIUM',
+      breakdownType: (prefill?.breakdownType as any) || 'OTHER',
+      description: prefill?.description || '',
+      truckId: prefill?.truckId || '',
+    },
   });
 
   const selectedTruckId = watch('truckId');

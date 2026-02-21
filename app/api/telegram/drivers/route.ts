@@ -75,42 +75,40 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Check if mapping already exists
+        // Check if mapping already exists — update it if no driver linked yet, or if relinking
         const existing = await prisma.telegramDriverMapping.findUnique({
             where: { telegramId },
         });
 
-        if (existing) {
+        if (existing && existing.driverId && existing.driverId !== driverId) {
             return NextResponse.json(
-                { error: 'Telegram ID already mapped to another driver' },
+                { error: 'Telegram ID already mapped to another driver. Unlink first.' },
                 { status: 400 }
             );
         }
 
-        const mapping = await prisma.telegramDriverMapping.create({
-            data: {
-                driverId,
-                telegramId,
-                username,
-                phoneNumber,
-                firstName,
-                lastName,
-                isActive: true,
-            },
-            include: {
-                driver: {
-                    include: {
-                        user: {
-                            select: {
-                                firstName: true,
-                                lastName: true,
-                                phone: true,
-                            },
+        const mapping = existing
+            ? await prisma.telegramDriverMapping.update({
+                where: { telegramId },
+                data: { driverId, username, phoneNumber, firstName, lastName, isActive: true },
+                include: {
+                    driver: {
+                        include: {
+                            user: { select: { firstName: true, lastName: true, phone: true } },
                         },
                     },
                 },
-            },
-        });
+            })
+            : await prisma.telegramDriverMapping.create({
+                data: { driverId, telegramId, username, phoneNumber, firstName, lastName, isActive: true },
+                include: {
+                    driver: {
+                        include: {
+                            user: { select: { firstName: true, lastName: true, phone: true } },
+                        },
+                    },
+                },
+            });
 
         return NextResponse.json({ data: mapping });
     } catch (error) {

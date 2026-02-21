@@ -6,6 +6,7 @@ import { z } from 'zod';
 const chatbotSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   customerId: z.string().optional(),
+  agentSlug: z.string().optional(),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string(),
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
       customerId: validated.customerId,
       userId: session.user.id,
       conversationHistory: validated.conversationHistory,
+      agentSlug: validated.agentSlug || 'web-chatbot',
     });
 
     // Return streaming response

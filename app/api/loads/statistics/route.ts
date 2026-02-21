@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
         netProfit: true,
         fuelAdvance: true,
         totalExpenses: true,
+        estimatedOpCost: true,
         driver: {
           select: {
             payType: true,
@@ -72,6 +73,8 @@ export async function GET(request: NextRequest) {
     let totalProfit = 0;
     let totalFuelAdvance = 0;
     let totalLoadExpenses = 0;
+    let totalEstimatedOpCost = 0;
+    let loadsWithEstimates = 0;
 
     const DEFAULT_PAY_TYPE = 'PER_MILE' as const;
     const DEFAULT_PAY_RATE = 0.65;
@@ -97,6 +100,10 @@ export async function GET(request: NextRequest) {
       totalDriverPay += effectiveDriverPay;
       totalFuelAdvance += load.fuelAdvance || 0;
       totalLoadExpenses += load.totalExpenses || 0;
+      if (load.estimatedOpCost) {
+        totalEstimatedOpCost += load.estimatedOpCost;
+        loadsWithEstimates++;
+      }
 
       // Calculate profit from source fields
       totalProfit += (load.revenue || 0) - effectiveDriverPay - (load.totalExpenses || 0);
@@ -200,6 +207,13 @@ export async function GET(request: NextRequest) {
       rpmLoadedMiles: rpmLoadedMiles ? Math.round(rpmLoadedMiles * 100) / 100 : null,
       rpmEmptyMiles: rpmEmptyMiles ? Math.round(rpmEmptyMiles * 100) / 100 : null,
       rpmTotalMiles: rpmTotalMiles ? Math.round(rpmTotalMiles * 100) / 100 : null,
+      // Estimated operating costs (per-load, aggregated)
+      totalEstimatedOpCost: Math.round(totalEstimatedOpCost * 100) / 100,
+      estimatedNetProfit: Math.round((totalProfit - totalEstimatedOpCost) * 100) / 100,
+      estimatedAvgProfitPerLoad: totalLoads > 0
+        ? Math.round(((totalProfit - totalEstimatedOpCost) / totalLoads) * 100) / 100
+        : 0,
+      hasEstimatedCosts: loadsWithEstimates > 0,
       // Projected costs from operational metrics
       projected: {
         fuelCost: Math.round(projectedFuelCost * 100) / 100,

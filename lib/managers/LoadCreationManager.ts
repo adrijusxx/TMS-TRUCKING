@@ -8,6 +8,8 @@ import { prisma } from '@/lib/prisma';
 import { CreateLoadInput } from '@/lib/validations/load';
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
+import { calculateOperatingCosts, type OperatingCostResult } from '@/lib/utils/calculateOperatingCosts';
+import { resolveMpg } from '@/lib/utils/resolveMpg';
 import { geocodeAddress } from '@/lib/maps/google-maps';
 
 /**
@@ -304,7 +306,8 @@ export function buildLoadCreateData(
   location: LocationFields,
   dates: DateFields,
   assignedMcNumberId: string | null,
-  calculatedDriverPay: number | null
+  calculatedDriverPay: number | null,
+  estimatedOpCosts?: OperatingCostResult | null
 ): Record<string, unknown> {
   const { stops, loadedMiles, emptyMiles, totalMiles, ...loadData } = validated;
 
@@ -352,6 +355,11 @@ export function buildLoadCreateData(
     // Financial
     revenuePerMile: loadData.revenuePerMile || null,
     netProfit: (loadData.revenue || 0) - (calculatedDriverPay ?? (loadData.driverPay || 0)),
+    // Estimated Operating Costs
+    estimatedFuelCost: estimatedOpCosts?.estimatedFuelCost ?? null,
+    estimatedMaintCost: estimatedOpCosts?.estimatedMaintCost ?? null,
+    estimatedFixedCost: estimatedOpCosts?.estimatedFixedCost ?? null,
+    estimatedOpCost: estimatedOpCosts?.estimatedOpCost ?? null,
     // Additional assignments
     coDriverId: loadData.coDriverId || null,
     dispatcherId: loadData.dispatcherId || null,
@@ -395,6 +403,31 @@ export function buildLoadCreateData(
   }
 
   return loadCreateData;
+}
+
+/**
+ * Calculate estimated operating costs for a new load
+ */
+export async function calculateLoadOpCosts(
+  companyId: string,
+  totalMiles: number | null | undefined,
+  truckId: string | null | undefined,
+): Promise<OperatingCostResult | null> {
+  if (!totalMiles || totalMiles <= 0) return null;
+
+  const [systemConfig, truck] = await Promise.all([
+    prisma.systemConfig.findUnique({ where: { companyId } }),
+    truckId ? prisma.truck.findUnique({ where: { id: truckId }, select: { averageMpg: true } }) : null,
+  ]);
+
+  const { mpg } = resolveMpg(truck?.averageMpg, systemConfig?.averageMpg);
+  return calculateOperatingCosts({
+    totalMiles,
+    mpg,
+    fuelPrice: systemConfig?.averageFuelPrice,
+    maintenanceCpm: systemConfig?.maintenanceCpm,
+    fixedCostPerDay: systemConfig?.fixedCostPerDay,
+  });
 }
 
 /**

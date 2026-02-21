@@ -20,7 +20,6 @@ import {
     Image,
     File,
     X,
-    CheckCheck,
     ArrowLeft,
     Bot,
 } from 'lucide-react';
@@ -30,6 +29,9 @@ import { apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import MessageMedia from './MessageMedia';
+import TelegramMessageBubble from './TelegramMessageBubble';
+import CreateCaseModal from '@/components/fleet/CreateCaseModal';
+import LinkDriverButton from './LinkDriverButton';
 
 interface Dialog {
     id: string;
@@ -104,6 +106,12 @@ async function sendMessage(chatId: string, text: string) {
     return response.json();
 }
 
+async function fetchLinkedCases(chatId: string) {
+    const response = await fetch(apiUrl(`/api/telegram/messages/${chatId}/cases`));
+    if (!response.ok) return { data: {} };
+    return response.json();
+}
+
 async function uploadFile(chatId: string, file: File, caption?: string) {
     const formData = new FormData();
     formData.append('file', file);
@@ -124,6 +132,8 @@ export default function TelegramFullWidget() {
     const [messageInput, setMessageInput] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
+    const [createCaseOpen, setCreateCaseOpen] = useState(false);
+    const [createCaseDefaults, setCreateCaseDefaults] = useState<{ description?: string }>({});
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -142,6 +152,16 @@ export default function TelegramFullWidget() {
         enabled: !!selectedChat,
         refetchInterval: 5000,
     });
+
+    // Fetch linked cases for the selected chat
+    const { data: linkedCasesData } = useQuery({
+        queryKey: ['telegram-linked-cases', selectedChat?.id],
+        queryFn: () => fetchLinkedCases(selectedChat!.id),
+        enabled: !!selectedChat,
+        refetchInterval: 30000,
+    });
+    const linkedCasesMap: Record<string, { breakdownNumber: string; status: string; priority: string }> =
+        linkedCasesData?.data || {};
 
     // Send message mutation
     const sendMutation = useMutation({
@@ -408,6 +428,13 @@ export default function TelegramFullWidget() {
                                         {/* Actions Toolbar */}
                                         <div className="flex items-center gap-4">
                                             {(!selectedChat.isChannel && !selectedChat.isGroup) && (
+                                                <LinkDriverButton
+                                                    chatId={selectedChat.id}
+                                                    chatTitle={selectedChat.title}
+                                                    chatPhone={selectedChat.phone}
+                                                />
+                                            )}
+                                            {(!selectedChat.isChannel && !selectedChat.isGroup) && (
                                                 <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-full border border-border/50">
                                                     <div className="flex flex-col items-end mr-1">
                                                         <span className="text-[11px] font-bold leading-none text-primary/80">AI AGENT</span>
@@ -441,34 +468,15 @@ export default function TelegramFullWidget() {
                                     ) : (
                                         <div className="space-y-3">
                                             {[...messages].reverse().map((msg) => (
-                                                <div
+                                                <TelegramMessageBubble
                                                     key={msg.id}
-                                                    className={`flex ${msg.out ? 'justify-end' : 'justify-start'}`}
-                                                >
-                                                    <div
-                                                        className={`max-w-[70%] rounded-lg px-3 py-2 ${msg.out
-                                                            ? 'bg-primary text-primary-foreground'
-                                                            : 'bg-muted'
-                                                            }`}
-                                                    >
-                                                        {msg.media && (
-                                                            <MessageMedia media={msg.media} out={msg.out} />
-                                                        )}
-                                                        {msg.text && <p className="text-sm break-words">{msg.text}</p>}
-                                                        <div className={`flex items-center justify-end gap-1 mt-1 ${msg.out ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                                                            }`}>
-                                                            {msg.date && (
-                                                                <span className="text-xs">
-                                                                    {new Date(msg.date).toLocaleTimeString([], {
-                                                                        hour: '2-digit',
-                                                                        minute: '2-digit',
-                                                                    })}
-                                                                </span>
-                                                            )}
-                                                            {msg.out && <CheckCheck className="h-3 w-3 text-blue-400" />}
-                                                        </div>
-                                                    </div>
-                                                </div>
+                                                    msg={msg}
+                                                    linkedCase={linkedCasesMap[msg.id?.toString()]}
+                                                    onCreateCase={(text) => {
+                                                        setCreateCaseDefaults({ description: text });
+                                                        setCreateCaseOpen(true);
+                                                    }}
+                                                />
                                             ))}
                                             <div ref={messagesEndRef} />
                                         </div>
@@ -550,6 +558,13 @@ export default function TelegramFullWidget() {
                     </div>
                 </div>
             </CardContent >
+
+            {/* Create Case Modal (triggered from message action) */}
+            <CreateCaseModal
+                open={createCaseOpen}
+                onOpenChange={setCreateCaseOpen}
+                defaultValues={createCaseDefaults}
+            />
         </Card >
     );
 }

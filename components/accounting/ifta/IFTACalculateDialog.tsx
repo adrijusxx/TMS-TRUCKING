@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -196,13 +195,17 @@ export function IFTACalculateDialog({ open, onOpenChange, quarter, year, onCompl
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2 font-medium">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                Processing loads...
+                Processing {preview?.toProcess || 0} loads...
               </div>
-              <span className="text-muted-foreground">{elapsed}s</span>
+              <span className="text-muted-foreground tabular-nums">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
             </div>
-            <Progress value={Math.min(90, elapsed * 2)} className="h-2" />
+            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden relative">
+              <div className="h-full w-1/3 bg-primary rounded-full absolute animate-bounce-x"
+                style={{ animation: 'bounce-x 1.5s ease-in-out infinite alternate', left: 0 }} />
+              <style>{`@keyframes bounce-x { 0% { transform: translateX(0); } 100% { transform: translateX(200%); }}`}</style>
+            </div>
             <p className="text-xs text-muted-foreground">
-              Calculating routes and state mileages. Larger quarters take longer.
+              Each load is routed via Google Maps to calculate state mileage. This may take several minutes for large quarters.
             </p>
           </div>
         ) : (
