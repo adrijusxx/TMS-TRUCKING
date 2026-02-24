@@ -58,6 +58,7 @@ import { processDripSteps } from './process-drip-steps';
 import { processAutomation } from './process-automation';
 import { generateLeadSummary } from './generate-lead-summary';
 import { checkFleetDormancy } from './check-fleet-dormancy';
+import { databaseKeepAlive } from './keep-alive';
 
 export { syncCrmLeads } from './sync-crm-leads';
 export { checkLeadFollowUps } from './check-lead-follow-ups';
@@ -68,6 +69,7 @@ export { processDripSteps } from './process-drip-steps';
 export { processAutomation } from './process-automation';
 export { generateLeadSummary } from './generate-lead-summary';
 export { checkFleetDormancy } from './check-fleet-dormancy';
+export { databaseKeepAlive } from './keep-alive';
 
 export const allFunctions = [
   // Settlements
@@ -98,5 +100,7 @@ export const allFunctions = [
   generateLeadSummary,
   // Fleet Monitoring
   checkFleetDormancy,
+  // Database Keep-Alive
+  databaseKeepAlive,
 ];
 
