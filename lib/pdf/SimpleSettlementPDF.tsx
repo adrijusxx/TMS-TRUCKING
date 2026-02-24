@@ -223,6 +223,11 @@ export function SimpleSettlementPDF({ settlement, company, driver, loads, deduct
                                 </View>
                                 <View style={styles.tripDetails}>
                                     <Text style={{ fontSize: 10, color: '#6B7280' }}>Load #{load.loadNumber}</Text>
+                                    {(load.pickupDate || load.deliveryDate) && (
+                                        <Text style={{ fontSize: 9, color: '#9CA3AF' }}>
+                                            {load.pickupDate ? `PU: ${formatDate(load.pickupDate)}` : ''}{load.pickupDate && load.deliveryDate ? ' | ' : ''}{load.deliveryDate ? `DEL: ${formatDate(load.deliveryDate)}` : ''}
+                                        </Text>
+                                    )}
                                     <Text style={styles.tripPay}>{formatCurrency(load.driverPay)}</Text>
                                 </View>
                             </View>

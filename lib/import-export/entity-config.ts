@@ -230,9 +230,61 @@ const entityConfigs: Record<string, EntityConfig> = {
     ],
     exampleRow: { firstName: 'John', lastName: 'Smith', phone: '312-555-0101', email: 'john@example.com', cdlClass: 'A', yearsExperience: '5', source: 'Facebook', priority: 'Hot', status: 'New' },
   },
+  vendors: {
+    label: 'Vendors',
+    fields: [
+      { key: 'name', label: 'Name *', required: true, suggestedCsvHeaders: ['Name', 'name', 'Vendor Name', 'vendor_name', 'Company', 'company'] },
+      { key: 'vendorNumber', label: 'Vendor Number', suggestedCsvHeaders: ['Vendor Number', 'vendor_number', 'Vendor #', 'Vendor ID'] },
+      { key: 'type', label: 'Type', suggestedCsvHeaders: ['Type', 'type', 'Vendor Type', 'vendor_type', 'Category'] },
+      { key: 'address', label: 'Address', suggestedCsvHeaders: ['Address', 'address', 'Street', 'Street Address'] },
+      { key: 'city', label: 'City', suggestedCsvHeaders: ['City', 'city'] },
+      { key: 'state', label: 'State', suggestedCsvHeaders: ['State', 'state'] },
+      { key: 'zip', label: 'ZIP', suggestedCsvHeaders: ['ZIP', 'zip', 'Zip Code', 'zip_code', 'Postal Code'] },
+      { key: 'phone', label: 'Phone', suggestedCsvHeaders: ['Phone', 'phone', 'Phone Number'] },
+      { key: 'email', label: 'Email', suggestedCsvHeaders: ['Email', 'email', 'Email Address'] },
+      { key: 'website', label: 'Website', suggestedCsvHeaders: ['Website', 'website', 'URL', 'Web'] },
+      { key: 'tag', label: 'Tag', suggestedCsvHeaders: ['Tag', 'tag', 'Tags', 'Category'] },
+    ],
+    exampleRow: { name: 'ABC Parts Supply', vendorNumber: 'V-001', type: 'PARTS_VENDOR', city: 'Chicago', state: 'IL', zip: '60601', phone: '312-555-0200', email: 'orders@abcparts.com' },
+  },
+  locations: {
+    label: 'Locations',
+    fields: [
+      { key: 'name', label: 'Name *', required: true, suggestedCsvHeaders: ['Name', 'name', 'Location Name', 'location_name', 'Facility'] },
+      { key: 'type', label: 'Type', suggestedCsvHeaders: ['Type', 'type', 'Location Type', 'location_type'] },
+      { key: 'address', label: 'Address', suggestedCsvHeaders: ['Address', 'address', 'Street', 'Street Address'] },
+      { key: 'city', label: 'City', suggestedCsvHeaders: ['City', 'city'] },
+      { key: 'state', label: 'State', suggestedCsvHeaders: ['State', 'state'] },
+      { key: 'zip', label: 'ZIP', suggestedCsvHeaders: ['ZIP', 'zip', 'Zip Code', 'zip_code'] },
+      { key: 'contactName', label: 'Contact Name', suggestedCsvHeaders: ['Contact Name', 'contact_name', 'Contact'] },
+      { key: 'contactPhone', label: 'Contact Phone', suggestedCsvHeaders: ['Contact Phone', 'contact_phone', 'Phone'] },
+      { key: 'contactEmail', label: 'Contact Email', suggestedCsvHeaders: ['Contact Email', 'contact_email', 'Email'] },
+    ],
+    exampleRow: { name: 'Midwest Warehouse', type: 'WAREHOUSE', address: '100 Industrial Blvd', city: 'Chicago', state: 'IL', zip: '60601', contactName: 'John Doe', contactPhone: '312-555-0300' },
+  },
+  settlements: {
+    label: 'Settlements',
+    fields: [
+      { key: 'settlementNumber', label: 'Settlement Number *', required: true, suggestedCsvHeaders: ['Settlement Number', 'settlement_number', 'Settlement #', 'Settlement ID', 'Stmt #'] },
+      { key: 'driverId', label: 'Driver *', required: true, suggestedCsvHeaders: ['Driver', 'driver', 'Driver Name', 'Driver ID', 'driver_id'] },
+      { key: 'periodStart', label: 'Period Start', suggestedCsvHeaders: ['Period Start', 'period_start', 'Start Date', 'From'] },
+      { key: 'periodEnd', label: 'Period End', suggestedCsvHeaders: ['Period End', 'period_end', 'End Date', 'To'] },
+      { key: 'grossPay', label: 'Gross Pay', suggestedCsvHeaders: ['Gross Pay', 'gross_pay', 'Gross', 'Total Pay'] },
+      { key: 'deductions', label: 'Deductions', suggestedCsvHeaders: ['Deductions', 'deductions', 'Total Deductions'] },
+      { key: 'advances', label: 'Advances', suggestedCsvHeaders: ['Advances', 'advances', 'Total Advances'] },
+      { key: 'netPay', label: 'Net Pay', suggestedCsvHeaders: ['Net Pay', 'net_pay', 'Net', 'Take Home'] },
+      { key: 'status', label: 'Status', suggestedCsvHeaders: ['Status', 'status', 'Settlement Status'] },
+    ],
+    exampleRow: { settlementNumber: 'STL-1001', driverId: 'John Smith', periodStart: '2025-01-13', periodEnd: '2025-01-19', grossPay: '3200', deductions: '400', netPay: '2800', status: 'PAID' },
+  },
 };
 
 export function getEntityConfig(entityType: string): EntityConfig | null {
   return entityConfigs[entityType] || null;
+}
+
+/** Get all configured entity type keys */
+export function getAllEntityTypes(): string[] {
+  return Object.keys(entityConfigs);
 }
 

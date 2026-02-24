@@ -1,7 +1,5 @@
-import { redirect } from 'next/navigation';
+import BillsModuleLayout from '@/components/bills/BillsModuleLayout';
 
-// Redirect bills to invoices (they're the same thing)
 export default function BillsPage() {
-  redirect('/dashboard/invoices');
+  return <BillsModuleLayout />;
 }
-

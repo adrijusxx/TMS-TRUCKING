@@ -17,14 +17,19 @@ export async function POST(request: NextRequest) {
 
         const normalizedEmail = email.toLowerCase().trim();
 
-        const existingUser = await prisma.user.findUnique({
-            where: { email: normalizedEmail },
-            select: { id: true },
+        // Email is unique per-company, not globally.
+        // For registration (new company), email is always available.
+        // Return count of existing accounts for informational purposes.
+        const existingCount = await prisma.user.count({
+            where: { email: normalizedEmail, deletedAt: null },
         });
 
         return NextResponse.json({
-            available: !existingUser,
-            message: existingUser ? 'This email is already registered' : 'Email is available',
+            available: true, // Always available for new company registration
+            existingAccounts: existingCount,
+            message: existingCount > 0
+                ? `This email is registered with ${existingCount} other ${existingCount === 1 ? 'company' : 'companies'}. You can still create a new company account.`
+                : 'Email is available',
         });
     } catch (error) {
         if (error instanceof z.ZodError) {

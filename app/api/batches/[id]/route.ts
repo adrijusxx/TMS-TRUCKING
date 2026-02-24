@@ -43,11 +43,28 @@ export async function GET(
             invoice: {
               include: {
                 customer: {
+                  select: { id: true, name: true, customerNumber: true },
+                },
+                load: {
                   select: {
                     id: true,
-                    name: true,
-                    customerNumber: true,
+                    loadNumber: true,
+                    shipmentId: true,
+                    driverPay: true,
+                    pickupDate: true,
+                    deliveryDate: true,
+                    deliveredAt: true,
+                    podUploadedAt: true,
+                    status: true,
+                    driver: {
+                      select: {
+                        user: { select: { firstName: true, lastName: true } },
+                      },
+                    },
                   },
+                },
+                factoringCompany: {
+                  select: { id: true, name: true },
                 },
               },
             },

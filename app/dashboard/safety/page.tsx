@@ -1,6 +1,6 @@
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { DepartmentDashboard } from '@/components/layout/DepartmentDashboard';
-import SafetyDashboard from '@/components/safety/dashboard/SafetyDashboard';
+import SafetyDepartmentDashboard from '@/components/safety/SafetyDepartmentDashboard';
 
 export default function SafetyPageRoute() {
   return (
@@ -8,9 +8,9 @@ export default function SafetyPageRoute() {
       <Breadcrumb items={[{ label: 'Safety Department', href: '/dashboard/safety' }]} />
       <DepartmentDashboard
         title="Safety Department"
-        description="Compliance tracking, fleet safety, incidents, and training"
+        description="Safety tasks, inspections, claims, and compliance"
       >
-        <SafetyDashboard />
+        <SafetyDepartmentDashboard />
       </DepartmentDashboard>
     </>
   );

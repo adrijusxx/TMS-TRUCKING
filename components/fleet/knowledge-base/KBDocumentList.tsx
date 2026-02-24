@@ -29,7 +29,7 @@ export default function KBDocumentList() {
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; filename: string; percent: number } | null>(null);
-    const [uploadAgentId, setUploadAgentId] = useState<string>('');
+    const [uploadAgentId, setUploadAgentId] = useState<string>('__shared__');
     const [viewingDoc, setViewingDoc] = useState<any | null>(null);
     const [docContent, setDocContent] = useState<string | null>(null);
     const [isLoadingDoc, setIsLoadingDoc] = useState(false);
@@ -60,7 +60,8 @@ export default function KBDocumentList() {
             const xhr = new XMLHttpRequest();
             const formData = new FormData();
             formData.append('file', file);
-            if (agentId) formData.append('agentId', agentId);
+            const resolvedAgentId = agentId === '__shared__' ? '' : agentId;
+            if (resolvedAgentId) formData.append('agentId', resolvedAgentId);
 
             xhr.open('POST', apiUrl('/api/knowledge-base/upload'));
             xhr.upload.onprogress = (e) => {
@@ -197,7 +198,7 @@ export default function KBDocumentList() {
                         <SelectValue placeholder="All Agents (Shared)" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">All Agents (Shared)</SelectItem>
+                        <SelectItem value="__shared__">All Agents (Shared)</SelectItem>
                         {agents?.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                     </SelectContent>
                 </Select>

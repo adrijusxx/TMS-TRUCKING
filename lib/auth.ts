@@ -33,7 +33,8 @@ export const authOptions: NextAuthConfig = {
       name: 'Credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
+        password: { label: 'Password', type: 'password' },
+        companyId: { label: 'Company', type: 'text' },
       },
       async authorize(credentials, request): Promise<{ id: string; email: string; name: string; role: string; roleId?: string; roleSlug: string; roleName: string; companyId: string; mcAccess: string[] } | null> {
         try {
@@ -43,9 +44,14 @@ export const authOptions: NextAuthConfig = {
 
           const email = typeof credentials.email === 'string' ? credentials.email.toLowerCase().trim() : '';
           const password = typeof credentials.password === 'string' ? credentials.password : '';
+          const companyId = typeof credentials.companyId === 'string' && credentials.companyId ? credentials.companyId : undefined;
 
-          const user = await prisma.user.findUnique({
-            where: { email },
+          // Build where clause — filter by companyId when provided (multi-company login)
+          const whereClause: { email: string; companyId?: string; deletedAt: null } = { email, deletedAt: null };
+          if (companyId) whereClause.companyId = companyId;
+
+          const user = await prisma.user.findFirst({
+            where: whereClause,
             select: {
               id: true,
               email: true,

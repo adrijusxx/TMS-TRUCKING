@@ -290,8 +290,12 @@ export function getModelNameFromEntityType(entityType: string): string {
     'customers': 'Customer',
     'invoices': 'Invoice',
     'vendors': 'Vendor',
-    'employees': 'Driver', // Employees are drivers
+    'locations': 'Location',
+    'settlements': 'Settlement',
+    'employees': 'Driver',
     'users': 'User',
+    'dispatchers': 'User',
+    'recruiting-leads': 'Lead',
     'batches': 'Batch',
     'breakdowns': 'Breakdown',
     'rate-confirmations': 'RateConfirmation',

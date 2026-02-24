@@ -109,17 +109,38 @@ export class KnowledgeBaseService {
      */
     private async processText(text: string, documentId: string): Promise<void> {
         const chunks = this.chunkText(text);
+        if (chunks.length === 0) {
+            throw new Error('Document has no text content to process');
+        }
+
         const batchSize = 10;
 
         for (let i = 0; i < chunks.length; i += batchSize) {
             const batch = chunks.slice(i, i + batchSize);
 
-            const embeddingResponse = await this.openai.embeddings.create({
-                model: 'text-embedding-3-small',
-                input: batch,
-            });
+            let embeddingResponse;
+            try {
+                embeddingResponse = await this.openai.embeddings.create({
+                    model: 'text-embedding-3-small',
+                    input: batch,
+                });
+            } catch (err: any) {
+                // Mark document as FAILED and surface a clear error
+                await prisma.knowledgeBaseDocument.update({
+                    where: { id: documentId },
+                    data: { status: 'FAILED', errorMessage: `Embedding failed: ${err.message}` },
+                });
+                throw new Error(`Failed to generate embeddings: ${err.message}`);
+            }
 
             const embeddings = embeddingResponse.data;
+            if (!embeddings || embeddings.length !== batch.length) {
+                await prisma.knowledgeBaseDocument.update({
+                    where: { id: documentId },
+                    data: { status: 'FAILED', errorMessage: 'Embedding response mismatch' },
+                });
+                throw new Error('Embedding response did not match batch size');
+            }
 
             await prisma.$transaction(
                 batch.map((chunkContent, idx) =>
@@ -262,7 +283,8 @@ export class KnowledgeBaseService {
             normA += vecA[i] * vecA[i];
             normB += vecB[i] * vecB[i];
         }
-        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+        const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+        return denominator === 0 ? 0 : dotProduct / denominator;
     }
 
     private chunkText(text: string, chunkSize = 800, overlap = 100): string[] {

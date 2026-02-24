@@ -17,6 +17,7 @@ import {
   Key,
   History,
   LogOut,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,7 @@ const navigationGroups: NavigationGroup[] = [
     label: 'Main',
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Setup Guide', href: '/dashboard/onboarding', icon: BookOpen },
     ],
   },
   {

@@ -2,18 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, AlertCircle, CheckCircle, TrendingUp } from 'lucide-react';
+import { DollarSign, AlertCircle, TrendingUp, CheckCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface MetricsData {
-  pendingSettlements: {
-    count: number;
-    totalAmount: number;
-  };
-  pendingAdvances: {
-    count: number;
-    totalAmount: number;
-  };
+  pendingSettlements: { count: number; totalAmount: number };
+  pendingAdvances: { count: number; totalAmount: number };
   weeklyRevenue: number;
   weeklyProfit: number;
   profitMargin: number;
@@ -25,35 +19,23 @@ export function AccountingMetrics() {
 
   useEffect(() => {
     fetchMetrics();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchMetrics, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchMetrics = async () => {
     try {
-      const [settlementsRes, advancesRes] = await Promise.all([
-        fetch('/api/settlements/pending-approval'),
-        fetch('/api/advances?status=PENDING'),
-      ]);
-
-      const settlementsData = await settlementsRes.json();
-      const advancesData = await advancesRes.json();
-
-      setMetrics({
-        pendingSettlements: {
-          count: settlementsData.summary?.totalSettlements || 0,
-          totalAmount: settlementsData.summary?.totalAmount || 0,
-        },
-        pendingAdvances: {
-          count: advancesData.data?.length || 0,
-          totalAmount:
-            advancesData.data?.reduce((sum: number, adv: any) => sum + adv.amount, 0) || 0,
-        },
-        weeklyRevenue: 0, // TODO: Implement weekly revenue calculation
-        weeklyProfit: 0, // TODO: Implement weekly profit calculation
-        profitMargin: 0, // TODO: Implement profit margin calculation
-      });
+      const res = await fetch('/api/accounting/dashboard');
+      const data = await res.json();
+      if (data.success) {
+        setMetrics({
+          pendingSettlements: data.data.pendingSettlements,
+          pendingAdvances: data.data.pendingAdvances,
+          weeklyRevenue: data.data.weeklyRevenue,
+          weeklyProfit: data.data.weeklyProfit,
+          profitMargin: data.data.profitMargin,
+        });
+      }
     } catch (error) {
       console.error('Error fetching metrics:', error);
     } finally {
@@ -136,8 +118,3 @@ export function AccountingMetrics() {
     </div>
   );
 }
-
-
-
-
-

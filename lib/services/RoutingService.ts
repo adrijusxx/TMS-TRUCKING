@@ -316,6 +316,15 @@ export class RoutingService {
   }
 
   /**
+   * Estimate total distance between waypoints without an API call.
+   * Uses the same heuristic as the fallback estimator.
+   */
+  async estimateDistance(waypoints: RouteWaypoint[]): Promise<number> {
+    const result = this.estimateRoute(waypoints);
+    return result.totalMiles;
+  }
+
+  /**
    * Calculate deadhead miles (empty miles to pickup)
    */
   async calculateDeadheadMiles(

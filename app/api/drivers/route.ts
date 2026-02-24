@@ -403,9 +403,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validated.email },
+    // Check if email already exists in this company
+    const existingUser = await prisma.user.findFirst({
+      where: { email: validated.email.toLowerCase().trim(), companyId: session.user.companyId, deletedAt: null },
     });
 
     if (existingUser) {
@@ -414,7 +414,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: 'CONFLICT',
-            message: 'User with this email already exists',
+            message: 'User with this email already exists in this company',
           },
         },
         { status: 409 }

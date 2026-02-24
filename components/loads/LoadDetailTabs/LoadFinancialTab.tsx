@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, XCircle, RefreshCw, Fuel } from 'lucide-react';
+import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, XCircle, RefreshCw, Fuel, Lock } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { AccountingSyncStatus } from '@prisma/client';
@@ -36,7 +36,10 @@ export default function LoadFinancialTab({
   onLoadRefetch,
 }: LoadFinancialTabProps) {
   const { can } = usePermissions();
+  const isFinanciallyLocked = !!load.financialLockedAt;
+  const canOverrideLock = can('loads.override_financial_lock');
   const canEdit = can('loads.edit');
+  const canEditFinancials = canEdit && (!isFinanciallyLocked || canOverrideLock);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [isVerifyingMiles, setIsVerifyingMiles] = useState(false);
 
@@ -142,10 +145,19 @@ export default function LoadFinancialTab({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isFinanciallyLocked && (
+            <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950">
+              <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <span className="text-amber-800 dark:text-amber-300">
+                Financial values locked{load.financialLockReason ? ` (${load.financialLockReason})` : ''}.
+                {canOverrideLock ? ' You have permission to override.' : ' Admin override required to edit.'}
+              </span>
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="revenue" className="text-sm">Revenue</Label>
-              {canEdit ? (
+              {canEditFinancials ? (
                 <Input
                   id="revenue"
                   type="number"
@@ -165,7 +177,7 @@ export default function LoadFinancialTab({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="driverPay" className="text-sm">Driver Pay</Label>
-                {load?.driverId && canEdit && (
+                {load?.driverId && canEditFinancials && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -179,7 +191,7 @@ export default function LoadFinancialTab({
                   </Button>
                 )}
               </div>
-              {canEdit ? (
+              {canEditFinancials ? (
                 <Input
                   id="driverPay"
                   type="number"
@@ -199,7 +211,7 @@ export default function LoadFinancialTab({
 
             <div className="space-y-2">
               <Label htmlFor="fuelAdvance" className="text-sm">Fuel Advance</Label>
-              {canEdit ? (
+              {canEditFinancials ? (
                 <Input
                   id="fuelAdvance"
                   type="number"

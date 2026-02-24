@@ -66,13 +66,16 @@ Return ONLY a JSON array of the top ${limit} most similar cases with this format
 [{"index": 1, "similarity": 9, "reason": "Both involve engine overheating"}]`;
 
             const response = await this.openai.chat.completions.create({
-                model: 'gpt-4',
+                model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' },
                 temperature: 0.3,
+                max_tokens: 400,
             });
 
             const content = response.choices[0].message.content || '[]';
-            const matches = JSON.parse(content.replace(/```json\n?|\n?```/g, ''));
+            const parsed = JSON.parse(content);
+            const matches = Array.isArray(parsed) ? parsed : parsed.results || parsed.cases || [];
 
             // Map matches to full case data
             const similarCases: SimilarCase[] = matches.map((match: any) => {
@@ -195,15 +198,16 @@ Provide your response in this exact JSON format:
   "sourceDocuments": ["Document title from KB that was used"]
 }`;
 
-            // Use gpt-4o-mini for faster responses (still high quality)
             const response = await this.openai.chat.completions.create({
                 model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
+                response_format: { type: 'json_object' },
                 temperature: 0.3,
+                max_tokens: 600,
             });
 
             const content = response.choices[0].message.content || '{}';
-            const suggestion = JSON.parse(content.replace(/```json\n?|\n?```/g, ''));
+            const suggestion = JSON.parse(content);
 
             console.log(`[BreakdownAssistant] Total suggestion time: ${Date.now() - startTime}ms`);
 
@@ -230,7 +234,7 @@ Provide your response in this exact JSON format:
 Make it clear, specific, and include relevant technical details. Keep it concise (2-3 sentences).`;
 
             const response = await this.openai.chat.completions.create({
-                model: 'gpt-4',
+                model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.5,
                 max_tokens: 150,
@@ -256,7 +260,7 @@ Description: "${description}"
 Return ONLY the category name.`;
 
             const response = await this.openai.chat.completions.create({
-                model: 'gpt-4',
+                model: 'gpt-4o-mini',
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.2,
                 max_tokens: 20,

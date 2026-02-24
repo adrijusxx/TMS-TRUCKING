@@ -159,6 +159,8 @@ export async function GET(
           totalMiles: true,
           loadedMiles: true,
           emptyMiles: true,
+          pickupDate: true,
+          deliveryDate: true,
           deliveredAt: true,
         },
       })

@@ -384,20 +384,52 @@ export class FactoringManager {
   }
 
   /**
-   * Export invoices to factoring company
-   * TODO: Implement actual export logic based on factoring company configuration
+   * Export invoices to factoring company as CSV data.
+   * Returns CSV string for download or further processing (email/FTP).
    */
-  private static async exportToFactoringCompany(
-    factoringCompany: FactoringCompany,
-    invoices: Invoice[]
-  ) {
-    // This would implement:
-    // - API integration (RTS, TAFS, etc.)
-    // - CSV/EDI file generation
-    // - Email/FTP upload
-    // - Based on factoringCompany.apiProvider or exportFormat
+  static async exportToFactoringCompany(
+    factoringCompanyId: string,
+    companyId: string
+  ): Promise<{ csv: string; invoiceCount: number; totalAmount: number }> {
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        factoringCompanyId,
+        customer: { companyId },
+        factoringStatus: FactoringStatus.SUBMITTED_TO_FACTOR,
+      },
+      include: {
+        customer: { select: { name: true, customerNumber: true } },
+      },
+      orderBy: { invoiceDate: 'asc' },
+    });
 
-    throw new Error('Export functionality not yet implemented');
+    if (invoices.length === 0) {
+      return { csv: '', invoiceCount: 0, totalAmount: 0 };
+    }
+
+    const header = 'Invoice Number,Customer Name,Customer Number,Invoice Date,Due Date,Subtotal,Tax,Total,Load IDs';
+    const rows = invoices.map((inv) => {
+      const loadIds = Array.isArray(inv.loadIds) ? (inv.loadIds as string[]).join('; ') : '';
+      return [
+        inv.invoiceNumber,
+        `"${(inv.customer?.name || '').replace(/"/g, '""')}"`,
+        inv.customer?.customerNumber || '',
+        inv.invoiceDate.toISOString().split('T')[0],
+        inv.dueDate?.toISOString().split('T')[0] || '',
+        inv.subtotal.toFixed(2),
+        inv.tax.toFixed(2),
+        inv.total.toFixed(2),
+        `"${loadIds}"`,
+      ].join(',');
+    });
+
+    const totalAmount = invoices.reduce((sum, inv) => sum + inv.total, 0);
+
+    return {
+      csv: [header, ...rows].join('\n'),
+      invoiceCount: invoices.length,
+      totalAmount,
+    };
   }
 }
 

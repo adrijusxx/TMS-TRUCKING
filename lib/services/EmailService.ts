@@ -65,7 +65,7 @@ export class EmailService {
                         Data: subject,
                     },
                 },
-                Source: from || process.env.AWS_SES_FROM_EMAIL || "noreply@yourdomain.com",
+                Source: from || process.env.AWS_SES_FROM_EMAIL!,
             });
 
             const response = await this.getClient().send(command);
@@ -86,7 +86,7 @@ export class EmailService {
         to, subject, html, from, attachments,
     }: EmailWithAttachmentOptions): Promise<EmailSendResult> {
         try {
-            const sender = from || process.env.AWS_SES_FROM_EMAIL || "noreply@yourdomain.com";
+            const sender = from || process.env.AWS_SES_FROM_EMAIL!;
             const recipients = Array.isArray(to) ? to : [to];
             const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 

@@ -17,6 +17,10 @@ import { formatDistanceToNow } from 'date-fns';
 interface Dialog {
     id: string;
     title: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    username?: string | null;
+    phone?: string | null;
     unreadCount: number;
     lastMessage: string;
     lastMessageDate: string | null;
@@ -79,6 +83,11 @@ export default function TelegramWidget() {
 
     const getInitials = (name: string) => {
         return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+    };
+
+    const getDisplayName = (dialog: Dialog) => {
+        const parts = [dialog.firstName, dialog.lastName].filter(Boolean);
+        return parts.length > 0 ? parts.join(' ') : dialog.title;
     };
 
     // Not connected state
@@ -144,14 +153,14 @@ export default function TelegramWidget() {
                                 >
                                     <Avatar className="h-8 w-8">
                                         <AvatarFallback className="text-xs bg-primary/10">
-                                            {getInitials(dialog.title)}
+                                            {getInitials(getDisplayName(dialog))}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm font-medium truncate flex items-center gap-1">
                                                 {getDialogIcon(dialog)}
-                                                {dialog.title}
+                                                {getDisplayName(dialog)}
                                             </span>
                                             {dialog.unreadCount > 0 && (
                                                 <Badge className="bg-primary text-xs h-5 min-w-5 flex items-center justify-center">

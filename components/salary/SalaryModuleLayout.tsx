@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { FileText, Users, BarChart3, Wallet, Clock } from 'lucide-react';
+import { FileText, Users, BarChart3, Wallet, Clock, UserCheck } from 'lucide-react';
 
 // Lazy load tab components for better performance
 const PendingSettlementsTab = React.lazy(() => import('./tabs/PendingSettlementsTab'));
@@ -12,6 +12,7 @@ const SalaryBatchesTab = React.lazy(() => import('./tabs/SalaryBatchesTab'));
 const DriverStatementsTab = React.lazy(() => import('./tabs/DriverStatementsTab'));
 const SalaryReportTab = React.lazy(() => import('./tabs/SalaryReportTab'));
 const DriverBalancesTab = React.lazy(() => import('./tabs/DriverBalancesTab'));
+const DispatcherSalaryTab = React.lazy(() => import('./tabs/DispatcherSalaryTab'));
 
 const SALARY_TABS = [
     { id: 'pending', label: 'Pending', icon: Clock },
@@ -19,6 +20,7 @@ const SALARY_TABS = [
     { id: 'statements', label: 'All Settlements', icon: Users },
     { id: 'report', label: 'Reports', icon: BarChart3 },
     { id: 'balances', label: 'Balances', icon: Wallet },
+    { id: 'dispatcher', label: 'Dispatcher Salary', icon: UserCheck },
 ] as const;
 
 type SalaryTabId = typeof SALARY_TABS[number]['id'];
@@ -92,6 +94,10 @@ export default function SalaryModuleLayout() {
 
                     <TabsContent value="balances" className="mt-4">
                         <DriverBalancesTab />
+                    </TabsContent>
+
+                    <TabsContent value="dispatcher" className="mt-4">
+                        <DispatcherSalaryTab />
                     </TabsContent>
                 </React.Suspense>
             </Tabs>

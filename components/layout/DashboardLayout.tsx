@@ -36,8 +36,6 @@ import {
 import AIAssistantChat from '@/components/ai/AIAssistantChat';
 import { SmsMessengerProvider, useSmsMessenger } from '@/lib/contexts/SmsMessengerContext';
 import LeadSmsMessenger from '@/components/crm/LeadSmsMessenger';
-import { SoftphoneProvider } from '@/lib/contexts/SoftphoneContext';
-import Softphone from '@/components/communications/Softphone';
 
 
 function SmsMessengerOverlay() {
@@ -191,7 +189,8 @@ export default function DashboardLayout({
     pathname?.startsWith('/dashboard/locations') ||
     pathname?.startsWith('/dashboard/automation') ||
     pathname?.startsWith('/dashboard/accounting') ||
-    pathname?.startsWith('/dashboard/batches');
+    pathname?.startsWith('/dashboard/batches') ||
+    pathname?.startsWith('/dashboard/bills');
   // Check if we're in Safety section
   const isSafetySection = pathname?.startsWith('/dashboard/safety');
 
@@ -202,7 +201,6 @@ export default function DashboardLayout({
   const isAnalyticsSection = pathname?.startsWith('/dashboard/analytics');
 
   return (
-    <SoftphoneProvider>
     <SmsMessengerProvider>
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Mobile sidebar backdrop */}
@@ -415,10 +413,8 @@ export default function DashboardLayout({
           hideTrigger={true}
         />
         <SmsMessengerOverlay />
-        <Softphone />
       </div>
     </div>
     </SmsMessengerProvider>
-    </SoftphoneProvider>
   );
 }

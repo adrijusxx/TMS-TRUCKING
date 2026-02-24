@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -16,21 +17,17 @@ import {
   Upload,
   Lightbulb,
   ArrowRight,
+  AlertTriangle,
+  BookOpen,
 } from 'lucide-react';
 import ImportSheet from '@/components/import-export/ImportSheet';
 import { cn } from '@/lib/utils';
 
-interface EntityCounts {
-  drivers: number;
-  trucks: number;
-  trailers: number;
-  customers: number;
-  loads: number;
-}
-
 interface OnboardingData {
   dismissed: boolean;
-  counts: EntityCounts;
+  counts: Record<string, number>;
+  companySettingsValid?: boolean;
+  dataQuality?: Record<string, { placeholders: number; total: number }>;
 }
 
 const IMPORT_STEPS = [
@@ -41,6 +38,7 @@ const IMPORT_STEPS = [
     icon: Users,
     color: 'text-blue-500',
     bgColor: 'bg-blue-50 dark:bg-blue-500/10',
+    deps: [],
   },
   {
     key: 'trucks' as const,
@@ -49,6 +47,7 @@ const IMPORT_STEPS = [
     icon: Truck,
     color: 'text-green-500',
     bgColor: 'bg-green-50 dark:bg-green-500/10',
+    deps: [],
   },
   {
     key: 'trailers' as const,
@@ -57,6 +56,7 @@ const IMPORT_STEPS = [
     icon: Container,
     color: 'text-orange-500',
     bgColor: 'bg-orange-50 dark:bg-orange-500/10',
+    deps: [],
   },
   {
     key: 'customers' as const,
@@ -65,14 +65,16 @@ const IMPORT_STEPS = [
     icon: Building2,
     color: 'text-purple-500',
     bgColor: 'bg-purple-50 dark:bg-purple-500/10',
+    deps: [],
   },
   {
     key: 'loads' as const,
     label: 'Loads',
-    description: 'Import historical or active loads. Best done after drivers and customers.',
+    description: 'Import historical or active loads. Import drivers and customers first.',
     icon: Package,
     color: 'text-indigo-500',
     bgColor: 'bg-indigo-50 dark:bg-indigo-500/10',
+    deps: ['drivers', 'customers'],
   },
 ];
 
@@ -81,18 +83,23 @@ export default function OnboardingGuide() {
   const [dismissing, setDismissing] = useState(false);
   const [hidden, setHidden] = useState(false);
 
-  useEffect(() => {
+  const fetchData = () => {
     fetch('/api/onboarding')
       .then((res) => res.json())
       .then((json) => {
         if (json.success) setData(json.data);
       })
       .catch((err) => console.error('[OnboardingGuide] fetch failed:', err));
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   if (!data || data.dismissed || hidden) return null;
 
-  const completedSteps = IMPORT_STEPS.filter((s) => data.counts[s.key] > 0).length;
+  const counts = data.counts;
+  const completedSteps = IMPORT_STEPS.filter((s) => counts[s.key] > 0).length;
   const progress = Math.round((completedSteps / IMPORT_STEPS.length) * 100);
   const allDone = completedSteps === IMPORT_STEPS.length;
 
@@ -121,17 +128,39 @@ export default function OnboardingGuide() {
               </p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={handleDismiss}
-            disabled={dismissing}
-            title="Dismiss forever"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/dashboard/onboarding">
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <BookOpen className="h-3.5 w-3.5" />
+                Full Setup Guide
+              </Button>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={handleDismiss}
+              disabled={dismissing}
+              title="Dismiss forever"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+
+        {/* Company settings warning */}
+        {data.companySettingsValid === false && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50/50 dark:bg-yellow-500/5 rounded-md px-3 py-2 border border-yellow-200 dark:border-yellow-500/30">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              Update your company address in{' '}
+              <Link href="/dashboard/settings/admin?tab=company" className="underline font-medium">
+                Settings
+              </Link>{' '}
+              for invoices and documents to display correctly.
+            </span>
+          </div>
+        )}
 
         {/* Progress bar */}
         <div className="mt-4 space-y-1.5">
@@ -148,8 +177,11 @@ export default function OnboardingGuide() {
       <CardContent className="pt-0">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {IMPORT_STEPS.map((step, idx) => {
-            const done = data.counts[step.key] > 0;
+            const done = counts[step.key] > 0;
             const Icon = step.icon;
+            const depsNotMet = step.deps.length > 0 && step.deps.some((d) => (counts[d] ?? 0) === 0);
+            const placeholders = data.dataQuality?.[step.key]?.placeholders ?? 0;
+
             return (
               <div
                 key={step.key}
@@ -182,11 +214,23 @@ export default function OnboardingGuide() {
                 </p>
 
                 {done ? (
-                  <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                    {data.counts[step.key]} imported
-                  </span>
+                  <div>
+                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                      {counts[step.key]} imported
+                    </span>
+                    {placeholders > 0 && (
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        {placeholders} need review
+                      </p>
+                    )}
+                  </div>
+                ) : depsNotMet ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    Import {step.deps.join(' & ')} first
+                  </p>
                 ) : (
-                  <ImportSheet entityType={step.key}>
+                  <ImportSheet entityType={step.key} onImportComplete={() => fetchData()}>
                     <Button variant="outline" size="sm" className="h-7 text-xs gap-1 w-full">
                       <Upload className="h-3 w-3" />
                       Import

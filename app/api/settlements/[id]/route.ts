@@ -116,6 +116,8 @@ export async function GET(
             totalDistance: true,
           },
         },
+        pickupDate: true,
+        deliveryDate: true,
         deliveredAt: true,
       },
     });

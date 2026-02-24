@@ -11,7 +11,7 @@ async function makeSuperAdmin() {
     const normalizedEmail = email.toLowerCase().trim();
     console.log(`Promoting ${normalizedEmail} to SUPER_ADMIN...`);
 
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const user = await prisma.user.findFirst({ where: { email: normalizedEmail } });
     if (!user) {
         console.error(`User not found: ${normalizedEmail}`);
         process.exit(1);

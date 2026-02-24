@@ -64,11 +64,12 @@ export class FleetInventoryManager {
       where.status = status;
     }
 
+    const isComputedSort = sortBy === 'daysSinceLastLoad';
     const validSortFields: Record<string, string> = {
       truckNumber: 'truckNumber', make: 'make', model: 'model',
       year: 'year', status: 'status',
     };
-    const orderBy: any = validSortFields[sortBy]
+    const orderBy: any = (!isComputedSort && validSortFields[sortBy])
       ? { [validSortFields[sortBy]]: sortOrder }
       : { truckNumber: 'asc' };
 
@@ -76,8 +77,7 @@ export class FleetInventoryManager {
       prisma.truck.findMany({
         where,
         orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
+        ...(isComputedSort ? {} : { skip: (page - 1) * limit, take: limit }),
         select: {
           id: true, truckNumber: true, make: true, model: true, year: true,
           status: true, samsaraId: true,
@@ -137,6 +137,16 @@ export class FleetInventoryManager {
       };
     });
 
+    if (isComputedSort) {
+      items.sort((a, b) => {
+        const da = a.daysSinceLastLoad ?? Number.MAX_SAFE_INTEGER;
+        const db = b.daysSinceLastLoad ?? Number.MAX_SAFE_INTEGER;
+        return sortOrder === 'asc' ? da - db : db - da;
+      });
+      const paged = items.slice((page - 1) * limit, page * limit);
+      return { items: paged, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    }
+
     return { items, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
@@ -158,11 +168,12 @@ export class FleetInventoryManager {
       where.status = status;
     }
 
+    const isComputedSort = sortBy === 'daysSinceLastLoad';
     const validSortFields: Record<string, string> = {
       trailerNumber: 'trailerNumber', make: 'make', model: 'model',
       year: 'year', status: 'status', type: 'type',
     };
-    const orderBy: any = validSortFields[sortBy]
+    const orderBy: any = (!isComputedSort && validSortFields[sortBy])
       ? { [validSortFields[sortBy]]: sortOrder }
       : { trailerNumber: 'asc' };
 
@@ -170,8 +181,7 @@ export class FleetInventoryManager {
       prisma.trailer.findMany({
         where,
         orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
+        ...(isComputedSort ? {} : { skip: (page - 1) * limit, take: limit }),
         select: {
           id: true, trailerNumber: true, type: true, make: true, model: true, year: true,
           status: true, samsaraId: true,
@@ -222,6 +232,16 @@ export class FleetInventoryManager {
         },
       };
     });
+
+    if (isComputedSort) {
+      items.sort((a, b) => {
+        const da = a.daysSinceLastLoad ?? Number.MAX_SAFE_INTEGER;
+        const db = b.daysSinceLastLoad ?? Number.MAX_SAFE_INTEGER;
+        return sortOrder === 'asc' ? da - db : db - da;
+      });
+      const paged = items.slice((page - 1) * limit, page * limit);
+      return { items: paged, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    }
 
     return { items, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }

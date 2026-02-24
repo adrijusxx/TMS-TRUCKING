@@ -36,7 +36,7 @@ export async function getTopDrivers() {
                     revenue: 'desc'
                 }
             },
-            take: 5
+            take: 20
         });
 
         const driverIds = groupings.map(g => g.driverId).filter(id => id !== null) as string[];
@@ -77,14 +77,20 @@ export async function getTopDrivers() {
     }
 }
 
-export async function getSettlementMetrics() {
+export async function getSettlementMetrics(period: 'week' | 'month' | 'quarter' = 'month') {
     try {
         const session = await auth();
         if (!session) return { error: 'Unauthorized' };
 
-        // Fetch settlements for this month
         const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        let startDate: Date;
+        if (period === 'week') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+        } else if (period === 'quarter') {
+            startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+        } else {
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        }
 
         // Need to check schema for Settlement model name, assuming 'Settlement'
         // Filter by MC if possible, usually Settlement is linked to Driver -> linked to MC? or direct link.
@@ -143,7 +149,7 @@ export async function getSettlementMetrics() {
         const settlementCount = await prisma.settlement.count({
             where: {
                 driverId: { in: driverIds },
-                createdAt: { gte: startOfMonth }
+                createdAt: { gte: startDate }
             }
         });
 
@@ -181,15 +187,20 @@ export async function getRetentionMetrics() {
         });
 
         const totalDrivers = drivers.length;
-        // Calculate tenure
         let totalTenureDays = 0;
         const now = new Date();
+        const distribution = { under1: 0, oneToThree: 0, threeToFive: 0, fivePlus: 0 };
 
         drivers.forEach(d => {
             if (d.hireDate) {
                 const diffTime = Math.abs(now.getTime() - new Date(d.hireDate).getTime());
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                 totalTenureDays += diffDays;
+                const years = diffDays / 365;
+                if (years < 1) distribution.under1++;
+                else if (years < 3) distribution.oneToThree++;
+                else if (years < 5) distribution.threeToFive++;
+                else distribution.fivePlus++;
             }
         });
 
@@ -199,7 +210,8 @@ export async function getRetentionMetrics() {
             data: {
                 retentionRate: 92, // Hardcoded for now as "Terminated" logic is complex
                 avgTenure: avgTenureYears,
-                totalDrivers
+                totalDrivers,
+                distribution
             }
         };
 

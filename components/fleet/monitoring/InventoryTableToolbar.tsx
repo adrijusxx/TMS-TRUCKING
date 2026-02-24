@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Search } from 'lucide-react';
 
 interface Props {
-  statusOptions: Array<{ value: string; label: string }>;
-  selectedStatus: string;
-  onStatusChange: (status: string) => void;
+  statusOptions?: Array<{ value: string; label: string }>;
+  selectedStatus?: string;
+  onStatusChange?: (status: string) => void;
   searchValue: string;
+  searchPlaceholder?: string;
   onSearchChange: (search: string) => void;
   totalCount: number;
 }
@@ -20,10 +21,14 @@ export default function InventoryTableToolbar({
   selectedStatus,
   onStatusChange,
   searchValue,
+  searchPlaceholder = 'Search unit #...',
   onSearchChange,
   totalCount,
 }: Props) {
   const [localSearch, setLocalSearch] = useState(searchValue);
+
+  // Sync local search when parent resets it (e.g. tab change)
+  useEffect(() => { setLocalSearch(searchValue); }, [searchValue]);
 
   // Debounce search input
   useEffect(() => {
@@ -38,24 +43,26 @@ export default function InventoryTableToolbar({
       <div className="relative flex-1 max-w-xs">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
-          placeholder="Search unit #..."
+          placeholder={searchPlaceholder}
           value={localSearch}
           onChange={(e) => setLocalSearch(e.target.value)}
           className="pl-8 h-8 text-sm"
         />
       </div>
-      <Select value={selectedStatus} onValueChange={onStatusChange}>
-        <SelectTrigger className="w-[160px] h-8 text-sm">
-          <SelectValue placeholder="All Statuses" />
-        </SelectTrigger>
-        <SelectContent>
-          {statusOptions.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {statusOptions && selectedStatus && onStatusChange && (
+        <Select value={selectedStatus} onValueChange={onStatusChange}>
+          <SelectTrigger className="w-[160px] h-8 text-sm">
+            <SelectValue placeholder="All Statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            {statusOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       <Badge variant="secondary" className="text-xs">
         {totalCount} total
       </Badge>

@@ -19,6 +19,7 @@ export class InvoiceImporter extends BaseImporter {
         const records = data;
         const mapping = columnMapping;
         const created: Invoice[] = [];
+        let updatedCount = 0;
         const errors: Array<{ row: number; field?: string; error: string }> = [];
         const warnings: Array<{ row: number; field?: string; error: string }> = [];
 
@@ -107,27 +108,42 @@ export class InvoiceImporter extends BaseImporter {
                     continue;
                 }
 
-                // --- Create Invoice ---
-                const invoice = await this.prisma.invoice.create({
-                    data: {
-                        companyId: this.companyId,
-                        invoiceNumber,
-                        customerId,
-                        invoiceDate,
-                        dueDate,
-                        totalAmount: totalAmount, // Alias
-                        total: totalAmount,       // Required field
-                        subtotal: totalAmount,    // Required field (assume calculated or tax-inclusive)
-                        balance,
-                        status,
-                        notes: `Imported via CSV on ${new Date().toLocaleDateString()}`,
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                        mcNumberId: await this.resolveMcNumberId(this.getValue(row, 'mcNumberId', mapping, ['MC', 'MC Number']))
-                    }
-                });
+                const mcNumberId = await this.resolveMcNumberId(this.getValue(row, 'mcNumberId', mapping, ['MC', 'MC Number']));
 
-                created.push(invoice);
+                const invoiceFields = {
+                    customerId,
+                    invoiceDate,
+                    dueDate,
+                    totalAmount,
+                    total: totalAmount,
+                    subtotal: totalAmount,
+                    balance,
+                    status,
+                    notes: `Imported via CSV on ${new Date().toLocaleDateString()}`,
+                    updatedAt: new Date(),
+                    mcNumberId,
+                };
+
+                if (existing && updateExisting) {
+                    // Update existing invoice
+                    const invoice = await this.prisma.invoice.update({
+                        where: { id: existing.id },
+                        data: invoiceFields,
+                    });
+                    created.push(invoice);
+                    updatedCount++;
+                } else {
+                    // Create new invoice
+                    const invoice = await this.prisma.invoice.create({
+                        data: {
+                            companyId: this.companyId,
+                            invoiceNumber,
+                            ...invoiceFields,
+                            createdAt: new Date(),
+                        }
+                    });
+                    created.push(invoice);
+                }
 
             } catch (err: any) {
                 errors.push(this.error(rowNum, `Unexpected error: ${err.message}`));
@@ -136,8 +152,8 @@ export class InvoiceImporter extends BaseImporter {
 
         return this.success({
             total: records.length,
-            created: created.length,
-            updated: 0,
+            created: created.length - updatedCount,
+            updated: updatedCount,
             skipped: records.length - created.length - errors.length,
             errors: errors.length
         }, created, errors, warnings);

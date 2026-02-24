@@ -194,26 +194,6 @@ export interface NSSubscription {
 }
 
 // ============================================
-// DEVICES
-// ============================================
-
-export interface NSDevice {
-  aor: string;              // Address of Record (e.g., "101@domain")
-  device?: string;          // Device identifier
-  mac_address?: string;
-  model?: string;
-  user?: string;            // Extension
-  domain?: string;
-  device_type?: string;     // 'sip', 'webrtc', etc.
-  transport?: string;       // 'udp', 'tcp', 'tls', 'wss'
-  auth_username?: string;   // SIP auth username (may differ from extension)
-  sip_password?: string;    // SIP auth password (if exposed by API)
-  registration_status?: string;
-  contact?: string;         // SIP Contact URI
-  user_agent?: string;      // UA string
-}
-
-// ============================================
 // API RESPONSE WRAPPERS
 // ============================================
 

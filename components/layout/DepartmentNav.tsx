@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
@@ -24,19 +24,27 @@ interface DepartmentNavProps {
   basePath?: string;
 }
 
+function checkActive(itemHref: string, pathname: string | null, fullPath: string, basePath?: string): boolean {
+  const hasQuery = itemHref.includes('?');
+  if (hasQuery) return fullPath === itemHref;
+  if (basePath && itemHref === basePath) return fullPath === itemHref;
+  return pathname === itemHref || !!pathname?.startsWith(itemHref + '/');
+}
+
 export function DepartmentNav({ items, basePath }: DepartmentNavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const fullPath = `${pathname}${search ? `?${search}` : ''}`;
 
   return (
     <nav className="flex flex-wrap items-center gap-1">
       {items.map((item) => {
         if (item.children && item.children.length > 0) {
-          return <DropdownNavItem key={item.href} item={item} pathname={pathname} />;
+          return <DropdownNavItem key={item.href} item={item} pathname={pathname} fullPath={fullPath} />;
         }
 
-        const isActive = basePath && item.href === basePath
-          ? pathname === item.href
-          : pathname === item.href || pathname?.startsWith(item.href + '/');
+        const isActive = checkActive(item.href, pathname, fullPath, basePath);
 
         return (
           <Link
@@ -66,18 +74,21 @@ export function DepartmentNav({ items, basePath }: DepartmentNavProps) {
 function DropdownNavItem({
   item,
   pathname,
+  fullPath,
 }: {
   item: DepartmentNavItem;
   pathname: string | null;
+  fullPath: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const isActive =
+    fullPath === item.href ||
     pathname === item.href ||
     pathname?.startsWith(item.href + '/') ||
     item.children?.some(
-      (child) => pathname === child.href || pathname?.startsWith(child.href + '/')
+      (child) => fullPath === child.href || pathname === child.href || pathname?.startsWith(child.href + '/')
     );
 
   useEffect(() => {
@@ -111,7 +122,7 @@ function DropdownNavItem({
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 min-w-[180px] bg-popover border rounded-lg shadow-md py-1">
           {item.children!.map((child) => {
-            const childActive = pathname === child.href || pathname?.startsWith(child.href + '/');
+            const childActive = fullPath === child.href || pathname === child.href || pathname?.startsWith(child.href + '/');
             return (
               <Link
                 key={child.href}

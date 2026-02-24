@@ -8,8 +8,6 @@ interface VoipConfig {
     pbxExtension?: string;
     answerDevice?: string;
     enabled?: boolean;
-    sipPassword?: string;
-    softphoneEnabled?: boolean;
 }
 
 export async function POST(req: Request) {
@@ -20,7 +18,7 @@ export async function POST(req: Request) {
 
     try {
         const body = await req.json();
-        const { pbxExtension, answerDevice, enabled, sipPassword, softphoneEnabled, test } = body;
+        const { pbxExtension, answerDevice, enabled, test } = body;
 
         if (!pbxExtension || !answerDevice) {
             return NextResponse.json({ error: 'PBX extension and answer device are required' }, { status: 400 });
@@ -30,8 +28,6 @@ export async function POST(req: Request) {
             pbxExtension,
             answerDevice,
             enabled: enabled ?? false,
-            ...(sipPassword !== undefined && { sipPassword }),
-            ...(softphoneEnabled !== undefined && { softphoneEnabled }),
         };
 
         // Save to DB first (test reads from NS API, not from saved config)

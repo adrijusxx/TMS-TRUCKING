@@ -64,6 +64,9 @@ interface SalaryBatch {
     settlementCount: number;
     totalAmount: number;
     notes: string | null;
+    checkDate: string | null;
+    payCompany: string | null;
+    mcNumber: string | null;
 }
 
 export default function SalaryBatchesTab() {
@@ -86,6 +89,23 @@ export default function SalaryBatchesTab() {
     });
     const [isCreating, setIsCreating] = React.useState(false);
     const [isDeleting, setIsDeleting] = React.useState(false);
+
+    const handleBulkStatusChange = async (status: string) => {
+        try {
+            await Promise.all(Array.from(selectedIds).map(id =>
+                fetch(apiUrl(`/api/salary-batches/${id}`), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status }),
+                })
+            ));
+            toast.success(`${selectedIds.size} batch(es) updated to ${status}`);
+            setSelectedIds(new Set());
+            queryClient.invalidateQueries({ queryKey: ['salary-batches'] });
+        } catch {
+            toast.error('Failed to update status');
+        }
+    };
 
     const handleDelete = async (ids: string[]) => {
         if (!confirm('Are you sure you want to delete these batches? This will remove all associated settlements.')) return;
@@ -251,6 +271,21 @@ export default function SalaryBatchesTab() {
                             {isDeleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
                             Delete
                         </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    <ChevronDown className="h-4 w-4 mr-1" />
+                                    Change status
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                {['OPEN', 'POSTED', 'ARCHIVED'].map(s => (
+                                    <DropdownMenuItem key={s} onClick={() => handleBulkStatusChange(s)}>
+                                        {s}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </>
                 )}
 
@@ -285,10 +320,14 @@ export default function SalaryBatchesTab() {
                                 />
                             </TableHead>
                             <TableHead className="font-medium">Batch #</TableHead>
+                            <TableHead className="font-medium">MC Number</TableHead>
                             <TableHead className="font-medium">Status</TableHead>
+                            <TableHead className="font-medium">Pay Company</TableHead>
                             <TableHead className="font-medium">Created by</TableHead>
                             <TableHead className="font-medium">Created date</TableHead>
-                            <TableHead className="font-medium">Period</TableHead>
+                            <TableHead className="font-medium">Check Date</TableHead>
+                            <TableHead className="font-medium">Start Date</TableHead>
+                            <TableHead className="font-medium">End Date</TableHead>
                             <TableHead className="font-medium text-center">Settlements</TableHead>
                             <TableHead className="font-medium text-right">Amount</TableHead>
                             <TableHead className="font-medium">Notes</TableHead>
@@ -302,10 +341,14 @@ export default function SalaryBatchesTab() {
                                 <TableRow key={i}>
                                     <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                                     <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-8 mx-auto" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
@@ -329,16 +372,24 @@ export default function SalaryBatchesTab() {
                                     <TableCell className="font-medium text-primary">
                                         {batch.batchNumber}
                                     </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {batch.mcNumber || '-'}
+                                    </TableCell>
                                     <TableCell>
                                         <StatusBadge status={batch.status} />
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {batch.payCompany || '-'}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
                                         {batch.createdBy?.firstName} {batch.createdBy?.lastName}
                                     </TableCell>
                                     <TableCell>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</TableCell>
-                                    <TableCell className="text-muted-foreground">
-                                        {format(new Date(batch.periodStart), 'MMM d, yyyy')} - {format(new Date(batch.periodEnd), 'MMM d, yyyy')}
+                                    <TableCell>
+                                        {batch.checkDate ? format(new Date(batch.checkDate), 'MMM d, yyyy') : '-'}
                                     </TableCell>
+                                    <TableCell>{format(new Date(batch.periodStart), 'MMM d, yyyy')}</TableCell>
+                                    <TableCell>{format(new Date(batch.periodEnd), 'MMM d, yyyy')}</TableCell>
                                     <TableCell className="text-center">{batch.settlementCount}</TableCell>
                                     <TableCell className="text-right font-medium">
                                         {formatCurrency(batch.totalAmount)}
@@ -364,7 +415,7 @@ export default function SalaryBatchesTab() {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={15} className="h-24 text-center text-muted-foreground">
                                     No salary batches found. Create your first batch to get started.
                                 </TableCell>
                             </TableRow>

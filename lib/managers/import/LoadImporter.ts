@@ -1,9 +1,10 @@
-import { LoadStatus, LoadType, EquipmentType } from '@prisma/client';
+import { LoadStatus, LoadType, EquipmentType, PayType } from '@prisma/client';
 import { BaseImporter, ImportResult } from './BaseImporter';
 import { ImporterEntityService } from './services/ImporterEntityService';
 import { LoadAnomalyDetector } from './detectors/LoadAnomalyDetector';
 import { LoadRowMapper } from './mapping/LoadRowMapper';
 import { LoadPersistenceService } from './services/LoadPersistenceService';
+import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 
 const STATUS_ORDER = ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED',
     'EN_ROUTE_DELIVERY', 'AT_DELIVERY', 'DELIVERED', 'INVOICED', 'PAID'];
@@ -64,9 +65,23 @@ export class LoadImporter extends BaseImporter {
                 const typeStr = this.getValue(row, 'loadType', columnMapping, ['Load Type', 'load_type', 'Type', 'size', 'Size']);
                 const loadType = this.mapLoadTypeSmart(typeStr);
 
-                // 4. Anomaly Detection
+                // 4. Anomaly Detection & Driver Pay Auto-Calculation
                 const { suspicious, anomalies } = LoadAnomalyDetector.detect({ ...financial, profit: financial.revenue - financial.driverPay }, updateExisting);
-                const { driverPay } = LoadAnomalyDetector.autoCorrect({ ...financial, defaultPayRate: 0.65 });
+                let { driverPay } = LoadAnomalyDetector.autoCorrect({ ...financial, defaultPayRate: 0.65 });
+
+                // Auto-calculate driver pay from driver's pay profile if not in CSV
+                if ((!driverPay || driverPay === 0) && driverId && !driverId.startsWith('PREVIEW_')) {
+                    const payProfile = maps.driverPayMap.get(driverId);
+                    if (payProfile && payProfile.payRate > 0) {
+                        driverPay = calculateDriverPay(
+                            { payType: payProfile.payType as PayType, payRate: payProfile.payRate },
+                            { totalMiles: financial.totalMiles, loadedMiles: financial.loadedMiles, emptyMiles: financial.emptyMiles, revenue: financial.revenue }
+                        );
+                        if (driverPay > 0) {
+                            warnings.push(this.warning(rowNum, `Driver pay auto-calculated: $${driverPay.toFixed(2)} (${payProfile.payType} @ ${payProfile.payRate})`, 'driverPay'));
+                        }
+                    }
+                }
 
                 // 5. Construct Load Object
                 const dispatcherNameRaw = this.getValue(row, 'dispatcherId', columnMapping, ['Dispatcher', 'dispatcher', 'Dispatch', 'Agent', 'created_by', 'Created By'])?.toLowerCase().trim();
@@ -122,7 +137,7 @@ export class LoadImporter extends BaseImporter {
             this.prisma.customer.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, name: true, customerNumber: true } }),
             this.prisma.truck.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, truckNumber: true } }),
             this.prisma.trailer.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, trailerNumber: true } }),
-            this.prisma.driver.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, driverNumber: true, user: { select: { firstName: true, lastName: true } } } }),
+            this.prisma.driver.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, driverNumber: true, payType: true, payRate: true, user: { select: { firstName: true, lastName: true } } } }),
             this.prisma.mcNumber.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, number: true, isDefault: true } }),
             this.prisma.user.findMany({ where: { companyId: this.companyId, isActive: true }, select: { id: true, firstName: true, lastName: true, email: true } }),
         ]);
@@ -132,6 +147,7 @@ export class LoadImporter extends BaseImporter {
             truckMap: new Map(trucks.map(t => [t.truckNumber.toLowerCase(), t.id])),
             trailerMap: new Map(trailers.map(t => [t.trailerNumber.toLowerCase(), t.id])),
             driverMap: new Map(drivers.map(d => [d.driverNumber.toLowerCase(), d.id])),
+            driverPayMap: new Map(drivers.map(d => [d.id, { payType: d.payType, payRate: Number(d.payRate) }])),
             dispatcherMap: new Map(users.map(u => [`${u.firstName} ${u.lastName}`.toLowerCase(), u.id])),
             defaultMcId: mcNumbers.find(mc => mc.isDefault)?.id || mcNumbers[0]?.id
         };

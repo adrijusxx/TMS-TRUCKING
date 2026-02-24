@@ -16,6 +16,9 @@ import {
   Receipt,
   Fuel,
   Users,
+  LayoutDashboard,
+  AlertTriangle,
+  BarChart3,
 } from 'lucide-react';
 import {
   SIDEBAR_WIDTHS,
@@ -27,49 +30,52 @@ import {
   NAV_BORDERS,
 } from '@/lib/navigation-constants';
 
-// Simplified navigation - 6 core pages
-const navigationItems = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
   {
-    name: 'Invoices',
-    href: '/dashboard/invoices',
-    icon: FileText,
-    description: 'Customer billing and invoices',
+    label: 'ACCOUNTING',
+    items: [
+      { name: 'Dashboard', href: '/dashboard/accounting', icon: LayoutDashboard },
+    ],
   },
   {
-    name: 'Customers',
-    href: '/dashboard/customers',
-    icon: Users,
-    description: 'Manage customers and contacts',
+    label: 'RECEIVABLES (AR)',
+    items: [
+      { name: 'Invoices', href: '/dashboard/invoices', icon: FileText },
+      { name: 'Customers', href: '/dashboard/customers', icon: Users },
+      { name: 'Billing Holds', href: '/dashboard/invoices', icon: AlertTriangle },
+      { name: 'Factoring', href: '/dashboard/accounting/factoring', icon: Building2 },
+    ],
   },
   {
-    name: 'Settlements',
-    href: '/dashboard/settlements',
-    icon: CreditCard,
-    description: 'Driver settlements and pay',
+    label: 'PAYABLES (AP)',
+    items: [
+      { name: 'Settlements', href: '/dashboard/settlements', icon: CreditCard },
+      { name: 'Expenses', href: '/dashboard/accounting/expenses', icon: Receipt },
+    ],
   },
   {
-    name: 'Expenses',
-    href: '/dashboard/accounting/expenses',
-    icon: Receipt,
-    description: 'Load expenses tracking',
+    label: 'REPORTING',
+    items: [
+      { name: 'Reports', href: '/dashboard/accounting/reports', icon: BarChart3 },
+      { name: 'IFTA', href: '/dashboard/accounting/ifta', icon: Fuel },
+    ],
   },
   {
-    name: 'IFTA',
-    href: '/dashboard/accounting/ifta',
-    icon: Fuel,
-    description: 'Fuel tax reporting',
-  },
-  {
-    name: 'Factoring',
-    href: '/dashboard/accounting/factoring',
-    icon: Building2,
-    description: 'Invoice factoring',
-  },
-  {
-    name: 'Settings',
-    href: '/dashboard/accounting/settings',
-    icon: Sliders,
-    description: 'Accounting configuration',
+    label: 'SETTINGS',
+    items: [
+      { name: 'Settings', href: '/dashboard/accounting/settings', icon: Sliders },
+    ],
   },
 ];
 
@@ -128,27 +134,37 @@ export default function AccountingNav() {
         </div>
       </div>
 
-      <nav className="space-y-1">
-        {navigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+      <nav className="space-y-4">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+              {group.label}
+            </p>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href ||
+                  (item.href !== '/dashboard/accounting' && pathname?.startsWith(item.href + '/'));
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
-                isActive
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span>{item.name}</span>
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    key={item.name + item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                      isActive
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
     </div>
   );

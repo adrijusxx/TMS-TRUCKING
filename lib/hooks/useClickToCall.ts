@@ -2,18 +2,15 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { useSoftphone } from '@/lib/contexts/SoftphoneContext';
 
 /**
  * Unified click-to-call hook.
  *
  * Priority:
- * 1. Browser softphone (if enabled + registered) — call via WebRTC
- * 2. Desk phone via NS API (if VoIP enabled) — rings user's device first
- * 3. Native tel: link fallback
+ * 1. Desk phone via NS API (if VoIP enabled) — rings user's device first
+ * 2. Native tel: link fallback
  */
 export function useClickToCall() {
-  const { isEnabled, registrationState, dialAndOpen } = useSoftphone();
   const [calling, setCalling] = useState(false);
   const settingsCache = useRef<{ enabled: boolean; fetched: boolean }>({
     enabled: false,
@@ -32,14 +29,6 @@ export function useClickToCall() {
         return;
       }
 
-      // 1. Softphone: if enabled and registered, dial via browser
-      if (isEnabled && registrationState === 'registered') {
-        toast.info('Calling via softphone...');
-        dialAndOpen(destination);
-        return;
-      }
-
-      // 2. Desk phone: check VoIP settings, call via NS API
       setCalling(true);
       try {
         // Cache VoIP settings to avoid repeated fetches
@@ -63,7 +52,6 @@ export function useClickToCall() {
           if (!callRes.ok) throw new Error(callData.error);
           toast.success('Call initiated! Check your device.');
         } else {
-          // 3. Native tel: link
           window.location.href = `tel:${destination}`;
         }
       } catch (err) {
@@ -73,7 +61,7 @@ export function useClickToCall() {
         setCalling(false);
       }
     },
-    [isEnabled, registrationState, dialAndOpen],
+    [],
   );
 
   return { initiateCall, calling };

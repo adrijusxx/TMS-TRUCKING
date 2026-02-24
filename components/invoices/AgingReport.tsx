@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+const AgingReportDetail = lazy(() => import('./AgingReportDetail'));
 import {
   Table,
   TableBody,
@@ -94,7 +97,22 @@ export default function AgingReport() {
 
   return (
     <div className="space-y-6">
-      <p className="text-muted-foreground">Track outstanding invoices by age</p>
+      <Tabs defaultValue="summary" className="w-full">
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground">Track outstanding invoices by age</p>
+          <TabsList>
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="detail">Detail View</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="detail" className="mt-4">
+          <Suspense fallback={<div className="text-center py-8">Loading detail view...</div>}>
+            <AgingReportDetail />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="summary" className="mt-4 space-y-6">
 
       {/* Summary Cards */}
       {summary && (
@@ -292,6 +310,9 @@ export default function AgingReport() {
       {!isLoading && !summary && (
         <div className="text-center py-8 text-muted-foreground">No outstanding invoices found</div>
       )}
+
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

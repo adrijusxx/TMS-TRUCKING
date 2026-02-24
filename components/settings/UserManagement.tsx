@@ -71,6 +71,7 @@ const userSchema = z.object({
   lastName: z.string().min(1, 'Last name is required'),
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']),
+  roleId: z.string().nullable().optional(), // FK to custom Role table
   isActive: z.boolean().optional(),
   mcNumberId: z.string().optional(), // Will be auto-set from mcAccess if not provided
   mcAccess: z.array(z.string()).optional(), // Array of MC IDs user can access (empty = all for ADMIN)
@@ -86,6 +87,13 @@ const userSchema = z.object({
 });
 
 type UserFormData = z.infer<typeof userSchema>;
+
+interface CustomRole {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+}
 
 async function fetchUsers(params?: {
   search?: string;
@@ -282,6 +290,16 @@ export default function UserManagement({
 
   const mcNumbers = mcNumbersData?.data || [];
 
+  const { data: customRolesData } = useQuery<{ success: boolean; data: CustomRole[] }>({
+    queryKey: ['custom-roles'],
+    queryFn: async () => {
+      const res = await fetch(apiUrl('/api/settings/roles'));
+      if (!res.ok) return { success: false, data: [] };
+      return res.json();
+    },
+  });
+  const customRoles = customRolesData?.data || [];
+
   // Filter options for AdvancedFilters
   const filterOptions: FilterOption[] = [
     {
@@ -382,6 +400,7 @@ export default function UserManagement({
     resolver: zodResolver(userSchema),
     defaultValues: {
       role: 'DISPATCHER',
+      roleId: null,
       isActive: true,
     },
   });
@@ -483,6 +502,7 @@ export default function UserManagement({
       lastName: user.lastName,
       phone: user.phone || '',
       role: user.role,
+      roleId: user.roleId || null,
       isActive: user.isActive,
       password: '',
       mcNumberId: user.mcNumberId || (initialMcAccess.length > 0 ? initialMcAccess[0] : null),
@@ -659,6 +679,29 @@ export default function UserManagement({
                       </p>
                     )}
                   </div>
+
+                  {customRoles.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Custom Role (optional)</Label>
+                      <Select
+                        value={createForm.watch('roleId') || '__none__'}
+                        onValueChange={(v) => createForm.setValue('roleId', v === '__none__' ? null : v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="No custom role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No custom role</SelectItem>
+                          {customRoles.map((r: CustomRole) => (
+                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Assign a custom role created in Settings &rarr; Roles
+                      </p>
+                    </div>
+                  )}
 
                   {(selectedRole === 'DISPATCHER' || selectedRole === 'ACCOUNTANT' || selectedRole === 'ADMIN' || selectedRole === 'DRIVER' || selectedRole === 'HR' || selectedRole === 'SAFETY' || selectedRole === 'FLEET') && (
                     <div className="space-y-2">
@@ -1046,12 +1089,19 @@ export default function UserManagement({
                       )}
                       {visibleColumns.role && (
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={roleColors[user.role] || ''}
-                          >
-                            {user.role}
-                          </Badge>
+                          <div className="flex items-center gap-1">
+                            <Badge
+                              variant="outline"
+                              className={roleColors[user.role] || ''}
+                            >
+                              {user.role}
+                            </Badge>
+                            {user.customRole && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {user.customRole.name}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                       )}
                       {visibleColumns.mcAccess && (
@@ -1283,6 +1333,29 @@ export default function UserManagement({
                 </p>
               )}
             </div>
+
+            {customRoles.length > 0 && (
+              <div className="space-y-2">
+                <Label>Custom Role (optional)</Label>
+                <Select
+                  value={editForm.watch('roleId') || '__none__'}
+                  onValueChange={(v) => editForm.setValue('roleId', v === '__none__' ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No custom role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No custom role</SelectItem>
+                    {customRoles.map((r: CustomRole) => (
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Assign a custom role created in Settings &rarr; Roles
+                </p>
+              </div>
+            )}
 
             {/* MC Access Management */}
             {(editSelectedRole === 'DISPATCHER' || editSelectedRole === 'ACCOUNTANT' || editSelectedRole === 'ADMIN' || editSelectedRole === 'DRIVER' || editSelectedRole === 'HR' || editSelectedRole === 'SAFETY' || editSelectedRole === 'FLEET') && (

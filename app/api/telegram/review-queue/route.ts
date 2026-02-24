@@ -24,15 +24,30 @@ export async function GET(request: NextRequest) {
         const where: any = { companyId, status };
         if (type) where.type = type;
 
-        const [items, total, counts] = await Promise.all([
+        // Auto-expire PENDING items older than 24 hours
+        const expiryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        await prisma.telegramReviewItem.updateMany({
+            where: {
+                companyId,
+                status: 'PENDING',
+                createdAt: { lt: expiryThreshold },
+            },
+            data: {
+                status: 'DISMISSED',
+                resolvedAt: new Date(),
+                resolvedNote: 'Auto-expired after 24 hours',
+            },
+        });
+
+        const [rawItems, total, counts] = await Promise.all([
             pageSize > 0
                 ? prisma.telegramReviewItem.findMany({
                     where,
                     include: {
                         driver: {
                             include: {
-                                user: { select: { firstName: true, lastName: true } },
-                                currentTruck: { select: { id: true, truckNumber: true, samsaraId: true } },
+                                user: { select: { firstName: true, lastName: true, phone: true } },
+                                currentTruck: { select: { id: true, truckNumber: true, samsaraId: true, currentLocation: true } },
                             },
                         },
                         breakdown: { select: { id: true, breakdownNumber: true, status: true } },
@@ -50,6 +65,31 @@ export async function GET(request: NextRequest) {
                 _count: true,
             }),
         ]);
+
+        // Enrich items missing chatTitle/senderName from TelegramDriverMapping
+        const itemsMissingNames = rawItems.filter(
+            (i: any) => !i.chatTitle && !i.senderName && i.telegramChatId
+        );
+        let mappingLookup: Record<string, string> = {};
+        if (itemsMissingNames.length > 0) {
+            const chatIds = [...new Set(itemsMissingNames.map((i: any) => i.telegramChatId))];
+            const mappings = await prisma.telegramDriverMapping.findMany({
+                where: { telegramId: { in: chatIds } },
+                select: { telegramId: true, firstName: true, lastName: true, username: true },
+            });
+            for (const m of mappings) {
+                const parts = [m.firstName, m.lastName].filter(Boolean);
+                mappingLookup[m.telegramId] = parts.length > 0
+                    ? parts.join(' ')
+                    : (m.username ? `@${m.username}` : '');
+            }
+        }
+        const items = rawItems.map((item: any) => {
+            if (!item.chatTitle && !item.senderName && mappingLookup[item.telegramChatId]) {
+                return { ...item, chatTitle: mappingLookup[item.telegramChatId] };
+            }
+            return item;
+        });
 
         // Aggregate counts
         const countMap = { pending: 0, approved: 0, dismissed: 0, caseApproval: 0, driverLinkNeeded: 0 };

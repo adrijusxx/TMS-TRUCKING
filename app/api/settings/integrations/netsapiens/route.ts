@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     const apiKey = await ApiKeyService.getCredential('NETSAPIENS', 'API_KEY', { companyId });
     const server = await ApiKeyService.getCredential('NETSAPIENS', 'SERVER', { companyId });
     const domain = await ApiKeyService.getCredential('NETSAPIENS', 'DOMAIN', { companyId });
-    const wssUrl = await ApiKeyService.getCredential('NETSAPIENS', 'WSS_URL', { companyId });
 
     return NextResponse.json({
       success: true,
@@ -36,7 +35,6 @@ export async function GET(request: NextRequest) {
         hasApiKey: !!apiKey,
         server: server || process.env.NS_API_SERVER || null,
         domain: domain || null,
-        wssUrl: wssUrl || null,
       },
     });
   } catch (error: any) {
@@ -57,7 +55,6 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     const { apiKey: inputApiKey, server } = netsapiensSettingsSchema.parse(body);
-    const wssUrl = body.wssUrl as string | undefined;
     const companyId = session.user.companyId;
 
     // Determine actual API key: if "unchanged", use the stored one
@@ -94,18 +91,6 @@ export async function PUT(request: NextRequest) {
       companyId,
       description: 'NetSapiens PBX Server hostname',
     });
-
-    // Save WSS URL if provided
-    if (wssUrl) {
-      await ApiKeyService.setCredential({
-        provider: 'NETSAPIENS',
-        configKey: 'WSS_URL',
-        configValue: wssUrl,
-        scope: ApiKeyScope.COMPANY,
-        companyId,
-        description: 'WebSocket URL for browser softphone',
-      });
-    }
 
     // Clear cache and auto-discover domain
     clearNSCache();

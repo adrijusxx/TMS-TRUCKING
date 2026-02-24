@@ -1,5 +1,5 @@
 
-import { PrismaClient, Settlement, SettlementStatus } from '@prisma/client';
+import { PrismaClient, Settlement, SettlementStatus, ApprovalStatus } from '@prisma/client';
 import { BaseImporter, ImportResult } from './BaseImporter';
 import { parseImportDate, parseImportNumber } from '@/lib/import-export/import-utils';
 
@@ -19,6 +19,7 @@ export class SettlementImporter extends BaseImporter {
         const records = data;
         const mapping = columnMapping;
         const created: Settlement[] = [];
+        let updatedCount = 0;
         const errors: Array<{ row: number; field?: string; error: string }> = [];
         const warnings: Array<{ row: number; field?: string; error: string }> = [];
 
@@ -128,28 +129,38 @@ export class SettlementImporter extends BaseImporter {
                     continue;
                 }
 
-                // --- Create Settlement ---
-                const settlement = await this.prisma.settlement.create({
-                    data: {
-                        driverId,
-                        settlementNumber,
-                        periodStart,
-                        periodEnd,
-                        paidDate,
-                        grossPay,
-                        netPay,
-                        deductions,
-                        advances,
-                        status,
-                        notes: `Imported via CSV on ${new Date().toLocaleDateString()}`,
-                        // Audit
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                        approvalStatus: status === SettlementStatus.PAID ? 'APPROVED' : 'PENDING'
-                    }
-                });
+                const settlementFields = {
+                    driverId,
+                    periodStart,
+                    periodEnd,
+                    paidDate,
+                    grossPay,
+                    netPay,
+                    deductions,
+                    advances,
+                    status,
+                    notes: `Imported via CSV on ${new Date().toLocaleDateString()}`,
+                    updatedAt: new Date(),
+                    approvalStatus: status === SettlementStatus.PAID ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+                };
 
-                created.push(settlement);
+                if (existing && updateExisting) {
+                    const settlement = await this.prisma.settlement.update({
+                        where: { id: existing.id },
+                        data: settlementFields,
+                    });
+                    created.push(settlement);
+                    updatedCount++;
+                } else {
+                    const settlement = await this.prisma.settlement.create({
+                        data: {
+                            settlementNumber,
+                            ...settlementFields,
+                            createdAt: new Date(),
+                        }
+                    });
+                    created.push(settlement);
+                }
 
             } catch (err: any) {
                 errors.push(this.error(rowNum, `Unexpected error: ${err.message}`));
@@ -158,8 +169,8 @@ export class SettlementImporter extends BaseImporter {
 
         return this.success({
             total: records.length,
-            created: created.length,
-            updated: 0,
+            created: created.length - updatedCount,
+            updated: updatedCount,
             skipped: records.length - created.length - errors.length,
             errors: errors.length
         }, created, errors, warnings);

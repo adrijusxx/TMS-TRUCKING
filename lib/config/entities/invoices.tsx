@@ -203,16 +203,38 @@ export const createInvoiceColumns = (onView?: (id: string) => void): ExtendedCol
   {
     id: 'factoringStatus',
     accessorKey: 'factoringStatus',
-    header: 'Factoring Status',
-    cell: ({ row }) => row.original.factoringStatus || '—',
-    defaultVisible: false,
+    header: 'Factoring',
+    cell: ({ row }) => {
+      const status = row.original.factoringStatus;
+      if (!status || status === 'NOT_FACTORED') return '—';
+      const colors: Record<string, string> = {
+        SUBMITTED_TO_FACTOR: 'bg-blue-100 text-blue-800 border-blue-200',
+        FUNDED: 'bg-green-100 text-green-800 border-green-200',
+        RESERVE_RELEASED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      };
+      const labels: Record<string, string> = {
+        SUBMITTED_TO_FACTOR: 'Submitted',
+        FUNDED: 'Funded',
+        RESERVE_RELEASED: 'Released',
+      };
+      return (
+        <Badge variant="outline" className={colors[status] || ''}>
+          {labels[status] || status}
+        </Badge>
+      );
+    },
+    defaultVisible: true,
   },
   {
     id: 'paymentMethod',
     accessorKey: 'paymentMethod',
-    header: 'Payment Method',
-    cell: ({ row }) => row.original.paymentMethod || '—',
-    defaultVisible: false,
+    header: 'Payment',
+    cell: ({ row }) => {
+      const method = row.original.paymentMethod;
+      if (!method) return '—';
+      return method.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+    },
+    defaultVisible: true,
   },
   {
     id: 'mcNumber',
@@ -281,6 +303,8 @@ export const getInvoicesTableConfig = (onView?: (id: string) => void) => createE
     'accrual',
     'paidAmount',
     'balance',
+    'factoringStatus',
+    'paymentMethod',
     'reconciliationStatus',
   ],
   requiredColumns: ['invoiceNumber'],

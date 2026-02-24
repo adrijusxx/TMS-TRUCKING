@@ -7,6 +7,7 @@ export type Permission =
   | 'loads.assign'
   | 'loads.bulk_edit'
   | 'loads.bulk_delete'
+  | 'loads.override_financial_lock'
   // Driver permissions
   | 'drivers.view'
   | 'drivers.create'
@@ -208,6 +209,21 @@ export type Permission =
   | 'safety.compliance.manage'
   | 'safety.alerts.view'
   | 'safety.alerts.manage'
+  | 'safety.tasks.view'
+  | 'safety.tasks.create'
+  | 'safety.tasks.edit'
+  | 'safety.tasks.delete'
+  | 'safety.tasks.lock'
+  | 'safety.claims.view'
+  | 'safety.claims.create'
+  | 'safety.claims.edit'
+  | 'safety.inspections.view'
+  | 'safety.inspections.create'
+  | 'safety.inspections.edit'
+  | 'safety.citations.view'
+  | 'safety.citations.create'
+  | 'safety.citations.edit'
+  | 'safety.overview.view'
   // Department Access
   | 'departments.accounting.view'
   | 'departments.fleet.view'
@@ -234,7 +250,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
   SUPER_ADMIN: [
     // Full access to everything - explicitly listed for UI compatibility
     'loads.view', 'loads.create', 'loads.edit', 'loads.delete', 'loads.assign',
-    'loads.bulk_edit', 'loads.bulk_delete',
+    'loads.bulk_edit', 'loads.bulk_delete', 'loads.override_financial_lock',
     'drivers.view', 'drivers.create', 'drivers.edit', 'drivers.delete', 'drivers.manage_compliance',
     'drivers.bulk_edit', 'drivers.bulk_delete',
     'trucks.view', 'trucks.create', 'trucks.edit', 'trucks.delete',
@@ -295,6 +311,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.training.view', 'safety.training.manage',
     'safety.compliance.view', 'safety.compliance.manage',
     'safety.alerts.view', 'safety.alerts.manage',
+    'safety.tasks.view', 'safety.tasks.create', 'safety.tasks.edit', 'safety.tasks.delete', 'safety.tasks.lock',
+    'safety.claims.view', 'safety.claims.create', 'safety.claims.edit',
+    'safety.inspections.view', 'safety.inspections.create', 'safety.inspections.edit',
+    'safety.citations.view', 'safety.citations.create', 'safety.citations.edit',
+    'safety.overview.view',
     'departments.accounting.view',
     'departments.fleet.view',
     'departments.safety.view',
@@ -308,7 +329,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
   ADMIN: [
     // Full access to everything
     'loads.view', 'loads.create', 'loads.edit', 'loads.delete', 'loads.assign',
-    'loads.bulk_edit', 'loads.bulk_delete',
+    'loads.bulk_edit', 'loads.bulk_delete', 'loads.override_financial_lock',
     'drivers.view', 'drivers.create', 'drivers.edit', 'drivers.delete', 'drivers.manage_compliance',
     'drivers.bulk_edit', 'drivers.bulk_delete',
     'trucks.view', 'trucks.create', 'trucks.edit', 'trucks.delete',
@@ -364,6 +385,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.training.view', 'safety.training.manage',
     'safety.compliance.view', 'safety.compliance.manage',
     'safety.alerts.view', 'safety.alerts.manage',
+    'safety.tasks.view', 'safety.tasks.create', 'safety.tasks.edit', 'safety.tasks.delete', 'safety.tasks.lock',
+    'safety.claims.view', 'safety.claims.create', 'safety.claims.edit',
+    'safety.inspections.view', 'safety.inspections.create', 'safety.inspections.edit',
+    'safety.citations.view', 'safety.citations.create', 'safety.citations.edit',
+    'safety.overview.view',
     // Department Access - All departments enabled by default for admin
     'departments.accounting.view',
     'departments.fleet.view',
@@ -467,6 +493,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.training.view', 'safety.training.manage',
     'safety.compliance.view', 'safety.compliance.manage',
     'safety.alerts.view', 'safety.alerts.manage',
+    'safety.tasks.view', 'safety.tasks.create', 'safety.tasks.edit', 'safety.tasks.delete', 'safety.tasks.lock',
+    'safety.claims.view', 'safety.claims.create', 'safety.claims.edit',
+    'safety.inspections.view', 'safety.inspections.create', 'safety.inspections.edit',
+    'safety.citations.view', 'safety.citations.create', 'safety.citations.edit',
+    'safety.overview.view',
     // Department Access
     'departments.safety.view',
     'departments.reports.view',
@@ -544,7 +575,7 @@ export function getAllPermissions(): Permission[] {
   return [
     // Load permissions
     'loads.view', 'loads.create', 'loads.edit', 'loads.delete', 'loads.assign',
-    'loads.bulk_edit', 'loads.bulk_delete',
+    'loads.bulk_edit', 'loads.bulk_delete', 'loads.override_financial_lock',
     // Driver permissions
     'drivers.view', 'drivers.create', 'drivers.edit', 'drivers.delete', 'drivers.manage_compliance',
     'drivers.bulk_edit', 'drivers.bulk_delete',

@@ -21,7 +21,7 @@ export async function POST(
         const companyId = (session.user as any).companyId;
         const userId = (session.user as any).id;
         const body = await request.json();
-        const { driverId, createCase = true, note } = body;
+        const { driverId, createCase = true, note, assignedToUserId, assignmentRole } = body;
 
         // Fetch the item and verify ownership + pending status
         const item = await prisma.telegramReviewItem.findUnique({ where: { id } });
@@ -49,28 +49,57 @@ export async function POST(
             linkedDriverId = driverId;
         }
 
-        // Step 2: Create case if requested and we have a driver
-        if (createCase && linkedDriverId && item.aiAnalysis) {
-            const analysis = item.aiAnalysis as any;
-
-            if (analysis.isBreakdown) {
-                // Look up driver's truck for the breakdown
-                const driver = await prisma.driver.findUnique({
-                    where: { id: linkedDriverId },
-                    include: { currentTruck: { select: { id: true, samsaraId: true } } },
-                });
-
-                const caseCreator = new TelegramCaseCreator(companyId);
-                const breakdown = await caseCreator.createBreakdownCase(
-                    linkedDriverId,
-                    driver?.currentTruck?.id,
-                    driver?.currentTruck?.samsaraId,
-                    analysis,
-                    item.messageContent
+        // Step 2: Create case if requested
+        // When user explicitly clicks "Approve & Create Case", always create the breakdown
+        // regardless of AI classification — the user's action is the authority.
+        if (createCase) {
+            if (!linkedDriverId) {
+                return NextResponse.json(
+                    { error: 'Cannot create case: no driver linked. Please select a driver first.' },
+                    { status: 400 }
                 );
-                breakdownId = breakdown.id;
             }
-            // Safety incidents and maintenance could be added here similarly
+
+            const analysis = (item.aiAnalysis as any) || {};
+
+            // Look up driver's truck for the breakdown
+            const driver = await prisma.driver.findUnique({
+                where: { id: linkedDriverId },
+                include: { currentTruck: { select: { id: true, samsaraId: true, mcNumberId: true } } },
+            });
+
+            if (!driver?.currentTruck?.id) {
+                return NextResponse.json(
+                    { error: 'Cannot create breakdown case: driver has no assigned truck. Please assign a truck first.' },
+                    { status: 400 }
+                );
+            }
+
+            const caseCreator = new TelegramCaseCreator(companyId);
+            const breakdown = await caseCreator.createBreakdownCase(
+                linkedDriverId,
+                driver.currentTruck.id,
+                driver.currentTruck.samsaraId,
+                analysis,
+                item.messageContent
+            );
+            breakdownId = breakdown.id;
+
+            // Assign team member to the case if specified
+            if (assignedToUserId && breakdownId) {
+                try {
+                    await prisma.breakdownAssignment.create({
+                        data: {
+                            breakdownId,
+                            userId: assignedToUserId,
+                            role: assignmentRole || 'Support',
+                            assignedBy: userId,
+                        },
+                    });
+                } catch (assignErr) {
+                    console.warn('[API] Failed to create case assignment:', assignErr);
+                }
+            }
         }
 
         // Step 3: Mark as approved
