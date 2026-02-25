@@ -90,13 +90,9 @@ export default function ReconciliationPage() {
     if (isLoading) return <div className="p-8">Loading reconciliation data...</div>;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Data Reconciliation</h1>
-                    <p className="text-muted-foreground">Match imported drivers to system users.</p>
-                </div>
-                <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['unlinked-drivers'] })}>
+<Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['unlinked-drivers'] })}>
                     <RefreshCw className="mr-2 h-4 w-4" /> Refresh
                 </Button>
             </div>

@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { SettlementPreviewDialog } from '@/components/settlements/SettlementPreviewDialog';
 
 async function fetchDrivers() {
   const response = await fetch(apiUrl('/api/drivers?limit=1000&isActive=true'));
@@ -101,6 +102,7 @@ export default function GenerateSettlementForm() {
   const [deductions, setDeductions] = useState('0');
   const [advances, setAdvances] = useState('0');
   const [notes, setNotes] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
 
   const { data: driversData, isLoading: driversLoading } = useQuery({
     queryKey: ['drivers'],
@@ -254,15 +256,8 @@ export default function GenerateSettlementForm() {
         // Continue execution...
       }
 
-      // Proceed if valid
-      generateMutation.mutate({
-        driverId: selectedDriverId,
-        loadIds: Array.from(selectedLoads),
-        settlementNumber: settlementNumber || undefined,
-        deductions: parseFloat(deductions) || 0,
-        advances: parseFloat(advances) || 0,
-        notes: notes || undefined,
-      });
+      // Show preview dialog instead of immediately generating
+      setShowPreview(true);
     });
   };
 
@@ -315,6 +310,27 @@ export default function GenerateSettlementForm() {
   const totalDriverPay = availableLoads
     .filter((load: any) => selectedLoads.has(load.id))
     .reduce((sum: number, load: any) => sum + calculateLoadDriverPay(load), 0);
+
+  const handleConfirmGenerate = () => {
+    generateMutation.mutate({
+      driverId: selectedDriverId,
+      loadIds: Array.from(selectedLoads),
+      settlementNumber: settlementNumber || undefined,
+      deductions: parseFloat(deductions) || 0,
+      advances: parseFloat(advances) || 0,
+      notes: notes || undefined,
+    });
+    setShowPreview(false);
+  };
+
+  const previewLoads = availableLoads
+    .filter((load: any) => selectedLoads.has(load.id))
+    .map((load: any) => ({
+      loadNumber: load.loadNumber,
+      revenue: load.revenue || 0,
+      driverPay: calculateLoadDriverPay(load),
+      totalMiles: load.totalMiles || load.loadedMiles || 0,
+    }));
 
   return (
     <div className="space-y-6">
@@ -681,6 +697,26 @@ export default function GenerateSettlementForm() {
           </Button>
         </div>
       </form>
+
+      <SettlementPreviewDialog
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        onConfirm={handleConfirmGenerate}
+        isSubmitting={generateMutation.isPending}
+        driver={selectedDriver ? {
+          firstName: selectedDriver.user?.firstName,
+          lastName: selectedDriver.user?.lastName,
+          driverNumber: selectedDriver.driverNumber,
+          payType: selectedDriver.payType,
+          payRate: selectedDriver.payRate,
+        } : null}
+        selectedLoads={previewLoads}
+        totalRevenue={totalRevenue}
+        totalDriverPay={totalDriverPay}
+        deductions={parseFloat(deductions) || 0}
+        advances={parseFloat(advances) || 0}
+        settlementNumber={settlementNumber}
+      />
     </div>
   );
 }

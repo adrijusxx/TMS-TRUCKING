@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search } from 'lucide-react';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import BreakdownsDataTable from '@/components/fleet/shared/BreakdownsDataTable';
 import CreateCaseModal from '@/components/fleet/CreateCaseModal';
 
@@ -16,18 +15,9 @@ export default function FleetBreakdownsPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <div className="space-y-6">
-      <Breadcrumb items={[{ label: 'Fleet Department', href: '/dashboard/fleet' }, { label: 'Breakdowns', href: '/dashboard/fleet/breakdowns' }]} />
-
-      <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Active Breakdowns</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            View and manage all active breakdown cases
-          </p>
-        </div>
-
-        <Card>
+    <div className="space-y-4">
+<div className="flex flex-col gap-4">
+<Card>
           <CardContent className="p-4">
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
               <div className="flex-1 w-full sm:max-w-md">

@@ -6,7 +6,6 @@ import IncidentForm from '@/components/safety/incidents/IncidentForm';
 import InvestigationWorkflow from '@/components/safety/investigations/InvestigationWorkflow';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { apiUrl } from '@/lib/utils';
 
 export default function IncidentDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,17 +23,8 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
   });
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Safety Department', href: '/dashboard/safety' },
-        { label: 'Incidents', href: '/dashboard/safety/incidents' },
-        { label: incident?.incidentNumber ? `Incident #${incident.incidentNumber}` : 'Incident Details' }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Incident Details</h1>
-        </div>
-        <Tabs defaultValue="details" className="space-y-6">
+    <div className="space-y-4">
+<Tabs defaultValue="details" className="space-y-4">
           <TabsList>
             <TabsTrigger value="details">Incident Details</TabsTrigger>
             <TabsTrigger value="investigation">Investigation</TabsTrigger>
@@ -50,6 +40,5 @@ export default function IncidentDetailPage({ params }: { params: Promise<{ id: s
           </TabsContent>
         </Tabs>
       </div>
-    </>
   );
 }

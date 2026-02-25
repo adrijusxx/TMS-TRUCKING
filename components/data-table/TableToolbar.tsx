@@ -10,21 +10,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import type { ColumnFiltersState, FilterDefinition } from './types';
 import SavedFilters from '@/components/filters/SavedFilters';
 import { usePermissions } from '@/hooks/usePermissions';
 import { CheckSquare } from 'lucide-react';
 import { ImportWizard } from '@/components/shared/import-wizard';
-import { FilterSearchableSelect } from './FilterSearchableSelect';
+import { FilterField } from './FilterField';
 
 interface TableToolbarProps {
   /**
@@ -365,16 +356,12 @@ export function TableToolbar({
                   {visibleFilters.map((filter) => {
                     let currentValue: any = filterValues[filter.key] || filter.defaultValue || '';
 
-                    // Handle date range values
                     if (filter.type === 'daterange') {
                       currentValue = {
                         start: filterValues[`${filter.key}_start`] || '',
                         end: filterValues[`${filter.key}_end`] || '',
                       };
-                    }
-
-                    // Handle number range values
-                    if (filter.type === 'numberrange') {
+                    } else if (filter.type === 'numberrange') {
                       currentValue = {
                         min: filterValues[`${filter.key}_min`] || '',
                         max: filterValues[`${filter.key}_max`] || '',
@@ -382,154 +369,12 @@ export function TableToolbar({
                     }
 
                     return (
-                      <div key={filter.key} className="space-y-2">
-                        <Label htmlFor={filter.key} className="text-xs font-medium">
-                          {filter.label}
-                        </Label>
-                        {filter.type === 'text' && (
-                          <Input
-                            id={filter.key}
-                            value={currentValue || ''}
-                            onChange={(e) => handleFilterChange(filter.key, e.target.value, filter.type)}
-                            placeholder={`Filter by ${filter.label.toLowerCase()}`}
-                            className="h-8"
-                          />
-                        )}
-                        {filter.type === 'searchable-select' && filter.entityType && filter.filterKey && (
-                          <FilterSearchableSelect
-                            value={currentValue || ''}
-                            onValueChange={(value) => handleFilterChange(filter.key, value || '', filter.type)}
-                            entityType={filter.entityType}
-                            filterKey={filter.filterKey}
-                            placeholder={`Select ${filter.label.toLowerCase()}`}
-                            className="h-8"
-                          />
-                        )}
-                        {filter.type === 'select' && filter.options && (
-                          <Select
-                            value={currentValue || 'all'}
-                            onValueChange={(value) => {
-                              handleFilterChange(filter.key, value === 'all' ? '' : value, filter.type);
-                            }}
-                          >
-                            <SelectTrigger className="h-8">
-                              <SelectValue placeholder={`Select ${filter.label.toLowerCase()}`} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All {filter.label}</SelectItem>
-                              {filter.options.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        {filter.type === 'multiselect' && filter.options && (
-                          <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2">
-                            {filter.options.map((option) => {
-                              const selected = Array.isArray(currentValue) ? currentValue.includes(option.value) : false;
-                              return (
-                                <div key={option.value} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={`${filter.key}-${option.value}`}
-                                    checked={selected}
-                                    onCheckedChange={(checked) => {
-                                      const current = Array.isArray(currentValue) ? currentValue : [];
-                                      const updated = checked
-                                        ? [...current, option.value]
-                                        : current.filter((v: string) => v !== option.value);
-                                      handleFilterChange(filter.key, updated, filter.type);
-                                    }}
-                                  />
-                                  <Label
-                                    htmlFor={`${filter.key}-${option.value}`}
-                                    className="text-xs font-normal cursor-pointer flex-1"
-                                  >
-                                    {option.label}
-                                  </Label>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {filter.type === 'number' && (
-                          <Input
-                            id={filter.key}
-                            type="number"
-                            value={currentValue || ''}
-                            onChange={(e) => handleFilterChange(filter.key, e.target.value ? parseFloat(e.target.value) : '', filter.type)}
-                            placeholder={`Filter by ${filter.label.toLowerCase()}`}
-                            className="h-8"
-                          />
-                        )}
-                        {filter.type === 'numberrange' && (
-                          <div className="flex gap-2">
-                            <Input
-                              id={`${filter.key}_min`}
-                              type="number"
-                              value={currentValue?.min || ''}
-                              onChange={(e) => handleFilterChange(filter.key, { ...currentValue, min: e.target.value ? parseFloat(e.target.value) : '' }, filter.type)}
-                              placeholder="Min"
-                              className="h-8 flex-1"
-                            />
-                            <Input
-                              id={`${filter.key}_max`}
-                              type="number"
-                              value={currentValue?.max || ''}
-                              onChange={(e) => handleFilterChange(filter.key, { ...currentValue, max: e.target.value ? parseFloat(e.target.value) : '' }, filter.type)}
-                              placeholder="Max"
-                              className="h-8 flex-1"
-                            />
-                          </div>
-                        )}
-                        {filter.type === 'date' && (
-                          <Input
-                            id={filter.key}
-                            type="date"
-                            value={currentValue || ''}
-                            onChange={(e) => handleFilterChange(filter.key, e.target.value, filter.type)}
-                            className="h-8"
-                          />
-                        )}
-                        {filter.type === 'daterange' && (
-                          <div className="flex gap-2">
-                            <Input
-                              id={`${filter.key}_start`}
-                              type="date"
-                              value={currentValue?.start || ''}
-                              onChange={(e) => handleFilterChange(filter.key, { ...currentValue, start: e.target.value }, filter.type)}
-                              placeholder="Start Date"
-                              className="h-8 flex-1"
-                            />
-                            <Input
-                              id={`${filter.key}_end`}
-                              type="date"
-                              value={currentValue?.end || ''}
-                              onChange={(e) => handleFilterChange(filter.key, { ...currentValue, end: e.target.value }, filter.type)}
-                              placeholder="End Date"
-                              className="h-8 flex-1"
-                            />
-                          </div>
-                        )}
-                        {filter.type === 'boolean' && (
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={filter.key}
-                              checked={currentValue === 'true' || currentValue === true || currentValue === 'True'}
-                              onCheckedChange={(checked) => {
-                                handleFilterChange(filter.key, checked ? 'true' : '', filter.type);
-                              }}
-                            />
-                            <Label
-                              htmlFor={filter.key}
-                              className="text-xs font-normal cursor-pointer"
-                            >
-                              {filter.helpText || 'Enable filter'}
-                            </Label>
-                          </div>
-                        )}
-                      </div>
+                      <FilterField
+                        key={filter.key}
+                        filter={filter}
+                        value={currentValue}
+                        onChange={handleFilterChange}
+                      />
                     );
                   })}
                 </div>

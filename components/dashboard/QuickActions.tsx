@@ -29,7 +29,7 @@ const quickActions: QuickAction[] = [
     description: 'Add a new load',
     href: '/dashboard/loads?action=new',
     icon: Package,
-    color: 'bg-blue-500',
+    color: 'bg-primary',
     permission: 'loads.create',
   },
   {
@@ -37,7 +37,7 @@ const quickActions: QuickAction[] = [
     description: 'Register new driver',
     href: '/dashboard/drivers?action=new',
     icon: Users,
-    color: 'bg-green-500',
+    color: 'bg-status-success',
     permission: 'drivers.create',
   },
   {
@@ -45,7 +45,7 @@ const quickActions: QuickAction[] = [
     description: 'Register new truck',
     href: '/dashboard/trucks?action=new',
     icon: Truck,
-    color: 'bg-purple-500',
+    color: 'bg-status-info',
     permission: 'trucks.create',
   },
   {
@@ -53,7 +53,7 @@ const quickActions: QuickAction[] = [
     description: 'Register new customer',
     href: '/dashboard/customers?action=new',
     icon: FileText,
-    color: 'bg-orange-500',
+    color: 'bg-status-warning',
     permission: 'customers.create',
   },
   {
@@ -61,15 +61,15 @@ const quickActions: QuickAction[] = [
     description: 'Create invoice from loads',
     href: '/dashboard/invoices/generate',
     icon: DollarSign,
-    color: 'bg-emerald-500',
+    color: 'bg-status-success',
     permission: 'invoices.generate',
   },
   {
-    title: 'Dispatch Board',
-    description: 'View dispatch board',
-    href: '/dashboard/dispatch',
+    title: 'Week Board',
+    description: 'View driver week board',
+    href: '/dashboard/loads/board',
     icon: Calendar,
-    color: 'bg-indigo-500',
+    color: 'bg-status-neutral',
     permission: 'loads.assign',
   },
 ];

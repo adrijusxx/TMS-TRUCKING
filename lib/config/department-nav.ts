@@ -41,9 +41,8 @@ import type { DepartmentNavItem } from '@/components/layout/DepartmentNav';
 // Load Management
 export const loadNavItems: DepartmentNavItem[] = [
   { name: 'All Loads', href: '/dashboard/loads', icon: Package },
-  { name: 'My Dispatch', href: '/dashboard/dispatch-view', icon: UserCircle },
-  { name: 'Driver Week Board', href: '/dashboard/loads/board', icon: LayoutGrid },
-  { name: 'Operations Center', href: '/dashboard/operations', icon: Navigation },
+  { name: 'Dispatch Hub', href: '/dashboard/dispatch', icon: Navigation },
+  { name: 'War Room', href: '/dashboard/war-room', icon: Map },
 ];
 
 // Fleet Department
@@ -74,50 +73,20 @@ export const fleetNavItems: DepartmentNavItem[] = [
 // Safety Department
 export const safetyNavItems: DepartmentNavItem[] = [
   { name: 'Safety Tasks', href: '/dashboard/safety', icon: ClipboardCheck },
-  { name: 'Safety Board', href: '/dashboard/safety?tab=board', icon: LayoutGrid },
-  { name: 'Calendar', href: '/dashboard/safety?tab=calendar', icon: Calendar },
-  { name: 'Inspections', href: '/dashboard/safety?tab=inspections', icon: FileCheck },
-  { name: 'Claims', href: '/dashboard/safety?tab=claims', icon: AlertCircle },
-  { name: 'Overview', href: '/dashboard/safety?tab=overview', icon: LayoutDashboard },
+  { name: 'Safety Board', href: '/dashboard/safety/board', icon: LayoutGrid },
+  { name: 'Calendar', href: '/dashboard/safety/calendar', icon: Calendar },
+  { name: 'Inspections', href: '/dashboard/safety/inspections', icon: FileCheck },
+  { name: 'Claims', href: '/dashboard/safety/claims', icon: AlertCircle },
+  { name: 'Overview', href: '/dashboard/safety/overview', icon: LayoutDashboard },
 ];
 
 // Accounting Department
 export const accountingNavItems: DepartmentNavItem[] = [
-  {
-    name: 'Invoices', href: '/dashboard/invoices', icon: FileText,
-    children: [
-      { name: 'All Invoices', href: '/dashboard/invoices' },
-      { name: 'Batches', href: '/dashboard/batches' },
-      { name: 'Aging', href: '/dashboard/invoices?tab=aging' },
-      { name: 'Reconciliation', href: '/dashboard/invoices?tab=reconciliation' },
-      { name: 'Generate', href: '/dashboard/invoices/generate' },
-      { name: 'Reports', href: '/dashboard/invoices?tab=reports' },
-    ],
-  },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users },
-  {
-    name: 'Settlements', href: '/dashboard/settlements', icon: CreditCard,
-    children: [
-      { name: 'Pending', href: '/dashboard/settlements?tab=pending' },
-      { name: 'Batches', href: '/dashboard/settlements?tab=batches' },
-      { name: 'All Settlements', href: '/dashboard/settlements?tab=statements' },
-      { name: 'Dispatcher Salary', href: '/dashboard/settlements?tab=dispatcher' },
-      { name: 'Reports', href: '/dashboard/settlements?tab=report' },
-      { name: 'Balances', href: '/dashboard/settlements?tab=balances' },
-    ],
-  },
-  {
-    name: 'Bills', href: '/dashboard/bills', icon: Receipt,
-    children: [
-      { name: 'Bills Batch', href: '/dashboard/bills?tab=batches' },
-      { name: 'Bills', href: '/dashboard/bills?tab=bills' },
-      { name: 'Statements', href: '/dashboard/bills?tab=statements' },
-      { name: 'Vendor Balances', href: '/dashboard/bills?tab=balances' },
-      { name: 'One Time Charges', href: '/dashboard/bills?tab=charges' },
-      { name: 'Scheduled Payments', href: '/dashboard/bills?tab=scheduled' },
-    ],
-  },
+  { name: 'Invoices', href: '/dashboard/invoices', icon: FileText },
+  { name: 'Settlements', href: '/dashboard/settlements', icon: CreditCard },
+  { name: 'Bills', href: '/dashboard/bills', icon: Receipt },
   { name: 'IFTA', href: '/dashboard/accounting/ifta', icon: Fuel },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users },
   {
     name: 'Factoring', href: '/dashboard/accounting/factoring', icon: Building2,
     children: [
@@ -130,23 +99,15 @@ export const accountingNavItems: DepartmentNavItem[] = [
 
 // HR Department
 export const hrNavItems: DepartmentNavItem[] = [
-  { name: 'Dashboard', href: '/dashboard/hr', icon: LayoutDashboard },
   {
     name: 'Workforce', href: '/dashboard/drivers', icon: Users,
     children: [
       { name: 'All Drivers', href: '/dashboard/drivers' },
-      { name: 'Performance', href: '/dashboard/hr?tab=performance' },
-      { name: 'Retention', href: '/dashboard/hr?tab=retention' },
+      { name: 'Driver Compliance', href: '/dashboard/safety/driver-compliance' },
+      { name: 'DQF', href: '/dashboard/safety/dqf' },
     ],
   },
-  {
-    name: 'Compensation', href: '/dashboard/hr?tab=settlements', icon: CreditCard,
-    children: [
-      { name: 'Settlements', href: '/dashboard/hr?tab=settlements' },
-      { name: 'Bonuses', href: '/dashboard/hr?tab=bonuses' },
-    ],
-  },
-  { name: 'Monitoring', href: '/dashboard/hr?tab=monitoring', icon: Activity },
+  { name: 'Monitoring', href: '/dashboard/drivers/monitoring', icon: Activity },
 ];
 
 // CRM / Recruiting Department

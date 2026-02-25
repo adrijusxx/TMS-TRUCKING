@@ -11,6 +11,8 @@ interface EmptyStateProps {
   description?: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** Navigate to a page instead of calling onAction */
+  href?: string;
   className?: string;
 }
 
@@ -20,6 +22,7 @@ export function EmptyState({
   description = 'There are no items to display.',
   actionLabel,
   onAction,
+  href,
   className,
 }: EmptyStateProps) {
   return (
@@ -37,10 +40,16 @@ export function EmptyState({
       </div>
       <h3 className="text-sm font-semibold text-foreground mb-1">{title}</h3>
       <p className="text-sm text-muted-foreground max-w-sm">{description}</p>
-      {actionLabel && onAction && (
-        <Button onClick={onAction} variant="outline" size="sm" className="mt-4">
-          {actionLabel}
-        </Button>
+      {actionLabel && (href || onAction) && (
+        href ? (
+          <Button asChild variant="outline" size="sm" className="mt-4">
+            <a href={href}>{actionLabel}</a>
+          </Button>
+        ) : (
+          <Button onClick={onAction} variant="outline" size="sm" className="mt-4">
+            {actionLabel}
+          </Button>
+        )
       )}
     </motion.div>
   );

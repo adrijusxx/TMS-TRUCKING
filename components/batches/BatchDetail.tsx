@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -11,19 +11,28 @@ import {
   DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { formatCurrency, apiUrl } from '@/lib/utils';
-import { BatchPostStatus } from '@prisma/client';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import {
-  Send, ArrowLeft, Loader2, Trash2, Download, Filter,
-  DollarSign, Plus, RefreshCw, FileDown, ChevronDown,
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { PageTransition } from '@/components/ui/page-transition';
+import { apiUrl, formatCurrency, formatDate } from '@/lib/utils';
+import { BatchPostStatus } from '@prisma/client';
+import type { RowSelectionState } from '@tanstack/react-table';
+import {
+  Send, ArrowLeft, Loader2, Trash2, DollarSign,
+  Plus, RefreshCw, FileDown, ChevronDown, MoreHorizontal,
+  ChevronsUpDown,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import Link from 'next/link';
 import BatchValidationDialog from './BatchValidationDialog';
 import BatchInfoCards from './BatchInfoCards';
 import BatchInvoiceTable from './BatchInvoiceTable';
 import BatchPaymentDialog from './BatchPaymentDialog';
 import BatchAddInvoiceDialog from './BatchAddInvoiceDialog';
+import { flattenBatchItems, computeBatchTotals } from './batch-invoice-columns';
+import { useBatchActions } from './useBatchActions';
 
 interface BatchDetailProps {
   batchId: string;
@@ -31,6 +40,19 @@ interface BatchDetailProps {
 
 const FILTER_TABS = ['ALL', 'DRAFT', 'SENT', 'PAID', 'PARTIAL', 'OVERDUE'] as const;
 type FilterTab = (typeof FILTER_TABS)[number];
+
+const STATUS_COLORS: Record<string, string> = {
+  UNPOSTED: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  POSTED: 'bg-blue-100 text-blue-800 border-blue-200',
+  PAID: 'bg-green-100 text-green-800 border-green-200',
+};
+
+const EMAIL_COLORS: Record<string, string> = {
+  NOT_SENT: 'text-muted-foreground',
+  SENT: 'text-green-600',
+  PARTIALLY_SENT: 'text-yellow-600',
+  FAILED: 'text-red-600',
+};
 
 async function fetchBatch(id: string) {
   const response = await fetch(apiUrl(`/api/batches/${id}`));
@@ -44,15 +66,16 @@ async function fetchEmailLogs(batchId: string) {
   return response.json();
 }
 
+function formatStatus(status: string): string {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 export default function BatchDetail({ batchId }: BatchDetailProps) {
-  const queryClient = useQueryClient();
-  const [validationErrors, setValidationErrors] = useState<any[]>([]);
-  const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<FilterTab>('ALL');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showAddInvoiceDialog, setShowAddInvoiceDialog] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['batch', batchId],
@@ -64,55 +87,14 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
     queryFn: () => fetchEmailLogs(batchId),
   });
 
-  const sendBatchMutation = useMutation({
-    mutationFn: async () => {
-      const valRes = await fetch(apiUrl(`/api/batches/${batchId}/validate`));
-      const valData = await valRes.json();
-      if (!valData.data?.ready) {
-        setValidationErrors(valData.data?.errors || []);
-        setShowValidationDialog(true);
-        throw new Error('VALIDATION_BLOCKED');
-      }
-      const response = await fetch(apiUrl(`/api/batches/${batchId}/send`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error?.message || 'Failed to send batch');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-      queryClient.invalidateQueries({ queryKey: ['batch-email-logs', batchId] });
-      queryClient.invalidateQueries({ queryKey: ['batches'] });
-      toast.success('Batch sent successfully');
-    },
-    onError: (error) => {
-      if (error.message !== 'VALIDATION_BLOCKED') toast.error(`Send failed: ${error.message}`);
-    },
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: async (postStatus: BatchPostStatus) => {
-      const response = await fetch(apiUrl(`/api/batches/${batchId}/status`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postStatus }),
-      });
-      if (!response.ok) throw new Error('Failed to update status');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-      queryClient.invalidateQueries({ queryKey: ['batches'] });
-      toast.success('Status updated');
-    },
-  });
-
   const batch = data?.data;
+
+  const {
+    sendBatchMutation, updateStatusMutation,
+    handleBulkStatusChange, handleBulkDelete, handleReconcile,
+    handleExportPDF, handleRefresh,
+    validationErrors, showValidationDialog, setShowValidationDialog, isExporting,
+  } = useBatchActions(batchId, batch);
 
   const emailLogs: Record<string, any> = useMemo(() => {
     const map: Record<string, any> = {};
@@ -128,133 +110,22 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
     return batch.items.filter((item: any) => item.invoice.status === activeTab);
   }, [batch?.items, activeTab]);
 
-  const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length
-    && filteredItems.every((item: any) => selectedIds.has(item.invoice.id));
+  const flatRows = useMemo(
+    () => flattenBatchItems(filteredItems, emailLogs),
+    [filteredItems, emailLogs],
+  );
 
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(filteredItems.map((item: any) => item.invoice.id)));
-  };
+  const allFlatRows = useMemo(
+    () => flattenBatchItems(batch?.items || [], emailLogs),
+    [batch?.items, emailLogs],
+  );
 
-  const toggleOne = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+  const totals = useMemo(() => computeBatchTotals(allFlatRows), [allFlatRows]);
 
-  const handleBulkStatusChange = async (status: string) => {
-    if (!status || selectedIds.size === 0) return;
-    try {
-      await Promise.all(
-        Array.from(selectedIds).map((invoiceId) =>
-          fetch(apiUrl(`/api/invoices/${invoiceId}`), {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status }),
-          })
-        )
-      );
-      toast.success(`Updated ${selectedIds.size} invoice(s) to ${status}`);
-      setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-    } catch {
-      toast.error('Failed to update invoices');
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Remove ${selectedIds.size} invoice(s) from this batch?`)) return;
-    try {
-      const ids = Array.from(selectedIds).join(',');
-      await fetch(apiUrl(`/api/batches/${batchId}/invoices?invoiceIds=${ids}`), { method: 'DELETE' });
-      toast.success(`Removed ${selectedIds.size} invoice(s)`);
-      setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-    } catch {
-      toast.error('Failed to remove invoices');
-    }
-  };
-
-  const handleReconcile = async () => {
-    if (selectedIds.size === 0) {
-      toast.error('Select invoices to reconcile');
-      return;
-    }
-    try {
-      await Promise.all(
-        Array.from(selectedIds).map((invoiceId) =>
-          fetch(apiUrl(`/api/invoices/${invoiceId}`), {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reconciliationStatus: 'RECONCILED' }),
-          })
-        )
-      );
-      toast.success(`Reconciled ${selectedIds.size} invoice(s)`);
-      setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-    } catch {
-      toast.error('Failed to reconcile');
-    }
-  };
-
-  const handleExportPDF = useCallback(async () => {
-    if (!batch?.items?.length) return;
-    setIsExporting(true);
-    try {
-      // Download PDF packages sequentially to avoid overwhelming the server
-      for (const item of batch.items) {
-        const inv = item.invoice;
-        const response = await fetch(apiUrl(`/api/invoices/${inv.id}/package`));
-        if (!response.ok) continue;
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `invoice-${inv.invoiceNumber}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-      toast.success(`Exported ${batch.items.length} invoice PDF(s)`);
-    } catch {
-      toast.error('Export failed');
-    } finally {
-      setIsExporting(false);
-    }
-  }, [batch?.items]);
-
-  const handleExportCSV = useCallback(() => {
-    if (!filteredItems.length) return;
-    const headers = ['Invoice #', 'Customer', 'Load #', 'Driver', 'Status', 'Total', 'Balance'];
-    const rows = filteredItems.map((item: any) => {
-      const inv = item.invoice;
-      const driverName = inv.load?.driver?.user
-        ? `${inv.load.driver.user.firstName} ${inv.load.driver.user.lastName}` : '';
-      return [inv.invoiceNumber, inv.customer?.name, inv.load?.loadNumber || '', driverName,
-        inv.status, inv.total, inv.balance].join(',');
-    });
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `batch-${batch?.batchNumber || batchId}-invoices.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success('CSV exported');
-  }, [filteredItems, batch?.batchNumber, batchId]);
-
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-    queryClient.invalidateQueries({ queryKey: ['batch-email-logs', batchId] });
-    toast.success('Refreshed');
-  };
+  const selectedIds = useMemo(
+    () => Object.keys(rowSelection).filter((k) => rowSelection[k]),
+    [rowSelection],
+  );
 
   if (isLoading) {
     return (
@@ -266,7 +137,11 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
 
   if (!batch) return <div>Batch not found</div>;
 
-  // Flatten invoice list for payment dialog
+  const emailStatus = batch.emailStatus || 'NOT_SENT';
+  const invoiceCount = batch.invoiceCount || batch.items?.length || 0;
+  const statusColor = STATUS_COLORS[batch.postStatus] || STATUS_COLORS.UNPOSTED;
+  const emailColor = EMAIL_COLORS[emailStatus] || EMAIL_COLORS.NOT_SENT;
+
   const invoiceList = (batch.items || []).map((item: any) => ({
     id: item.invoice.id,
     invoiceNumber: item.invoice.invoiceNumber,
@@ -276,139 +151,170 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
   }));
 
   return (
-    <div className="space-y-4">
-      {/* Navigation Tabs */}
-      <Tabs defaultValue="batches">
-        <TabsList>
-          <TabsTrigger value="batches" asChild>
-            <Link href="/dashboard/batches">Batches</Link>
-          </TabsTrigger>
-          <TabsTrigger value="invoices" asChild>
-            <Link href="/dashboard/accounting?tab=invoices">Invoices</Link>
-          </TabsTrigger>
-          <TabsTrigger value="aging" asChild>
-            <Link href="/dashboard/accounting?tab=aging">Aging report</Link>
-          </TabsTrigger>
-          <TabsTrigger value="reports" asChild>
-            <Link href="/dashboard/accounting?tab=reports">Invoice reports</Link>
-          </TabsTrigger>
-          <TabsTrigger value="reconciliation" asChild>
-            <Link href="/dashboard/accounting?tab=reconciliation">Reconciliation</Link>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Top Action Bar */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/batches">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-1" /> Back
-            </Button>
+    <PageTransition>
+      <div className="space-y-3">
+        {/* Compact Header */}
+        <div className="flex items-center gap-3 min-h-[40px]">
+          <Link
+            href="/dashboard/batches"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h2 className="text-xl font-bold">{batch.batchNumber}</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm"
-            onClick={() => sendBatchMutation.mutate()}
-            disabled={sendBatchMutation.isPending}>
-            {sendBatchMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-            Send ({batch.items?.length || 0})
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowPaymentDialog(true)}>
-            <DollarSign className="h-4 w-4 mr-1" /> Mark a Payment
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowAddInvoiceDialog(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Add load
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleReconcile}>
-            <RefreshCw className="h-4 w-4 mr-1" /> Reconcile
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isExporting}>
-            {isExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileDown className="h-4 w-4 mr-1" />}
-            Export as PDF
-          </Button>
-          <Select
-            value={batch.postStatus}
-            onValueChange={(v: string) => updateStatusMutation.mutate(v as BatchPostStatus)}>
-            <SelectTrigger className="w-[140px] h-8"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="UNPOSTED">UNPOSTED</SelectItem>
-              <SelectItem value="POSTED">POSTED</SelectItem>
-              <SelectItem value="PAID">PAID</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
-      {/* Filter toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {batch.mcNumber && (
-          <div className="text-sm px-3 py-1 rounded border bg-muted">
-            MC NUMBER: <span className="font-medium">{batch.mcNumber}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight truncate">{batch.batchNumber}</h1>
+            <Badge variant="outline" className={`text-xs shrink-0 ${statusColor}`}>
+              {formatStatus(batch.postStatus)}
+            </Badge>
           </div>
-        )}
 
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as FilterTab); setSelectedIds(new Set()); }}>
-          <TabsList className="h-8">
-            {FILTER_TABS.map((tab) => (
-              <TabsTrigger key={tab} value={tab} className="text-xs h-7 px-2">
-                {tab === 'ALL' ? `All (${batch.items?.length || 0})` : tab}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        <div className="flex-1" />
-
-        {selectedIds.size > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                Bulk actions ({selectedIds.size}) <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleBulkStatusChange('DRAFT')}>Set DRAFT</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleBulkStatusChange('SENT')}>Set SENT</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleBulkStatusChange('PAID')}>Set PAID</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={handleBulkDelete}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove from batch
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-
-        <Button variant="outline" size="sm" onClick={handleExportCSV}>
-          <Download className="h-4 w-4 mr-1" /> Export
-        </Button>
-        <Button variant="outline" size="sm" onClick={handleRefresh}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Info Cards + Editable Fields */}
-      <BatchInfoCards batch={batch} batchId={batchId} emailLogsData={emailLogsData} />
-
-      {/* Invoice Table */}
-      <BatchInvoiceTable
-        items={filteredItems}
-        emailLogs={emailLogs}
-        selectedIds={selectedIds}
-        onToggleAll={toggleAll}
-        onToggleOne={toggleOne}
-        allSelected={allSelected}
-      />
-
-      {/* Footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div>
-          Total amount sum: <span className="font-medium text-foreground">
-            {formatCurrency(filteredItems.reduce((s: number, i: any) => s + (i.invoice.total || 0), 0))}
+          <span className="text-xs text-muted-foreground hidden sm:inline shrink-0">
+            by {batch.createdBy?.firstName} {batch.createdBy?.lastName} · {formatDate(batch.createdAt)}
           </span>
+
+          <div className="flex-1" />
+
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setShowAddInvoiceDialog(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add
+            </Button>
+            <Button size="sm" className="h-8"
+              onClick={() => sendBatchMutation.mutate()}
+              disabled={sendBatchMutation.isPending}>
+              {sendBatchMutation.isPending
+                ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                : <Send className="h-3.5 w-3.5 mr-1" />}
+              Send ({invoiceCount})
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowPaymentDialog(true)}>
+                  <DollarSign className="h-4 w-4 mr-2" /> Mark a Payment
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleReconcile(selectedIds)}
+                  disabled={selectedIds.length === 0}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" /> Reconcile Selected
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportPDF} disabled={isExporting}>
+                  <FileDown className="h-4 w-4 mr-2" /> Export All as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Select
+              value={batch.postStatus}
+              onValueChange={(v: string) => updateStatusMutation.mutate(v as BatchPostStatus)}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="UNPOSTED">Unposted</SelectItem>
+                <SelectItem value="POSTED">Posted</SelectItem>
+                <SelectItem value="PAID">Paid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div>{filteredItems.length} of {batch.items?.length || 0} invoice(s)</div>
+
+        {/* Summary Card */}
+        <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <Card className="p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Invoices</span>
+                <p className="text-lg font-semibold tabular-nums">{invoiceCount}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Total</span>
+                <p className="text-lg font-semibold tabular-nums">{formatCurrency(batch.totalAmount || totals.amount)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
+                <p className={`text-lg font-semibold tabular-nums ${totals.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {formatCurrency(totals.balance)}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Email</span>
+                <p className={`text-lg font-semibold ${emailColor}`}>{formatStatus(emailStatus)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">MC#</span>
+                <p className="text-lg font-semibold">{batch.mcNumber || '—'}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-2">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+                  <ChevronsUpDown className="h-3.5 w-3.5 mr-1" />
+                  {detailsOpen ? 'Hide' : 'Edit'} Details
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+
+            <CollapsibleContent className="pt-3 mt-3 border-t">
+              <BatchInfoCards batch={batch} batchId={batchId} />
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* Invoices Card — tabs + table unified */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center gap-2 flex-wrap px-4 py-3 border-b">
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as FilterTab); setRowSelection({}); }}>
+              <TabsList className="h-8">
+                {FILTER_TABS.map((tab) => (
+                  <TabsTrigger key={tab} value={tab} className="text-xs h-7 px-2">
+                    {tab === 'ALL' ? `All (${invoiceCount})` : tab}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+
+            <div className="flex-1" />
+
+            {selectedIds.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8">
+                    Bulk ({selectedIds.length}) <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => handleBulkStatusChange(selectedIds, 'DRAFT')}>Set DRAFT</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkStatusChange(selectedIds, 'SENT')}>Set SENT</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkStatusChange(selectedIds, 'PAID')}>Set PAID</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-destructive" onClick={() => handleBulkDelete(selectedIds)}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove from batch
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Invoice Table */}
+          <BatchInvoiceTable
+            data={flatRows}
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            batchNumber={batch.batchNumber}
+          />
+        </Card>
       </div>
 
       {/* Dialogs */}
@@ -422,13 +328,13 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
         onClose={() => setShowPaymentDialog(false)}
         batchId={batchId}
         invoices={invoiceList}
-        preSelectedIds={selectedIds.size > 0 ? selectedIds : undefined}
+        preSelectedIds={selectedIds.length > 0 ? new Set(selectedIds) : undefined}
       />
       <BatchAddInvoiceDialog
         open={showAddInvoiceDialog}
         onClose={() => setShowAddInvoiceDialog(false)}
         batchId={batchId}
       />
-    </div>
+    </PageTransition>
   );
 }

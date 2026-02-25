@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ChevronLeft, Save, Activity, ShieldAlert, Cpu, Calculator, Users, BarChart3, Plug } from 'lucide-react';
+import { ChevronLeft, Save, Activity, ShieldAlert, Cpu, Calculator, BarChart3, Plug } from 'lucide-react';
 import Link from 'next/link';
 
 interface FeatureManageClientProps {
@@ -20,7 +20,6 @@ const MODULES = [
     { id: 'FLEET', label: 'Fleet Management', description: 'Trucks, Trailers, Maintenance, Fuel tracking', icon: Activity },
     { id: 'ACCOUNTING', label: 'Accounting & Analytics', description: 'Invoices, Settlements, Pro-forma, P&L', icon: Calculator },
     { id: 'SAFETY', label: 'Safety & Compliance', description: 'Incidents, Driver files, Citations', icon: ShieldAlert },
-    { id: 'HR', label: 'Human Resources', description: 'Hiring, Training, Employee files', icon: Users },
     { id: 'INTEGRATIONS', label: 'Integrations', description: 'Samsara, QuickBooks, Telegram', icon: Plug },
     { id: 'AI_DISPATCH', label: 'AI Dispatch', description: 'Automated matching and assistant', icon: Cpu },
     { id: 'ANALYTICS', label: 'Advanced Analytics', description: 'Custom reports and deep insights', icon: BarChart3 },

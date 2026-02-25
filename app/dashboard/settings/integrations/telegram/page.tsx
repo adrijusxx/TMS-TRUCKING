@@ -247,16 +247,9 @@ export default function TelegramIntegrationPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Telegram Integration</h1>
-                <p className="text-muted-foreground mt-2">
-                    Configure AI-powered Telegram integration for driver communications
-                </p>
-            </div>
-
-            {/* Connection Status */}
+{/* Connection Status */}
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">
@@ -421,7 +414,7 @@ export default function TelegramIntegrationPage() {
                             <CardTitle>Feature Toggles</CardTitle>
                             <CardDescription>Enable or disable core features</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="space-y-4">
                             {/* Auto-Create Cases */}
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
@@ -526,7 +519,7 @@ export default function TelegramIntegrationPage() {
                             <CardTitle>AI Settings</CardTitle>
                             <CardDescription>Configure AI behavior and thresholds</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="space-y-4">
                             {/* Confidence Threshold */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
@@ -645,7 +638,7 @@ export default function TelegramIntegrationPage() {
                             <CardTitle>Auto-Response Templates</CardTitle>
                             <CardDescription>Customize automated message templates</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="space-y-4">
                             {/* Auto-Acknowledgment */}
                             <div className="space-y-2">
                                 <Label htmlFor="auto-ack">Auto-Acknowledgment Message</Label>

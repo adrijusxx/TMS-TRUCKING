@@ -3,8 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { apiUrl } from '@/lib/utils';
+import { PageShell } from '@/components/layout/PageShell';
 
 // Fetch template count for limit display
 async function fetchTemplateCount() {
@@ -158,34 +158,24 @@ export default function DeductionTemplatesPage() {
   });
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Accounting', href: '/dashboard/accounting' },
-        { label: 'Settings', href: '/dashboard/accounting/settings' },
-        { label: 'Deduction Templates' }
-      ]} />
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Deduction Templates</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Create reusable templates for driver deductions and additions.
-            </p>
-          </div>
-          <Badge variant="outline" className="text-sm">
-            {countData?.count || 0} / 1000 templates
-          </Badge>
-        </div>
-        <GenericCRUDManager
-          endpoint="/api/deduction-rules"
-          queryKey="deduction-rules"
-          title="Templates"
-          description="Templates are applied automatically during settlement generation"
-          searchable={true}
-          fields={fields}
-          columns={columns}
-        />
-      </div>
-    </>
+    <PageShell
+      title="Deduction & Addition Templates"
+      description="Templates are applied automatically during settlement generation"
+      actions={
+        <Badge variant="outline" className="text-sm">
+          {countData?.count || 0} / 1000 templates
+        </Badge>
+      }
+    >
+      <GenericCRUDManager
+        endpoint="/api/deduction-rules"
+        queryKey="deduction-rules"
+        title="Templates"
+        description="Templates are applied automatically during settlement generation"
+        searchable={true}
+        fields={fields}
+        columns={columns}
+      />
+    </PageShell>
   );
 }

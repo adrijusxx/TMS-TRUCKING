@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import DriverSelector from '@/components/safety/DriverSelector';
 import HOSDashboard from '@/components/safety/drivers/HOSDashboard';
@@ -10,16 +9,8 @@ export default function HOSPage() {
   const [selectedDriverId, setSelectedDriverId] = useState<string>('');
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Safety Department', href: '/dashboard/safety' },
-        { label: 'Hours of Service' }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Hours of Service</h1>
-        </div>
-        <Card>
+    <div className="space-y-4">
+<Card>
           <CardHeader>
             <CardTitle>HOS Monitoring</CardTitle>
             <CardDescription>Select a driver to view their HOS records and violations</CardDescription>
@@ -39,7 +30,6 @@ export default function HOSPage() {
         </CardContent>
         </Card>
       </div>
-    </>
   );
 }
 

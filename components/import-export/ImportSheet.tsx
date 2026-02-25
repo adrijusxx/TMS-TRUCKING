@@ -21,6 +21,8 @@ interface ImportSheetProps {
     onImportComplete?: (data: any[]) => void;
     onAIImport?: (data: any, file?: File) => void;
     children?: React.ReactNode; // Can be used as trigger
+    /** Which tab to open by default: 'bulk' or 'ai' */
+    defaultTab?: 'bulk' | 'ai';
 }
 
 export default function ImportSheet({
@@ -28,10 +30,11 @@ export default function ImportSheet({
     trigger,
     onImportComplete,
     onAIImport,
-    children
+    children,
+    defaultTab = 'bulk',
 }: ImportSheetProps) {
     const [open, setOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<string>('bulk');
+    const [activeTab, setActiveTab] = useState<string>(defaultTab);
 
     const title = `Import ${entityType.charAt(0).toUpperCase() + entityType.slice(1)}`;
 

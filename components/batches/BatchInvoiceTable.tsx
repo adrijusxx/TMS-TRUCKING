@@ -1,42 +1,39 @@
 'use client';
 
-import { useMemo } from 'react';
-import {
-  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
+import { useMemo, useState, useCallback } from 'react';
+import { DataTable } from '@/components/data-table/DataTable';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
-import { Download, FileText, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Download, FileText, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { RowSelectionState } from '@tanstack/react-table';
+import {
+  createBatchInvoiceColumns,
+  computeBatchTotals,
+  type BatchInvoiceRow,
+} from './batch-invoice-columns';
 
 interface BatchInvoiceTableProps {
-  items: any[];
-  emailLogs: Record<string, any>;
-  selectedIds: Set<string>;
-  onToggleAll: () => void;
-  onToggleOne: (id: string) => void;
-  allSelected: boolean;
+  data: BatchInvoiceRow[];
+  rowSelection: RowSelectionState;
+  onRowSelectionChange: (selection: RowSelectionState) => void;
+  batchNumber?: string;
+  isLoading?: boolean;
 }
 
-const statusBadgeClass = (status: string) => {
-  switch (status) {
-    case 'PAID': return 'bg-green-100 text-green-800 border-green-200';
-    case 'OVERDUE': return 'bg-red-100 text-red-800 border-red-200';
-    case 'PARTIAL': return 'bg-amber-100 text-amber-800 border-amber-200';
-    case 'SENT': case 'INVOICED': return 'bg-blue-100 text-blue-800 border-blue-200';
-    default: return 'bg-gray-100 text-gray-800 border-gray-200';
-  }
-};
-
 export default function BatchInvoiceTable({
-  items, emailLogs, selectedIds, onToggleAll, onToggleOne, allSelected,
+  data,
+  rowSelection,
+  onRowSelectionChange,
+  batchNumber,
+  isLoading,
 }: BatchInvoiceTableProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -61,146 +58,103 @@ export default function BatchInvoiceTable({
     }
   };
 
-  const totals = useMemo(() => {
-    let amount = 0, driverGross = 0, balance = 0;
-    for (const item of items) {
-      amount += item.invoice.total || 0;
-      balance += item.invoice.balance || 0;
-      driverGross += item.invoice.load?.driverPay || 0;
-    }
-    return { amount, driverGross, balance };
-  }, [items]);
+  const columns = useMemo(() => createBatchInvoiceColumns(), []);
+  const totals = useMemo(() => computeBatchTotals(data), [data]);
+
+  const handleExportCSV = useCallback(() => {
+    if (data.length === 0) return;
+    const headers = [
+      'Invoice #', 'Customer', 'Load #', 'Driver', 'Status', 'Total', 'Balance',
+    ];
+    const rows = data.map((row) =>
+      [row.invoiceNumber, row.customerName, row.loadNumber, row.driverName,
+        row.status, row.total, row.balance].join(',')
+    );
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `batch-${batchNumber || 'export'}-invoices.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('CSV exported');
+  }, [data, batchNumber]);
+
+  const rowActions = useCallback(
+    (row: BatchInvoiceRow) => (
+      <TooltipProvider>
+        <div className="flex items-center gap-0.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => downloadPackage(row.invoiceId, row.invoiceNumber)}
+                disabled={downloadingId === row.invoiceId}
+              >
+                {downloadingId === row.invoiceId ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Download PDF Package</TooltipContent>
+          </Tooltip>
+          <Link href={`/dashboard/invoices/${row.invoiceId}`}>
+            <Button variant="ghost" size="sm" className="h-7 px-1.5">
+              <FileText className="h-3.5 w-3.5 mr-0.5" /> View
+            </Button>
+          </Link>
+        </div>
+      </TooltipProvider>
+    ),
+    [downloadingId],
+  );
 
   return (
-    <div className="border rounded-lg overflow-auto">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            <TableHead className="w-10"><Checkbox checked={allSelected} onCheckedChange={onToggleAll} /></TableHead>
-            <TableHead>Shipment</TableHead>
-            <TableHead>Customer</TableHead>
-            <TableHead>Load ID</TableHead>
-            <TableHead>Invoice</TableHead>
-            <TableHead className="text-right">Driver Gross</TableHead>
-            <TableHead>Delivery Time</TableHead>
-            <TableHead>Pickup Time</TableHead>
-            <TableHead>Delivered</TableHead>
-            <TableHead>Driver</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Factoring Party</TableHead>
-            <TableHead>Billing Type</TableHead>
-            <TableHead className="text-right">Total Amount</TableHead>
-            <TableHead className="text-center">Is Sent</TableHead>
-            <TableHead>Rate Con</TableHead>
-            <TableHead>POD</TableHead>
-            <TableHead>Invoice Note</TableHead>
-            <TableHead>Note</TableHead>
-            <TableHead>Sync Status</TableHead>
-            <TableHead className="text-right">Balance</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TooltipProvider>
-            {items.map((item: any) => {
-              const inv = item.invoice;
-              const load = inv.load;
-              const log = emailLogs[inv.id];
-              const driverName = load?.driver?.user
-                ? `${load.driver.user.firstName} ${load.driver.user.lastName}` : '-';
-              const billingType = inv.factoringCompany ? 'Factoring company' : 'Email';
-              const isSent = log?.status === 'SENT';
-              const syncLabel = inv.qbSyncStatus || '-';
+    <div className="space-y-3">
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        enableRowSelection={true}
+        rowSelection={rowSelection}
+        onRowSelectionChange={onRowSelectionChange}
+        rowActions={rowActions}
+        entityType="batch-invoices"
+        filterKey="invoiceNumber,customerName,loadNumber,shipmentId"
+        searchPlaceholder="Search invoices..."
+        onExport={handleExportCSV}
+        emptyMessage="No invoices in this batch"
+      />
 
-              return (
-                <TableRow key={inv.id} data-state={selectedIds.has(inv.id) ? 'selected' : undefined}>
-                  <TableCell><Checkbox checked={selectedIds.has(inv.id)} onCheckedChange={() => onToggleOne(inv.id)} /></TableCell>
-                  <TableCell className="text-muted-foreground text-xs">{load?.shipmentId || '-'}</TableCell>
-                  <TableCell className="font-medium">{inv.customer?.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{load?.loadNumber || '-'}</TableCell>
-                  <TableCell className="font-medium text-primary">{inv.invoiceNumber}</TableCell>
-                  <TableCell className="text-right">{load?.driverPay ? formatCurrency(load.driverPay) : '-'}</TableCell>
-                  <TableCell className="text-xs">{load?.deliveryDate ? formatDate(load.deliveryDate) : '-'}</TableCell>
-                  <TableCell className="text-xs">{load?.pickupDate ? formatDate(load.pickupDate) : '-'}</TableCell>
-                  <TableCell className="text-xs">{load?.deliveredAt ? formatDate(load.deliveredAt) : '-'}</TableCell>
-                  <TableCell>{driverName}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={statusBadgeClass(inv.status)}>{inv.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-xs">{inv.factoringCompany?.name || '-'}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-xs">{billingType}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">{formatCurrency(inv.total)}</TableCell>
-                  <TableCell className="text-center">
-                    {isSent
-                      ? <CheckCircle2 className="h-4 w-4 text-green-600 mx-auto" />
-                      : <XCircle className="h-4 w-4 text-muted-foreground mx-auto" />}
-                  </TableCell>
-                  <TableCell>
-                    {load?.id ? (
-                      <Link href={`/dashboard/loads/${load.id}`} className="text-xs text-primary hover:underline">
-                        Rate confirmation
-                      </Link>
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {load?.podUploadedAt ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">POD</Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-[120px] truncate text-xs">{inv.invoiceNote || '-'}</TableCell>
-                  <TableCell className="max-w-[120px] truncate text-xs">{inv.paymentNote || '-'}</TableCell>
-                  <TableCell>
-                    {syncLabel !== '-' ? (
-                      <Badge variant="outline" className={
-                        syncLabel === 'SYNCED' ? 'bg-green-50 text-green-700' :
-                        syncLabel === 'FAILED' ? 'bg-red-50 text-red-700' :
-                        'bg-gray-50 text-gray-700'
-                      }>{syncLabel}</Badge>
-                    ) : <span className="text-xs text-muted-foreground">-</span>}
-                  </TableCell>
-                  <TableCell className="text-right text-red-600 font-medium">{formatCurrency(inv.balance)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-0.5">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-                            onClick={() => downloadPackage(inv.id, inv.invoiceNumber)}
-                            disabled={downloadingId === inv.id}>
-                            {downloadingId === inv.id
-                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              : <Download className="h-3.5 w-3.5" />}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Download PDF Package</TooltipContent>
-                      </Tooltip>
-                      <Link href={`/dashboard/invoices/${inv.id}`}>
-                        <Button variant="ghost" size="sm" className="h-7 px-1.5">
-                          <FileText className="h-3.5 w-3.5 mr-0.5" /> View
-                        </Button>
-                      </Link>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TooltipProvider>
-        </TableBody>
-        <TableFooter>
-          <TableRow>
-            <TableCell colSpan={5} className="font-semibold">Total amount sum: {formatCurrency(totals.amount)}</TableCell>
-            <TableCell className="text-right font-bold">{formatCurrency(totals.driverGross)}</TableCell>
-            <TableCell colSpan={7} />
-            <TableCell className="text-right font-bold">{formatCurrency(totals.amount)}</TableCell>
-            <TableCell colSpan={6} />
-            <TableCell className="text-right font-bold text-red-600">{formatCurrency(totals.balance)}</TableCell>
-            <TableCell />
-          </TableRow>
-        </TableFooter>
-      </Table>
+      {/* Footer Totals */}
+      {data.length > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 text-sm border rounded-lg bg-muted/40">
+          <div className="flex items-center gap-8">
+            <div>
+              <span className="text-muted-foreground text-xs">Total Amount</span>
+              <p className="font-semibold">{formatCurrency(totals.amount)}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs">Driver Gross</span>
+              <p className="font-semibold">{formatCurrency(totals.driverGross)}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs">Balance</span>
+              <p className={`font-semibold ${totals.balance > 0 ? 'text-red-600' : ''}`}>
+                {formatCurrency(totals.balance)}
+              </p>
+            </div>
+          </div>
+          <span className="text-muted-foreground text-xs">{data.length} invoice(s)</span>
+        </div>
+      )}
     </div>
   );
 }

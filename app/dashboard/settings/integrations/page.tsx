@@ -43,15 +43,8 @@ export default async function IntegrationsPage() {
     }));
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Integrations</h1>
-                <p className="text-muted-foreground text-sm">
-                    Connect your TMS with external services and manage API credentials
-                </p>
-            </div>
-
-            {/* Google Sheets Integration Card */}
+        <div className="space-y-4">
+{/* Google Sheets Integration Card */}
             <Link href="/dashboard/settings/integrations/google-sheets">
                 <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
                     <CardHeader className="pb-2">

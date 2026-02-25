@@ -65,15 +65,8 @@ export default async function SettingsPage() {
     }
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Recruiting Settings</h1>
-                <p className="text-muted-foreground">
-                    Manage integrations and lead sources per MC Number
-                </p>
-            </div>
-
-            <Suspense fallback={<div className="space-y-4">
+        <div className="space-y-4">
+<Suspense fallback={<div className="space-y-4">
                 <Skeleton className="h-48 w-full" />
                 <Skeleton className="h-48 w-full" />
             </div>}>

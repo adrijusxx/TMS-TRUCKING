@@ -27,7 +27,6 @@ import {
   Calculator,
   Loader2,
   RefreshCw,
-  HelpCircle,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { IFTASummaryCards } from './ifta/IFTASummaryCards';
@@ -143,41 +142,7 @@ export default function IFTAReport() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-3xl font-bold">IFTA Report</h1>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
-                  <HelpCircle className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-sm text-sm leading-relaxed">
-                <p className="font-semibold mb-1">How IFTA Works</p>
-                <p className="mb-2">
-                  IFTA (International Fuel Tax Agreement) requires motor carriers to report
-                  miles driven and fuel purchased in each US/Canadian jurisdiction quarterly.
-                </p>
-                <p className="font-semibold mb-1">Steps:</p>
-                <ol className="list-decimal pl-4 space-y-1">
-                  <li><strong>Calculate Quarter</strong> — processes delivered loads using
-                    Google Maps routing to determine miles driven in each state.</li>
-                  <li><strong>Run Report</strong> — aggregates state mileages and fuel
-                    purchases to compute tax owed vs. tax paid per state.</li>
-                  <li><strong>Download PDF</strong> — exports the report for filing.</li>
-                </ol>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Fuel purchases are sourced from the Fuel Entries module.
-                  Loads must have a driver assigned to be included.
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-        <p className="text-muted-foreground">Quarterly fuel tax reporting and state mileage breakdown</p>
-      </div>
+    <div className="space-y-4">
 
       {/* Controls */}
       <div className="border rounded-lg p-4">

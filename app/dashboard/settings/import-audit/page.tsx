@@ -4,7 +4,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import ImportAuditDashboard from '@/components/import-export/ImportAuditDashboard';
 
 export default function ImportAuditPage() {
@@ -28,14 +27,6 @@ export default function ImportAuditPage() {
   }
 
   return (
-    <>
-      <Breadcrumb
-        items={[
-          { label: 'Settings', href: '/dashboard/settings/admin' },
-          { label: 'Import Audit' },
-        ]}
-      />
-      <ImportAuditDashboard />
-    </>
+    <ImportAuditDashboard />
   );
 }

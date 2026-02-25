@@ -12,14 +12,6 @@ export default async function AutomationsPage() {
     if (!session?.user) redirect('/login');
 
     return (
-        <div className="space-y-4">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Automations</h1>
-                <p className="text-muted-foreground">
-                    Automatically send SMS or email when lead events occur
-                </p>
-            </div>
-            <AutomationRuleList />
-        </div>
+        <AutomationRuleList />
     );
 }

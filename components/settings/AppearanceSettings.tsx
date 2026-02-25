@@ -39,7 +39,7 @@ const appearanceSchema = z.object({
   density: z.enum(['comfortable', 'compact', 'spacious']),
   
   // Typography
-  fontSize: z.enum(['small', 'medium', 'large']),
+  fontSize: z.enum(['extra-small', 'small', 'medium', 'large']),
   fontFamily: z.enum(['system', 'inter', 'roboto', 'open-sans']),
   
   // UI Elements
@@ -373,9 +373,10 @@ export default function AppearanceSettings() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="small">Small</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="large">Large</SelectItem>
+                  <SelectItem value="extra-small">Extra Small (12px)</SelectItem>
+                  <SelectItem value="small">Small (14px)</SelectItem>
+                  <SelectItem value="medium">Medium (16px)</SelectItem>
+                  <SelectItem value="large">Large (18px)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

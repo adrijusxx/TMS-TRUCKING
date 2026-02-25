@@ -10,12 +10,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type FontSize = 'small' | 'medium' | 'large';
+type FontSize = 'extra-small' | 'small' | 'medium' | 'large';
 
 const fontSizeOptions: { value: FontSize; label: string; size: string }[] = [
-  { value: 'small', label: 'Small', size: '0.875rem' },    // 14px
-  { value: 'medium', label: 'Medium', size: '1rem' },      // 16px (default)
-  { value: 'large', label: 'Large', size: '1.125rem' },     // 18px
+  { value: 'extra-small', label: 'Extra Small', size: '0.75rem' }, // 12px
+  { value: 'small', label: 'Small', size: '0.875rem' },            // 14px
+  { value: 'medium', label: 'Medium', size: '1rem' },              // 16px (default)
+  { value: 'large', label: 'Large', size: '1.125rem' },            // 18px
 ];
 
 export function FontSizeToggle() {
@@ -38,7 +39,7 @@ export function FontSizeToggle() {
     if (option) {
       document.documentElement.style.setProperty('--base-font-size', option.size);
       // Apply to html element for global scaling
-      document.documentElement.classList.remove('font-small', 'font-medium', 'font-large');
+      document.documentElement.classList.remove('font-extra-small', 'font-small', 'font-medium', 'font-large');
       document.documentElement.classList.add(`font-${size}`);
     }
   };

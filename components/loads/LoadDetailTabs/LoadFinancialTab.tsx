@@ -5,14 +5,16 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle2, XCircle, RefreshCw, Fuel, Lock } from 'lucide-react';
+import { DollarSign, TrendingUp, RefreshCw, Lock, MapPin, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
-import { AccountingSyncStatus } from '@prisma/client';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import common from '@/lib/content/common.json';
+import EstimatedCostsCard from './EstimatedCostsCard';
+import AccountingStatusCard from './AccountingStatusCard';
 
 interface LoadFinancialTabProps {
   load: any;
@@ -20,14 +22,6 @@ interface LoadFinancialTabProps {
   onFormDataChange: (data: any) => void;
   onLoadRefetch?: () => void;
 }
-
-const syncStatusVariant: Record<AccountingSyncStatus, "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "error" | "info" | "neutral"> = {
-  NOT_SYNCED: 'neutral',
-  PENDING_SYNC: 'warning',
-  SYNCED: 'success',
-  SYNC_FAILED: 'error',
-  REQUIRES_REVIEW: 'warning',
-};
 
 export default function LoadFinancialTab({
   load,
@@ -42,6 +36,33 @@ export default function LoadFinancialTab({
   const canEditFinancials = canEdit && (!isFinanciallyLocked || canOverrideLock);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [isVerifyingMiles, setIsVerifyingMiles] = useState(false);
+  const [isCalculatingMiles, setIsCalculatingMiles] = useState(false);
+
+  const handleCalculateMiles = async () => {
+    if (!load?.id) return;
+    setIsCalculatingMiles(true);
+    try {
+      const response = await fetch(apiUrl(`/api/loads/${load.id}/calculate-miles`), { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to calculate miles');
+
+      const { totalMiles, driverPay, payRecalculated } = result.data;
+      const msg = payRecalculated
+        ? `Route: ${totalMiles} mi | Driver pay recalculated: ${formatCurrency(driverPay)}`
+        : `Route distance: ${totalMiles} miles`;
+      toast.success(msg);
+      onLoadRefetch?.();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to calculate miles';
+      if (message.includes('pickup and delivery locations')) {
+        toast.error(message, { description: 'Add pickup and delivery locations on the Route tab first.' });
+      } else {
+        toast.error(message);
+      }
+    } finally {
+      setIsCalculatingMiles(false);
+    }
+  };
 
   const handleVerifyMiles = async () => {
     if (!load?.id) return;
@@ -68,7 +89,18 @@ export default function LoadFinancialTab({
         onLoadRefetch?.();
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to verify miles');
+      const message = error instanceof Error ? error.message : 'Failed to verify miles';
+      if (message.includes('not linked to Samsara')) {
+        toast.error(message, {
+          description: 'Link this truck in Fleet > Devices to enable GPS verification.',
+          duration: 8000,
+          action: { label: 'Go to Devices', onClick: () => window.open('/dashboard/fleet/devices', '_blank') },
+        });
+      } else if (message.includes('pickup and delivery dates')) {
+        toast.error(message, { description: 'Add dates on the Route tab, then try again.' });
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsVerifyingMiles(false);
     }
@@ -266,48 +298,34 @@ export default function LoadFinancialTab({
 
       {/* Estimated Operating Costs */}
       {load.estimatedOpCost != null && load.estimatedOpCost > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <Fuel className="h-4 w-4 text-amber-500" />
-              <CardTitle className="text-base">Estimated Operating Costs</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-2 text-sm">
-              <div>
-                <span className="text-xs text-muted-foreground">Fuel</span>
-                <p className="font-medium">{formatCurrency(load.estimatedFuelCost ?? 0)}</p>
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">Maint.</span>
-                <p className="font-medium">{formatCurrency(load.estimatedMaintCost ?? 0)}</p>
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">Fixed</span>
-                <p className="font-medium">{formatCurrency(load.estimatedFixedCost ?? 0)}</p>
-              </div>
-              <div>
-                <span className="text-xs font-medium">Total Op Cost</span>
-                <p className="font-bold text-red-500">{formatCurrency(load.estimatedOpCost)}</p>
-              </div>
-            </div>
-            {load.netProfit != null && (
-              <div className="mt-3 pt-3 border-t flex justify-between items-center">
-                <span className="text-sm font-medium">Est. Net Profit</span>
-                <p className={`font-bold text-lg ${(load.netProfit - load.estimatedOpCost) >= 0 ? 'text-status-success' : 'text-status-error'}`}>
-                  {formatCurrency(load.netProfit - load.estimatedOpCost)}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <EstimatedCostsCard
+          estimatedFuelCost={load.estimatedFuelCost}
+          estimatedMaintCost={load.estimatedMaintCost}
+          estimatedFixedCost={load.estimatedFixedCost}
+          estimatedOpCost={load.estimatedOpCost}
+          netProfit={load.netProfit}
+        />
       )}
 
       {/* Mileage Information */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Mileage</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Mileage</CardTitle>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCalculateMiles}
+                disabled={isCalculatingMiles}
+                className="h-7 text-xs"
+                title="Calculate route distance via Google Maps"
+              >
+                <MapPin className={`h-3 w-3 mr-1 ${isCalculatingMiles ? 'animate-pulse' : ''}`} />
+                {isCalculatingMiles ? 'Calculating...' : 'Calculate Miles'}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
@@ -396,6 +414,22 @@ export default function LoadFinancialTab({
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
                 <Label className="text-sm font-medium">Actual GPS Miles (Samsara)</Label>
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      {load.truckId && load.truck?.samsaraId ? (
+                        <p className="text-xs">Truck is linked to Samsara. Click Verify to fetch GPS miles.</p>
+                      ) : load.truckId ? (
+                        <p className="text-xs">Truck is not linked to Samsara. Go to Fleet &gt; Devices to link it.</p>
+                      ) : (
+                        <p className="text-xs">Assign a truck first, then verify miles via Samsara GPS.</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {load.actualMiles && load.totalMiles ? (
                   <Badge variant={load.actualMiles > load.totalMiles * 1.1 ? 'destructive' : 'secondary'} className="text-[10px] h-5">
                     {Math.round((load.actualMiles / load.totalMiles) * 100)}% of Billed
@@ -418,8 +452,14 @@ export default function LoadFinancialTab({
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">
-                {load.actualMiles ? `Recorded from GPS history` : 'Not verified yet'}
+              <span className={`text-xs ${!load.actualMiles && load.truckId && !load.truck?.samsaraId ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                {load.actualMiles
+                  ? 'Recorded from GPS history'
+                  : load.truckId && !load.truck?.samsaraId
+                    ? 'Truck not linked to Samsara'
+                    : !load.truckId
+                      ? 'Assign truck first'
+                      : 'Not verified yet'}
               </span>
               <p className="font-mono text-sm font-medium">
                 {load.actualMiles ? `${load.actualMiles.toFixed(1)} mi` : '—'}
@@ -430,73 +470,7 @@ export default function LoadFinancialTab({
       </Card>
 
       {/* Accounting Status (Read-only) */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Accounting Status</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <Label className="text-sm text-muted-foreground">Sync Status</Label>
-              <div className="mt-1">
-                <Badge
-                  variant={syncStatusVariant[(load.accountingSyncStatus || 'NOT_SYNCED') as AccountingSyncStatus]}
-                >
-                  {load.accountingSyncStatus?.replace(/_/g, ' ') || 'NOT_SYNCED'}
-                </Badge>
-              </div>
-            </div>
-
-            {load.accountingSyncedAt && (
-              <div>
-                <Label className="text-sm text-muted-foreground">Last Synced</Label>
-                <p className="font-medium text-sm mt-1">
-                  {new Date(load.accountingSyncedAt).toLocaleString()}
-                </p>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
-              {load.readyForSettlement ? (
-                <CheckCircle2 className="h-4 w-4 text-status-success" />
-              ) : (
-                <XCircle className="h-4 w-4 text-muted-foreground" />
-              )}
-              <Label className="text-sm">
-                {load.readyForSettlement ? 'Ready for Settlement' : 'Not Ready for Settlement'}
-              </Label>
-            </div>
-
-            {load.podUploadedAt && (
-              <div>
-                <Label className="text-sm text-muted-foreground">POD Uploaded</Label>
-                <p className="font-medium text-sm mt-1">
-                  {new Date(load.podUploadedAt).toLocaleString()}
-                </p>
-              </div>
-            )}
-
-            {load.totalExpenses !== null && load.totalExpenses !== undefined && (
-              <div>
-                <Label className="text-sm text-muted-foreground">Total Expenses</Label>
-                <p className="font-medium text-sm mt-1">{formatCurrency(load.totalExpenses)}</p>
-              </div>
-            )}
-
-            {load.netProfit !== null && load.netProfit !== undefined && (
-              <div>
-                <Label className="text-sm text-muted-foreground">Net Profit (Calculated)</Label>
-                <p className={`font-medium text-sm mt-1 ${load.netProfit >= 0 ? 'text-status-success' : 'text-status-error'}`}>
-                  {formatCurrency(load.netProfit)}
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <AccountingStatusCard load={load} />
     </div>
   );
 }

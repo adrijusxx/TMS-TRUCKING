@@ -14,7 +14,6 @@ import DriverPerformanceSummary from '@/components/dashboard/DriverPerformanceSu
 import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSummary';
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
 import TodayAtAGlance from '@/components/dashboard/TodayAtAGlance';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { PageTransition } from '@/components/ui/page-transition';
 import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { cookies } from 'next/headers';
@@ -241,13 +240,8 @@ export default async function DashboardPage() {
     ];
 
     return (
-      <div className="space-y-4 sm:space-y-6">
-        <Breadcrumb items={[{ label: 'Dashboard' }]} />
+      <div className="space-y-4">
         <PageTransition>
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold">Dashboard</h1>
-        </div>
-
         {/* Today at a Glance */}
         <TodayAtAGlance
           activeLoads={activeLoads}

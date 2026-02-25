@@ -1,4 +1,3 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, Users, DollarSign, BarChart3, PieChart, TrendingDown } from 'lucide-react';
@@ -11,19 +10,8 @@ import { SettlementForecastChart } from '@/components/analytics/SettlementForeca
 
 export default function LoadAnalyticsPage() {
   return (
-    <>
-      <Breadcrumb
-        items={[
-          { label: 'Analytics', href: '/dashboard/analytics' },
-          { label: 'Load Profitability', href: '/dashboard/analytics/loads' },
-        ]}
-      />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Load Profitability Analytics</h1>
-        </div>
-
-        {/* Key Metrics Overview */}
+    <div className="space-y-4">
+{/* Key Metrics Overview */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -124,7 +112,6 @@ export default function LoadAnalyticsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </>
   );
 }
 

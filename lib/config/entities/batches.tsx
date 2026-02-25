@@ -36,7 +36,7 @@ const columns: ExtendedColumnDef<BatchData>[] = [
   {
     id: 'batchNumber',
     accessorKey: 'batchNumber',
-    header: 'Batch #',
+    header: 'Batch ID',
     cell: ({ row }) => (
       <Link
         href={`/dashboard/batches/${row.original.id}`}
@@ -63,8 +63,8 @@ const columns: ExtendedColumnDef<BatchData>[] = [
     id: 'mcNumber',
     accessorKey: 'mcNumber',
     header: 'MC Number',
-    cell: ({ row }) => row.original.mcNumber ?? 'N/A',
-    defaultVisible: false,
+    cell: ({ row }) => row.original.mcNumber ?? '-',
+    defaultVisible: true,
     permission: 'mc_numbers.view',
   },
   {
@@ -98,7 +98,7 @@ const columns: ExtendedColumnDef<BatchData>[] = [
     id: 'notes',
     accessorKey: 'notes',
     header: 'Notes',
-    cell: ({ row }) => row.original.notes || 'N/A',
+    cell: ({ row }) => row.original.notes || '-',
     defaultVisible: true,
   },
 ];

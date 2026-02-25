@@ -3,7 +3,6 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
 import RecruitingDashboard from '@/components/crm/dashboard/RecruitingDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { DepartmentDashboard } from '@/components/layout/DepartmentDashboard';
 
 export const metadata = {
@@ -13,7 +12,7 @@ export const metadata = {
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-24 w-full" />
@@ -36,9 +35,7 @@ export default async function CRMPage() {
   }
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Recruiting', href: '/dashboard/crm' }]} />
-      <DepartmentDashboard
+    <DepartmentDashboard
         title="Recruiting Dashboard"
         description="Overview of the driver recruiting pipeline and hiring metrics"
       >
@@ -46,6 +43,5 @@ export default async function CRMPage() {
           <RecruitingDashboard />
         </Suspense>
       </DepartmentDashboard>
-    </>
   );
 }

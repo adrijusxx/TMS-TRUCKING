@@ -18,14 +18,7 @@ export default async function OnboardingPage() {
 
     return (
         <div className="space-y-4">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Onboarding</h1>
-                <p className="text-muted-foreground">
-                    Track new driver onboarding checklists and step completion
-                </p>
-            </div>
-
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+<Suspense fallback={<Skeleton className="h-64 w-full" />}>
                 <OnboardingList />
             </Suspense>
         </div>

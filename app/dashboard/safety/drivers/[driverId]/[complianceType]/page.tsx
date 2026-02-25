@@ -1,7 +1,6 @@
 'use client';
 
 import { use } from 'react';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import MVRManager from '@/components/safety/drivers/MVRManager';
 import CDLManager from '@/components/safety/drivers/CDLManager';
 import HOSDashboard from '@/components/safety/drivers/HOSDashboard';
@@ -75,31 +74,15 @@ export default function DriverCompliancePage({
   
   if (!config) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Invalid Compliance Type</h1>
-          <p className="text-muted-foreground">The requested compliance type does not exist.</p>
-        </div>
-      </div>
+      <div className="space-y-4">
+</div>
     );
   }
 
   const Component = config.component;
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Safety Department', href: '/dashboard/safety' },
-        { label: config.breadcrumbLabel, href: config.breadcrumbHref },
-        { label: `Driver ${driverId}` }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">{config.pageTitle}</h1>
-        </div>
-        <Component driverId={driverId} />
-      </div>
-    </>
+    <Component driverId={driverId} />
   );
 }
 

@@ -2,8 +2,6 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import LoadDetail from '@/components/loads/LoadDetail';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-
 export default async function LoadDetailPage({
   params,
 }: {
@@ -197,18 +195,7 @@ export default async function LoadDetailPage({
   }
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Load Management', href: '/dashboard/loads' },
-        { label: `Load #${load.loadNumber}` }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Load Details</h1>
-        </div>
-        <LoadDetail load={load} availableDrivers={availableDrivers} availableTrucks={availableTrucks} />
-      </div>
-    </>
+    <LoadDetail load={load} availableDrivers={availableDrivers} availableTrucks={availableTrucks} />
   );
 }
 

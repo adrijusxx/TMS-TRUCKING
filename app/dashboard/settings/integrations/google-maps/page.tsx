@@ -15,14 +15,7 @@ export default async function GoogleMapsIntegrationPage() {
     const isConfigured = !!process.env.GOOGLE_MAPS_API_KEY;
 
     return (
-        <div className="max-w-4xl mx-auto py-6 space-y-6">
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold tracking-tight">Google Maps Integration</h1>
-                <p className="text-muted-foreground text-sm mt-1">
-                    Distance calculation, route planning, and geocoding services.
-                </p>
-            </div>
-
+        <div className="max-w-4xl mx-auto py-6 space-y-4">
             <Card>
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">

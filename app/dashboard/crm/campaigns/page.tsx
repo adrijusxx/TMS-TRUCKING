@@ -12,14 +12,6 @@ export default async function CampaignsPage() {
     if (!session?.user) redirect('/login');
 
     return (
-        <div className="space-y-4">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Campaigns</h1>
-                <p className="text-muted-foreground">
-                    Create and manage SMS &amp; email campaigns for your leads
-                </p>
-            </div>
-            <CampaignList />
-        </div>
+        <CampaignList />
     );
 }

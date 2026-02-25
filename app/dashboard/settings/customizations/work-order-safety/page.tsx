@@ -2,21 +2,10 @@
 
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-
 export default function WorkOrderSafetyPage() {
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Settings', href: '/dashboard/settings' },
-        { label: 'Customizations', href: '/dashboard/settings' },
-        { label: 'Work Order & Safety' }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Work Order & Safety</h1>
-        </div>
-      <div className="space-y-8">
+    <div className="space-y-4">
+<div className="space-y-8">
         <GenericCRUDManager
           endpoint="/api/work-order-types"
           queryKey="work-order-types"
@@ -74,6 +63,5 @@ export default function WorkOrderSafetyPage() {
         />
       </div>
       </div>
-    </>
   );
 }

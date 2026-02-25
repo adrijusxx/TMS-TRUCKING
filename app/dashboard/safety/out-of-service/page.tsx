@@ -1,17 +1,7 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-
 export default function OutOfServicePage() {
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Safety Department', href: '/dashboard/safety' },
-        { label: 'Out of Service' }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Out of Service Orders</h1>
-        </div>
-        <div className="bg-card rounded-lg border p-6">
+    <div className="space-y-4">
+<div className="bg-card rounded-lg border p-6">
           <p className="text-muted-foreground">
             Out-of-service order management coming soon. This feature will allow you to:
           </p>
@@ -23,9 +13,6 @@ export default function OutOfServicePage() {
           </ul>
         </div>
       </div>
-    </>
   );
 }
-
-
 

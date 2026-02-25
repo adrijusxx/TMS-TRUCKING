@@ -24,7 +24,7 @@ export default async function GoogleSheetsIntegrationPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="flex items-center gap-4">
                 <Link
                     href="/dashboard/settings/integrations"
@@ -34,15 +34,7 @@ export default async function GoogleSheetsIntegrationPage() {
                     Back to Integrations
                 </Link>
             </div>
-
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Google Sheets Integration</h1>
-                <p className="text-muted-foreground">
-                    Configure your Google service account to import data from Google Sheets
-                </p>
-            </div>
-
-            <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+<Suspense fallback={<Skeleton className="h-96 w-full" />}>
                 <GoogleSheetsSettings />
             </Suspense>
         </div>

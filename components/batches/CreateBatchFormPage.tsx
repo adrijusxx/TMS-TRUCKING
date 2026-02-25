@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import BatchLoadSelector from './BatchLoadSelector';
+import { PageShell } from '@/components/layout/PageShell';
 import Link from 'next/link';
 
 export default function CreateBatchFormPage() {
@@ -70,22 +71,18 @@ export default function CreateBatchFormPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Create New Batch</h1>
-          <p className="text-muted-foreground mt-1">
-            Select delivered loads to generate invoices and group them into a batch
-          </p>
-        </div>
-        <Link href="/dashboard/batches">
-          <Button variant="outline">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Batches
-          </Button>
-        </Link>
-      </div>
+    <div className="space-y-4">
+      <Link
+        href="/dashboard/batches"
+        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back to Batches
+      </Link>
 
+      <PageShell
+        title="Create New Batch"
+        description="Select delivered loads to generate invoices and group them into a batch"
+      >
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Load Selection */}
         <Card className="flex flex-col" style={{ minHeight: '600px' }}>
@@ -156,6 +153,7 @@ export default function CreateBatchFormPage() {
           </Button>
         </div>
       </form>
+      </PageShell>
     </div>
   );
 }

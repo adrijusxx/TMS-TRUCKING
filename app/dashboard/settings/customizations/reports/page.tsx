@@ -2,8 +2,6 @@
 
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-
 const fields = [
   { name: 'name', label: 'Name', type: 'text' as const, required: true },
   { name: 'type', label: 'Report Type', type: 'select' as const, required: true, options: [
@@ -36,17 +34,7 @@ const columns = [
 
 export default function ReportsPage() {
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Settings', href: '/dashboard/settings' },
-        { label: 'Customizations', href: '/dashboard/settings' },
-        { label: 'Reports' }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Reports Customization</h1>
-        </div>
-      <GenericCRUDManager
+    <GenericCRUDManager
         endpoint="/api/report-templates"
         queryKey="report-templates"
         title="Report Templates"
@@ -55,7 +43,5 @@ export default function ReportsPage() {
         fields={fields}
         columns={columns}
       />
-      </div>
-    </>
   );
 }

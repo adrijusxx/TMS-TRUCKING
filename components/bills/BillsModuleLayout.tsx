@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { FileText, Receipt, Users, Wallet, CreditCard, Clock } from 'lucide-react';
+import { PageShell } from '@/components/layout/PageShell';
 
 // Lazy load tab components
 const VendorBillBatchesTab = React.lazy(() => import('./tabs/VendorBillBatchesTab'));
@@ -39,13 +40,10 @@ export default function BillsModuleLayout() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Bills</h1>
-      </div>
-
+    <PageShell>
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="h-auto p-0 bg-transparent border-b border-border rounded-none w-full justify-start gap-0">
+        <div className="flex items-center border-b border-border">
+        <TabsList className="h-auto p-0 bg-transparent rounded-none flex-1 justify-start gap-0">
           {BILLS_TABS.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -66,6 +64,7 @@ export default function BillsModuleLayout() {
             );
           })}
         </TabsList>
+        </div>
 
         <React.Suspense fallback={<TabContentSkeleton />}>
           <TabsContent value="batches" className="mt-4">
@@ -88,7 +87,7 @@ export default function BillsModuleLayout() {
           </TabsContent>
         </React.Suspense>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
 

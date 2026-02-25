@@ -1,6 +1,5 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-import { PageTransition } from '@/components/ui/page-transition';
 import { CustomersTableClient } from './CustomersTableClient';
+import { PageShell } from '@/components/layout/PageShell';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
@@ -22,7 +21,6 @@ export default async function CustomersPage() {
     },
   });
 
-  // Transform data to match the expected format
   const data = customers.map((customer) => ({
     id: customer.id,
     customerNumber: customer.customerNumber,
@@ -39,17 +37,8 @@ export default async function CustomersPage() {
   }));
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Customers', href: '/dashboard/customers' }]} />
-      <PageTransition>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
-          </div>
-          <CustomersTableClient data={data} />
-        </div>
-      </PageTransition>
-    </>
+    <PageShell title="Customers" description="Manage customer accounts and contacts">
+      <CustomersTableClient data={data} />
+    </PageShell>
   );
 }
-

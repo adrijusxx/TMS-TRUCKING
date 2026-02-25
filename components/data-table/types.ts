@@ -269,9 +269,9 @@ export interface FilterDefinition {
  */
 export interface DataTableProps<TData extends TableData = TableData> {
   /**
-   * Column definitions
+   * Column definitions — accepts standard ColumnDef or ExtendedColumnDef
    */
-  columns: ExtendedColumnDef<TData>[];
+  columns: (ColumnDef<TData> | ExtendedColumnDef<TData>)[];
   /**
    * Data rows
    */

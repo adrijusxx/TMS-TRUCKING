@@ -13,7 +13,6 @@ import {
     Building2,
     ShieldAlert,
     Truck,
-    Users,
     AlertTriangle,
     ClipboardCheck,
     Search,
@@ -37,7 +36,7 @@ interface ReportDef {
     description: string;
     icon: React.ElementType;
     href: string;
-    category: 'financial' | 'operations' | 'safety' | 'hr';
+    category: 'financial' | 'operations' | 'safety';
     popular?: boolean;
     new?: boolean;
 }
@@ -67,7 +66,7 @@ const reports: ReportDef[] = [
         title: 'Net Profit Analysis',
         description: 'Profitability by load, customer, and time period.',
         icon: TrendingUp,
-        href: '/dashboard/accounting/net-profit',
+        href: '/dashboard/settings/customizations/net-profit',
         category: 'financial'
     },
     {
@@ -150,24 +149,6 @@ const reports: ReportDef[] = [
         category: 'operations'
     },
 
-    // HR
-    {
-        id: 'retention',
-        title: 'Driver Retention',
-        description: 'Turnover rates and tenure analysis.',
-        icon: Users,
-        href: '/dashboard/hr?tab=retention',
-        category: 'hr'
-    },
-    {
-        id: 'performance',
-        title: 'Driver Performance',
-        description: 'Scorecards based on safety, on-time, and revenue.',
-        icon: BarChart3,
-        href: '/dashboard/hr?tab=performance',
-        category: 'hr',
-        new: true
-    }
 ];
 
 interface ReportsHubProps {
@@ -190,7 +171,6 @@ export function ReportsHub({ defaultTab = 'all' }: ReportsHubProps) {
         { id: 'financial', label: 'Financial' },
         { id: 'operations', label: 'Operations' },
         { id: 'safety', label: 'Safety' },
-        { id: 'hr', label: 'HR' },
     ];
 
     return (
@@ -248,7 +228,6 @@ export function ReportsHub({ defaultTab = 'all' }: ReportsHubProps) {
                                                 report.category === 'financial' && "bg-emerald-100 text-emerald-700 group-hover:bg-emerald-600",
                                                 report.category === 'safety' && "bg-orange-100 text-orange-700 group-hover:bg-orange-600",
                                                 report.category === 'operations' && "bg-blue-100 text-blue-700 group-hover:bg-blue-600",
-                                                report.category === 'hr' && "bg-purple-100 text-purple-700 group-hover:bg-purple-600",
                                             )}>
                                                 <report.icon className="h-6 w-6" />
                                             </div>

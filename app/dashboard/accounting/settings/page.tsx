@@ -9,12 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AccountingSettingsForm } from '@/components/settings/AccountingSettingsForm';
 import { McInvoiceBranding } from '@/components/accounting/McInvoiceBranding';
+import { PageShell } from '@/components/layout/PageShell';
 import { Loader2, Save, DollarSign, Clock, Truck, Building2, Calculator } from 'lucide-react';
 
 interface SystemConfig {
@@ -150,30 +150,15 @@ export default function AccountingSettingsPage() {
   }
 
   return (
-    <>
-      <Breadcrumb
-        items={[
-          { label: 'Accounting', href: '/dashboard/accounting' },
-          { label: 'Settings' },
-        ]}
-      />
-
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Accounting Settings</h1>
-          <p className="text-muted-foreground mt-2">
-            Manage global accounting configuration and settlement validation rules
-          </p>
-        </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+    <PageShell title="Accounting Settings" description="Configure system defaults, settlement rules, and invoice branding">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="system">System Defaults</TabsTrigger>
             <TabsTrigger value="validation">Settlement Rules</TabsTrigger>
             <TabsTrigger value="branding">Invoice Branding</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="system" className="space-y-6">
+          <TabsContent value="system" className="space-y-4">
             {/* Global Variables Section */}
             <Card>
               <CardHeader>
@@ -185,7 +170,7 @@ export default function AccountingSettingsPage() {
                   Configure default rates and fees used across the system
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Default Detention Rate */}
                   <div className="space-y-2">
@@ -282,7 +267,7 @@ export default function AccountingSettingsPage() {
                   Configure factoring company information for invoice assignment
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Factoring Active</Label>
@@ -353,7 +338,7 @@ export default function AccountingSettingsPage() {
                   Configure default settings for driver settlements
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Pay Driver % on Fuel Surcharge</Label>
@@ -435,8 +420,7 @@ export default function AccountingSettingsPage() {
             <McInvoiceBranding />
           </TabsContent>
         </Tabs>
-      </div>
-    </>
+    </PageShell>
   );
 }
 

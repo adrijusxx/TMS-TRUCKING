@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Truck, Container, ExternalLink, MapPin, Wrench, Home, Satellite } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Truck, Container, ExternalLink, MapPin, Wrench, Home, Satellite, ChevronDown, WifiOff, Info } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import type {
   TruckInventoryItem, TrailerInventoryItem,
   OOSEquipmentRef, IdleDriver, DormantEquipment,
@@ -50,6 +53,22 @@ function getDormantBadge(days: number) {
   return { label: `${days}d`, variant: 'secondary' as const };
 }
 
+/* ─── GPS tip shown when no Samsara ID is linked ─── */
+
+function NoGpsTip() {
+  return (
+    <Link
+      href="/dashboard/settings/integrations/samsara"
+      className="flex items-center gap-1 text-muted-foreground hover:text-amber-600 transition-colors group"
+      title="No Samsara GPS linked. Click to open Samsara integration settings."
+    >
+      <WifiOff className="h-3 w-3" />
+      <span className="text-xs">No GPS</span>
+      <Info className="h-2.5 w-2.5 opacity-60 group-hover:opacity-100" />
+    </Link>
+  );
+}
+
 /* ─── Shared cells for Truck/Trailer inventory rows ─── */
 
 function InventorySharedCells({ item }: {
@@ -83,14 +102,18 @@ function InventorySharedCells({ item }: {
       <td className="py-2 pr-3">
         {idle ? <Badge variant={idle.variant}>{idle.label}</Badge> : <span className="text-xs text-muted-foreground">—</span>}
       </td>
-      <td className="py-2 pr-3 text-xs max-w-[140px]">
+      <td className="py-2 pr-3 text-xs max-w-[160px]">
         {item.samsaraLocation ? (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" title={
+            item.samsaraLocation.lat && item.samsaraLocation.lng
+              ? `${item.samsaraLocation.lat.toFixed(5)}, ${item.samsaraLocation.lng.toFixed(5)}`
+              : item.samsaraLocation.address
+          }>
             <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
             <span className="truncate">{item.samsaraLocation.address}</span>
           </div>
         ) : (
-          <span className="text-muted-foreground">No GPS</span>
+          <NoGpsTip />
         )}
       </td>
       <td className="py-2 pr-3 text-xs">
@@ -180,8 +203,28 @@ export function TrailerRow({ trailer, onMarkOOS }: { trailer: TrailerInventoryIt
 
 /* ─── Idle Driver Row ─── */
 
-export function IdleDriverRow({ driver }: { driver: IdleDriver }) {
+export function IdleDriverRow({ driver, onRefresh }: { driver: IdleDriver; onRefresh?: () => void }) {
   const badge = getIdleHoursBadge(driver.idleHours);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  async function handleDriverAction(field: string, value: string, label: string) {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/drivers/${driver.driverId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(`${driver.driverName} — ${label}`);
+      onRefresh?.();
+    } catch {
+      toast.error('Failed to update driver status');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   return (
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="py-2.5 pr-3">
@@ -209,13 +252,36 @@ export function IdleDriverRow({ driver }: { driver: IdleDriver }) {
             <span className="max-w-[150px] truncate">{driver.currentLocation}</span>
           </div>
         ) : (
-          <span className="text-muted-foreground">No GPS</span>
+          <NoGpsTip />
         )}
       </td>
       <td className="py-2.5">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/dashboard/drivers/${driver.driverId}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
-        </Button>
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-xs h-7" disabled={actionLoading}>
+                Actions <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleDriverAction('status', 'ON_LEAVE', 'Marked On Leave')}>
+                Mark On Leave
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDriverAction('status', 'INACTIVE', 'Marked Inactive')}>
+                Mark Inactive
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={() => handleDriverAction('employeeStatus', 'TERMINATED', 'Terminated')}
+              >
+                Terminate Driver
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/dashboard/drivers/${driver.driverId}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
+          </Button>
+        </div>
       </td>
     </tr>
   );
@@ -242,7 +308,7 @@ export function DormantEquipmentRow({ eq, onMarkOOS }: { eq: DormantEquipment; o
       <td className="py-2.5 pr-3"><Badge variant={badge.variant}>{badge.label}</Badge></td>
       <td className="py-2.5 pr-3 text-xs">
         {eq.hasSamsaraMovement === null ? (
-          <span className="text-muted-foreground">No GPS</span>
+          <NoGpsTip />
         ) : eq.hasSamsaraMovement ? (
           <div className="flex items-center gap-1 text-green-600"><Satellite className="h-3 w-3" /> Moving</div>
         ) : (

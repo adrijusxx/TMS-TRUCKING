@@ -28,15 +28,8 @@ const WarRoomMap = dynamic(
 
 export default function WarRoomPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">War Room</h1>
-        <p className="text-muted-foreground">
-          Real-time fleet overview with clustered asset visualization
-        </p>
-      </div>
-      
-      <div className="h-[calc(100vh-200px)] min-h-[500px]">
+    <div className="space-y-4">
+<div className="h-[calc(100vh-200px)] min-h-[500px]">
         <WarRoomMap />
       </div>
     </div>

@@ -3,7 +3,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import MaintenanceForm from '@/components/maintenance/MaintenanceForm';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { apiUrl } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
@@ -39,16 +38,6 @@ export default function EditMaintenancePage({ params }: { params: Promise<{ id: 
     }
 
     return (
-        <>
-            <Breadcrumb
-                items={[
-                    { label: 'Maintenance', href: '/dashboard/maintenance' },
-                    { label: `Edit Record ${data.data.maintenanceNumber ? `#${data.data.maintenanceNumber}` : ''}` },
-                ]}
-            />
-            <div className="space-y-6">
-                <MaintenanceForm id={id} initialData={data.data} />
-            </div>
-        </>
-    );
+    <MaintenanceForm id={id} initialData={data.data} />
+  );
 }

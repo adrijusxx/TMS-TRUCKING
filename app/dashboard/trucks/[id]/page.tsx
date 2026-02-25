@@ -2,8 +2,6 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import TruckDetail from '@/components/trucks/TruckDetail';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-
 export default async function TruckDetailPage({
   params,
 }: {
@@ -53,18 +51,7 @@ export default async function TruckDetailPage({
   }
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Trucks', href: '/dashboard/trucks' },
-        { label: `Truck #${truck.truckNumber}` }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Truck Details</h1>
-        </div>
-        <TruckDetail truck={truck} />
-      </div>
-    </>
+    <TruckDetail truck={truck} />
   );
 }
 

@@ -201,7 +201,7 @@ export default function FleetInventoryTable({
                       <TrailerRow key={item.id} trailer={item} onMarkOOS={setOosTarget} />
                     ))}
                     {activeTab === 'idle-drivers' && (clientPaged as IdleDriver[]).map((d) => (
-                      <IdleDriverRow key={d.driverId} driver={d} />
+                      <IdleDriverRow key={d.driverId} driver={d} onRefresh={onMarkOOS} />
                     ))}
                     {activeTab === 'dormant-equipment' && (clientPaged as DormantEquipment[]).map((eq) => (
                       <DormantEquipmentRow key={eq.id} eq={eq} onMarkOOS={setOosTarget} />

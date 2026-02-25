@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,13 +9,85 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Bell } from 'lucide-react';
+import {
+  Bell,
+  Truck,
+  FileText,
+  Shield,
+  DollarSign,
+  AlertTriangle,
+  Users,
+  Wrench,
+  Clock,
+  ExternalLink,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime, apiUrl } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+
+/** Notification type → category mapping for filtering */
+const CATEGORY_MAP: Record<string, string> = {
+  LOAD_ASSIGNED: 'loads',
+  LOAD_UPDATED: 'loads',
+  DETENTION_DETECTED: 'loads',
+  BILLING_HOLD: 'loads',
+  INVOICE_PAID: 'accounting',
+  SETTLEMENT_GENERATED: 'accounting',
+  MAINTENANCE_DUE: 'fleet',
+  DORMANT_EQUIPMENT: 'fleet',
+  DRIVER_IDLE_ALERT: 'fleet',
+  HOS_VIOLATION: 'safety',
+  DOCUMENT_EXPIRING: 'safety',
+  SYSTEM_ALERT: 'system',
+  LEAD_FOLLOW_UP_DUE: 'crm',
+  LEAD_SLA_ALERT: 'crm',
+  LEAD_NEW_APPLICATION: 'crm',
+};
+
+/** Category filter options */
+const CATEGORIES = [
+  { key: 'all', label: 'All' },
+  { key: 'loads', label: 'Loads' },
+  { key: 'accounting', label: 'Accounting' },
+  { key: 'fleet', label: 'Fleet' },
+  { key: 'safety', label: 'Safety' },
+  { key: 'crm', label: 'CRM' },
+  { key: 'system', label: 'System' },
+] as const;
+
+/** Icon for notification type */
+function getTypeIcon(type: string) {
+  switch (type) {
+    case 'LOAD_ASSIGNED':
+    case 'LOAD_UPDATED':
+    case 'DETENTION_DETECTED':
+    case 'BILLING_HOLD':
+      return <Truck className="h-4 w-4 text-blue-500" />;
+    case 'INVOICE_PAID':
+    case 'SETTLEMENT_GENERATED':
+      return <DollarSign className="h-4 w-4 text-green-500" />;
+    case 'MAINTENANCE_DUE':
+    case 'DORMANT_EQUIPMENT':
+    case 'DRIVER_IDLE_ALERT':
+      return <Wrench className="h-4 w-4 text-orange-500" />;
+    case 'HOS_VIOLATION':
+      return <Clock className="h-4 w-4 text-red-500" />;
+    case 'DOCUMENT_EXPIRING':
+      return <FileText className="h-4 w-4 text-yellow-500" />;
+    case 'SYSTEM_ALERT':
+      return <AlertTriangle className="h-4 w-4 text-red-500" />;
+    case 'LEAD_FOLLOW_UP_DUE':
+    case 'LEAD_SLA_ALERT':
+    case 'LEAD_NEW_APPLICATION':
+      return <Users className="h-4 w-4 text-purple-500" />;
+    default:
+      return <Bell className="h-4 w-4 text-muted-foreground" />;
+  }
+}
 
 async function fetchNotifications() {
-  const response = await fetch(apiUrl('/api/notifications?unreadOnly=false&limit=10'));
+  const response = await fetch(apiUrl('/api/notifications?unreadOnly=false&limit=30'));
   if (!response.ok) throw new Error('Failed to fetch notifications');
   return response.json();
 }
@@ -40,53 +113,53 @@ async function markAllAsRead() {
 }
 
 export default function NotificationBell() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [category, setCategory] = useState('all');
 
-  // Only render after mount to avoid hydration mismatch
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: fetchNotifications,
-    refetchInterval: 120000, // Refetch every 2 minutes (reduced from 30 seconds)
-    staleTime: 60000, // Data is fresh for 1 minute
+    refetchInterval: 30000, // 30 seconds
+    staleTime: 15000,
   });
 
   const markReadMutation = useMutation({
     mutationFn: markAsRead,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
   const markAllReadMutation = useMutation({
     mutationFn: markAllAsRead,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
-  const notifications = data?.data || [];
-  const unreadCount = data?.meta?.unreadCount || 0;
+  const allNotifications: any[] = data?.data || [];
+  const unreadCount: number = data?.meta?.unreadCount || 0;
+
+  // Filter by category
+  const notifications = category === 'all'
+    ? allNotifications
+    : allNotifications.filter((n: any) => CATEGORY_MAP[n.type] === category);
 
   const handleNotificationClick = (notification: any) => {
-    if (!notification.readAt) {
+    if (!notification.read) {
       markReadMutation.mutate([notification.id]);
     }
-    // Navigate to relevant page based on notification type
-    if (notification.relatedLoadId) {
-      window.location.href = `/dashboard/loads/${notification.relatedLoadId}`;
+    // Use the link field from the notification (set by triggers)
+    if (notification.link) {
+      router.push(notification.link);
+      setIsOpen(false);
     }
   };
 
   if (!mounted) {
-    // Return a placeholder with the same dimensions to prevent layout shift
     return (
-      <Button variant="ghost" size="icon" className="relative" disabled>
+      <Button variant="ghost" size="icon" className="relative" aria-label="Notifications" disabled>
         <Bell className="h-5 w-5" />
       </Button>
     );
@@ -95,7 +168,7 @@ export default function NotificationBell() {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}>
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge
@@ -107,13 +180,14 @@ export default function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold">Notifications</h3>
+      <PopoverContent className="w-96 p-0" align="end">
+        <div className="flex items-center justify-between p-3 border-b">
+          <h3 className="font-semibold text-sm">Notifications</h3>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
+              className="h-7 text-xs"
               onClick={() => markAllReadMutation.mutate()}
               disabled={markAllReadMutation.isPending}
             >
@@ -121,37 +195,67 @@ export default function NotificationBell() {
             </Button>
           )}
         </div>
-        <ScrollArea className="h-[400px]">
+
+        {/* Category filter tabs */}
+        <div className="flex gap-1 px-3 py-2 border-b overflow-x-auto">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.key}
+              onClick={() => setCategory(cat.key)}
+              className={cn(
+                'px-2 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors',
+                category === cat.key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        <ScrollArea className="h-[380px]">
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
               Loading...
             </div>
           ) : notifications.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
-              No notifications
+              {category === 'all' ? 'No notifications' : `No ${category} notifications`}
             </div>
           ) : (
             <div className="divide-y">
               {notifications.map((notification: any) => (
                 <div
                   key={notification.id}
-                  className={`p-4 cursor-pointer hover:bg-muted transition-colors ${
-                    !notification.readAt ? 'bg-blue-50 dark:bg-blue-950' : ''
-                  }`}
+                  className={cn(
+                    'p-3 cursor-pointer hover:bg-muted/50 transition-colors',
+                    !notification.read && 'bg-blue-50/50 dark:bg-blue-950/30'
+                  )}
                   onClick={() => handleNotificationClick(notification)}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{notification.title}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                  <div className="flex items-start gap-2.5">
+                    <div className="mt-0.5 flex-shrink-0">
+                      {getTypeIcon(notification.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium leading-tight">{notification.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                         {notification.message}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDateTime(notification.createdAt)}
-                      </p>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatDateTime(notification.createdAt)}
+                        </span>
+                        {notification.link && (
+                          <span className="text-[11px] text-primary flex items-center gap-0.5">
+                            View <ExternalLink className="h-3 w-3" />
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {!notification.readAt && (
-                      <div className="h-2 w-2 rounded-full bg-blue-600 mt-1" />
+                    {!notification.read && (
+                      <div className="h-2 w-2 rounded-full bg-blue-600 mt-1 flex-shrink-0" />
                     )}
                   </div>
                 </div>
@@ -163,4 +267,3 @@ export default function NotificationBell() {
     </Popover>
   );
 }
-

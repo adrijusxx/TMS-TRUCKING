@@ -274,26 +274,49 @@ export default function LoadListNew() {
         toolbarActions={
           <>
             {can('data.import') && (
-              <ImportSheet
-                entityType="loads"
-                onImportComplete={() => {
-                  queryClient.invalidateQueries({ queryKey: ['loads'] });
-                  toast.success('Import completed successfully');
-                }}
-                onAIImport={(data, file) => {
-                  setInitialCreateData(data);
-                  setSheetMode('create');
-                  setSheetOpen(true);
-                  if (file) {
-                    toast.success('Data extracted. Please review and save.');
-                  }
-                }}
-              >
-                <Button variant="outline" size="sm" className="h-8 text-xs">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import
-                </Button>
-              </ImportSheet>
+              <>
+                <ImportSheet
+                  entityType="loads"
+                  defaultTab="ai"
+                  onImportComplete={() => {
+                    queryClient.invalidateQueries({ queryKey: ['loads'] });
+                    toast.success('Import completed successfully');
+                  }}
+                  onAIImport={(data, file) => {
+                    setInitialCreateData(data);
+                    setSheetMode('create');
+                    setSheetOpen(true);
+                    if (file) {
+                      toast.success('Data extracted. Please review and save.');
+                    }
+                  }}
+                >
+                  <Button variant="outline" size="sm" className="h-8 text-xs">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Smart Import
+                  </Button>
+                </ImportSheet>
+                <ImportSheet
+                  entityType="loads"
+                  onImportComplete={() => {
+                    queryClient.invalidateQueries({ queryKey: ['loads'] });
+                    toast.success('Import completed successfully');
+                  }}
+                  onAIImport={(data, file) => {
+                    setInitialCreateData(data);
+                    setSheetMode('create');
+                    setSheetOpen(true);
+                    if (file) {
+                      toast.success('Data extracted. Please review and save.');
+                    }
+                  }}
+                >
+                  <Button variant="outline" size="sm" className="h-8 text-xs">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import
+                  </Button>
+                </ImportSheet>
+              </>
             )}
             {can('data.export') && (
               <ExportDialog entityType="loads">

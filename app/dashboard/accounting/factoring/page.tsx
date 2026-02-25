@@ -1,13 +1,12 @@
 'use client';
 
-import * as React from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Building2 } from 'lucide-react';
 import FactoringDashboard from '@/components/factoring/FactoringDashboard';
 import FactoringCompanyListNew from '@/components/factoring/FactoringCompanyListNew';
+import { PageShell } from '@/components/layout/PageShell';
 
 const FACTORING_TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: TrendingUp },
@@ -16,10 +15,6 @@ const FACTORING_TABS = [
 
 type FactoringTabId = typeof FACTORING_TABS[number]['id'];
 
-/**
- * Consolidated Factoring Page
- * Combines Factoring Dashboard + Factoring Companies in tabs
- */
 export default function FactoringPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,18 +29,7 @@ export default function FactoringPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <Breadcrumb
-        items={[
-          { label: 'Accounting', href: '/dashboard/accounting' },
-          { label: 'Factoring' },
-        ]}
-      />
-
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Factoring</h1>
-      </div>
-
+    <PageShell title="Factoring" description="Manage factoring companies and track factored invoices">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="h-auto p-0 bg-transparent border-b border-border rounded-none w-full justify-start gap-0">
           {FACTORING_TABS.map((tab) => {
@@ -77,6 +61,6 @@ export default function FactoringPage() {
           <FactoringCompanyListNew />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }

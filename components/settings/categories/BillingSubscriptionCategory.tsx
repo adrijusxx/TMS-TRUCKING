@@ -14,7 +14,7 @@ import { SubscriptionModule } from '@prisma/client';
 import { UsageMeter } from '@/components/subscription/UsageMeter';
 
 // Convert Config to Array for rendering
-const ADDON_MODULES: SubscriptionModule[] = ['FLEET', 'ACCOUNTING', 'SAFETY', 'HR', 'INTEGRATIONS', 'AI_DISPATCH', 'ANALYTICS'];
+const ADDON_MODULES: SubscriptionModule[] = ['FLEET', 'ACCOUNTING', 'SAFETY', 'INTEGRATIONS', 'AI_DISPATCH', 'ANALYTICS'];
 
 interface UsageSummary {
   periodStart: string;

@@ -1,4 +1,3 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { PageTransition } from '@/components/ui/page-transition';
 import { DriversTableClient } from './DriversTableClient';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
@@ -136,17 +135,9 @@ export default async function DriversPage() {
   });
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Drivers', href: '/dashboard/drivers' }]} />
-      <PageTransition>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Drivers</h1>
-          </div>
-          <DriversTableClient data={data} />
-        </div>
+    <PageTransition>
+        <DriversTableClient data={data} />
       </PageTransition>
-    </>
   );
 }
 

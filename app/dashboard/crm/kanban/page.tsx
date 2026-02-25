@@ -93,15 +93,6 @@ export default async function KanbanPage() {
 
     return (
         <div className="h-[calc(100vh-8rem)] flex flex-col space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Pipeline Board</h1>
-                    <p className="text-muted-foreground">
-                        Drag and drop leads to move them through the hiring pipeline
-                    </p>
-                </div>
-            </div>
-
             <Suspense fallback={<div className="flex gap-4 overflow-auto pb-4">
                 {Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="w-80 space-y-4">

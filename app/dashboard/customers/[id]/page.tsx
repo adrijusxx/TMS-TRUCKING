@@ -2,8 +2,6 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { notFound, redirect } from 'next/navigation';
 import CustomerDetail from '@/components/customers/CustomerDetail';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-
 export default async function CustomerDetailPage({
   params,
 }: {
@@ -53,18 +51,7 @@ export default async function CustomerDetailPage({
   }
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Customers', href: '/dashboard/customers' },
-        { label: customer.name }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Customer Details</h1>
-        </div>
-        <CustomerDetail customer={customer} />
-      </div>
-    </>
+    <CustomerDetail customer={customer} />
   );
 }
 

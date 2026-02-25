@@ -5,6 +5,9 @@ import { LoadAnomalyDetector } from './detectors/LoadAnomalyDetector';
 import { LoadRowMapper } from './mapping/LoadRowMapper';
 import { LoadPersistenceService } from './services/LoadPersistenceService';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
+import { calculateDistanceMatrix } from '@/lib/maps/google-maps';
+
+const METERS_TO_MILES = 0.000621371;
 
 const STATUS_ORDER = ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED',
     'EN_ROUTE_DELIVERY', 'AT_DELIVERY', 'DELIVERED', 'INVOICED', 'PAID'];
@@ -116,6 +119,9 @@ export class LoadImporter extends BaseImporter {
 
         const persistence = new LoadPersistenceService(this.prisma, this.companyId, this.userId);
         const persistResult = await persistence.persist(preparedLoads, { updateExisting, importBatchId });
+
+        // Post-import: auto-calculate miles for loads missing mileage data
+        await this.autoCalculateMissingMiles(preparedLoads, maps, warnings);
 
         return {
             success: true,
@@ -230,6 +236,85 @@ export class LoadImporter extends BaseImporter {
             deliveryContact: context.deliveryContact,
             deliveryPhone: context.deliveryPhone,
         };
+    }
+
+    /**
+     * Auto-calculate miles via Google Maps for imported loads that have no mileage data.
+     * Also recalculates driverPay for PER_MILE/HOURLY drivers when miles are updated.
+     */
+    private async autoCalculateMissingMiles(preparedLoads: any[], maps: any, warnings: any[]) {
+        const needsMiles = preparedLoads.filter(l => {
+            const d = l.data;
+            return (!d.totalMiles || d.totalMiles === 0) && d.pickupCity && d.pickupState && d.deliveryCity && d.deliveryState;
+        });
+        if (needsMiles.length === 0) return;
+
+        // Deduplicate routes to minimize API calls (cached 7 days)
+        const routeMap = new Map<string, { origin: { city: string; state: string }; dest: { city: string; state: string }; miles?: number }>();
+        for (const l of needsMiles) {
+            const key = `${l.data.pickupCity},${l.data.pickupState}→${l.data.deliveryCity},${l.data.deliveryState}`.toLowerCase();
+            if (!routeMap.has(key)) {
+                routeMap.set(key, {
+                    origin: { city: l.data.pickupCity, state: l.data.pickupState },
+                    dest: { city: l.data.deliveryCity, state: l.data.deliveryState },
+                });
+            }
+        }
+
+        // Calculate distances for unique routes
+        for (const [key, route] of routeMap) {
+            try {
+                const result = await calculateDistanceMatrix({
+                    origins: [route.origin],
+                    destinations: [route.dest],
+                    mode: 'driving',
+                    units: 'imperial',
+                });
+                const el = result?.[0]?.[0];
+                if (el?.status === 'OK') {
+                    route.miles = Math.round(el.distance * METERS_TO_MILES * 10) / 10;
+                }
+            } catch { /* skip failed routes */ }
+        }
+
+        // Update loads in DB with calculated miles
+        for (const l of needsMiles) {
+            const key = `${l.data.pickupCity},${l.data.pickupState}→${l.data.deliveryCity},${l.data.deliveryState}`.toLowerCase();
+            const route = routeMap.get(key);
+            if (!route?.miles || route.miles <= 0) continue;
+
+            try {
+                const existing = await this.prisma.load.findFirst({
+                    where: { loadNumber: l.data.loadNumber, companyId: this.companyId },
+                    select: { id: true, driverId: true, revenue: true, emptyMiles: true },
+                });
+                if (!existing) continue;
+
+                const totalMiles = route.miles;
+                const loadedMiles = Math.max(0, totalMiles - (existing.emptyMiles || 0));
+                const updateData: any = { totalMiles, loadedMiles };
+
+                if (existing.revenue && totalMiles > 0) {
+                    updateData.revenuePerMile = Math.round((existing.revenue / totalMiles) * 100) / 100;
+                }
+
+                // Recalculate driver pay for PER_MILE/HOURLY
+                if (existing.driverId) {
+                    const payProfile = maps.driverPayMap.get(existing.driverId);
+                    if (payProfile?.payRate > 0 && (payProfile.payType === 'PER_MILE' || payProfile.payType === 'HOURLY')) {
+                        const newPay = calculateDriverPay(
+                            { payType: payProfile.payType as PayType, payRate: payProfile.payRate },
+                            { totalMiles, loadedMiles, emptyMiles: existing.emptyMiles, revenue: existing.revenue }
+                        );
+                        updateData.driverPay = newPay;
+                        updateData.netProfit = (existing.revenue || 0) - newPay;
+                    }
+                }
+
+                await this.prisma.load.update({ where: { id: existing.id }, data: updateData });
+                warnings.push(this.warning(l.rowIndex, `Miles auto-calculated via Google Maps: ${totalMiles} mi`, 'totalMiles'));
+            } catch { /* skip individual failures */ }
+        }
     }
 
     private getVal(row: any, key: string, mapping: any) {

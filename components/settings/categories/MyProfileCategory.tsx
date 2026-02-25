@@ -9,10 +9,9 @@ import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import DispatcherSettings from '@/components/settings/role-specific/DispatcherSettings';
 import AccountantSettings from '@/components/settings/role-specific/AccountantSettings';
 import DriverSettings from '@/components/settings/role-specific/DriverSettings';
-import HRSettings from '@/components/settings/role-specific/HRSettings';
 import SafetySettings from '@/components/settings/role-specific/SafetySettings';
 import FleetSettings from '@/components/settings/role-specific/FleetSettings';
-import { User, Settings, Bell, Eye, Shield, Package, DollarSign, Truck, Users, AlertTriangle, Wrench, Phone } from 'lucide-react';
+import { User, Settings, Bell, Eye, Shield, Package, DollarSign, Truck, AlertTriangle, Wrench, Phone } from 'lucide-react';
 // UserRole removed — using string-based roleSlug
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -30,8 +29,6 @@ export default function MyProfileCategory() {
         return { name: 'Accounting', value: 'accounting', Icon: DollarSign, component: <AccountantSettings /> };
       case 'DRIVER':
         return { name: 'Driver', value: 'driver', Icon: Truck, component: <DriverSettings /> };
-      case 'HR':
-        return { name: 'HR', value: 'hr', Icon: Users, component: <HRSettings /> };
       case 'SAFETY':
         return { name: 'Safety', value: 'safety', Icon: AlertTriangle, component: <SafetySettings /> };
       case 'FLEET':

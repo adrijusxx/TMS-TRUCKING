@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, Upload, Download, Trash2 } from 'lucide-react';
+import { Plus, Upload, Download, Trash2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
@@ -244,8 +244,16 @@ export default function InvoiceListNew() {
               </Button>
             </ExportDialog>
           )}
+          {can('invoices.generate') && (
+            <Link href="/dashboard/invoices/generate">
+              <Button size="sm" variant="outline" className="border-status-success text-status-success hover:bg-status-success hover:text-status-success-foreground">
+                <Zap className="h-4 w-4 mr-2" />
+                Generate from Loads
+              </Button>
+            </Link>
+          )}
           {can('invoices.create') && (
-            <Link href="/dashboard/invoices/new">
+            <Link href="/dashboard/invoices/generate">
               <Button size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 New Invoice
