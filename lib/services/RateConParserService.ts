@@ -80,9 +80,11 @@ const EXTRACTION_PROMPT = `Return JSON:
 }
 
 Rules:
+- loadNumber = ONLY the numeric/alphanumeric ID (e.g. "52695", "TL-1234"). NEVER include dates, times, or month names. If unsure, use null
 - brokerName = company at TOP (who issued this rate con)
 - rate = LINE HAUL RATE or TOTAL RATE amount
 - Include ALL stops in order (PICK first, then STOPs/deliveries)
+- Dates go in stops[].date (YYYY-MM-DD format), NEVER in loadNumber
 - Use null for missing fields`;
 
 // ============================================

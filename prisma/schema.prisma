@@ -8115,9 +8115,12 @@ model RecruiterProfile {
   isActive       Boolean  @default(true)
   weight         Int      @default(1)   // Relative weight for weighted assignment (1-10)
   maxCapacity    Int      @default(50)  // Max concurrent active leads
-  lastAssignedAt DateTime?              // For round-robin tracking
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  lastAssignedAt       DateTime?              // For round-robin tracking
+  monthlyLeadGoal      Int?                   // Target leads contacted per month
+  monthlyHireGoal      Int?                   // Target hires per month
+  targetConversionRate Float?                 // Target conversion rate (e.g., 0.2 = 20%)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@unique([companyId, userId])
   @@index([companyId])

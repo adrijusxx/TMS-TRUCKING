@@ -156,7 +156,7 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
         {/* Compact Header */}
         <div className="flex items-center gap-3 min-h-[40px]">
           <Link
-            href="/dashboard/batches"
+            href="/dashboard/invoices"
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />

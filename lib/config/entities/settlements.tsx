@@ -3,8 +3,8 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField, CustomBulkAction } from '@/components/data-table/types';
 import { SettlementStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 import { CheckCircle2, DollarSign, XCircle } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 
@@ -39,27 +39,15 @@ const statusColors: Record<SettlementStatus, string> = {
   DISPUTED: 'bg-red-100 text-red-800 border-red-200',
 };
 
-export const createSettlementColumns = (onView?: (id: string) => void): ExtendedColumnDef<SettlementData>[] => [
+export const createSettlementColumns = (): ExtendedColumnDef<SettlementData>[] => [
   {
     id: 'settlementNumber',
     accessorKey: 'settlementNumber',
     header: 'Settlement #',
     cell: ({ row }) => (
-      onView ? (
-        <span
-          className="text-primary hover:underline font-medium cursor-pointer"
-          onClick={() => onView(row.original.id)}
-        >
-          {row.original.settlementNumber}
-        </span>
-      ) : (
-        <Link
-          href={`/dashboard/settlements/${row.original.id}`}
-          className="text-primary hover:underline font-medium"
-        >
-          {row.original.settlementNumber}
-        </Link>
-      )
+      <span className="text-primary hover:underline font-medium cursor-pointer">
+        {row.original.settlementNumber}
+      </span>
     ),
     defaultVisible: true,
     required: true,
@@ -68,12 +56,9 @@ export const createSettlementColumns = (onView?: (id: string) => void): Extended
     id: 'driver',
     header: 'Driver',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/drivers/${row.original.driver.id}`}
-        className="text-primary hover:underline"
-      >
+      <EntityLink entityType="drivers" entityId={row.original.driver.id}>
         {row.original.driver.user.firstName} {row.original.driver.user.lastName}
-      </Link>
+      </EntityLink>
     ),
     defaultVisible: true,
   },
@@ -145,9 +130,9 @@ const bulkEditFields: BulkEditField[] = [
 
 const customBulkActions: CustomBulkAction[] = [];
 
-export const getSettlementsTableConfig = (onView?: (id: string) => void) => createEntityTableConfig<SettlementData>({
+export const getSettlementsTableConfig = () => createEntityTableConfig<SettlementData>({
   entityType: 'settlements',
-  columns: createSettlementColumns(onView),
+  columns: createSettlementColumns(),
   defaultVisibleColumns: [
     'settlementNumber',
     'driver',

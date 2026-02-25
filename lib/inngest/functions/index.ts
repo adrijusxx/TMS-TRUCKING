@@ -58,6 +58,7 @@ import { processDripSteps } from './process-drip-steps';
 import { processAutomation } from './process-automation';
 import { generateLeadSummary } from './generate-lead-summary';
 import { checkFleetDormancy } from './check-fleet-dormancy';
+import { autoArchiveLeads } from './auto-archive-leads';
 import { databaseKeepAlive } from './keep-alive';
 
 export { syncCrmLeads } from './sync-crm-leads';
@@ -69,6 +70,7 @@ export { processDripSteps } from './process-drip-steps';
 export { processAutomation } from './process-automation';
 export { generateLeadSummary } from './generate-lead-summary';
 export { checkFleetDormancy } from './check-fleet-dormancy';
+export { autoArchiveLeads } from './auto-archive-leads';
 export { databaseKeepAlive } from './keep-alive';
 
 export const allFunctions = [
@@ -100,6 +102,8 @@ export const allFunctions = [
   generateLeadSummary,
   // Fleet Monitoring
   checkFleetDormancy,
+  // Lead Auto-Archival
+  autoArchiveLeads,
   // Database Keep-Alive
   databaseKeepAlive,
 ];

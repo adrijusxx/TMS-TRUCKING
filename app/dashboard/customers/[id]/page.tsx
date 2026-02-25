@@ -1,57 +1,23 @@
-import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
-import { notFound, redirect } from 'next/navigation';
-import CustomerDetail from '@/components/customers/CustomerDetail';
-export default async function CustomerDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
+'use client';
 
-  if (!session?.user?.companyId) {
-    redirect('/login');
-  }
+import { use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEntitySheet } from '@/lib/contexts/EntitySheetContext';
+import { Loader2 } from 'lucide-react';
 
-  // Await params as it's now a Promise in Next.js 15+
-  const resolvedParams = await params;
+export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { openEntitySheet } = useEntitySheet();
 
-  const customer = await prisma.customer.findFirst({
-    where: {
-      id: resolvedParams.id,
-      companyId: session.user.companyId,
-      deletedAt: null,
-    },
-    include: {
-      loads: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          loadNumber: true,
-          status: true,
-          pickupCity: true,
-          pickupState: true,
-          deliveryCity: true,
-          deliveryState: true,
-          revenue: true,
-          pickupDate: true,
-          deliveryDate: true,
-        },
-        take: 20,
-        orderBy: { createdAt: 'desc' },
-      },
-      contacts: {
-        orderBy: { isPrimary: 'desc' },
-      },
-    },
-  });
-
-  if (!customer) {
-    notFound();
-  }
+  useEffect(() => {
+    openEntitySheet('customers', id);
+    router.replace('/dashboard/customers');
+  }, [id, openEntitySheet, router]);
 
   return (
-    <CustomerDetail customer={customer} />
+    <div className="flex h-96 items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
-

@@ -36,6 +36,7 @@ import LeadSmsMessenger from '@/components/crm/LeadSmsMessenger';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { ShortcutsDialog } from '@/components/layout/ShortcutsDialog';
+import EntitySheetWrapper from '@/components/layout/EntitySheetProvider';
 
 
 function SmsMessengerOverlay() {
@@ -104,7 +105,6 @@ export default function DashboardLayout({
     pathname?.startsWith('/dashboard/locations') ||
     pathname?.startsWith('/dashboard/automation') ||
     pathname?.startsWith('/dashboard/accounting') ||
-    pathname?.startsWith('/dashboard/batches') ||
     pathname?.startsWith('/dashboard/bills');
   // Check if we're in Safety section
   const isSafetySection = pathname?.startsWith('/dashboard/safety');
@@ -120,6 +120,7 @@ export default function DashboardLayout({
 
   return (
     <SmsMessengerProvider>
+    <EntitySheetWrapper>
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
@@ -249,6 +250,7 @@ export default function DashboardLayout({
         <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       </div>
     </div>
+    </EntitySheetWrapper>
     </SmsMessengerProvider>
   );
 }

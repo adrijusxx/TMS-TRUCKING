@@ -61,7 +61,7 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: 'Fleet', href: '/dashboard/fleet', icon: Truck, permission: 'departments.fleet.view' },
       { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
-      { name: 'Accounting', href: '/dashboard/batches', icon: DollarSign, permission: 'departments.accounting.view', activePaths: ['/dashboard/invoices', '/dashboard/settlements', '/dashboard/customers', '/dashboard/batches', '/dashboard/accounting', '/dashboard/bills'] },
+      { name: 'Accounting', href: '/dashboard/invoices', icon: DollarSign, permission: 'departments.accounting.view', activePaths: ['/dashboard/invoices', '/dashboard/settlements', '/dashboard/customers', '/dashboard/accounting', '/dashboard/bills'] },
       { name: 'HR', href: '/dashboard/drivers', icon: Users, permission: 'departments.hr.view' },
       { name: 'Recruiting', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
     ],

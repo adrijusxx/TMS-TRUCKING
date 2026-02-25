@@ -84,7 +84,7 @@ export default function InvoiceListNew() {
     setIsSheetOpen(true);
   };
 
-  const config = React.useMemo(() => getInvoicesTableConfig(handleViewInvoice), []);
+  const config = React.useMemo(() => getInvoicesTableConfig(), []);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {

@@ -1,201 +1,23 @@
-import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
-import { notFound, redirect } from 'next/navigation';
-import LoadDetail from '@/components/loads/LoadDetail';
-export default async function LoadDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
-}) {
-  const session = await auth();
+'use client';
 
-  if (!session?.user?.companyId) {
-    redirect('/login');
-  }
+import { use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEntitySheet } from '@/lib/contexts/EntitySheetContext';
+import { Loader2 } from 'lucide-react';
 
-  // Handle Next.js 15+ params which can be a Promise
-  const resolvedParams = await Promise.resolve(params);
-  const loadId = resolvedParams.id;
+export default function LoadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { openEntitySheet } = useEntitySheet();
 
-  const [load, availableDrivers, availableTrucks] = await Promise.all([
-    prisma.load.findFirst({
-      where: {
-        id: loadId,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            customerNumber: true,
-            email: true,
-            phone: true,
-            address: true,
-            city: true,
-            state: true,
-            zip: true,
-            creditLimit: true,
-            creditHold: true,
-            paymentTerms: true,
-            mcNumber: true,
-          },
-        },
-        driver: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-                phone: true,
-              },
-            },
-          },
-        },
-        coDriver: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-                phone: true,
-              },
-            },
-          },
-        },
-        truck: true,
-        trailer: {
-          select: {
-            id: true,
-            trailerNumber: true,
-          },
-        },
-        dispatcher: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        mcNumber: {
-          select: {
-            id: true,
-            number: true,
-            companyName: true,
-          },
-        },
-        stops: {
-          orderBy: { sequence: 'asc' },
-        },
-        statusHistory: {
-          orderBy: { createdAt: 'desc' },
-          take: 50,
-        },
-        documents: {
-          where: { deletedAt: null },
-        },
-        segments: {
-          orderBy: { sequence: 'asc' },
-          include: {
-            driver: {
-              select: {
-                id: true,
-                driverNumber: true,
-                user: {
-                  select: {
-                    firstName: true,
-                    lastName: true,
-                  },
-                },
-              },
-            },
-            truck: {
-              select: {
-                id: true,
-                truckNumber: true,
-              },
-            },
-          },
-        },
-        rateConfirmation: {
-          select: {
-            id: true,
-            rateConfNumber: true,
-            baseRate: true,
-            fuelSurcharge: true,
-            accessorialCharges: true,
-            totalRate: true,
-            paymentTerms: true,
-            paymentMethod: true,
-            notes: true,
-          },
-        },
-        driverAdvances: {
-          orderBy: { requestDate: 'desc' },
-          select: {
-            id: true,
-            amount: true,
-            requestDate: true,
-            paidAt: true,
-            notes: true,
-          },
-        },
-      },
-    }),
-    prisma.driver.findMany({
-      where: {
-        companyId: session.user.companyId,
-        isActive: true,
-        deletedAt: null,
-      },
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            phone: true,
-          },
-        },
-        currentTruck: {
-          select: {
-            id: true,
-            truckNumber: true,
-          },
-        },
-      },
-      orderBy: { driverNumber: 'asc' },
-    }),
-        prisma.truck.findMany({
-          where: {
-            companyId: session.user.companyId,
-            isActive: true,
-            deletedAt: null,
-          },
-          select: {
-            id: true,
-            truckNumber: true,
-            equipmentType: true,
-          },
-          orderBy: { truckNumber: 'asc' },
-        }),
-  ]);
-
-  if (!load) {
-    notFound();
-  }
+  useEffect(() => {
+    openEntitySheet('loads', id);
+    router.replace('/dashboard/loads');
+  }, [id, openEntitySheet, router]);
 
   return (
-    <LoadDetail load={load} availableDrivers={availableDrivers} availableTrucks={availableTrucks} />
+    <div className="flex h-96 items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
-

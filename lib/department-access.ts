@@ -7,7 +7,6 @@ import { hasPermission } from './permissions';
 const departmentRoutes: Record<string, Permission> = {
   '/dashboard/accounting': 'departments.accounting.view',
   '/dashboard/invoices': 'departments.accounting.view',
-  '/dashboard/batches': 'departments.accounting.view',
   '/dashboard/settlements': 'departments.accounting.view',
   '/dashboard/bills': 'departments.accounting.view',
   // Removed blanket fleet restriction to allow sub-feature access (e.g. breakdowns)

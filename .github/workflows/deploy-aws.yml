@@ -144,6 +144,17 @@ jobs:
                 echo "Swap created."
             fi
 
+            # Kernel tuning: keep Prisma in RAM + detect dead TCP connections
+            echo "Applying kernel tuning..."
+            sudo sysctl -w vm.swappiness=10
+            sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+            sudo sysctl -w net.ipv4.tcp_keepalive_intvl=10
+            sudo sysctl -w net.ipv4.tcp_keepalive_probes=6
+            # Persist across reboots (idempotent — grep before appending)
+            for PARAM in "vm.swappiness=10" "net.ipv4.tcp_keepalive_time=60" "net.ipv4.tcp_keepalive_intvl=10" "net.ipv4.tcp_keepalive_probes=6"; do
+                grep -qF "$PARAM" /etc/sysctl.conf || echo "$PARAM" | sudo tee -a /etc/sysctl.conf
+            done
+
             echo "Installing production dependencies..."
             npm ci --production --ignore-scripts --legacy-peer-deps
 

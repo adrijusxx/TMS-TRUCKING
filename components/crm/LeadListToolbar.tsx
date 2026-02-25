@@ -10,7 +10,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, RefreshCw, Upload } from 'lucide-react';
+import { Plus, Search, RefreshCw, Upload, User } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import ExportLeadsButton from './ExportLeadsButton';
@@ -53,6 +53,7 @@ interface LeadListToolbarProps {
     onRefresh: () => void;
     isFetching: boolean;
     onAddNew: () => void;
+    currentUserId?: string;
 }
 
 export default function LeadListToolbar({
@@ -61,6 +62,7 @@ export default function LeadListToolbar({
     priorityFilter, onPriorityChange,
     assignedToFilter, onAssignedToChange,
     onRefresh, isFetching, onAddNew,
+    currentUserId,
 }: LeadListToolbarProps) {
     const [staff, setStaff] = useState<StaffUser[]>([]);
 
@@ -72,6 +74,18 @@ export default function LeadListToolbar({
     }, []);
     return (
         <div className="flex flex-wrap items-center gap-3">
+            {currentUserId && (
+                <Button
+                    variant={assignedToFilter === currentUserId ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => onAssignedToChange(
+                        assignedToFilter === currentUserId ? 'all' : currentUserId
+                    )}
+                >
+                    <User className="h-4 w-4 mr-1" />
+                    My Leads
+                </Button>
+            )}
             <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input

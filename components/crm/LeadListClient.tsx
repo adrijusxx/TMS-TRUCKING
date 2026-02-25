@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import LeadSheet from './LeadSheet';
 import LeadListToolbar from './LeadListToolbar';
+import LeadListStats from './LeadListStats';
 import LeadBulkActionBar from './LeadBulkActionBar';
 import LogActivityDialog from './LogActivityDialog';
 import BulkStatusDialog from './BulkStatusDialog';
@@ -69,6 +71,8 @@ const formatStatus = (status: string) =>
     status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
 export default function LeadListClient() {
+    const { data: session } = useSession();
+    const currentUserId = session?.user?.id || '';
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [priorityFilter, setPriorityFilter] = useState('all');
@@ -123,6 +127,7 @@ export default function LeadListClient() {
 
     return (
         <div className="space-y-4">
+            <LeadListStats />
             <LeadListToolbar
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
@@ -135,6 +140,7 @@ export default function LeadListClient() {
                 onRefresh={() => refetch()}
                 isFetching={isFetching}
                 onAddNew={() => { setSelectedLeadId(null); setIsSheetOpen(true); }}
+                currentUserId={currentUserId}
             />
 
             <LeadBulkActionBar

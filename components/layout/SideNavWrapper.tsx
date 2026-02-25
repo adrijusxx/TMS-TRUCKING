@@ -30,7 +30,6 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       pathname.startsWith('/dashboard/locations') ||
       pathname.startsWith('/dashboard/automation') ||
       pathname.startsWith('/dashboard/accounting') ||
-      pathname.startsWith('/dashboard/batches') ||
       pathname.startsWith('/dashboard/bills')) {
       return null;
     }

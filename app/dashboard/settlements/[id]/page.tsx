@@ -1,42 +1,23 @@
-import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
-import { notFound, redirect } from 'next/navigation';
-import SettlementDetail from '@/components/settlements/SettlementDetail';
-export default async function SettlementDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
+'use client';
 
-  if (!session?.user?.companyId) {
-    redirect('/login');
-  }
+import { use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEntitySheet } from '@/lib/contexts/EntitySheetContext';
+import { Loader2 } from 'lucide-react';
 
-  // Await params as it's now a Promise in Next.js 15+
-  const resolvedParams = await params;
+export default function SettlementDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { openEntitySheet } = useEntitySheet();
 
-  // Verify settlement exists and belongs to company (through driver)
-  const settlement = await prisma.settlement.findFirst({
-    where: {
-      id: resolvedParams.id,
-      driver: {
-        companyId: session.user.companyId,
-      },
-    },
-    select: {
-      id: true,
-      settlementNumber: true,
-    },
-  });
+  useEffect(() => {
+    openEntitySheet('settlements', id);
+    router.replace('/dashboard/settlements');
+  }, [id, openEntitySheet, router]);
 
-  if (!settlement) {
-    notFound();
-  }
-
-  // Component fetches its own data via React Query
   return (
-    <SettlementDetail settlementId={resolvedParams.id} />
+    <div className="flex h-96 items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
-

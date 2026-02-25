@@ -2,8 +2,8 @@ import React from 'react';
 import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField, CustomBulkAction } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 import McBadge from '@/components/mc-numbers/McBadge';
 
 interface TrailerData {
@@ -49,12 +49,9 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     accessorKey: 'trailerNumber',
     header: 'Trailer #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/trailers/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
+      <span className="text-primary hover:underline font-medium cursor-pointer">
         {row.original.trailerNumber}
-      </Link>
+      </span>
     ),
     defaultVisible: true,
     required: true,
@@ -99,12 +96,9 @@ const columns: ExtendedColumnDef<TrailerData>[] = [
     cell: ({ row }) => {
       if (row.original.assignedTruck) {
         return (
-          <Link
-            href={`/dashboard/trucks/${row.original.assignedTruck.id}`}
-            className="text-primary hover:underline"
-          >
+          <EntityLink entityType="trucks" entityId={row.original.assignedTruck.id}>
             {row.original.assignedTruck.truckNumber}
-          </Link>
+          </EntityLink>
         );
       }
       return <span className="text-muted-foreground">Unassigned</span>;

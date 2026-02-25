@@ -62,6 +62,16 @@ export class SamsaraDeviceSyncService {
   }
 
   /**
+   * Reset a rejected device back to PENDING for re-review
+   */
+  async requeueDevice(
+    queueId: string,
+    userId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.queueManager.requeueDevice(queueId, userId);
+  }
+
+  /**
    * Sync odometer readings for all linked trucks
    */
   async syncOdometerReadings(): Promise<number> {

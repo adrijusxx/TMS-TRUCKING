@@ -206,7 +206,14 @@ export class LeadAssignmentManager {
     async upsertRecruiter(
         companyId: string,
         userId: string,
-        data: { isActive?: boolean; weight?: number; maxCapacity?: number }
+        data: {
+            isActive?: boolean;
+            weight?: number;
+            maxCapacity?: number;
+            monthlyLeadGoal?: number | null;
+            monthlyHireGoal?: number | null;
+            targetConversionRate?: number | null;
+        }
     ) {
         return prisma.recruiterProfile.upsert({
             where: { userId },

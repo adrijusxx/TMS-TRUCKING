@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +46,16 @@ const STRATEGY_DESCRIPTIONS: Record<Strategy, string> = {
     ROUND_ROBIN: 'Assigns leads in rotation — each recruiter gets equal turns regardless of weight.',
     WEIGHTED: 'Assigns proportionally by weight — higher weight = more leads received.',
     LEAST_LOADED: 'Assigns to the recruiter with the fewest active leads.',
+};
+
+const LEAD_SOURCES = ['FACEBOOK', 'REFERRAL', 'DIRECT', 'WEBSITE', 'APPLICATION', 'OTHER'];
+const SOURCE_LABELS: Record<string, string> = {
+    FACEBOOK: 'Facebook',
+    REFERRAL: 'Referral',
+    DIRECT: 'Direct',
+    WEBSITE: 'Website',
+    APPLICATION: 'Application',
+    OTHER: 'Other',
 };
 
 export default function RecruiterAssignmentSettings() {
@@ -220,6 +231,32 @@ export default function RecruiterAssignmentSettings() {
                             <p className="text-xs text-muted-foreground">
                                 {STRATEGY_DESCRIPTIONS[config.strategy]}
                             </p>
+                        </div>
+
+                        {/* Source filter */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium">Auto-Assign Sources</Label>
+                            <p className="text-xs text-muted-foreground">
+                                Only auto-assign leads from selected sources. Leave all unchecked to assign from any source.
+                            </p>
+                            <div className="flex flex-wrap gap-4">
+                                {LEAD_SOURCES.map((source) => (
+                                    <label key={source} className="flex items-center gap-2 text-sm">
+                                        <Checkbox
+                                            checked={config.assignOnSources.includes(source)}
+                                            onCheckedChange={(checked) => {
+                                                setConfig((c) => ({
+                                                    ...c,
+                                                    assignOnSources: checked
+                                                        ? [...c.assignOnSources, source]
+                                                        : c.assignOnSources.filter((s) => s !== source),
+                                                }));
+                                            }}
+                                        />
+                                        {SOURCE_LABELS[source]}
+                                    </label>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Recruiter table */}

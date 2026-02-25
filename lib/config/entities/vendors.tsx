@@ -1,8 +1,8 @@
 import React from 'react';
+import Link from 'next/link';
 import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 
 interface VendorData {
   id: string;
@@ -36,10 +36,7 @@ const columns: ExtendedColumnDef<VendorData>[] = [
     accessorKey: 'vendorNumber',
     header: 'Vendor #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/vendors/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
+      <Link href={`/dashboard/vendors/${row.original.id}`} className="text-primary hover:underline font-medium">
         {row.original.vendorNumber}
       </Link>
     ),

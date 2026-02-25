@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { getCrmGeneralSettings } from '@/lib/utils/crm-settings';
 
-// POST /api/crm/leads/check-duplicate — Check for existing leads with same phone/email
+// POST /api/crm/leads/check-duplicate — Check for existing leads with same phone/email/cdl/name
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
@@ -10,23 +11,44 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { phone, email, excludeId } = await request.json();
+        const companyId = session.user.companyId;
+        const { phone, email, cdlNumber, firstName, lastName, excludeId } = await request.json();
 
-        if (!phone && !email) {
+        // Check duplicate detection settings
+        const crmSettings = await getCrmGeneralSettings(companyId);
+        const detection = crmSettings.duplicateDetection || { enabled: true, matchFields: ['phone', 'email'] };
+
+        if (!detection.enabled) {
             return NextResponse.json({ duplicates: [] });
         }
 
-        const companyId = session.user.companyId;
-        const conditions = [];
+        const matchFields = detection.matchFields || ['phone', 'email'];
+        const conditions: any[] = [];
 
-        if (phone) {
-            // Normalize phone: strip non-digits for comparison
+        if (matchFields.includes('phone') && phone) {
             const normalizedPhone = phone.replace(/\D/g, '');
             conditions.push({ phone: { contains: normalizedPhone.slice(-10) } });
         }
 
-        if (email) {
+        if (matchFields.includes('email') && email) {
             conditions.push({ email: { equals: email, mode: 'insensitive' as const } });
+        }
+
+        if (matchFields.includes('cdlNumber') && cdlNumber) {
+            conditions.push({ cdlNumber: { equals: cdlNumber, mode: 'insensitive' as const } });
+        }
+
+        if (matchFields.includes('name') && firstName && lastName) {
+            conditions.push({
+                AND: [
+                    { firstName: { equals: firstName, mode: 'insensitive' as const } },
+                    { lastName: { equals: lastName, mode: 'insensitive' as const } },
+                ],
+            });
+        }
+
+        if (conditions.length === 0) {
+            return NextResponse.json({ duplicates: [] });
         }
 
         const duplicates = await prisma.lead.findMany({

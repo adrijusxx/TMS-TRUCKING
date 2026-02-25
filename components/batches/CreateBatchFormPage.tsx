@@ -45,7 +45,7 @@ export default function CreateBatchFormPage() {
         ? `Batch created: ${data.meta.generatedInvoices} invoice(s) generated, ${data.meta.existingInvoices} existing`
         : 'Batch created successfully';
       toast.success(msg);
-      router.push(`/dashboard/batches/${data.data.id}`);
+      router.push(`/dashboard/invoices/batches/${data.data.id}`);
     },
     onError: (error: any) => {
       const details = error.errorDetails?.details;
@@ -73,10 +73,10 @@ export default function CreateBatchFormPage() {
   return (
     <div className="space-y-4">
       <Link
-        href="/dashboard/batches"
+        href="/dashboard/invoices"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
-        <ArrowLeft className="h-4 w-4 mr-1" /> Back to Batches
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back to Invoices
       </Link>
 
       <PageShell
@@ -138,7 +138,7 @@ export default function CreateBatchFormPage() {
 
         {/* Submit */}
         <div className="flex justify-end gap-3">
-          <Link href="/dashboard/batches">
+          <Link href="/dashboard/invoices">
             <Button type="button" variant="outline">Cancel</Button>
           </Link>
           <Button

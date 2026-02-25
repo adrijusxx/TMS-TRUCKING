@@ -3,7 +3,6 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { CustomerType } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
 
 interface CustomerData {
@@ -30,12 +29,9 @@ const columns: ExtendedColumnDef<CustomerData>[] = [
     accessorKey: 'customerNumber',
     header: 'Customer #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/customers/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
+      <span className="text-primary hover:underline font-medium cursor-pointer">
         {row.original.customerNumber}
-      </Link>
+      </span>
     ),
     defaultVisible: true,
     required: true,

@@ -1,57 +1,23 @@
-import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
-import { notFound, redirect } from 'next/navigation';
-import TruckDetail from '@/components/trucks/TruckDetail';
-export default async function TruckDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
+'use client';
 
-  if (!session?.user?.companyId) {
-    redirect('/login');
-  }
+import { use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEntitySheet } from '@/lib/contexts/EntitySheetContext';
+import { Loader2 } from 'lucide-react';
 
-  // Await params as it's now a Promise in Next.js 15+
-  const resolvedParams = await params;
+export default function TruckDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { openEntitySheet } = useEntitySheet();
 
-  const truck = await prisma.truck.findFirst({
-    where: {
-      id: resolvedParams.id,
-      companyId: session.user.companyId,
-      deletedAt: null,
-    },
-    include: {
-      loads: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          loadNumber: true,
-          status: true,
-          pickupCity: true,
-          pickupState: true,
-          deliveryCity: true,
-          deliveryState: true,
-          revenue: true,
-          pickupDate: true,
-          deliveryDate: true,
-        },
-        take: 20,
-        orderBy: { createdAt: 'desc' },
-      },
-      documents: {
-        where: { deletedAt: null },
-      },
-    },
-  });
-
-  if (!truck) {
-    notFound();
-  }
+  useEffect(() => {
+    openEntitySheet('trucks', id);
+    router.replace('/dashboard/trucks');
+  }, [id, openEntitySheet, router]);
 
   return (
-    <TruckDetail truck={truck} />
+    <div className="flex h-96 items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
-

@@ -286,6 +286,20 @@ export async function POST(request: NextRequest) {
           });
         }
 
+        case 'requeue': {
+          const result = await syncService.requeueDevice(queueId, session.user.id);
+          if (!result.success) {
+            return NextResponse.json(
+              { success: false, error: { code: 'OPERATION_FAILED', message: result.error } },
+              { status: 400 }
+            );
+          }
+          return NextResponse.json({
+            success: true,
+            data: { action: 'requeued' },
+          });
+        }
+
         default:
           return NextResponse.json(
             { success: false, error: { code: 'BAD_REQUEST', message: 'Invalid action' } },

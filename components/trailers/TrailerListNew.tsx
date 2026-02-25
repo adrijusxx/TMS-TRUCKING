@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
 import { trailersTableConfig } from '@/lib/config/entities/trailers';
 import TrailerInlineEdit from './TrailerInlineEdit';
+import TrailerSheet from './TrailerSheet';
 import { apiUrl } from '@/lib/utils';
 import { convertFiltersToQueryParams } from '@/lib/utils/filter-converter';
 import type { SortingState, ColumnFiltersState } from '@tanstack/react-table';
@@ -56,6 +57,15 @@ export default function TrailerListNew() {
   const { can } = usePermissions();
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const queryClient = useQueryClient();
+  const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [selectedTrailerId, setSelectedTrailerId] = React.useState<string | null>(null);
+  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
+
+  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
+    setSheetMode(mode);
+    if (id) setSelectedTrailerId(id);
+    setSheetOpen(true);
+  };
 
   const fetchTrailers = async (params: {
     page?: number;
@@ -153,6 +163,7 @@ export default function TrailerListNew() {
         config={trailersTableConfig}
         fetchData={fetchTrailers}
         rowActions={rowActions}
+        onRowClick={(row) => openSheet(can('trailers.edit') ? 'edit' : 'view', row.id)}
         inlineEditComponent={can('trucks.edit') ? TrailerInlineEdit : undefined}
         emptyMessage="No trailers found. Get started by adding your first trailer."
         enableColumnVisibility={can('data.column_visibility')}
@@ -179,6 +190,13 @@ export default function TrailerListNew() {
           }}
         />
       )}
+
+      <TrailerSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        mode={sheetMode}
+        trailerId={selectedTrailerId}
+      />
     </div>
   );
 }

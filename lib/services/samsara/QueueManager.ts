@@ -280,4 +280,24 @@ export class SamsaraQueueManager {
         await this.rejectQueueItem(queueId, userId, reason || 'Manually rejected');
         return { success: true };
     }
+
+    /**
+     * Reset a rejected device back to PENDING so it can be re-reviewed
+     */
+    async requeueDevice(queueId: string, userId: string) {
+        const item = await prisma.samsaraDeviceQueue.findUnique({ where: { id: queueId } });
+        if (!item) return { success: false, error: 'Queue item not found' };
+        if (item.status !== 'REJECTED') return { success: false, error: 'Only rejected devices can be re-queued' };
+
+        await prisma.samsaraDeviceQueue.update({
+            where: { id: queueId },
+            data: {
+                status: 'PENDING',
+                reviewedAt: new Date(),
+                reviewedBy: { connect: { id: userId } },
+                rejectionReason: null,
+            },
+        });
+        return { success: true };
+    }
 }

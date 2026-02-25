@@ -2,8 +2,8 @@ import React from 'react';
 import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 
 interface RateConfirmationData {
   id: string;
@@ -56,12 +56,9 @@ const columns: ExtendedColumnDef<RateConfirmationData>[] = [
     id: 'load',
     header: 'Load',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/loads/${row.original.load.id}`}
-        className="text-primary hover:underline"
-      >
+      <EntityLink entityType="loads" entityId={row.original.load.id}>
         {row.original.load.loadNumber}
-      </Link>
+      </EntityLink>
     ),
     defaultVisible: true,
   },
@@ -94,12 +91,9 @@ const columns: ExtendedColumnDef<RateConfirmationData>[] = [
     header: 'Invoice',
     cell: ({ row }) =>
       row.original.invoice ? (
-        <Link
-          href={`/dashboard/invoices/${row.original.invoice.id}`}
-          className="text-primary hover:underline"
-        >
+        <EntityLink entityType="invoices" entityId={row.original.invoice.id}>
           {row.original.invoice.invoiceNumber}
-        </Link>
+        </EntityLink>
       ) : (
         'N/A'
       ),

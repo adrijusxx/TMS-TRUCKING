@@ -65,7 +65,7 @@ export default function SettlementListNew() {
     // window.history.replaceState(null, '', `/dashboard/settlements?settlementId=${id}`);
   };
 
-  const tableConfig = React.useMemo(() => getSettlementsTableConfig(openSheet), []);
+  const tableConfig = React.useMemo(() => getSettlementsTableConfig(), []);
 
   const handleDelete = React.useCallback(async (ids: string[]) => {
     try {

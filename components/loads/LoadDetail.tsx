@@ -331,10 +331,10 @@ export default function LoadDetail({
             </Link>
           )}
           <h1 className="text-lg font-bold">{load.loadNumber}</h1>
-          {/* Show DispatchStatus if set, otherwise show main LoadStatus */}
-
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {/* Live Tracking - right side */}
+          <LoadDetailTrackingCard loadId={load.id} loadStatus={load.status} />
           <DispatchStatusSelector
             loadId={load.id}
             currentDispatchStatus={load.dispatchStatus}
@@ -371,9 +371,6 @@ export default function LoadDetail({
           <p className="text-yellow-700">{load.billingHoldReason || 'Rate Con update required'}</p>
         </div>
       )}
-
-      {/* Live Tracking */}
-      <LoadDetailTrackingCard loadId={load.id} loadStatus={load.status} />
 
       {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

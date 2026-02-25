@@ -6,6 +6,8 @@ import { McStateManager } from '@/lib/managers/McStateManager';
 import { inngest } from '@/lib/inngest/client';
 import { handleApiError } from '@/lib/api/route-helpers';
 import { LeadAssignmentManager } from '@/lib/managers/LeadAssignmentManager';
+import { getLeadFilter, createFilterContext } from '@/lib/filters/role-data-filter';
+import { getCrmGeneralSettings } from '@/lib/utils/crm-settings';
 
 const assignmentManager = new LeadAssignmentManager();
 
@@ -27,10 +29,18 @@ export async function GET(request: NextRequest) {
         // Build MC filter
         const mcWhere = await buildMcNumberWhereClause(session, request);
 
-        // Build where clause
+        // Build role-based lead visibility filter
+        const filterContext = createFilterContext(
+            session.user.id,
+            session.user.role,
+            session.user.companyId
+        );
+        const leadWhere = await getLeadFilter(filterContext);
+
+        // Build where clause (leadWhere includes companyId + deletedAt + optional assignedToId)
         const where: any = {
             ...mcWhere,
-            deletedAt: null,
+            ...leadWhere,
         };
 
         if (status && status !== 'all') {
@@ -127,11 +137,20 @@ export async function POST(request: NextRequest) {
         // Get MC Number for this lead
         const mcNumberId = await McStateManager.determineActiveCreationMc(session, body.mcNumberId);
 
+        // Load CRM defaults from company settings
+        const crmSettings = await getCrmGeneralSettings(companyId);
+
         // Generate lead number
         const leadCount = await prisma.lead.count({
             where: { companyId },
         });
         const leadNumber = `CRM-${String(leadCount + 1).padStart(4, '0')}`;
+
+        // Merge default tags with any tags provided in the request
+        const mergedTags = [
+            ...(crmSettings.defaultTags || []),
+            ...(body.tags || []),
+        ].filter((tag, i, arr) => arr.indexOf(tag) === i); // deduplicate
 
         // Create lead
         const lead = await prisma.lead.create({
@@ -150,11 +169,11 @@ export async function POST(request: NextRequest) {
                 cdlNumber: body.cdlNumber || null,
                 cdlClass: body.cdlClass || null,
                 yearsExperience: body.yearsExperience || null,
-                status: body.status || 'NEW',
-                priority: body.priority || 'WARM',
+                status: body.status || crmSettings.defaultLeadStatus || 'NEW',
+                priority: body.priority || crmSettings.defaultLeadPriority || 'WARM',
                 source: body.source || 'OTHER',
                 createdById: session.user.id,
-                tags: body.tags || [],
+                tags: mergedTags,
                 endorsements: body.endorsements || [],
                 freightTypes: body.freightTypes || [],
                 nextFollowUpDate: body.nextFollowUpDate ? new Date(body.nextFollowUpDate) : null,
@@ -177,10 +196,21 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        // Auto-assign to a recruiter if configured (non-critical, fire-and-forget)
-        assignmentManager
-            .autoAssign(lead.id, companyId, lead.source)
-            .catch((err) => console.warn('[CRM Leads POST] Auto-assign failed:', err));
+        // Auto-assign to a recruiter if configured (awaited so response includes assignment)
+        let assignedUserId: string | null = null;
+        try {
+            assignedUserId = await assignmentManager.autoAssign(lead.id, companyId, lead.source);
+        } catch (err) {
+            console.error('[CRM Leads POST] Auto-assign failed:', err);
+        }
+
+        // If assigned, re-fetch lead to include assignedTo in response
+        const responseLead = assignedUserId
+            ? await prisma.lead.findUnique({
+                  where: { id: lead.id },
+                  include: { assignedTo: { select: { firstName: true, lastName: true } } },
+              })
+            : lead;
 
         // Fire-and-forget: automation rules + AI summary generation (non-critical)
         Promise.all([
@@ -194,7 +224,7 @@ export async function POST(request: NextRequest) {
             }),
         ]).catch((err) => console.warn('[CRM Leads POST] Inngest event failed:', err));
 
-        return NextResponse.json({ lead }, { status: 201 });
+        return NextResponse.json({ lead: responseLead }, { status: 201 });
     } catch (error) {
         return handleApiError(error);
     }

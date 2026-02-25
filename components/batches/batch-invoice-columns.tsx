@@ -1,9 +1,9 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import type { ExtendedColumnDef } from '@/components/data-table/types';
+import { EntityLink } from '@/components/common/EntityLink';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -127,12 +127,13 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       accessorKey: 'invoiceNumber',
       header: 'Invoice #',
       cell: ({ row }) => (
-        <Link
-          href={`/dashboard/invoices/${row.original.invoiceId}`}
-          className="font-medium text-primary hover:underline whitespace-nowrap"
+        <EntityLink
+          entityType="invoices"
+          entityId={row.original.invoiceId}
+          className="font-medium text-primary hover:underline whitespace-nowrap cursor-pointer"
         >
           {row.original.invoiceNumber}
-        </Link>
+        </EntityLink>
       ),
       className: 'min-w-[110px]',
       defaultVisible: true,
@@ -144,12 +145,13 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       header: 'Customer',
       cell: ({ row }) =>
         row.original.customerId ? (
-          <Link
-            href={`/dashboard/customers/${row.original.customerId}`}
-            className="font-medium text-primary hover:underline truncate block max-w-[180px]"
+          <EntityLink
+            entityType="customers"
+            entityId={row.original.customerId}
+            className="font-medium text-primary hover:underline truncate block max-w-[180px] cursor-pointer"
           >
             {row.original.customerName}
-          </Link>
+          </EntityLink>
         ) : (
           <span className="font-medium truncate block max-w-[180px]">{row.original.customerName}</span>
         ),
@@ -162,12 +164,13 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       header: 'Load #',
       cell: ({ row }) =>
         row.original.loadId ? (
-          <Link
-            href={`/dashboard/loads/${row.original.loadId}`}
-            className="text-muted-foreground hover:underline whitespace-nowrap"
+          <EntityLink
+            entityType="loads"
+            entityId={row.original.loadId}
+            className="text-muted-foreground hover:underline whitespace-nowrap cursor-pointer"
           >
             {row.original.loadNumber}
-          </Link>
+          </EntityLink>
         ) : (
           <span className="text-muted-foreground">{row.original.loadNumber}</span>
         ),
