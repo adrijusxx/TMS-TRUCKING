@@ -36,6 +36,8 @@ export interface DriverData {
   } | null;
   // Performance (visible to all)
   totalLoads?: number;
+  liveLoadCount?: number;
+  activeLoadCount?: number;
   onTimePercentage?: number;
   rating?: number | null;
   // HR Fields
@@ -277,7 +279,8 @@ export function createDriverColumns(
       id: 'performance',
       header: 'Performance',
       cell: ({ row }) => {
-        const loads = row.original.totalLoads ?? 0;
+        const total = row.original.liveLoadCount ?? row.original.totalLoads ?? 0;
+        const active = row.original.activeLoadCount ?? 0;
         const otp = row.original.onTimePercentage ?? 100;
         const otpColor =
           otp >= 90
@@ -286,9 +289,13 @@ export function createDriverColumns(
             ? 'text-yellow-700'
             : 'text-red-700';
         return (
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-muted-foreground">{loads} loads</span>
-            <span className="text-muted-foreground/40">·</span>
+          <div className="flex flex-col gap-0.5 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-foreground font-medium">{total} loads</span>
+              {active > 0 && (
+                <span className="text-cyan-600 font-medium">({active} active)</span>
+              )}
+            </div>
             <span className={`font-medium ${otpColor}`}>{otp.toFixed(0)}% OTP</span>
           </div>
         );

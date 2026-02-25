@@ -6,13 +6,16 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /**
- * Prisma Client singleton with eager connection and keep-alive heartbeat.
+ * Prisma Client singleton with eager connection and aggressive keep-alive.
  *
  * - Calls $connect() immediately to avoid cold-start latency on first query
- * - Pings the database every 4 minutes to keep connections warm
- *   (AWS VPC NAT gateways can close idle TCP connections after ~5 min)
+ * - Pings the database every 60s to keep ALL pool connections warm
+ *   (AWS NAT gateways kill idle TCP connections after ~350s)
+ * - If heartbeat fails, flushes the zombie pool via $disconnect() + $connect()
+ * - DATABASE_URL includes socket_timeout=3 so dead pipes are detected in 3s
  *
  * @see lib/secrets/initialize.ts — DATABASE_URL is set by AWS Secrets Manager
+ * @see scripts/start-with-secrets.js — pool params in DATABASE_URL
  */
 export const prisma =
   globalForPrisma.prisma ??
@@ -32,11 +35,17 @@ if (!globalForPrisma.prisma) {
 if (!globalForPrisma.keepAliveTimer) {
   // Establish the connection pool immediately (don't wait for the first query)
   prisma.$connect()
-    .then(() => console.log('[Prisma] Connected to database'))
+    .then(() => {
+      console.log('[Prisma] Connected to database');
+      // Log pool params (redacted) so PM2 logs confirm socket_timeout is in effect
+      const url = process.env.DATABASE_URL || '';
+      const params = url.split('?')[1] || '';
+      if (params) console.log(`[Prisma] Pool params: ${params}`);
+    })
     .catch((err: Error) => console.error('[Prisma] Initial connect failed:', err.message));
 
-  // Ping every 4 min to prevent idle TCP connections from being dropped
-  const HEARTBEAT_MS = 4 * 60 * 1000;
+  // Ping every 60s — keeps all pool connections warm before the ~350s AWS idle kill
+  const HEARTBEAT_MS = 60 * 1000;
 
   globalForPrisma.keepAliveTimer = setInterval(async () => {
     try {
@@ -44,6 +53,17 @@ if (!globalForPrisma.keepAliveTimer) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown';
       console.warn('[Prisma] Keep-alive failed:', msg);
+
+      // Flush entire zombie pool and re-establish fresh connections
+      try {
+        console.log('[Prisma] Reconnecting — flushing stale pool...');
+        await prisma.$disconnect();
+        await prisma.$connect();
+        console.log('[Prisma] Reconnect successful');
+      } catch (reconnectErr) {
+        const rmsg = reconnectErr instanceof Error ? reconnectErr.message : 'Unknown';
+        console.error('[Prisma] Reconnect failed:', rmsg);
+      }
     }
   }, HEARTBEAT_MS);
 

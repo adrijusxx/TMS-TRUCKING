@@ -294,8 +294,16 @@ export async function GET(request: NextRequest) {
               trailerNumber: true,
             },
           },
+          _count: {
+            select: {
+              loads: {
+                where: { deletedAt: null },
+              },
+            },
+          },
           loads: {
             select: {
+              status: true,
               revenue: true,
               driverPay: true,
               totalMiles: true,
@@ -321,7 +329,11 @@ export async function GET(request: NextRequest) {
       prisma.driver.count({ where }),
     ]);
 
+    const activeStatuses = new Set(['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY']);
+
     const driversWithTariff = drivers.map((driver) => {
+      const liveLoadCount = (driver as any)._count?.loads ?? driver.totalLoads;
+      const activeLoadCount = driver.loads.filter((l: any) => activeStatuses.has(l.status)).length;
       return {
         ...driver,
         firstName: driver.user?.firstName ?? '',
@@ -336,6 +348,8 @@ export async function GET(request: NextRequest) {
         currentTruckId: driver.currentTruckId,
         currentTrailerId: driver.currentTrailerId,
         mcNumberId: driver.mcNumberId || null,
+        liveLoadCount,
+        activeLoadCount,
       };
     });
 

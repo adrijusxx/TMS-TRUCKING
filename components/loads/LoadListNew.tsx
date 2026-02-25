@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, Upload, Download, Edit, Sparkles } from 'lucide-react';
+import { Plus, Upload, Download, Edit } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportSheet from '@/components/import-export/ImportSheet';
@@ -275,27 +275,6 @@ export default function LoadListNew() {
           <>
             {can('data.import') && (
               <>
-                <ImportSheet
-                  entityType="loads"
-                  defaultTab="ai"
-                  onImportComplete={() => {
-                    queryClient.invalidateQueries({ queryKey: ['loads'] });
-                    toast.success('Import completed successfully');
-                  }}
-                  onAIImport={(data, file) => {
-                    setInitialCreateData(data);
-                    setSheetMode('create');
-                    setSheetOpen(true);
-                    if (file) {
-                      toast.success('Data extracted. Please review and save.');
-                    }
-                  }}
-                >
-                  <Button variant="outline" size="sm" className="h-8 text-xs">
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Smart Import
-                  </Button>
-                </ImportSheet>
                 <ImportSheet
                   entityType="loads"
                   onImportComplete={() => {

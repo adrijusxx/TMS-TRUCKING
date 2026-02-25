@@ -2,7 +2,8 @@
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Truck, MapPin, Navigation, Gauge, Clock } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Truck, MapPin, Navigation, Gauge, Clock, Info } from 'lucide-react';
 import { useLoadTracking } from '@/hooks/useLoadTracking';
 
 const ACTIVE_STATUSES = new Set([
@@ -39,7 +40,7 @@ export function LoadDetailTrackingCard({ loadId, loadStatus }: Props) {
           {/* Truck + Speed */}
           <div className="flex items-center gap-3">
             <Truck className="h-4 w-4 text-blue-600" />
-            <div className="text-xs">
+            <div className="text-xs flex items-center gap-1.5">
               <span className="font-medium">{truckNumber || 'Truck'}</span>
               {speed > 0 && (
                 <span className="text-muted-foreground ml-2">
@@ -50,6 +51,18 @@ export function LoadDetailTrackingCard({ loadId, loadStatus }: Props) {
               {speed === 0 && truckLocation && (
                 <span className="text-muted-foreground ml-2">Stopped</span>
               )}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    <p className="font-medium mb-1">Live GPS Tracking</p>
+                    <p>Location updates every 30s via Samsara. ETA is calculated from current speed and distance. Status auto-updates when the truck arrives within 0.5 km of a stop.</p>
+                    <p className="mt-1 text-muted-foreground">Green = On Time | Amber = At Risk | Red = Late</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
 
