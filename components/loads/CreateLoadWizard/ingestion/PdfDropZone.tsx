@@ -17,8 +17,9 @@ export function PdfDropZone({ onFileSelect, disabled }: PdfDropZoneProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateAndSelectFile = (file: File) => {
-    if (file.type !== 'application/pdf') {
-      toast.error('Please select a PDF file');
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please select a PDF or image file (PNG, JPEG)');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -73,14 +74,14 @@ export function PdfDropZone({ onFileSelect, disabled }: PdfDropZoneProps) {
         </div>
         <div>
           <p className="text-sm font-medium">
-            Drag and drop your Rate Confirmation PDF here
+            Drag and drop your Rate Confirmation here
           </p>
-          <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+          <p className="text-xs text-muted-foreground mt-1">PDF, PNG, or JPEG — up to 10MB</p>
         </div>
         <Input
           ref={fileInputRef}
           type="file"
-          accept="application/pdf"
+          accept="application/pdf,image/png,image/jpeg"
           onChange={handleFileInputChange}
           className="hidden"
           id="pdf-upload"
@@ -92,7 +93,7 @@ export function PdfDropZone({ onFileSelect, disabled }: PdfDropZoneProps) {
           disabled={disabled}
         >
           <FileText className="h-4 w-4 mr-2" />
-          Select PDF File
+          Select File
         </Button>
       </div>
     </div>

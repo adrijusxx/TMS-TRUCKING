@@ -21,7 +21,9 @@ const MIN_TEXT_LENGTH = 50;
 /** Minimum ratio of printable characters to total */
 const MIN_PRINTABLE_RATIO = 0.7;
 /** Minimum word count to consider text meaningful */
-const MIN_WORD_COUNT = 10;
+const MIN_WORD_COUNT = 20;
+/** Minimum average word length — garbled OCR produces very short "words" */
+const MIN_AVG_WORD_LENGTH = 3;
 /** Max text output from OCR */
 const MAX_OCR_TEXT = 25000;
 
@@ -154,6 +156,10 @@ export class DocumentOCRService {
     // Check word count — scanned PDFs often produce random chars, not real words
     const words = text.split(/\s+/).filter(w => w.length >= 2);
     if (words.length < MIN_WORD_COUNT) return false;
+
+    // Check average word length — garbled text from scanned PDFs has very short fragments
+    const avgWordLen = words.reduce((sum, w) => sum + w.length, 0) / words.length;
+    if (avgWordLen < MIN_AVG_WORD_LENGTH) return false;
 
     return true;
   }
