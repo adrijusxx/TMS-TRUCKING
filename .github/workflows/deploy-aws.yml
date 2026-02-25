@@ -81,7 +81,8 @@ jobs:
             scripts/baseline-migrations.js \
             scripts/db-push-aws.js \
             scripts/db-reset-aws.js \
-            scripts/rollback.sh
+            scripts/rollback.sh \
+            scripts/keepalive.sh
 
       - name: Deploy to AWS EC2 via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -174,9 +175,10 @@ jobs:
             echo "Switching to new release..."
             ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 
-            # Restart PM2 from the new release directory
+            # Restart all PM2 apps (tms + tms-keepalive) from the new release
             cd "${CURRENT_LINK}"
-            pm2 restart tms || pm2 start ecosystem.config.js
+            pm2 delete all 2>/dev/null || true
+            pm2 start ecosystem.config.js
 
             # Cleanup: keep only the last N releases
             echo "Cleaning up old releases..."
