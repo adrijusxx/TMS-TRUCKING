@@ -12,7 +12,7 @@ async function fixAdminUser(email: string) {
     console.log(`\n🔍 Looking for user with email: ${email}`);
     
     // Find the user
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { email },
       include: {
         company: true,

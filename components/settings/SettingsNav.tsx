@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   ChevronRight,
   ChevronLeft,
   Settings,
+  Search,
 } from 'lucide-react';
 import { useSidebarToggle } from '@/hooks/useSidebarToggle';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -29,6 +31,7 @@ export default function SettingsNav() {
   const router = useRouter();
   const { isOpen, toggle } = useSidebarToggle('settingsNavOpen', true);
   const { isAdmin } = usePermissions();
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Determine base settings path based on role
   const baseSettingsPath = isAdmin ? '/dashboard/settings/admin' : '/dashboard/settings/employee';
@@ -95,6 +98,17 @@ export default function SettingsNav() {
     }
   }
 
+  // Filter categories/items by search query
+  const filteredCategories = searchQuery.trim()
+    ? deduplicatedCategories
+        .map((cat) => ({
+          ...cat,
+          items: cat.items.filter((item) =>
+            item.name.toLowerCase().includes(searchQuery.toLowerCase())
+          ),
+        }))
+        .filter((cat) => cat.items.length > 0)
+    : deduplicatedCategories;
 
   const isActive = (item: NavItem) => {
     // For settings pages with query params
@@ -175,8 +189,19 @@ export default function SettingsNav() {
           </Button>
         </div>
       </div>
+      {/* Search */}
+      <div className="relative mb-3">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Input
+          placeholder="Search settings..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="h-8 pl-7 text-sm"
+        />
+      </div>
+
       <nav className={NAV_SPACING.items}>
-        {deduplicatedCategories.map((category, categoryIndex) => (
+        {filteredCategories.map((category, categoryIndex) => (
           <div key={category.name} className={categoryIndex > 0 ? 'mt-6' : ''}>
             <h3 className={cn(NAV_TYPOGRAPHY.sectionHeader, 'text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2')}>
               {category.name}

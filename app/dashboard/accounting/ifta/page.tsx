@@ -1,17 +1,10 @@
 import IFTAReport from '@/components/accounting/IFTAReport';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { PageShell } from '@/components/layout/PageShell';
 
 export default function IFTAReportPage() {
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Accounting', href: '/dashboard/accounting' },
-        { label: 'IFTA' }
-      ]} />
+    <PageShell title="IFTA Report" description="International Fuel Tax Agreement reporting and compliance">
       <IFTAReport />
-    </>
+    </PageShell>
   );
 }
-
-
-

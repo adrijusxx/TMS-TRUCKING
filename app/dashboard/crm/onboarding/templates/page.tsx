@@ -12,14 +12,6 @@ export default async function OnboardingTemplatesPage() {
     if (!session?.user) redirect('/login');
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Onboarding Templates</h1>
-                <p className="text-muted-foreground">
-                    Create and manage custom onboarding checklists for different driver types.
-                </p>
-            </div>
-            <OnboardingTemplateEditor />
-        </div>
+        <OnboardingTemplateEditor />
     );
 }

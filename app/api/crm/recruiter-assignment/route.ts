@@ -29,6 +29,9 @@ const RecruiterSchema = z.object({
     isActive: z.boolean().optional(),
     weight: z.number().int().min(1).max(10).optional(),
     maxCapacity: z.number().int().min(1).max(500).optional(),
+    monthlyLeadGoal: z.number().int().min(0).nullable().optional(),
+    monthlyHireGoal: z.number().int().min(0).nullable().optional(),
+    targetConversionRate: z.number().min(0).max(1).nullable().optional(),
 });
 
 const PutSchema = z.object({
@@ -62,6 +65,9 @@ export async function PUT(req: NextRequest) {
                 isActive: r.isActive,
                 weight: r.weight,
                 maxCapacity: r.maxCapacity,
+                monthlyLeadGoal: r.monthlyLeadGoal,
+                monthlyHireGoal: r.monthlyHireGoal,
+                targetConversionRate: r.targetConversionRate,
             })
         )
     );

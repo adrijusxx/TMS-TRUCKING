@@ -7,8 +7,8 @@ import { hasPermission } from './permissions';
 const departmentRoutes: Record<string, Permission> = {
   '/dashboard/accounting': 'departments.accounting.view',
   '/dashboard/invoices': 'departments.accounting.view',
-  '/dashboard/batches': 'departments.accounting.view',
   '/dashboard/settlements': 'departments.accounting.view',
+  '/dashboard/bills': 'departments.accounting.view',
   // Removed blanket fleet restriction to allow sub-feature access (e.g. breakdowns)
   // Specific fleet sub-routes still protected:
   '/dashboard/fleet/reports': 'departments.fleet.view',
@@ -20,7 +20,6 @@ const departmentRoutes: Record<string, Permission> = {
   '/dashboard/fuel': 'departments.fleet.view',
   '/dashboard/vendors': 'departments.fleet.view',
   '/dashboard/safety': 'departments.safety.view',
-  '/dashboard/hr': 'departments.hr.view',
   '/dashboard/drivers': 'departments.hr.view',
   '/dashboard/reports': 'departments.reports.view',
   '/dashboard/analytics': 'departments.reports.view',
@@ -112,7 +111,7 @@ export const departmentDescriptions: Record<DepartmentPermission, string> = {
   'departments.accounting.view': 'Access to accounting, invoices, batches, and settlements',
   'departments.fleet.view': 'Access to fleet management, trucks, trailers, maintenance, and breakdowns',
   'departments.safety.view': 'Access to safety incidents, compliance, training, and safety management',
-  'departments.hr.view': 'Access to HR management, drivers, and user management',
+  'departments.hr.view': 'Access to driver management, compliance, settlements, and workforce',
   'departments.reports.view': 'Access to reports, analytics, and data visualization',
   'departments.settings.view': 'Access to system settings and configuration',
 };

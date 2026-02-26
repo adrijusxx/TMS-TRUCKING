@@ -2,8 +2,11 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MapPin, Navigation, Gauge } from 'lucide-react';
 import { useLoadTracking, LoadTrackingData } from '@/hooks/useLoadTracking';
+
+const TRACKING_TOOLTIP = 'Live GPS via Samsara, updates every 30s. ETA based on current speed and distance. Green = On Time, Amber = At Risk, Red = Late.';
 
 const ACTIVE_STATUSES = new Set([
   'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY',
@@ -31,20 +34,18 @@ export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, com
   const speed = truckLocation?.speed ?? 0;
   const stopLabel = nextStop?.stopType === 'PICKUP' ? 'pickup' : 'delivery';
 
-  if (proximityStatus === 'AT_STOP') {
-    return (
-      <div className="flex flex-col gap-0.5">
-        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 gap-1">
-          <MapPin className="h-3 w-3" /> At {stopLabel}
-        </Badge>
-      </div>
-    );
-  }
+  let content: React.ReactNode = null;
 
-  if (proximityStatus === 'APPROACHING') {
-    return (
-      <div className="flex flex-col gap-0.5">
-        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 gap-1">
+  if (proximityStatus === 'AT_STOP') {
+    content = (
+      <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 gap-1 whitespace-nowrap">
+        <MapPin className="h-3 w-3" /> At {stopLabel}
+      </Badge>
+    );
+  } else if (proximityStatus === 'APPROACHING') {
+    content = (
+      <>
+        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 gap-1 whitespace-nowrap">
           <Navigation className="h-3 w-3" /> ~{proximityMiles} mi from {stopLabel}
         </Badge>
         {!compact && speed > 0 && (
@@ -52,25 +53,39 @@ export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, com
             <Gauge className="h-2.5 w-2.5" /> {Math.round(speed)} mph
           </span>
         )}
-      </div>
+      </>
+    );
+  } else if (eta) {
+    content = (
+      <>
+        <Badge variant="outline" className={`${etaColors[eta.status]} text-[10px] h-5 gap-1 whitespace-nowrap`}>
+          <Navigation className="h-3 w-3" /> ETA {eta.etaFormatted}
+        </Badge>
+        {!compact && (
+          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+            {speed > 0 && <><Gauge className="h-2.5 w-2.5" /> {Math.round(speed)} mph &middot; </>}
+            {eta.remainingMiles} mi to {stopLabel}
+          </span>
+        )}
+      </>
     );
   }
 
-  // EN_ROUTE
-  if (!eta) return null;
+  if (!content) return null;
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <Badge variant="outline" className={`${etaColors[eta.status]} text-[10px] h-5 gap-1`}>
-        <Navigation className="h-3 w-3" /> ETA {eta.etaFormatted}
-      </Badge>
-      {!compact && (
-        <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-          {speed > 0 && <><Gauge className="h-2.5 w-2.5" /> {Math.round(speed)} mph &middot; </>}
-          {eta.remainingMiles} mi to {stopLabel}
-        </span>
-      )}
-    </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex flex-col gap-0.5 cursor-help whitespace-nowrap">
+            {content}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-xs text-xs">
+          {TRACKING_TOOLTIP}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

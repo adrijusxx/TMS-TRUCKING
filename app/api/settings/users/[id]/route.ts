@@ -10,6 +10,7 @@ const updateUserSchema = z.object({
   email: z.string().email('Invalid email address').optional(),
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']).optional(),
+  roleId: z.string().nullable().optional(), // FK to custom Role table (null to clear)
   password: z.string().min(8).optional(),
   isActive: z.boolean().optional(),
   mcNumberId: z.string().min(1, 'MC number is required').optional(),
@@ -62,6 +63,8 @@ export async function GET(
         lastName: true,
         phone: true,
         role: true,
+        roleId: true,
+        customRole: { select: { id: true, name: true, slug: true } },
         isActive: true,
         lastLogin: true,
         createdAt: true,
@@ -168,8 +171,8 @@ export async function PATCH(
 
     // Validate email uniqueness if being updated
     if (validated.email && validated.email !== existingUser.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email: validated.email },
+      const emailExists = await prisma.user.findFirst({
+        where: { email: validated.email.toLowerCase().trim(), companyId: session.user.companyId, deletedAt: null },
       });
 
       if (emailExists && emailExists.id !== userId) {
@@ -307,6 +310,8 @@ export async function PATCH(
         lastName: true,
         phone: true,
         role: true,
+        roleId: true,
+        customRole: { select: { id: true, name: true, slug: true } },
         isActive: true,
         lastLogin: true,
         updatedAt: true,

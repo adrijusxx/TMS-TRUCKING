@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Collapsible,
@@ -155,7 +156,7 @@ export function DeviceQueueSections({
   }, [items]);
 
   const handleAction = async (
-    action: 'approve' | 'reject' | 'link',
+    action: 'approve' | 'reject' | 'link' | 'requeue',
     queueId: string,
     additionalData?: any
   ) => {
@@ -315,20 +316,55 @@ export function DeviceQueueSections({
       {!canPerformActions && items.length > 0 && (
         <Card className="border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
           <div className="p-4">
-            <div className="flex items-center gap-3">
-              <Info className="h-5 w-5 text-gray-500 flex-shrink-0" />
-              <div>
-                <p className="font-semibold text-sm">
-                  {currentStatus === 'LINKED' && 'These devices are already linked to TMS records'}
-                  {currentStatus === 'APPROVED' && 'These devices have been approved'}
-                  {currentStatus === 'REJECTED' && 'These devices have been rejected'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {currentStatus === 'LINKED' && 'If trucks are missing MC numbers, use the orange banner above to assign them.'}
-                  {currentStatus === 'APPROVED' && 'These records have been created in TMS. No further action needed.'}
-                  {currentStatus === 'REJECTED' && 'These devices were rejected and won\'t be added to TMS.'}
-                </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Info className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-sm">
+                    {currentStatus === 'LINKED' && 'These devices are already linked to TMS records'}
+                    {currentStatus === 'APPROVED' && 'These devices have been approved'}
+                    {currentStatus === 'REJECTED' && 'These devices have been rejected'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {currentStatus === 'LINKED' && 'If trucks are missing MC numbers, use the orange banner above to assign them.'}
+                    {currentStatus === 'APPROVED' && 'These records have been created in TMS. No further action needed.'}
+                    {currentStatus === 'REJECTED' && 'Click "Re-queue" on any device to move it back to Pending for review.'}
+                  </p>
+                </div>
               </div>
+              {(currentStatus === 'APPROVED' || currentStatus === 'LINKED') && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={bulkActioning}
+                  onClick={async () => {
+                    const ids = items.map(i => i.id);
+                    setBulkActioning(true);
+                    try {
+                      const res = await fetch('/api/fleet/device-queue', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'bulk-reset', queueIds: ids }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast.success(`Reset ${data.data?.success || ids.length} device(s) to Pending`);
+                        onActionComplete();
+                      } else {
+                        toast.error(data.error?.message || 'Failed to reset devices');
+                      }
+                    } catch {
+                      toast.error('Network error');
+                    } finally {
+                      setBulkActioning(false);
+                    }
+                  }}
+                  className="whitespace-nowrap"
+                >
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  Reset All to Pending
+                </Button>
+              )}
             </div>
           </div>
         </Card>
@@ -440,6 +476,7 @@ export function DeviceQueueSections({
                   selected={selectedItems[device.id] || false}
                   onSelect={(checked) => handleSelectItem(device.id, checked)}
                   showActions={canPerformActions}
+                  showRequeue={currentStatus === 'REJECTED'}
                 />
               ))}
             </Section>
@@ -468,6 +505,7 @@ export function DeviceQueueSections({
                   selected={selectedItems[device.id] || false}
                   onSelect={(checked) => handleSelectItem(device.id, checked)}
                   showActions={canPerformActions}
+                  showRequeue={currentStatus === 'REJECTED'}
                 />
               ))}
             </Section>
@@ -496,6 +534,7 @@ export function DeviceQueueSections({
                   selected={selectedItems[device.id] || false}
                   onSelect={(checked) => handleSelectItem(device.id, checked)}
                   showActions={canPerformActions}
+                  showRequeue={currentStatus === 'REJECTED'}
                 />
               ))}
             </Section>
@@ -534,6 +573,7 @@ export function DeviceQueueSections({
                   selected={selectedItems[device.id] || false}
                   onSelect={(checked) => handleSelectItem(device.id, checked)}
                   showActions={canPerformActions}
+                  showRequeue={currentStatus === 'REJECTED'}
                 />
               ))}
             </Section>
@@ -562,6 +602,7 @@ export function DeviceQueueSections({
                   selected={selectedItems[device.id] || false}
                   onSelect={(checked) => handleSelectItem(device.id, checked)}
                   showActions={canPerformActions}
+                  showRequeue={currentStatus === 'REJECTED'}
                 />
               ))}
             </Section>
@@ -590,6 +631,7 @@ export function DeviceQueueSections({
                   selected={selectedItems[device.id] || false}
                   onSelect={(checked) => handleSelectItem(device.id, checked)}
                   showActions={canPerformActions}
+                  showRequeue={currentStatus === 'REJECTED'}
                 />
               ))}
             </Section>
@@ -619,6 +661,8 @@ export function DeviceQueueSections({
               confidence="unknown"
               selected={selectedItems[device.id] || false}
               onSelect={(checked) => handleSelectItem(device.id, checked)}
+              showActions={canPerformActions}
+              showRequeue={currentStatus === 'REJECTED'}
             />
           ))}
         </Section>
@@ -646,6 +690,8 @@ export function DeviceQueueSections({
               confidence="gateway"
               selected={selectedItems[device.id] || false}
               onSelect={(checked) => handleSelectItem(device.id, checked)}
+              showActions={canPerformActions}
+              showRequeue={currentStatus === 'REJECTED'}
             />
           ))}
         </Section>
@@ -757,14 +803,15 @@ function Section({
 interface DeviceCardProps {
   device: DeviceQueueItem;
   actioningId: string | null;
-  onAction: (action: 'approve' | 'reject' | 'link', id: string, data?: any) => Promise<void>;
+  onAction: (action: 'approve' | 'reject' | 'link' | 'requeue', id: string, data?: any) => Promise<void>;
   confidence: 'high' | 'medium' | 'low' | 'unknown' | 'gateway';
   selected: boolean;
   onSelect: (checked: boolean) => void;
   showActions?: boolean; // Hide actions for linked/rejected devices
+  showRequeue?: boolean; // Show re-queue button for rejected devices
 }
 
-function DeviceCard({ device, actioningId, onAction, confidence, selected, onSelect, showActions = true }: DeviceCardProps) {
+function DeviceCard({ device, actioningId, onAction, confidence, selected, onSelect, showActions = true, showRequeue = false }: DeviceCardProps) {
   const isActioning = actioningId === device.id;
   const isGateway = confidence === 'gateway';
 
@@ -871,6 +918,20 @@ function DeviceCard({ device, actioningId, onAction, confidence, selected, onSel
             >
               <XCircle className="h-4 w-4 mr-1" />
               Reject
+            </Button>
+          </div>
+        )}
+        {showRequeue && (
+          <div className="flex flex-col gap-2 flex-shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onAction('requeue', device.id)}
+              disabled={isActioning}
+              className="whitespace-nowrap"
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Re-queue
             </Button>
           </div>
         )}

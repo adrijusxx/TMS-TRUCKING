@@ -69,6 +69,20 @@ module.exports = {
       watch: false,
       ignore_watch: ['node_modules', '.next', 'logs'],
     },
+    // Keep-alive: pings health endpoint every 15s to keep the full stack warm
+    // (Next.js process, DB connections, EC2 CPU/RAM, EBS disk)
+    {
+      name: 'tms-keepalive',
+      script: 'scripts/keepalive.sh',
+      interpreter: '/bin/bash',
+      autorestart: true,
+      max_restarts: 50,
+      min_uptime: '5s',
+      out_file: './logs/keepalive-out.log',
+      error_file: './logs/keepalive-error.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+    },
   ],
 };
 

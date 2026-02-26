@@ -1190,6 +1190,8 @@ export default function SettlementDetail({ settlementId, onOpenDriver }: Settlem
                           <TableHead className="text-right">Revenue</TableHead>
                           <TableHead className="text-right">Driver Pay</TableHead>
                           <TableHead className="text-right">Distance</TableHead>
+                          <TableHead>Pickup Date</TableHead>
+                          <TableHead>Delivery Date</TableHead>
                           <TableHead>Delivered</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -1217,6 +1219,12 @@ export default function SettlementDetail({ settlementId, onOpenDriver }: Settlem
                             </TableCell>
                             <TableCell className="text-right">
                               {(load.route?.totalDistance || load.totalMiles || 0) ? `${(load.route?.totalDistance || load.totalMiles || 0)} mi` : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              {load.pickupDate ? formatDate(load.pickupDate) : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              {load.deliveryDate ? formatDate(load.deliveryDate) : 'N/A'}
                             </TableCell>
                             <TableCell>
                               {load.deliveredAt ? formatDate(load.deliveredAt) : 'N/A'}

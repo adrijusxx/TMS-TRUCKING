@@ -97,7 +97,6 @@ export default function TruckCombobox({
           {selectedTruck ? (
             <span className="truncate">
               #{selectedTruck.truckNumber}
-              {selectedTruck.make && selectedTruck.model && ` - ${selectedTruck.make} ${selectedTruck.model}`}
             </span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
@@ -108,7 +107,7 @@ export default function TruckCombobox({
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search by truck number, VIN, or make/model..."
+            placeholder="Search by truck number..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -159,21 +158,9 @@ export default function TruckCombobox({
                           value === truck.id ? 'opacity-100' : 'opacity-0'
                         )}
                       />
-                      <div className="flex flex-col">
-                        <span className="font-medium text-xs">
-                          #{truck.truckNumber}
-                        </span>
-                        {(truck.make || truck.model) && (
-                          <span className="text-xs text-muted-foreground">
-                            {truck.make} {truck.model}
-                          </span>
-                        )}
-                        {truck.vin && (
-                          <span className="text-xs text-muted-foreground">
-                            VIN: {truck.vin}
-                          </span>
-                        )}
-                      </div>
+                      <span className="font-medium text-xs">
+                        #{truck.truckNumber}
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

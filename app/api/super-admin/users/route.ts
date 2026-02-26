@@ -82,10 +82,10 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { firstName, lastName, email, role, companyId, mcNumberId, password } = body;
 
-        // Check if user exists
-        const existing = await prisma.user.findUnique({ where: { email } });
+        // Check if user with this email exists in the target company
+        const existing = await prisma.user.findFirst({ where: { email, companyId, deletedAt: null } });
         if (existing) {
-            return NextResponse.json({ error: 'User already exists' }, { status: 400 });
+            return NextResponse.json({ error: 'User with this email already exists in this company' }, { status: 400 });
         }
 
         // Hash password

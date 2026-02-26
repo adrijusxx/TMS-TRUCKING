@@ -134,12 +134,17 @@ export async function GET(request: NextRequest) {
       createdAt: batch.createdAt.toISOString(),
     }));
 
-    // 4. Missing Documents (Delivered but NO POD)
+    // 4. Missing Documents (Delivered but NO POD — last 14 days only)
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    twoWeeksAgo.setHours(0, 0, 0, 0);
+
     const missingDocumentsLoads = await prisma.load.findMany({
       where: {
         deletedAt: null,
         status: 'DELIVERED',
         podUploadedAt: null, // Critical check
+        deliveredAt: { gte: twoWeeksAgo },
         ...(mcWhereWithId),
       },
       select: {

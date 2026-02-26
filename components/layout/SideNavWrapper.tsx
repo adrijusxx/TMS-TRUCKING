@@ -1,12 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import LoadManagementNav from '@/components/loads/LoadManagementNav';
-import AccountingNav from '@/components/accounting/AccountingNav';
-
-import HRManagementNav from '@/components/hr/HRManagementNav';
 import SettingsNav from '@/components/settings/SettingsNav';
-import FleetManagementSidebar from '@/components/fleet/FleetManagementSidebar';
 
 export default function SideNavWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,7 +11,7 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
     // Load Management pages - handled by header navigation
     if (pathname.startsWith('/dashboard/loads') ||
       pathname.startsWith('/dashboard/loadboard') ||
-      pathname.startsWith('/dashboard/dispatch') ||
+      pathname.startsWith('/dashboard/dispatch-view') ||
       pathname.startsWith('/dashboard/calendar') ||
       pathname.startsWith('/dashboard/map')) {
       return null;
@@ -35,7 +30,7 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       pathname.startsWith('/dashboard/locations') ||
       pathname.startsWith('/dashboard/automation') ||
       pathname.startsWith('/dashboard/accounting') ||
-      pathname.startsWith('/dashboard/batches')) {
+      pathname.startsWith('/dashboard/bills')) {
       return null;
     }
 
@@ -70,12 +65,15 @@ export default function SideNavWrapper({ children }: { children: React.ReactNode
       return null;
     }
 
-    // HR Management pages - handled by header navigation
-    if (pathname.startsWith('/dashboard/hr') ||
-      pathname.startsWith('/dashboard/drivers')) {
+    // Drivers page - no side nav needed
+    if (pathname.startsWith('/dashboard/drivers')) {
       return null;
     }
 
+    // Onboarding wizard has its own sidebar
+    if (pathname.startsWith('/dashboard/onboarding')) {
+      return null;
+    }
 
     // Dashboard - no side nav
     return null;

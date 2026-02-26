@@ -3,8 +3,8 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField, CustomBulkAction } from '@/components/data-table/types';
 import { TruckStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 
 interface TruckData {
   id: string;
@@ -57,12 +57,9 @@ const columns: ExtendedColumnDef<TruckData>[] = [
     accessorKey: 'truckNumber',
     header: 'Truck #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/trucks/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
+      <span className="text-primary hover:underline font-medium cursor-pointer">
         {row.original.truckNumber}
-      </Link>
+      </span>
     ),
     defaultVisible: true,
     required: true,
@@ -114,13 +111,14 @@ const columns: ExtendedColumnDef<TruckData>[] = [
         return (
           <div>
             {row.original.currentDrivers.map((driver) => (
-              <Link
+              <EntityLink
                 key={driver.id}
-                href={`/dashboard/drivers/${driver.id}`}
-                className="text-primary hover:underline block"
+                entityType="drivers"
+                entityId={driver.id}
+                className="text-primary hover:underline block cursor-pointer"
               >
                 {driver.user.firstName} {driver.user.lastName}
-              </Link>
+              </EntityLink>
             ))}
           </div>
         );

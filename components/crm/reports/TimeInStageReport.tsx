@@ -1,29 +1,45 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
+import ReportDateFilter, { downloadCsv } from './ReportDateFilter';
 
 export default function TimeInStageReport() {
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+
     const { data, isLoading } = useQuery({
-        queryKey: ['crm-report-time-in-stage'],
+        queryKey: ['crm-report-time-in-stage', from, to],
         queryFn: async () => {
-            const res = await fetch('/api/crm/reports?type=time-in-stage');
+            const params = new URLSearchParams({ type: 'time-in-stage' });
+            if (from) params.append('from', from);
+            if (to) params.append('to', to);
+            const res = await fetch(`/api/crm/reports?${params}`);
             if (!res.ok) throw new Error('Failed');
             return res.json();
         },
     });
 
-    if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>;
-
     const rows = data?.data || [];
 
+    const handleExport = () => {
+        downloadCsv('time-in-stage-report.csv',
+            ['Stage', 'Avg Days', 'Transitions'],
+            rows.map((r: any) => [r.status.replace(/_/g, ' '), r.avgDays, r.transitions]),
+        );
+    };
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-2">
+            <ReportDateFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} onExportCsv={handleExport} />
             <p className="text-sm text-muted-foreground">
                 Average time leads spend before transitioning to each stage.
             </p>
-            {rows.length === 0 ? (
+            {isLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+            ) : rows.length === 0 ? (
                 <p className="text-center py-8 text-muted-foreground">
                     Not enough status change data yet. This report populates as leads move through the pipeline.
                 </p>

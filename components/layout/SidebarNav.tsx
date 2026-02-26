@@ -17,6 +17,7 @@ import {
   Key,
   History,
   LogOut,
+  BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -46,13 +47,13 @@ const navigationGroups: NavigationGroup[] = [
     label: 'Main',
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Setup Guide', href: '/dashboard/onboarding', icon: BookOpen },
     ],
   },
   {
     label: 'Operations',
     items: [
       { name: 'Loads', href: '/dashboard/loads', icon: Package, permission: 'loads.view' },
-      { name: 'Dispatch', href: '/dashboard/dispatch', icon: Calendar, permission: 'loads.view' },
     ],
   },
   {
@@ -60,8 +61,8 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: 'Fleet', href: '/dashboard/fleet', icon: Truck, permission: 'departments.fleet.view' },
       { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
-      { name: 'Accounting', href: '/dashboard/invoices', icon: DollarSign, permission: 'departments.accounting.view', activePaths: ['/dashboard/invoices', '/dashboard/settlements', '/dashboard/customers', '/dashboard/batches', '/dashboard/accounting'] },
-      { name: 'HR', href: '/dashboard/hr', icon: Users, permission: 'departments.hr.view' },
+      { name: 'Accounting', href: '/dashboard/invoices', icon: DollarSign, permission: 'departments.accounting.view', activePaths: ['/dashboard/invoices', '/dashboard/settlements', '/dashboard/customers', '/dashboard/accounting', '/dashboard/bills'] },
+      { name: 'HR', href: '/dashboard/drivers', icon: Users, permission: 'departments.hr.view' },
       { name: 'Recruiting', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
     ],
   },

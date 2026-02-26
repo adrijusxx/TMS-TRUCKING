@@ -5,7 +5,7 @@ async function main() {
     const email = 'adrian@fwl2.com';
     console.log(`Checking for user: ${email}...`);
 
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
         where: { email },
     });
 

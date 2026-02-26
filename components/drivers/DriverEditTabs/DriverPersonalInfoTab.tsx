@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { KeyRound, Copy, Check, Loader2, Eye, EyeOff } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
+import { toast } from 'sonner';
+
+function generatePassword(length = 10): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
 
 interface DriverPersonalInfoTabProps {
   driver: any;
@@ -24,6 +37,43 @@ export default function DriverPersonalInfoTab({
   driver,
   onSave,
 }: DriverPersonalInfoTabProps) {
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(
+    driver.user?.tempPassword || null
+  );
+  const [copied, setCopied] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async () => {
+      const newPassword = generatePassword();
+      const response = await fetch(apiUrl(`/api/drivers/${driver.id}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword, tempPassword: newPassword }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to reset password');
+      }
+      return newPassword;
+    },
+    onSuccess: (newPassword) => {
+      setGeneratedPassword(newPassword);
+      toast.success('Password reset successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleCopyPassword = () => {
+    if (generatedPassword) {
+      navigator.clipboard.writeText(generatedPassword);
+      setCopied(true);
+      toast.success('Password copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
   const { register, handleSubmit, setValue, watch } = useForm({
     defaultValues: {
       firstName: driver.user.firstName || '',
@@ -334,6 +384,66 @@ export default function DriverPersonalInfoTab({
                   </SelectContent>
                 </Select>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Password Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4" />
+                Password Management
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {generatedPassword && (
+                <div className="space-y-2">
+                  <Label>Current Temporary Password</Label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 relative">
+                      <Input
+                        value={generatedPassword}
+                        readOnly
+                        type={showPassword ? 'text' : 'password'}
+                        className="pr-10 font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleCopyPassword}
+                    >
+                      {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This password will be cleared after the driver&apos;s first login.
+                  </p>
+                </div>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => resetPasswordMutation.mutate()}
+                disabled={resetPasswordMutation.isPending}
+              >
+                {resetPasswordMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Resetting...</>
+                ) : (
+                  <><KeyRound className="h-4 w-4 mr-2" />Reset Password</>
+                )}
+              </Button>
             </CardContent>
           </Card>
         </div>

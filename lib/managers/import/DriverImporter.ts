@@ -11,7 +11,7 @@ export class DriverImporter extends BaseImporter {
         currentMcNumber?: string;
         updateExisting?: boolean;
         columnMapping?: Record<string, string>;
-        importBatchId?: string; // Add importBatchId
+        importBatchId?: string;
     }): Promise<ImportResult> {
         const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId } = options;
 
@@ -23,7 +23,7 @@ export class DriverImporter extends BaseImporter {
         const driversToUpdate: any[] = [];
         const existingInFile = new Set<string>();
 
-        // Pre-fetch
+        // Pre-fetch (per-company only — email/employeeNumber are now unique per company)
         const [existingDrivers, existingUsers, mcNumbers] = await Promise.all([
             this.prisma.driver.findMany({
                 where: { companyId: this.companyId },
@@ -40,13 +40,14 @@ export class DriverImporter extends BaseImporter {
         ]);
 
         const driverIdMap = new Map(existingDrivers.map(d => [d.driverNumber.toLowerCase().trim(), d]));
-        // NEW: Map User ID to Driver ID to prevent (userId, companyId) constraint violations
         const userIdToDriverMap = new Map<string, typeof existingDrivers[0]>();
         existingDrivers.forEach(d => {
             if (d.userId) userIdToDriverMap.set(d.userId, d);
         });
 
         const userIdMap = new Map(existingUsers.map(u => [u.email.toLowerCase().trim(), u]));
+        const companyEmailSet = new Set(existingUsers.map(u => u.email.toLowerCase().trim()));
+
         const mcIdMap = new Map(mcNumbers.map(mc => [mc.number?.trim(), mc.id]));
         const defaultMcId = mcNumbers.find(mc => mc.isDefault)?.id || mcNumbers[0]?.id;
 
@@ -67,24 +68,20 @@ export class DriverImporter extends BaseImporter {
                 const phoneValue = this.getValue(row, 'phone', columnMapping, ['Phone', 'phone', 'contact_number', 'Contact Number']);
                 const truckNumber = this.getValue(row, 'truck', columnMapping, ['Truck', 'Truck Number', 'truck_number']);
 
-                // SMART FALLBACK 1: If driverNumber is missing, try using Phone Number
                 if (!driverNumber && phoneValue) {
                     driverNumber = phoneValue;
                     console.log(`[DriverImporter] Row ${rowNum}: Driver Phone Number missing, falling back to Phone: ${phoneValue}`);
                 }
 
-                // SMART FALLBACK 2: If still missing, try using truck number
                 if (!driverNumber && truckNumber) {
                     driverNumber = truckNumber;
                     console.log(`[DriverImporter] Row ${rowNum}: Driver Phone Number missing, falling back to Truck Number: ${truckNumber}`);
                 }
 
-                // Allow empty email -> auto-generate
                 let email = String(this.getValue(row, 'email', columnMapping, ['Email', 'email']) || '').toLowerCase().trim();
                 let firstName = this.getValue(row, 'firstName', columnMapping, ['First Name', 'first_name', 'Name', 'name', 'Driver Name', 'driver_name', 'Full Name']);
                 let lastName = this.getValue(row, 'lastName', columnMapping, ['Last Name', 'last_name', 'Surname', 'surname']) || '';
 
-                // Smart Name Splitting if firstName contains spaces and lastName is empty
                 if (firstName && !lastName && firstName.trim().includes(' ')) {
                     const parts = firstName.trim().split(/\s+/);
                     if (parts.length > 1) {
@@ -93,7 +90,6 @@ export class DriverImporter extends BaseImporter {
                     }
                 }
 
-                // FINAL FALLBACK: If still no driverNumber, generate one from names
                 if (!driverNumber && firstName) {
                     const cleanFirst = String(firstName).replace(/[^a-zA-Z0-9]/g, '');
                     const cleanLast = String(lastName).replace(/[^a-zA-Z0-9]/g, '');
@@ -106,12 +102,11 @@ export class DriverImporter extends BaseImporter {
                     continue;
                 }
 
-                // Auto-generate email if missing
+                // Auto-generate email if missing (per-company unique, simple format is fine)
                 if (!email) {
                     const cleanDriverNum = String(driverNumber).replace(/[^a-zA-Z0-9]/g, '');
-                    email = `driver.${cleanDriverNum}@system.local`.toLowerCase();
+                    email = `driver.${cleanDriverNum}.${rowNum}@system.local`.toLowerCase();
                 }
-
 
                 const driverKey = driverNumber.toLowerCase().trim();
                 if (existingInFile.has(driverKey) || existingInFile.has(email)) {
@@ -124,19 +119,15 @@ export class DriverImporter extends BaseImporter {
                 const existingDriver = driverIdMap.get(driverKey);
                 const existingUser = userIdMap.get(email);
 
-                // CONSTRAINT CHECK: Does this user already have a driver profile (even if number differs)?
                 let userExistingDriver = existingUser ? userIdToDriverMap.get(existingUser.id) : null;
 
-                // If we found a driver by number, use that.
-                // If not, but we found a driver by USER ID, use that (this is the "Rename/Update" case).
                 const targetDriver = existingDriver || userExistingDriver;
-
                 const exists = !!targetDriver || !!existingUser;
 
                 if (exists && !updateExisting) {
                     const existsInDB = !!targetDriver ? 'Driver' : 'User';
                     console.log(`[DriverImporter] Skipping Row ${rowNum}: ${existsInDB} already exists in database (${driverKey})`);
-                    errors.push(this.error(rowNum, `${existsInDB} already exists in database`, 'Database Duplicate'));
+                    errors.push(this.error(rowNum, `${existsInDB} already exists in this company`, 'Database Duplicate'));
                     continue;
                 }
 
@@ -154,7 +145,7 @@ export class DriverImporter extends BaseImporter {
                 const currentMcValue = currentMcNumber?.trim();
                 const mcNumberId = mcIdMap.get(rowMc?.trim()) || (currentMcValue ? mcIdMap.get(currentMcValue) : null) || defaultMcId;
 
-                // --- Smart Address Parsing ---
+                // Smart Address Parsing
                 const addressRaw = this.getValue(row, 'address', columnMapping, ['Address', 'address', 'Address 1', 'Street']) || '';
                 const cityRaw = this.getValue(row, 'city', columnMapping, ['City', 'city']) || '';
                 const stateRaw = this.getValue(row, 'state', columnMapping, ['State', 'state', 'ST']) || '';
@@ -175,21 +166,20 @@ export class DriverImporter extends BaseImporter {
                     }
                 }
 
-                // --- Smart Type & Status Mapping ---
+                // Smart Type & Status Mapping
                 const driverTypeStr = this.getValue(row, 'driverType', columnMapping, ['Type', 'driver_type', 'Driver Type']);
                 const driverType = this.mapDriverTypeSmart(driverTypeStr);
 
                 const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status']);
                 const status = this.mapDriverStatusSmart(statusStr);
 
-                // --- Anomaly Detection ---
+                // Anomaly Detection
                 let payRate = parseFloat(String(this.getValue(row, 'payRate', columnMapping, ['Pay Rate', 'pay_rate', 'Rate']) || '0').replace(/[^0-9.]/g, '')) || 0;
                 if (payRate === 0) {
                     payRate = 0.65;
                     warnings.push(this.warning(rowNum, 'Pay Rate missing or zero, defaulted to $0.65/mile (PER_MILE)', 'payRate'));
                 }
 
-                // DEFAULTS for Required Fields (Prisma Constraints)
                 let licenseNumber = this.getValue(row, 'licenseNumber', columnMapping, ['License Number', 'license_number', 'CDL#', 'CDL Number', 'License #', 'CDL']);
                 if (!licenseNumber) {
                     licenseNumber = 'PENDING';
@@ -233,14 +223,14 @@ export class DriverImporter extends BaseImporter {
                     licenseState,
                     licenseExpiry,
                     medicalCardExpiry,
-                    payType: PayType.PER_MILE, // Default
+                    payType: PayType.PER_MILE,
                     payRate,
                     mcNumberId,
                     address1: finalAddress1,
                     city: finalCity,
                     state: normalizeState(finalState) || finalState,
                     zipCode: String(finalZip || ''),
-                    address2: '', // Default empty
+                    address2: '',
                     userData: {
                         email,
                         firstName,
@@ -253,11 +243,10 @@ export class DriverImporter extends BaseImporter {
                     }
                 };
 
-
                 if (exists && updateExisting) {
                     driversToUpdate.push({
                         ...driverData,
-                        driverId: targetDriver?.id, // Use resolved target driver (either by number or by user)
+                        driverId: targetDriver?.id,
                         userId: existingUser?.id || targetDriver?.userId,
                         isReactivate: !!(targetDriver?.deletedAt || existingUser?.deletedAt)
                     });
@@ -283,7 +272,6 @@ export class DriverImporter extends BaseImporter {
         let createdCount = 0;
         let updatedCount = 0;
 
-        // Process Creations
         for (const item of driversToCreate) {
             try {
                 const { userData, rowIndex, ...dData } = item;
@@ -294,7 +282,7 @@ export class DriverImporter extends BaseImporter {
                             create: {
                                 ...dData,
                                 companyId: this.companyId,
-                                importBatchId // Add batch ID
+                                importBatchId
                             }
                         }
                     }
@@ -305,7 +293,6 @@ export class DriverImporter extends BaseImporter {
             }
         }
 
-        // Process Updates
         if (updateExisting && driversToUpdate.length > 0) {
             for (const item of driversToUpdate) {
                 try {
@@ -334,13 +321,12 @@ export class DriverImporter extends BaseImporter {
                             }
                         });
                     } else if (userId) {
-                        // Create driver for existing user
                         await this.prisma.driver.create({
                             data: {
                                 ...dData,
                                 userId,
                                 companyId: this.companyId,
-                                importBatchId // Add batch ID
+                                importBatchId
                             }
                         });
                     }

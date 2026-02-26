@@ -147,7 +147,8 @@ export class TruckImporter extends BaseImporter {
 
 
                 if (existsInDb && updateExisting) {
-                    trucksToUpdate.push({ ...truckData, id: truckIdMap.get(truckNumber) || truckIdMap.get(vin || '') });
+                    const existingId = truckIdMap.get(truckNumber.toLowerCase().trim()) || vinMap.get(vin?.toLowerCase().trim() || '');
+                    trucksToUpdate.push({ ...truckData, id: existingId });
                 } else {
                     trucksToCreate.push(truckData);
                 }
@@ -171,17 +172,12 @@ export class TruckImporter extends BaseImporter {
         let updatedCount = 0;
 
         if (trucksToCreate.length > 0) {
-            try {
-                await this.prisma.truck.createMany({ data: trucksToCreate, skipDuplicates: true });
-                createdCount = trucksToCreate.length;
-            } catch (err: any) {
-                for (const item of trucksToCreate) {
-                    try {
-                        await this.prisma.truck.create({ data: item });
-                        createdCount++;
-                    } catch (e: any) {
-                        errors.push(this.error(0, `Create failed for ${item.truckNumber}: ${e.message}`));
-                    }
+            for (const item of trucksToCreate) {
+                try {
+                    await this.prisma.truck.create({ data: item });
+                    createdCount++;
+                } catch (e: any) {
+                    errors.push(this.error(0, `Create failed for ${item.truckNumber}: ${e.message}`));
                 }
             }
         }

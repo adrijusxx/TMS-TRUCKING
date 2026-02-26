@@ -129,7 +129,6 @@ export default function TrailerCombobox({
           {selectedTrailer ? (
             <span className="truncate">
               #{selectedTrailer.trailerNumber}
-              {selectedTrailer.make && selectedTrailer.model && ` - ${selectedTrailer.make} ${selectedTrailer.model}`}
             </span>
           ) : value && isLoadingTrailer ? (
             <span className="text-muted-foreground">Loading...</span>
@@ -142,7 +141,7 @@ export default function TrailerCombobox({
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search by trailer number, VIN, or make/model..."
+            placeholder="Search by trailer number..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -193,21 +192,9 @@ export default function TrailerCombobox({
                           value === trailer.trailerNumber || value === trailer.id ? 'opacity-100' : 'opacity-0'
                         )}
                       />
-                      <div className="flex flex-col">
-                        <span className="font-medium text-xs">
-                          #{trailer.trailerNumber}
-                        </span>
-                        {(trailer.make || trailer.model) && (
-                          <span className="text-xs text-muted-foreground">
-                            {trailer.make} {trailer.model}
-                          </span>
-                        )}
-                        {trailer.vin && (
-                          <span className="text-xs text-muted-foreground">
-                            VIN: {trailer.vin}
-                          </span>
-                        )}
-                      </div>
+                      <span className="font-medium text-xs">
+                        #{trailer.trailerNumber}
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

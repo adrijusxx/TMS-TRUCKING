@@ -1,47 +1,58 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { PageTransition } from '@/components/ui/page-transition';
+import { apiUrl, formatCurrency, formatDate } from '@/lib/utils';
 import { BatchPostStatus } from '@prisma/client';
-import { Send, ArrowLeft, Loader2, CheckCircle2, XCircle, Mail, Download, FileText } from 'lucide-react';
-import { toast } from 'sonner';
+import type { RowSelectionState } from '@tanstack/react-table';
+import {
+  Send, ArrowLeft, Loader2, Trash2, DollarSign,
+  Plus, RefreshCw, FileDown, ChevronDown, MoreHorizontal,
+  ChevronsUpDown,
+} from 'lucide-react';
 import Link from 'next/link';
 import BatchValidationDialog from './BatchValidationDialog';
+import BatchInfoCards from './BatchInfoCards';
+import BatchInvoiceTable from './BatchInvoiceTable';
+import BatchPaymentDialog from './BatchPaymentDialog';
+import BatchAddInvoiceDialog from './BatchAddInvoiceDialog';
+import { flattenBatchItems, computeBatchTotals } from './batch-invoice-columns';
+import { useBatchActions } from './useBatchActions';
 
 interface BatchDetailProps {
   batchId: string;
 }
 
-const statusColors: Record<BatchPostStatus, string> = {
-  UNPOSTED: 'bg-orange-100 text-orange-800 border-orange-200',
+const FILTER_TABS = ['ALL', 'DRAFT', 'SENT', 'PAID', 'PARTIAL', 'OVERDUE'] as const;
+type FilterTab = (typeof FILTER_TABS)[number];
+
+const STATUS_COLORS: Record<string, string> = {
+  UNPOSTED: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   POSTED: 'bg-blue-100 text-blue-800 border-blue-200',
   PAID: 'bg-green-100 text-green-800 border-green-200',
 };
 
-const emailStatusColors: Record<string, string> = {
-  NOT_SENT: 'bg-gray-100 text-gray-700',
-  SENDING: 'bg-yellow-100 text-yellow-800',
-  SENT: 'bg-green-100 text-green-800',
-  PARTIAL: 'bg-orange-100 text-orange-800',
-  FAILED: 'bg-red-100 text-red-800',
+const EMAIL_COLORS: Record<string, string> = {
+  NOT_SENT: 'text-muted-foreground',
+  SENT: 'text-green-600',
+  PARTIALLY_SENT: 'text-yellow-600',
+  FAILED: 'text-red-600',
 };
-
-function formatStatus(status: string): string {
-  return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-}
 
 async function fetchBatch(id: string) {
   const response = await fetch(apiUrl(`/api/batches/${id}`));
@@ -55,35 +66,16 @@ async function fetchEmailLogs(batchId: string) {
   return response.json();
 }
 
-export default function BatchDetail({ batchId }: BatchDetailProps) {
-  const queryClient = useQueryClient();
-  const [validationErrors, setValidationErrors] = useState<any[]>([]);
-  const [showValidationDialog, setShowValidationDialog] = useState(false);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+function formatStatus(status: string): string {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}
 
-  const downloadPackage = async (invoiceId: string, invoiceNumber: string) => {
-    setDownloadingId(invoiceId);
-    try {
-      const response = await fetch(apiUrl(`/api/invoices/${invoiceId}/package`));
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || 'Failed to generate package');
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `invoice-package-${invoiceNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error: any) {
-      toast.error(`Download failed: ${error.message}`);
-    } finally {
-      setDownloadingId(null);
-    }
-  };
+export default function BatchDetail({ batchId }: BatchDetailProps) {
+  const [activeTab, setActiveTab] = useState<FilterTab>('ALL');
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showAddInvoiceDialog, setShowAddInvoiceDialog] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['batch', batchId],
@@ -95,57 +87,45 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
     queryFn: () => fetchEmailLogs(batchId),
   });
 
-  const sendBatchMutation = useMutation({
-    mutationFn: async () => {
-      // First validate
-      const valRes = await fetch(apiUrl(`/api/batches/${batchId}/validate`));
-      const valData = await valRes.json();
+  const batch = data?.data;
 
-      if (!valData.data?.ready) {
-        setValidationErrors(valData.data?.errors || []);
-        setShowValidationDialog(true);
-        throw new Error('VALIDATION_BLOCKED');
-      }
+  const {
+    sendBatchMutation, updateStatusMutation,
+    handleBulkStatusChange, handleBulkDelete, handleReconcile,
+    handleExportPDF, handleRefresh,
+    validationErrors, showValidationDialog, setShowValidationDialog, isExporting,
+  } = useBatchActions(batchId, batch);
 
-      // Then send
-      const response = await fetch(apiUrl(`/api/batches/${batchId}/send`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error?.message || 'Failed to send batch');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-      queryClient.invalidateQueries({ queryKey: ['batch-email-logs', batchId] });
-      queryClient.invalidateQueries({ queryKey: ['batches'] });
-    },
-    onError: (error) => {
-      if (error.message !== 'VALIDATION_BLOCKED') {
-        console.error('Send batch failed:', error);
-      }
-    },
-  });
+  const emailLogs: Record<string, any> = useMemo(() => {
+    const map: Record<string, any> = {};
+    if (emailLogsData?.data) {
+      for (const log of emailLogsData.data) map[log.invoiceId] = log;
+    }
+    return map;
+  }, [emailLogsData]);
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async (postStatus: BatchPostStatus) => {
-      const response = await fetch(apiUrl(`/api/batches/${batchId}/status`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postStatus }),
-      });
-      if (!response.ok) throw new Error('Failed to update status');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['batch', batchId] });
-      queryClient.invalidateQueries({ queryKey: ['batches'] });
-    },
-  });
+  const filteredItems = useMemo(() => {
+    if (!batch?.items) return [];
+    if (activeTab === 'ALL') return batch.items;
+    return batch.items.filter((item: any) => item.invoice.status === activeTab);
+  }, [batch?.items, activeTab]);
+
+  const flatRows = useMemo(
+    () => flattenBatchItems(filteredItems, emailLogs),
+    [filteredItems, emailLogs],
+  );
+
+  const allFlatRows = useMemo(
+    () => flattenBatchItems(batch?.items || [], emailLogs),
+    [batch?.items, emailLogs],
+  );
+
+  const totals = useMemo(() => computeBatchTotals(allFlatRows), [allFlatRows]);
+
+  const selectedIds = useMemo(
+    () => Object.keys(rowSelection).filter((k) => rowSelection[k]),
+    [rowSelection],
+  );
 
   if (isLoading) {
     return (
@@ -155,270 +135,206 @@ export default function BatchDetail({ batchId }: BatchDetailProps) {
     );
   }
 
-  const batch = data?.data;
   if (!batch) return <div>Batch not found</div>;
 
-  // Build email log lookup by invoiceId
-  const emailLogs: Record<string, any> = {};
-  if (emailLogsData?.data) {
-    for (const log of emailLogsData.data) {
-      emailLogs[log.invoiceId] = log;
-    }
-  }
-
   const emailStatus = batch.emailStatus || 'NOT_SENT';
-  const sentCount = emailLogsData?.data?.filter((l: any) => l.status === 'SENT').length || 0;
-  const failedCount = emailLogsData?.data?.filter((l: any) => l.status === 'FAILED').length || 0;
+  const invoiceCount = batch.invoiceCount || batch.items?.length || 0;
+  const statusColor = STATUS_COLORS[batch.postStatus] || STATUS_COLORS.UNPOSTED;
+  const emailColor = EMAIL_COLORS[emailStatus] || EMAIL_COLORS.NOT_SENT;
+
+  const invoiceList = (batch.items || []).map((item: any) => ({
+    id: item.invoice.id,
+    invoiceNumber: item.invoice.invoiceNumber,
+    total: item.invoice.total,
+    balance: item.invoice.balance,
+    customer: item.invoice.customer,
+  }));
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/batches">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold">{batch.batchNumber}</h1>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {batch.postStatus === 'UNPOSTED' && (
-            <Button
-              onClick={() => sendBatchMutation.mutate()}
-              disabled={sendBatchMutation.isPending}
-            >
-              {sendBatchMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              <Send className="h-4 w-4 mr-2" />
-              Send Batch
-            </Button>
-          )}
-          <Select
-            value={batch.postStatus}
-            onValueChange={(value: string) =>
-              updateStatusMutation.mutate(value as BatchPostStatus)
-            }
+    <PageTransition>
+      <div className="space-y-3">
+        {/* Compact Header */}
+        <div className="flex items-center gap-3 min-h-[40px]">
+          <Link
+            href="/dashboard/invoices"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="UNPOSTED">UNPOSTED</SelectItem>
-              <SelectItem value="POSTED">POSTED</SelectItem>
-              <SelectItem value="PAID">PAID</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
 
-      {/* Info Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Batch Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <div className="text-sm text-muted-foreground">Status</div>
-              <Badge className={statusColors[batch.postStatus as BatchPostStatus]}>
-                {formatStatus(batch.postStatus)}
-              </Badge>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Created By</div>
-              <div>{batch.createdBy.firstName} {batch.createdBy.lastName}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Created Date</div>
-              <div>{formatDate(batch.createdAt)}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">MC Number</div>
-              <div>{batch.mcNumber || '-'}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <div className="text-sm text-muted-foreground">Total Invoices</div>
-              <div className="text-2xl font-bold">{batch.invoiceCount || batch.items.length}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Total Amount</div>
-              <div className="text-2xl font-bold">{formatCurrency(batch.totalAmount)}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Email Status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div>
-              <Badge className={emailStatusColors[emailStatus] || emailStatusColors.NOT_SENT}>
-                {formatStatus(emailStatus)}
-              </Badge>
-            </div>
-            {emailStatus !== 'NOT_SENT' && (
-              <>
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span>{sentCount} sent</span>
-                </div>
-                {failedCount > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    <span>{failedCount} failed</span>
-                  </div>
-                )}
-              </>
-            )}
-            {batch.sentAt && (
-              <div>
-                <div className="text-sm text-muted-foreground">Sent At</div>
-                <div className="text-sm">{formatDate(batch.sentAt)}</div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {batch.notes && (
-        <Card>
-          <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
-          <CardContent><p className="text-sm">{batch.notes}</p></CardContent>
-        </Card>
-      )}
-
-      {/* Invoice Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Invoices in Batch</CardTitle>
-          <CardDescription>
-            {batch.items?.length || 0} invoice(s) in this batch
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TooltipProvider>
-                  {batch.items?.map((item: any) => {
-                    const log = emailLogs[item.invoice.id];
-                    return (
-                      <TableRow key={item.invoice.id}>
-                        <TableCell className="font-medium">
-                          {item.invoice.invoiceNumber}
-                        </TableCell>
-                        <TableCell>{item.invoice.customer.name}</TableCell>
-                        <TableCell>{formatDate(item.invoice.invoiceDate)}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(item.invoice.total)}
-                        </TableCell>
-                        <TableCell>
-                          <EmailStatusCell log={log} />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => downloadPackage(item.invoice.id, item.invoice.invoiceNumber)}
-                                  disabled={downloadingId === item.invoice.id}
-                                >
-                                  {downloadingId === item.invoice.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Download className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Download PDF Package (Invoice + Rate Con + POD + BOL)</TooltipContent>
-                            </Tooltip>
-                            <Link href={`/dashboard/invoices/${item.invoice.id}`}>
-                              <Button variant="ghost" size="sm">
-                                <FileText className="h-4 w-4 mr-1" />
-                                View
-                              </Button>
-                            </Link>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TooltipProvider>
-              </TableBody>
-            </Table>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight truncate">{batch.batchNumber}</h1>
+            <Badge variant="outline" className={`text-xs shrink-0 ${statusColor}`}>
+              {formatStatus(batch.postStatus)}
+            </Badge>
           </div>
-        </CardContent>
-      </Card>
 
+          <span className="text-xs text-muted-foreground hidden sm:inline shrink-0">
+            by {batch.createdBy?.firstName} {batch.createdBy?.lastName} · {formatDate(batch.createdAt)}
+          </span>
+
+          <div className="flex-1" />
+
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button variant="outline" size="sm" className="h-8" onClick={() => setShowAddInvoiceDialog(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add
+            </Button>
+            <Button size="sm" className="h-8"
+              onClick={() => sendBatchMutation.mutate()}
+              disabled={sendBatchMutation.isPending}>
+              {sendBatchMutation.isPending
+                ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                : <Send className="h-3.5 w-3.5 mr-1" />}
+              Send ({invoiceCount})
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowPaymentDialog(true)}>
+                  <DollarSign className="h-4 w-4 mr-2" /> Mark a Payment
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleReconcile(selectedIds)}
+                  disabled={selectedIds.length === 0}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" /> Reconcile Selected
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportPDF} disabled={isExporting}>
+                  <FileDown className="h-4 w-4 mr-2" /> Export All as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Select
+              value={batch.postStatus}
+              onValueChange={(v: string) => updateStatusMutation.mutate(v as BatchPostStatus)}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="UNPOSTED">Unposted</SelectItem>
+                <SelectItem value="POSTED">Posted</SelectItem>
+                <SelectItem value="PAID">Paid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Summary Card */}
+        <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <Card className="p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Invoices</span>
+                <p className="text-lg font-semibold tabular-nums">{invoiceCount}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Total</span>
+                <p className="text-lg font-semibold tabular-nums">{formatCurrency(batch.totalAmount || totals.amount)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
+                <p className={`text-lg font-semibold tabular-nums ${totals.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {formatCurrency(totals.balance)}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Email</span>
+                <p className={`text-lg font-semibold ${emailColor}`}>{formatStatus(emailStatus)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">MC#</span>
+                <p className="text-lg font-semibold">{batch.mcNumber || '—'}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-2">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+                  <ChevronsUpDown className="h-3.5 w-3.5 mr-1" />
+                  {detailsOpen ? 'Hide' : 'Edit'} Details
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+
+            <CollapsibleContent className="pt-3 mt-3 border-t">
+              <BatchInfoCards batch={batch} batchId={batchId} />
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* Invoices Card — tabs + table unified */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center gap-2 flex-wrap px-4 py-3 border-b">
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as FilterTab); setRowSelection({}); }}>
+              <TabsList className="h-8">
+                {FILTER_TABS.map((tab) => (
+                  <TabsTrigger key={tab} value={tab} className="text-xs h-7 px-2">
+                    {tab === 'ALL' ? `All (${invoiceCount})` : tab}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+
+            <div className="flex-1" />
+
+            {selectedIds.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8">
+                    Bulk ({selectedIds.length}) <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => handleBulkStatusChange(selectedIds, 'DRAFT')}>Set DRAFT</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkStatusChange(selectedIds, 'SENT')}>Set SENT</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkStatusChange(selectedIds, 'PAID')}>Set PAID</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-destructive" onClick={() => handleBulkDelete(selectedIds)}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove from batch
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Invoice Table */}
+          <BatchInvoiceTable
+            data={flatRows}
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            batchNumber={batch.batchNumber}
+          />
+        </Card>
+      </div>
+
+      {/* Dialogs */}
       <BatchValidationDialog
         open={showValidationDialog}
         onClose={() => setShowValidationDialog(false)}
         errors={validationErrors}
       />
-    </div>
-  );
-}
-
-function EmailStatusCell({ log }: { log: any }) {
-  if (!log) {
-    return <span className="text-sm text-muted-foreground">-</span>;
-  }
-
-  const icon = log.status === 'SENT' ? (
-    <CheckCircle2 className="h-4 w-4 text-green-600" />
-  ) : log.status === 'FAILED' ? (
-    <XCircle className="h-4 w-4 text-red-600" />
-  ) : (
-    <Mail className="h-4 w-4 text-muted-foreground" />
-  );
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="flex items-center gap-1.5 cursor-default">
-          {icon}
-          <span className="text-xs text-muted-foreground truncate max-w-[140px]">
-            {log.recipientEmail}
-          </span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        <div className="text-xs space-y-1">
-          <div>Status: {log.status}</div>
-          <div>Type: {log.recipientType}</div>
-          <div>To: {log.recipientEmail}</div>
-          {log.sentAt && <div>Sent: {formatDate(log.sentAt)}</div>}
-          {log.errorMessage && (
-            <div className="text-red-500">Error: {log.errorMessage}</div>
-          )}
-        </div>
-      </TooltipContent>
-    </Tooltip>
+      <BatchPaymentDialog
+        open={showPaymentDialog}
+        onClose={() => setShowPaymentDialog(false)}
+        batchId={batchId}
+        invoices={invoiceList}
+        preSelectedIds={selectedIds.length > 0 ? new Set(selectedIds) : undefined}
+      />
+      <BatchAddInvoiceDialog
+        open={showAddInvoiceDialog}
+        onClose={() => setShowAddInvoiceDialog(false)}
+        batchId={batchId}
+      />
+    </PageTransition>
   );
 }

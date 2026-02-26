@@ -12,7 +12,7 @@ const appearanceSettingsSchema = z.object({
   sidebarPosition: z.enum(['left', 'right']).optional(),
   compactMode: z.boolean().optional(),
   density: z.enum(['comfortable', 'compact', 'spacious']).optional(),
-  fontSize: z.enum(['small', 'medium', 'large']).optional(),
+  fontSize: z.enum(['extra-small', 'small', 'medium', 'large']).optional(),
   fontFamily: z.enum(['system', 'inter', 'roboto', 'open-sans']).optional(),
   showBreadcrumbs: z.boolean().optional(),
   showPageHeaders: z.boolean().optional(),

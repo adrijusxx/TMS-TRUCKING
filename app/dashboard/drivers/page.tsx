@@ -1,4 +1,3 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { PageTransition } from '@/components/ui/page-transition';
 import { DriversTableClient } from './DriversTableClient';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
@@ -41,6 +40,22 @@ export default async function DriversPage() {
       totalLoads: true,
       onTimePercentage: true,
       rating: true,
+      // Real-time load counts
+      _count: {
+        select: {
+          loads: {
+            where: { deletedAt: null },
+          },
+        },
+      },
+      // Active loads for live status count
+      loads: {
+        select: { status: true },
+        where: {
+          status: { in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'] },
+          deletedAt: null,
+        },
+      },
       // HR / compliance fields
       employeeStatus: true,
       driverType: true,
@@ -112,6 +127,8 @@ export default async function DriversPage() {
       createdAt: driver.createdAt,
       user: driver.user,
       totalLoads: driver.totalLoads,
+      liveLoadCount: (driver as any)._count?.loads ?? driver.totalLoads,
+      activeLoadCount: (driver as any).loads?.length ?? 0,
       onTimePercentage: driver.onTimePercentage,
       rating: driver.rating,
     };
@@ -136,17 +153,9 @@ export default async function DriversPage() {
   });
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Drivers', href: '/dashboard/drivers' }]} />
-      <PageTransition>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Drivers</h1>
-          </div>
-          <DriversTableClient data={data} />
-        </div>
+    <PageTransition>
+        <DriversTableClient data={data} />
       </PageTransition>
-    </>
   );
 }
 

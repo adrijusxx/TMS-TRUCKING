@@ -12,8 +12,6 @@ interface VoipConfig {
     pbxExtension?: string;
     answerDevice?: string;
     enabled?: boolean;
-    sipPassword?: string;
-    softphoneEnabled?: boolean;
     // Legacy fields (read-only, for migration)
     username?: string;
 }
@@ -26,8 +24,6 @@ export default function YokomobileIntegration() {
         pbxExtension: '',
         answerDevice: '',
         enabled: false,
-        sipPassword: '',
-        softphoneEnabled: false,
     });
 
     useEffect(() => {
@@ -45,8 +41,6 @@ export default function YokomobileIntegration() {
                         pbxExtension: config.pbxExtension || config.username || '',
                         answerDevice: config.answerDevice || '',
                         enabled: config.enabled || false,
-                        sipPassword: config.sipPassword || '',
-                        softphoneEnabled: config.softphoneEnabled || false,
                     });
                 }
             })
@@ -158,42 +152,6 @@ export default function YokomobileIntegration() {
                     </div>
 
                     {/* Browser Softphone Section */}
-                    <div className="pt-4 border-t mt-4 space-y-4">
-                        <div>
-                            <h4 className="text-sm font-medium">Browser Softphone</h4>
-                            <p className="text-xs text-muted-foreground">
-                                Make and receive calls directly in your browser without a desk phone.
-                            </p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>SIP Password</Label>
-                            <Input
-                                type="password"
-                                value={settings.sipPassword}
-                                onChange={(e) => setSettings({ ...settings, sipPassword: e.target.value })}
-                                placeholder="Enter SIP password from PBX device config"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                The SIP password for your PBX device. Ask your admin if unsure.
-                            </p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <input
-                                id="softphoneEnabled"
-                                type="checkbox"
-                                checked={settings.softphoneEnabled}
-                                onChange={(e) => setSettings({ ...settings, softphoneEnabled: e.target.checked })}
-                                className="h-4 w-4 rounded border-gray-300"
-                                disabled={!settings.sipPassword}
-                            />
-                            <Label htmlFor="softphoneEnabled" className="cursor-pointer">
-                                Enable Browser Softphone
-                            </Label>
-                        </div>
-                    </div>
-
                     <div className="flex gap-3 pt-4 border-t mt-4">
                         <Button onClick={() => handleSave(false)} disabled={saving || testing}>
                             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}

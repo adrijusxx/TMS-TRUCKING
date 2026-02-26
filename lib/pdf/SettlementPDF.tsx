@@ -320,6 +320,8 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                                 <Text style={[styles.tableCellNumber, { width: 70, fontWeight: 'bold' }]}>Miles</Text>
                                 <Text style={[styles.tableCellNumber, { width: 80, fontWeight: 'bold' }]}>Revenue</Text>
                                 <Text style={[styles.tableCellNumber, { width: 80, fontWeight: 'bold' }]}>Driver Pay</Text>
+                                <Text style={[styles.tableCellNumber, { width: 65, fontWeight: 'bold' }]}>Pickup</Text>
+                                <Text style={[styles.tableCellNumber, { width: 65, fontWeight: 'bold' }]}>Delivery</Text>
                                 <Text style={[styles.tableCellNumber, { width: 70, fontWeight: 'bold' }]}>Delivered</Text>
                             </View>
                             {loads.map((load: any, index: number) => (
@@ -336,6 +338,12 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                                     </Text>
                                     <Text style={[styles.tableCellNumber, { width: 80 }]}>
                                         {formatCurrency(load.driverPay || 0)}
+                                    </Text>
+                                    <Text style={[styles.tableCellNumber, { width: 65, fontSize: 7 }]}>
+                                        {load.pickupDate ? formatDate(load.pickupDate) : 'N/A'}
+                                    </Text>
+                                    <Text style={[styles.tableCellNumber, { width: 65, fontSize: 7 }]}>
+                                        {load.deliveryDate ? formatDate(load.deliveryDate) : 'N/A'}
                                     </Text>
                                     <Text style={[styles.tableCellNumber, { width: 70, fontSize: 8 }]}>
                                         {load.deliveredAt ? formatDate(load.deliveredAt) : 'N/A'}

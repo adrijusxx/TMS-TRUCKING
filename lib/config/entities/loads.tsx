@@ -3,8 +3,8 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { LoadStatus, LoadDispatchStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 import McBadge from '@/components/mc-numbers/McBadge';
 import { LoadStatusCell } from '@/components/loads/LoadStatusCell';
 import { RateConfEditableCell } from '@/components/loads/RateConfEditableCell';
@@ -178,12 +178,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
 
       return (
         <div className="flex items-center gap-2">
-          <Link
-            href={`/dashboard/loads/${row.original.id}`}
-            className="text-primary hover:underline font-medium"
-          >
+          <span className="text-primary hover:underline font-medium cursor-pointer">
             {row.original.loadNumber}
-          </Link>
+          </span>
           {isNew && (
             <Badge variant="success-outline" className="text-[10px] h-4.5 px-1 uppercase tracking-tighter font-bold">
               New
@@ -247,10 +244,11 @@ const columns: ExtendedColumnDef<LoadData>[] = [
         compact
       />
     ),
-    defaultVisible: false,
+    defaultVisible: true,
     enableSorting: false,
     enableColumnFilter: false,
     tooltip: 'Live GPS tracking: ETA, speed, and proximity to next stop via Samsara.',
+    className: 'min-w-[130px]',
   },
   {
     id: 'origin',
@@ -309,12 +307,9 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     className: 'w-full min-w-[200px]',
     cell: ({ row }) =>
       row.original.customer ? (
-        <Link
-          href={`/dashboard/customers/${row.original.customer.id}`}
-          className="text-primary hover:underline"
-        >
+        <EntityLink entityType="customers" entityId={row.original.customer.id}>
           {row.original.customer.name}
-        </Link>
+        </EntityLink>
       ) : (
         'N/A'
       ),

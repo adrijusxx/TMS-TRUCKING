@@ -1,24 +1,13 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
+import TrainingCenter from '@/components/safety/training/TrainingCenter';
 
-export default function TrainingPage() {
-    return (
-        <>
-            <Breadcrumb
-                items={[
-                    { label: 'Safety Hub', href: '/dashboard/safety' },
-                    { label: 'Training & Docs', href: '/dashboard/safety/training' }
-                ]}
-            />
-            <div className="space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold">Training & Resources</h1>
-                    <p className="text-muted-foreground">Safety programs, training materials, and document library.</p>
-                </div>
-
-                <div className="p-10 border border-dashed rounded-lg text-center text-muted-foreground">
-                    Training & Documents Consolidation In Progress...
-                </div>
-            </div>
-        </>
-    );
+export default function TrainingCenterPage() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Training Center</h2>
+        <p className="text-muted-foreground">Manage training records, materials, and track certificate expiration</p>
+      </div>
+      <TrainingCenter />
+    </div>
+  );
 }

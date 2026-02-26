@@ -7,6 +7,7 @@ import { resolveMpg } from '@/lib/utils/resolveMpg';
 import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications/triggers';
 import { emitLoadStatusChanged, emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
+import { FinancialLockManager } from '@/lib/managers/FinancialLockManager';
 import { inngest } from '@/lib/inngest/client';
 import { logger } from '@/lib/utils/logger';
 import { Session } from 'next-auth';
@@ -48,7 +49,7 @@ export class LoadUpdateManager {
         const validated = updateLoadSchema.parse(body);
 
         // 4. Strict Mode Checks
-        await this.validateStrictMode(existingLoad, validated, companyId);
+        await this.validateStrictMode(existingLoad, validated, companyId, role);
 
         // 5. Prepare Data
         const updateData = await this.prepareUpdateData(existingLoad, validated, companyId);
@@ -85,7 +86,7 @@ export class LoadUpdateManager {
         };
     }
 
-    private static async validateStrictMode(existingLoad: any, validated: UpdateLoadInput, companyId: string) {
+    private static async validateStrictMode(existingLoad: any, validated: UpdateLoadInput, companyId: string, userRole?: string) {
         const accountingSettings = await prisma.accountingSettings.findUnique({
             where: { companyId },
         });
@@ -103,6 +104,15 @@ export class LoadUpdateManager {
 
             if (missingDocs.length > 0) {
                 throw new Error(`Cannot mark as Delivered. Missing documents: ${missingDocs.join(', ')}`);
+            }
+        }
+
+        // Financial lock validation — block revenue/driverPay/fuelAdvance edits on locked loads
+        const lockViolation = FinancialLockManager.getLockedFieldViolation(existingLoad, validated as Record<string, unknown>);
+        if (lockViolation) {
+            const canOverride = userRole && hasPermission(userRole as any, 'loads.override_financial_lock');
+            if (!canOverride) {
+                throw new Error(`Forbidden: ${lockViolation}`);
             }
         }
     }
@@ -276,6 +286,20 @@ export class LoadUpdateManager {
             } catch (e) {
                 // Non-critical: don't break the request if Inngest is unavailable
                 logger.error('Failed to emit load/status-changed event', { error: e instanceof Error ? e.message : String(e) });
+            }
+
+            // Auto-lock financials on READY_TO_BILL or INVOICED
+            const lockStatuses = ['READY_TO_BILL', 'INVOICED'];
+            if (lockStatuses.includes(validated.status) && !existingLoad.financialLockedAt) {
+                try {
+                    await FinancialLockManager.lockFinancials(
+                        load.id,
+                        session.user.id,
+                        `AUTO_${validated.status}`
+                    );
+                } catch (e: any) {
+                    warnings.push(`Financial lock warning: ${e.message}`);
+                }
             }
 
             // Completion Workflow

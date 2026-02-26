@@ -1,5 +1,4 @@
 import { Metadata } from 'next';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { DiagnosticsDashboard } from '@/components/fleet/diagnostics/DiagnosticsDashboard';
 
 export const metadata: Metadata = {
@@ -9,16 +8,7 @@ export const metadata: Metadata = {
 
 export default function FleetDiagnosticsPage() {
   return (
-    <>
-      <Breadcrumb
-        items={[
-          { label: 'Home', href: '/dashboard' },
-          { label: 'Fleet', href: '/dashboard/fleet' },
-          { label: 'Diagnostics' },
-        ]}
-      />
-      <DiagnosticsDashboard />
-    </>
+    <DiagnosticsDashboard />
   );
 }
 

@@ -14,6 +14,7 @@ const createUserSchema = z.object({
   lastName: z.string().min(1),
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']),
+  roleId: z.string().nullable().optional(), // FK to custom Role table
   mcNumberId: z.string().min(1, 'MC number is required'),
   mcAccess: z.array(z.string()).optional(), // Array of MC IDs user can access
 });
@@ -226,6 +227,8 @@ export async function GET(request: NextRequest) {
         lastName: true,
         phone: true,
         role: true,
+        roleId: true,
+        customRole: { select: { id: true, name: true, slug: true } },
         isActive: true,
         lastLogin: true,
         createdAt: true,
@@ -293,9 +296,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createUserSchema.parse(body);
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validated.email },
+    // Check if email already exists in this company
+    const existingUser = await prisma.user.findFirst({
+      where: { email: validated.email.toLowerCase().trim(), companyId: session.user.companyId, deletedAt: null },
     });
 
     if (existingUser) {
@@ -304,7 +307,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: 'CONFLICT',
-            message: 'User with this email already exists',
+            message: 'User with this email already exists in this company',
           },
         },
         { status: 409 }
@@ -389,6 +392,8 @@ export async function POST(request: NextRequest) {
         lastName: true,
         phone: true,
         role: true,
+        roleId: true,
+        customRole: { select: { id: true, name: true, slug: true } },
         isActive: true,
         createdAt: true,
         mcNumberId: true,
@@ -418,7 +423,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
+            message: error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; '),
             details: error.issues,
           },
         },

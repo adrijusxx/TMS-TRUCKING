@@ -3,8 +3,8 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { InvoiceStatus, InvoiceSubStatus, FactoringStatus, PaymentMethod } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 import { calculateAgingDays } from '@/lib/utils/aging';
 
 interface InvoiceData {
@@ -53,27 +53,15 @@ const statusColors: Record<InvoiceStatus, string> = {
   POSTED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
 };
 
-export const createInvoiceColumns = (onView?: (id: string) => void): ExtendedColumnDef<InvoiceData>[] => [
+export const createInvoiceColumns = (): ExtendedColumnDef<InvoiceData>[] => [
   {
     id: 'invoiceNumber',
     accessorKey: 'invoiceNumber',
     header: 'Invoice #',
     cell: ({ row }) => (
-      onView ? (
-        <span
-          className="text-primary hover:underline font-medium cursor-pointer"
-          onClick={() => onView(row.original.id)}
-        >
-          {row.original.invoiceNumber}
-        </span>
-      ) : (
-        <Link
-          href={`/dashboard/invoices/${row.original.id}`}
-          className="text-primary hover:underline font-medium"
-        >
-          {row.original.invoiceNumber}
-        </Link>
-      )
+      <span className="text-primary hover:underline font-medium cursor-pointer">
+        {row.original.invoiceNumber}
+      </span>
     ),
     defaultVisible: true,
     required: true,
@@ -84,12 +72,9 @@ export const createInvoiceColumns = (onView?: (id: string) => void): ExtendedCol
     header: 'Load #',
     cell: ({ row }) =>
       row.original.loadId ? (
-        <Link
-          href={`/dashboard/loads/${row.original.loadId}`}
-          className="text-primary hover:underline"
-        >
-          {row.original.loadId}
-        </Link>
+        <EntityLink entityType="loads" entityId={row.original.loadId}>
+          {row.original.loadId.slice(0, 8)}...
+        </EntityLink>
       ) : (
         '—'
       ),
@@ -99,12 +84,9 @@ export const createInvoiceColumns = (onView?: (id: string) => void): ExtendedCol
     id: 'customer',
     header: 'Broker Name',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/customers/${row.original.customer.id}`}
-        className="text-primary hover:underline"
-      >
+      <EntityLink entityType="customers" entityId={row.original.customer.id}>
         {row.original.customer.name}
-      </Link>
+      </EntityLink>
     ),
     defaultVisible: true,
   },
@@ -203,16 +185,38 @@ export const createInvoiceColumns = (onView?: (id: string) => void): ExtendedCol
   {
     id: 'factoringStatus',
     accessorKey: 'factoringStatus',
-    header: 'Factoring Status',
-    cell: ({ row }) => row.original.factoringStatus || '—',
-    defaultVisible: false,
+    header: 'Factoring',
+    cell: ({ row }) => {
+      const status = row.original.factoringStatus;
+      if (!status || status === 'NOT_FACTORED') return '—';
+      const colors: Record<string, string> = {
+        SUBMITTED_TO_FACTOR: 'bg-blue-100 text-blue-800 border-blue-200',
+        FUNDED: 'bg-green-100 text-green-800 border-green-200',
+        RESERVE_RELEASED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      };
+      const labels: Record<string, string> = {
+        SUBMITTED_TO_FACTOR: 'Submitted',
+        FUNDED: 'Funded',
+        RESERVE_RELEASED: 'Released',
+      };
+      return (
+        <Badge variant="outline" className={colors[status] || ''}>
+          {labels[status] || status}
+        </Badge>
+      );
+    },
+    defaultVisible: true,
   },
   {
     id: 'paymentMethod',
     accessorKey: 'paymentMethod',
-    header: 'Payment Method',
-    cell: ({ row }) => row.original.paymentMethod || '—',
-    defaultVisible: false,
+    header: 'Payment',
+    cell: ({ row }) => {
+      const method = row.original.paymentMethod;
+      if (!method) return '—';
+      return method.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+    },
+    defaultVisible: true,
   },
   {
     id: 'mcNumber',
@@ -236,15 +240,12 @@ export const createInvoiceColumns = (onView?: (id: string) => void): ExtendedCol
   {
     id: 'loadIdDetail',
     accessorKey: 'loadId',
-    header: 'Load ID',
+    header: 'Load Ref',
     cell: ({ row }) =>
       row.original.loadId ? (
-        <Link
-          href={`/dashboard/loads/${row.original.loadId}`}
-          className="text-primary hover:underline"
-        >
-          {row.original.loadId}
-        </Link>
+        <EntityLink entityType="loads" entityId={row.original.loadId}>
+          {row.original.loadId.slice(0, 8)}...
+        </EntityLink>
       ) : (
         '—'
       ),
@@ -265,9 +266,9 @@ const bulkEditFields: BulkEditField[] = [
   },
 ];
 
-export const getInvoicesTableConfig = (onView?: (id: string) => void) => createEntityTableConfig<InvoiceData>({
+export const getInvoicesTableConfig = () => createEntityTableConfig<InvoiceData>({
   entityType: 'invoices',
-  columns: createInvoiceColumns(onView),
+  columns: createInvoiceColumns(),
   defaultVisibleColumns: [
     'customer',
     'invoiceNumber',
@@ -281,6 +282,8 @@ export const getInvoicesTableConfig = (onView?: (id: string) => void) => createE
     'accrual',
     'paidAmount',
     'balance',
+    'factoringStatus',
+    'paymentMethod',
     'reconciliationStatus',
   ],
   requiredColumns: ['invoiceNumber'],

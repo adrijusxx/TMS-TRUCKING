@@ -24,6 +24,7 @@ export default function BulkEmailDialog({
 }: BulkEmailDialogProps) {
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
+    const [showPreview, setShowPreview] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [progress, setProgress] = useState(0);
     const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
@@ -76,6 +77,7 @@ export default function BulkEmailDialog({
         if (!isSubmitting) {
             setSubject('');
             setBody('');
+            setShowPreview(false);
             setProgress(0);
             setResult(null);
             onOpenChange(false);
@@ -103,26 +105,50 @@ export default function BulkEmailDialog({
                         </span>
                     </div>
 
-                    <div>
-                        <Label>Subject</Label>
-                        <Input
-                            placeholder="Email subject..."
-                            value={subject}
-                            onChange={(e) => setSubject(e.target.value)}
-                            disabled={isSubmitting}
-                        />
-                    </div>
-
-                    <div>
-                        <Label>Body</Label>
-                        <Textarea
-                            placeholder="Type your email message..."
-                            value={body}
-                            onChange={(e) => setBody(e.target.value)}
-                            rows={6}
-                            disabled={isSubmitting}
-                        />
-                    </div>
+                    {!showPreview ? (
+                        <>
+                            <div>
+                                <Label>Subject</Label>
+                                <Input
+                                    placeholder="Email subject..."
+                                    value={subject}
+                                    onChange={(e) => setSubject(e.target.value)}
+                                    disabled={isSubmitting}
+                                />
+                            </div>
+                            <div>
+                                <Label>Body</Label>
+                                <Textarea
+                                    placeholder="Type your email message..."
+                                    value={body}
+                                    onChange={(e) => setBody(e.target.value)}
+                                    rows={6}
+                                    disabled={isSubmitting}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="space-y-2">
+                            <Label>Email Preview</Label>
+                            <div className="border rounded-lg overflow-hidden">
+                                <div className="bg-muted px-4 py-2 border-b">
+                                    <p className="text-xs text-muted-foreground">Subject:</p>
+                                    <p className="text-sm font-medium">{subject}</p>
+                                </div>
+                                <div className="p-4 text-sm whitespace-pre-wrap min-h-[120px]">
+                                    {body}
+                                </div>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => setShowPreview(false)}
+                            >
+                                Edit Email
+                            </Button>
+                        </div>
+                    )}
 
                     {isSubmitting && (
                         <Progress value={progress} className="h-2" />
@@ -143,7 +169,16 @@ export default function BulkEmailDialog({
                     <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
                         {result ? 'Close' : 'Cancel'}
                     </Button>
-                    {!result && (
+                    {!result && !showPreview && (
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowPreview(true)}
+                            disabled={!subject.trim() || !body.trim()}
+                        >
+                            Preview
+                        </Button>
+                    )}
+                    {!result && showPreview && (
                         <Button onClick={handleSubmit} disabled={isSubmitting || !subject.trim() || !body.trim()}>
                             {isSubmitting ? (
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

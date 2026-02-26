@@ -2,8 +2,6 @@
 
 import GenericCRUDManager from '@/lib/components/GenericCRUDManager';
 import { Badge } from '@/components/ui/badge';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
-
 const fields = [
   { name: 'name', label: 'Name', type: 'text' as const, required: true },
   { name: 'status', label: 'Status', type: 'select' as const, options: [
@@ -37,17 +35,8 @@ const columns = [
 
 export default function TasksPage() {
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Settings', href: '/dashboard/settings' },
-        { label: 'Customizations', href: '/dashboard/settings' },
-        { label: 'Tasks' }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Task Management Projects</h1>
-        </div>
-      <div className="space-y-8">
+    <div className="space-y-4">
+<div className="space-y-8">
         <GenericCRUDManager
           endpoint="/api/projects"
           queryKey="projects"
@@ -59,6 +48,5 @@ export default function TasksPage() {
         />
       </div>
       </div>
-    </>
   );
 }

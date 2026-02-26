@@ -21,6 +21,7 @@ import { ArrowLeft, FileText, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { InvoicePreviewDialog } from '@/components/invoices/InvoicePreviewDialog';
 
 async function fetchDeliveredLoads() {
   const response = await fetch(
@@ -58,6 +59,7 @@ export default function GenerateInvoiceForm() {
   const [selectedLoads, setSelectedLoads] = useState<Set<string>>(new Set());
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [notes, setNotes] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['delivered-loads'],
@@ -134,17 +136,30 @@ export default function GenerateInvoiceForm() {
       toast.error('Please select at least one load');
       return;
     }
+    setShowPreview(true);
+  };
 
+  const handleConfirmGenerate = () => {
     generateMutation.mutate({
       loadIds: Array.from(selectedLoads),
       invoiceNumber: invoiceNumber || undefined,
       notes: notes || undefined,
     });
+    setShowPreview(false);
   };
 
   const selectedTotal = unassignedLoads
     .filter((load: any) => selectedLoads.has(load.id))
     .reduce((sum: number, load: any) => sum + load.revenue, 0);
+
+  const previewLoads = unassignedLoads
+    .filter((load: any) => selectedLoads.has(load.id))
+    .map((load: any) => ({
+      loadNumber: load.loadNumber,
+      customerName: load.customer?.name || 'Unknown',
+      revenue: load.revenue || 0,
+      route: `${load.pickupCity}, ${load.pickupState} → ${load.deliveryCity}, ${load.deliveryState}`,
+    }));
 
   return (
     <div className="space-y-6">
@@ -359,6 +374,16 @@ export default function GenerateInvoiceForm() {
           </CardContent>
         </Card>
       )}
+
+      <InvoicePreviewDialog
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        onConfirm={handleConfirmGenerate}
+        isSubmitting={generateMutation.isPending}
+        selectedLoads={previewLoads}
+        totalRevenue={selectedTotal}
+        invoiceNumber={invoiceNumber}
+      />
     </div>
   );
 }

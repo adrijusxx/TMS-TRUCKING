@@ -291,9 +291,11 @@ export default function CreateLoadWizard({ onSuccess, onCancel, isSheet = false,
   const handleDataExtracted = useCallback((data: Partial<CreateLoadInput>, pdfFile?: File) => {
     setLoadData((prev) => ({ ...prev, ...data }));
     if (pdfFile) setPendingFiles((prev) => [...prev, pdfFile]);
+    // Invalidate customers cache so review step fetches fresh data (includes AI-matched/created customer)
+    queryClient.invalidateQueries({ queryKey: ['customers'] });
     setCurrentStep(2);
     setCurrentTab('manual');
-  }, []);
+  }, [queryClient]);
 
   const handleSkipToManual = useCallback(() => {
     setCurrentStep(2);

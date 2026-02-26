@@ -19,14 +19,71 @@ export async function GET(request: NextRequest) {
     const mcWhereWithId = await buildMcNumberWhereClause(session, request);
     const mcWhere = await convertMcNumberIdToMcNumberString(mcWhereWithId);
 
+    const { searchParams } = new URL(request.url);
+    const view = searchParams.get('view');
+    const fromDate = searchParams.get('fromDate');
+    const toDate = searchParams.get('toDate');
+
+    const invoiceWhere: any = {
+      companyId: session.user.companyId,
+      deletedAt: null,
+      status: { in: ['SENT', 'PARTIAL'] },
+      ...(mcWhere.mcNumber && { mcNumber: mcWhere.mcNumber }),
+    };
+
+    if (fromDate || toDate) {
+      invoiceWhere.invoiceDate = {};
+      if (fromDate) invoiceWhere.invoiceDate.gte = new Date(fromDate);
+      if (toDate) invoiceWhere.invoiceDate.lte = new Date(toDate);
+    }
+
+    // Detail view — flat table of individual invoices
+    if (view === 'detail') {
+      const invoices = await prisma.invoice.findMany({
+        where: invoiceWhere,
+        select: {
+          id: true, invoiceNumber: true, invoiceDate: true, dueDate: true,
+          total: true, amountPaid: true, balance: true,
+          status: true, subStatus: true, reconciliationStatus: true,
+          mcNumber: true, invoiceNote: true, paymentNote: true,
+          loadId: true,
+          customer: { select: { id: true, name: true } },
+          load: { select: { loadNumber: true } },
+        },
+        orderBy: { dueDate: 'asc' },
+      });
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const rows = invoices.map((inv) => {
+        const dueDate = new Date(inv.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        const agingDays = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+        return {
+          ...inv,
+          invoiceDate: inv.invoiceDate.toISOString(),
+          dueDate: inv.dueDate.toISOString(),
+          agingDays,
+          isOverdue: agingDays > 0,
+        };
+      });
+
+      const totals = rows.reduce((acc, r) => ({
+        total: acc.total + r.total,
+        amountPaid: acc.amountPaid + r.amountPaid,
+        balance: acc.balance + r.balance,
+      }), { total: 0, amountPaid: 0, balance: 0 });
+
+      return NextResponse.json({
+        success: true,
+        data: { invoices: rows, totals, count: rows.length },
+      });
+    }
+
     // Get all unpaid invoices with proper filtering
     const invoices = await prisma.invoice.findMany({
-      where: {
-        companyId: session.user.companyId,
-        deletedAt: null,
-        status: { in: ['SENT', 'PARTIAL'] },
-        ...(mcWhere.mcNumber && { mcNumber: mcWhere.mcNumber }),
-      },
+      where: invoiceWhere,
       select: {
         id: true,
         invoiceNumber: true,

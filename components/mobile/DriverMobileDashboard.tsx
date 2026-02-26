@@ -10,6 +10,7 @@ import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { DriverStatus } from '@prisma/client';
 import Link from 'next/link';
 import HOSStatusCard from '@/components/mobile/HOSStatusCard';
+import PayEstimator from '@/components/mobile/PayEstimator';
 
 interface Driver {
   id: string;
@@ -129,6 +130,9 @@ export default function DriverMobileDashboard({ driver }: DriverMobileDashboardP
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Weekly Pay Estimate */}
+        <PayEstimator />
+
         {/* HOS Status */}
         <HOSStatusCard />
 

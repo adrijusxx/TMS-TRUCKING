@@ -2,7 +2,6 @@ import React from 'react';
 import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
 
 interface DocumentData {
@@ -103,29 +102,23 @@ const columns: ExtendedColumnDef<DocumentData>[] = [
     cell: ({ row }) => {
       if (row.original.load) {
         return (
-          <Link
-            href={`/dashboard/loads/${row.original.load.loadNumber}`}
-            className="text-primary hover:underline"
-          >
+          <span className="text-sm">
             Load: {row.original.load.loadNumber}
-          </Link>
+          </span>
         );
       }
       if (row.original.driver) {
         return (
-          <div>
+          <span className="text-sm">
             Driver: {row.original.driver.user.firstName} {row.original.driver.user.lastName}
-          </div>
+          </span>
         );
       }
       if (row.original.truck) {
         return (
-          <Link
-            href={`/dashboard/trucks/${row.original.truck.truckNumber}`}
-            className="text-primary hover:underline"
-          >
+          <span className="text-sm">
             Truck: {row.original.truck.truckNumber}
-          </Link>
+          </span>
         );
       }
       return 'N/A';

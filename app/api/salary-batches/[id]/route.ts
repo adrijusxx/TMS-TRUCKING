@@ -27,7 +27,10 @@ export async function GET(
                 settlements: {
                     include: {
                         driver: {
-                            include: { user: { select: { firstName: true, lastName: true } } }
+                            include: {
+                                user: { select: { firstName: true, lastName: true } },
+                                currentTruck: { select: { id: true, truckNumber: true } },
+                            },
                         },
                         deductionItems: true,
                     },
@@ -40,7 +43,35 @@ export async function GET(
             return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
         }
 
-        return NextResponse.json({ success: true, data: batch });
+        // Fetch load dates for all settlements (loadIds is String[], not a relation)
+        const allLoadIds = batch.settlements.flatMap((s) => s.loadIds || []);
+        const loads = allLoadIds.length > 0
+            ? await prisma.load.findMany({
+                where: { id: { in: allLoadIds } },
+                select: { id: true, pickupDate: true, deliveryDate: true },
+            })
+            : [];
+        const loadMap = new Map(loads.map((l) => [l.id, l]));
+
+        // Attach earliest pickup and latest delivery per settlement
+        const enrichedSettlements = batch.settlements.map((s) => {
+            const sLoadIds = s.loadIds || [];
+            let earliestPickup: Date | null = null;
+            let latestDelivery: Date | null = null;
+            for (const lid of sLoadIds) {
+                const load = loadMap.get(lid);
+                if (!load) continue;
+                if (load.pickupDate && (!earliestPickup || load.pickupDate < earliestPickup)) {
+                    earliestPickup = load.pickupDate;
+                }
+                if (load.deliveryDate && (!latestDelivery || load.deliveryDate > latestDelivery)) {
+                    latestDelivery = load.deliveryDate;
+                }
+            }
+            return { ...s, pickupDate: earliestPickup, deliveryDate: latestDelivery };
+        });
+
+        return NextResponse.json({ success: true, data: { ...batch, settlements: enrichedSettlements } });
     } catch (error) {
         console.error('[SalaryBatch] Get error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -61,7 +92,22 @@ export async function PATCH(
         const { id } = await params;
         const body = await request.json();
 
-        // Only allow status updates for now
+        // Allow editing batch metadata fields
+        const editableFields: Record<string, any> = {};
+        if (body.notes !== undefined) editableFields.notes = body.notes;
+        if (body.checkDate !== undefined) editableFields.checkDate = body.checkDate ? new Date(body.checkDate) : null;
+        if (body.payCompany !== undefined) editableFields.payCompany = body.payCompany;
+        if (body.mcNumber !== undefined) editableFields.mcNumber = body.mcNumber;
+
+        if (Object.keys(editableFields).length > 0 && body.status === undefined) {
+            const updated = await prisma.salaryBatch.update({
+                where: { id, companyId: session.user.companyId },
+                data: editableFields,
+            });
+            return NextResponse.json({ success: true, data: updated });
+        }
+
+        // Status transitions
         if (body.status === 'POSTED') {
             // Validate current status
             const currentBatch = await prisma.salaryBatch.findUnique({

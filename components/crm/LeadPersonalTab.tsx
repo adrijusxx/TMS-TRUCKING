@@ -92,6 +92,20 @@ export default function LeadPersonalTab({ form, onCall }: LeadPersonalTabProps) 
 
             <FormField
                 control={form.control}
+                name="dateOfBirth"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Date of Birth</FormLabel>
+                        <FormControl>
+                            <Input {...field} type="date" />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            <FormField
+                control={form.control}
                 name="address"
                 render={({ field }) => (
                     <FormItem>

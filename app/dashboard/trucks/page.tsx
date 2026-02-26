@@ -1,4 +1,3 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { PageTransition } from '@/components/ui/page-transition';
 import { TrucksTableClient } from './TrucksTableClient';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
@@ -49,17 +48,9 @@ export default async function TrucksPage() {
   }));
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Trucks', href: '/dashboard/trucks' }]} />
-      <PageTransition>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Trucks</h1>
-          </div>
-          <TrucksTableClient data={data} />
-        </div>
+    <PageTransition>
+        <TrucksTableClient data={data} />
       </PageTransition>
-    </>
   );
 }
 

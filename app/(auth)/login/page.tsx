@@ -8,7 +8,8 @@ import { loginSchema, type LoginInput } from '@/lib/validations/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Truck, ArrowRight, Loader2, Shield, Zap, BarChart3, CheckCircle2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Truck, ArrowRight, ArrowLeft, Loader2, Shield, Zap, BarChart3, CheckCircle2, Building2 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 
@@ -18,10 +19,15 @@ const features = [
   { icon: BarChart3, label: 'Fleet analytics & reporting', color: 'text-blue-400', bg: 'bg-blue-400/10' },
 ];
 
+type CompanyOption = { companyId: string; companyName: string };
+
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRegistered, setShowRegistered] = useState(false);
+  const [step, setStep] = useState<'email' | 'password'>('email');
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -44,15 +50,60 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    getValues,
+    trigger,
     formState: { errors },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginInput) => {
+  const handleEmailContinue = async () => {
+    const valid = await trigger('email');
+    if (!valid) return;
+
     setIsLoading(true);
     setError(null);
     setShowRegistered(false);
+
+    try {
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+      const email = getValues('email');
+
+      const res = await fetch(`${basePath}/api/auth/resolve-companies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+      const companiesList: CompanyOption[] = data.companies || [];
+
+      if (companiesList.length === 0) {
+        setError('No account found with this email.');
+        setIsLoading(false);
+        return;
+      }
+
+      setCompanies(companiesList);
+      setSelectedCompanyId(companiesList[0].companyId);
+      setStep('password');
+    } catch {
+      setError('Cannot connect to server. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    setStep('email');
+    setError(null);
+    setCompanies([]);
+    setSelectedCompanyId('');
+  };
+
+  const onSubmit = async (data: LoginInput) => {
+    setIsLoading(true);
+    setError(null);
 
     try {
       const params = new URLSearchParams(window.location.search);
@@ -83,6 +134,7 @@ export default function LoginPage() {
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
+        companyId: selectedCompanyId,
         redirect: false,
         callbackUrl: fullCallbackUrl,
       });
@@ -117,6 +169,8 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  const selectedCompanyName = companies.find(c => c.companyId === selectedCompanyId)?.companyName;
 
   return (
     <div className="min-h-screen flex bg-slate-950 selection:bg-purple-500/30">
@@ -186,7 +240,7 @@ export default function LoginPage() {
 
         <div className="relative z-10 w-full max-w-lg mx-auto text-sm text-slate-500 font-medium">
           <p className="flex items-center gap-2">
-            <Shield className="w-4 h-4" /> Secure login • 256-bit encryption
+            <Shield className="w-4 h-4" /> Secure login &bull; 256-bit encryption
           </p>
         </div>
       </div>
@@ -213,10 +267,12 @@ export default function LoginPage() {
 
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold text-white mb-3 tracking-tight">Sign In</h2>
-            <p className="text-slate-400 font-light text-lg">Enter your credentials to continue</p>
+            <p className="text-slate-400 font-light text-lg">
+              {step === 'email' ? 'Enter your email to continue' : 'Enter your password to sign in'}
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" autoComplete="off">
+          <form onSubmit={step === 'password' ? handleSubmit(onSubmit) : (e) => { e.preventDefault(); handleEmailContinue(); }} className="space-y-6" autoComplete="off">
             {showRegistered && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
@@ -235,65 +291,133 @@ export default function LoginPage() {
               </motion.div>
             )}
 
+            {/* Step 1: Email */}
+            {step === 'email' && (
+              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-slate-300 font-medium ml-1">Work Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your@email.com"
+                    autoComplete="username"
+                    {...register('email')}
+                    disabled={isLoading}
+                    className="h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-slate-600 focus:border-purple-500 focus:bg-white/[0.05] transition-colors rounded-xl font-medium"
+                  />
+                  {errors.email && (
+                    <p className="text-xs text-red-400 ml-1">{errors.email.message}</p>
+                  )}
+                </div>
 
+                <Button
+                  type="submit"
+                  className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold tracking-wide shadow-lg shadow-purple-900/40 border border-purple-500/30 group transition-all"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-300 font-medium ml-1">Work Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your@email.com"
-                autoComplete="username"
-                {...register('email')}
-                disabled={isLoading}
-                className="h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-slate-600 focus:border-purple-500 focus:bg-white/[0.05] transition-colors rounded-xl font-medium"
-              />
-              {errors.email && (
-                <p className="text-xs text-red-400 ml-1">{errors.email.message}</p>
-              )}
-            </div>
+            {/* Step 2: Company selector (if multiple) + Password */}
+            {step === 'password' && (
+              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+                {/* Email display with back button */}
+                <div className="flex items-center gap-3 p-3 bg-white/[0.03] border border-white/10 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-slate-400 hover:text-white"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <span className="text-sm text-slate-300 font-medium truncate">{getValues('email')}</span>
+                </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between items-center ml-1">
-                <Label htmlFor="password" className="text-slate-300 font-medium">Password</Label>
-                <Link href="/forgot-password" className="text-xs text-purple-400 hover:text-purple-300 transition-colors font-medium">
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                {...register('password')}
-                disabled={isLoading}
-                className="h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-slate-600 focus:border-purple-500 focus:bg-white/[0.05] transition-colors rounded-xl font-medium tracking-widest"
-              />
-              {errors.password && (
-                <p className="text-xs text-red-400 ml-1">{errors.password.message}</p>
-              )}
-            </div>
+                {/* Company selector — only shown when multiple companies */}
+                {companies.length > 1 && (
+                  <div className="space-y-2">
+                    <Label className="text-slate-300 font-medium ml-1 flex items-center gap-2">
+                      <Building2 className="h-4 w-4" /> Select Company
+                    </Label>
+                    <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                      <SelectTrigger className="h-12 bg-white/[0.03] border-white/10 text-white focus:border-purple-500 rounded-xl font-medium">
+                        <SelectValue placeholder="Select a company" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companies.map((c) => (
+                          <SelectItem key={c.companyId} value={c.companyId}>
+                            {c.companyName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
-            <Button
-              type="submit"
-              className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold tracking-wide shadow-lg shadow-purple-900/40 border border-purple-500/30 group transition-all"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In to Workspace
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </Button>
+                {/* Single company info banner */}
+                {companies.length === 1 && selectedCompanyName && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                    <Building2 className="h-4 w-4 text-purple-400" />
+                    <span className="text-sm text-purple-300 font-medium">{selectedCompanyName}</span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center ml-1">
+                    <Label htmlFor="password" className="text-slate-300 font-medium">Password</Label>
+                    <Link href="/forgot-password" className="text-xs text-purple-400 hover:text-purple-300 transition-colors font-medium">
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    {...register('password')}
+                    disabled={isLoading}
+                    autoFocus
+                    className="h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-slate-600 focus:border-purple-500 focus:bg-white/[0.05] transition-colors rounded-xl font-medium tracking-widest"
+                  />
+                  {errors.password && (
+                    <p className="text-xs text-red-400 ml-1">{errors.password.message}</p>
+                  )}
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold tracking-wide shadow-lg shadow-purple-900/40 border border-purple-500/30 group transition-all"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign In to Workspace
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            )}
 
             <p className="text-center text-sm text-slate-400 font-medium">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/register" className="text-purple-400 hover:text-purple-300 transition-colors bg-purple-500/10 px-2 py-1 rounded-md ml-1">
                 Create one
               </Link>

@@ -36,6 +36,9 @@ import LinkDriverButton from './LinkDriverButton';
 interface Dialog {
     id: string;
     title: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    username?: string | null;
     unreadCount: number;
     lastMessage: string;
     lastMessageDate: string | null;
@@ -257,6 +260,20 @@ export default function TelegramFullWidget() {
         return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
     };
 
+    /** Build display name from custom contact name (firstName/lastName) with fallback to title */
+    const getDisplayName = (dialog: Dialog) => {
+        const parts = [dialog.firstName, dialog.lastName].filter(Boolean);
+        return parts.length > 0 ? parts.join(' ') : dialog.title;
+    };
+
+    /** Subtitle line: username + phone (if available and different from display name) */
+    const getSubtitle = (dialog: Dialog) => {
+        const parts: string[] = [];
+        if (dialog.username) parts.push(`@${dialog.username}`);
+        if (dialog.phone) parts.push(dialog.phone);
+        return parts.length > 0 ? parts.join(' · ') : null;
+    };
+
     const getMediaIcon = (media: Message['media']) => {
         if (!media) return null;
         const type = media.type.toLowerCase();
@@ -343,7 +360,7 @@ export default function TelegramFullWidget() {
                                             <div className="flex items-start gap-2 pr-8">
                                                 <Avatar className="h-10 w-10">
                                                     <AvatarFallback className="text-xs bg-primary/10">
-                                                        {getInitials(dialog.title)}
+                                                        {getInitials(getDisplayName(dialog))}
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div className="flex-1 min-w-0">
@@ -352,7 +369,7 @@ export default function TelegramFullWidget() {
                                                             <div className="flex items-center gap-1 min-w-0">
                                                                 {getDialogIcon(dialog)}
                                                                 <span className="text-sm font-medium truncate">
-                                                                    {dialog.title}
+                                                                    {getDisplayName(dialog)}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -363,9 +380,9 @@ export default function TelegramFullWidget() {
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    {dialog.phone && (
+                                                    {getSubtitle(dialog) && (
                                                         <p className="text-xs text-muted-foreground truncate -mt-0.5 mb-0.5">
-                                                            {dialog.phone}
+                                                            {getSubtitle(dialog)}
                                                         </p>
                                                     )}
                                                     <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -405,15 +422,20 @@ export default function TelegramFullWidget() {
                                         <div className="flex items-center gap-3 min-w-0">
                                             <Avatar className="h-10 w-10 border border-muted">
                                                 <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                                                    {getInitials(selectedChat.title)}
+                                                    {getInitials(getDisplayName(selectedChat))}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="min-w-0">
                                                 <h3 className="font-semibold text-sm truncate flex items-center gap-2">
                                                     {getDialogIcon(selectedChat)}
-                                                    <span className="truncate">{selectedChat.title}</span>
+                                                    <span className="truncate">{getDisplayName(selectedChat)}</span>
                                                 </h3>
                                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                    {selectedChat.username && (
+                                                        <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
+                                                            @{selectedChat.username}
+                                                        </span>
+                                                    )}
                                                     {selectedChat.phone && (
                                                         <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
                                                             {selectedChat.phone}

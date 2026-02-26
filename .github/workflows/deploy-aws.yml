@@ -81,7 +81,8 @@ jobs:
             scripts/baseline-migrations.js \
             scripts/db-push-aws.js \
             scripts/db-reset-aws.js \
-            scripts/rollback.sh
+            scripts/rollback.sh \
+            scripts/keepalive.sh
 
       - name: Deploy to AWS EC2 via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -144,6 +145,17 @@ jobs:
                 echo "Swap created."
             fi
 
+            # Kernel tuning: keep Prisma in RAM + detect dead TCP connections
+            echo "Applying kernel tuning..."
+            sudo sysctl -w vm.swappiness=10
+            sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+            sudo sysctl -w net.ipv4.tcp_keepalive_intvl=10
+            sudo sysctl -w net.ipv4.tcp_keepalive_probes=6
+            # Persist across reboots (idempotent — grep before appending)
+            for PARAM in "vm.swappiness=10" "net.ipv4.tcp_keepalive_time=60" "net.ipv4.tcp_keepalive_intvl=10" "net.ipv4.tcp_keepalive_probes=6"; do
+                grep -qF "$PARAM" /etc/sysctl.conf || echo "$PARAM" | sudo tee -a /etc/sysctl.conf
+            done
+
             echo "Installing production dependencies..."
             npm ci --production --ignore-scripts --legacy-peer-deps
 
@@ -163,9 +175,10 @@ jobs:
             echo "Switching to new release..."
             ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 
-            # Restart PM2 from the new release directory
+            # Restart all PM2 apps (tms + tms-keepalive) from the new release
             cd "${CURRENT_LINK}"
-            pm2 restart tms || pm2 start ecosystem.config.js
+            pm2 delete all 2>/dev/null || true
+            pm2 start ecosystem.config.js
 
             # Cleanup: keep only the last N releases
             echo "Cleaning up old releases..."

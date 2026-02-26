@@ -1,19 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     ClipboardCheck, Loader2, MessageSquare, AlertTriangle, Wrench,
-    ShieldAlert, UserX, Clock, CheckCircle2, XCircle,
+    ShieldAlert, UserX, Clock, CheckCircle2, XCircle, Timer,
+    Phone, MapPin, Truck, Search,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { apiUrl } from '@/lib/utils';
+import { useDebounce } from '@/hooks/useDebounce';
 import ReviewItemActions from './ReviewItemActions';
+import DismissedAdminControls from './DismissedAdminControls';
 
 interface ReviewItem {
     id: string;
@@ -31,8 +35,8 @@ interface ReviewItem {
     driverId?: string;
     driver?: {
         id: string;
-        user: { firstName: string; lastName: string };
-        currentTruck?: { id: string; truckNumber: string };
+        user: { firstName: string; lastName: string; phone?: string };
+        currentTruck?: { id: string; truckNumber: string; currentLocation?: string };
     };
     breakdown?: { id: string; breakdownNumber: string; status: string };
     resolvedBy?: { firstName: string; lastName: string };
@@ -64,17 +68,42 @@ export default function TelegramReviewQueue() {
     const queryClient = useQueryClient();
     const [statusFilter, setStatusFilter] = useState<string>('PENDING');
     const [page, setPage] = useState(1);
+    const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebounce(searchQuery, 300);
 
     const { data, isLoading } = useQuery<ReviewData>({
-        queryKey: ['telegram-review-queue', statusFilter, page],
+        queryKey: ['telegram-review-queue', statusFilter, page, debouncedSearch],
         queryFn: async () => {
-            const res = await fetch(apiUrl(`/api/telegram/review-queue?status=${statusFilter}&page=${page}&pageSize=20`));
+            const params = new URLSearchParams({ status: statusFilter, page: String(page), pageSize: '20' });
+            if (debouncedSearch) params.set('search', debouncedSearch);
+            const res = await fetch(apiUrl(`/api/telegram/review-queue?${params}`));
             if (!res.ok) throw new Error('Failed to fetch');
             const json = await res.json();
             return json.data;
         },
         refetchInterval: 15000,
     });
+
+    // Fetch dialogs to resolve chat names (shares cache with TelegramFullWidget)
+    const { data: dialogsData } = useQuery<{ success: boolean; data: { id: string; title: string; firstName?: string | null; lastName?: string | null }[] }>({
+        queryKey: ['telegram-dialogs-full'],
+        queryFn: async () => {
+            const res = await fetch(apiUrl('/api/telegram/dialogs'));
+            if (!res.ok) return { success: false, data: [] };
+            return res.json();
+        },
+        staleTime: 60_000,
+    });
+
+    // Build chatId → display name lookup from dialogs
+    const chatNameMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const d of dialogsData?.data || []) {
+            const parts = [d.firstName, d.lastName].filter(Boolean);
+            map[d.id] = parts.length > 0 ? parts.join(' ') : d.title;
+        }
+        return map;
+    }, [dialogsData]);
 
     const items = data?.items || [];
     const counts = data?.counts || { pending: 0, approved: 0, dismissed: 0 };
@@ -99,7 +128,16 @@ export default function TelegramReviewQueue() {
                         Telegram Review Queue
                     </CardTitle>
                 </div>
-                <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+                <div className="relative max-w-sm">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                        placeholder="Search names, messages, notes..."
+                        value={searchQuery}
+                        onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                        className="h-8 pl-8 text-xs"
+                    />
+                </div>
+                <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); setSearchQuery(''); }}>
                     <TabsList className="grid w-full grid-cols-3 max-w-md">
                         <TabsTrigger value="PENDING" className="gap-1.5">
                             <Clock className="h-3.5 w-3.5" /> Pending
@@ -118,6 +156,12 @@ export default function TelegramReviewQueue() {
             </CardHeader>
 
             <CardContent className="p-0">
+                {statusFilter === 'DISMISSED' && (
+                    <DismissedAdminControls
+                        dismissedCount={counts.dismissed}
+                        onDeleted={() => queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] })}
+                    />
+                )}
                 <ScrollArea className="h-[500px]">
                     {items.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
@@ -127,7 +171,7 @@ export default function TelegramReviewQueue() {
                     ) : (
                         <div className="divide-y">
                             {items.map(item => (
-                                <ReviewItemRow key={item.id} item={item} isPending={statusFilter === 'PENDING'} />
+                                <ReviewItemRow key={item.id} item={item} isPending={statusFilter === 'PENDING'} chatNameMap={chatNameMap} />
                             ))}
                         </div>
                     )}
@@ -152,10 +196,42 @@ export default function TelegramReviewQueue() {
     );
 }
 
-function ReviewItemRow({ item, isPending }: { item: ReviewItem; isPending: boolean }) {
+function ExpiryTimer({ createdAt }: { createdAt: string }) {
+    const [remaining, setRemaining] = useState('');
+    const [isUrgent, setIsUrgent] = useState(false);
+
+    useEffect(() => {
+        function update() {
+            const expiresAt = new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
+            const diff = expiresAt - Date.now();
+            if (diff <= 0) {
+                setRemaining('Expired');
+                setIsUrgent(true);
+                return;
+            }
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            setRemaining(`${hours}h ${minutes}m`);
+            setIsUrgent(hours < 4);
+        }
+        update();
+        const interval = setInterval(update, 60_000);
+        return () => clearInterval(interval);
+    }, [createdAt]);
+
+    return (
+        <span className={`inline-flex items-center gap-1 text-[10px] ${isUrgent ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
+            <Timer className="h-3 w-3" />
+            {remaining}
+        </span>
+    );
+}
+
+function ReviewItemRow({ item, isPending, chatNameMap }: { item: ReviewItem; isPending: boolean; chatNameMap: Record<string, string> }) {
     const queryClient = useQueryClient();
     const CategoryIcon = CATEGORY_ICONS[item.aiCategory || ''] || MessageSquare;
     const urgencyClass = URGENCY_COLORS[item.aiUrgency || ''] || URGENCY_COLORS.LOW;
+    const displayName = item.senderName || item.chatTitle || chatNameMap[item.telegramChatId] || `Chat ${item.telegramChatId}`;
 
     return (
         <div className="p-4 hover:bg-muted/30 transition-colors">
@@ -170,24 +246,35 @@ function ReviewItemRow({ item, isPending }: { item: ReviewItem; isPending: boole
                         )}
                     </Badge>
                     <span className="font-medium text-sm truncate">
-                        {item.senderName || item.chatTitle || `Chat ${item.telegramChatId}`}
+                        {displayName}
                     </span>
                     {item.driver && (
-                        <Badge variant="outline" className="text-[10px] shrink-0">
-                            {item.driver.user.firstName} {item.driver.user.lastName}
-                        </Badge>
+                        <>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                                {item.driver.user.firstName} {item.driver.user.lastName}
+                            </Badge>
+                            {item.driver.user.phone && (
+                                <a href={`tel:${item.driver.user.phone}`} className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-primary shrink-0">
+                                    <Phone className="h-2.5 w-2.5" />
+                                    {item.driver.user.phone}
+                                </a>
+                            )}
+                        </>
                     )}
                 </div>
-                <span className="text-xs text-muted-foreground shrink-0">
-                    {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                    {isPending && <ExpiryTimer createdAt={item.createdAt} />}
+                    <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                    </span>
+                </div>
             </div>
 
             {/* Message preview */}
             <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{item.messageContent}</p>
 
-            {/* AI badges */}
-            <div className="flex items-center gap-2 mb-3">
+            {/* AI badges + truck info */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <Badge variant="outline" className="text-[10px] gap-1">
                     <CategoryIcon className="h-3 w-3" />
                     {item.aiCategory || 'Unknown'}
@@ -200,6 +287,18 @@ function ReviewItemRow({ item, isPending }: { item: ReviewItem; isPending: boole
                 {item.aiConfidence != null && (
                     <span className="text-[10px] text-muted-foreground">
                         {Math.round(item.aiConfidence * 100)}% confidence
+                    </span>
+                )}
+                {item.driver?.currentTruck && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Truck className="h-2.5 w-2.5" />
+                        {item.driver.currentTruck.truckNumber}
+                        {item.driver.currentTruck.currentLocation && (
+                            <>
+                                <MapPin className="h-2.5 w-2.5 ml-1" />
+                                <span className="max-w-[200px] truncate">{item.driver.currentTruck.currentLocation}</span>
+                            </>
+                        )}
                     </span>
                 )}
             </div>

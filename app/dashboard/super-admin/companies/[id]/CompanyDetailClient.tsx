@@ -25,7 +25,6 @@ const MODULES = [
     { id: 'INTEGRATIONS', label: 'Integrations' },
     { id: 'AI_DISPATCH', label: 'AI Dispatch' },
     { id: 'ANALYTICS', label: 'Analytics' },
-    { id: 'HR', label: 'HR Management' },
 ];
 
 export default function CompanyDetailClient({ company, subscription }: CompanyDetailClientProps) {

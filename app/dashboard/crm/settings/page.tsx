@@ -4,8 +4,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import CrmSettingsList from '@/components/crm/CrmSettingsList';
 import ApplicationUrlConfig from '@/components/crm/ApplicationUrlConfig';
-import SLAConfigEditor from '@/components/crm/settings/SLAConfigEditor';
-import RecruiterAssignmentSettings from '@/components/crm/settings/RecruiterAssignmentSettings';
+import CrmSettingsTabs from '@/components/crm/settings/CrmSettingsTabs';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const metadata = {
@@ -13,17 +12,14 @@ export const metadata = {
     description: 'Configure recruiting integrations and settings',
 };
 
-async function SettingsData() {
+async function IntegrationSettings() {
     const session = await auth();
     if (!session?.user) return null;
 
-    // Fetch MC numbers user has access to
-    // If admin, all. If not, only assigned.
     const mcIds = session.user.role === 'SUPER_ADMIN'
-        ? undefined // undefined means all for now, or we fetch all IDs
+        ? undefined
         : session.user.mcAccess;
 
-    // Since we want to display settings per MC, let's fetch MCs with their integrations
     const whereClause = session.user.role === 'SUPER_ADMIN'
         ? {}
         : { id: { in: mcIds } };
@@ -31,15 +27,10 @@ async function SettingsData() {
     const mcNumbers = await prisma.mcNumber.findMany({
         where: {
             ...whereClause,
-            // companyId filter for ADMIN role in strict multi-tenant
-            companyId: session.user.companyId
+            companyId: session.user.companyId,
         },
-        include: {
-            crmIntegrations: true
-        },
-        orderBy: {
-            number: 'asc'
-        }
+        include: { crmIntegrations: true },
+        orderBy: { number: 'asc' },
     });
 
     const company = await prisma.company.findUnique({
@@ -50,8 +41,6 @@ async function SettingsData() {
     return (
         <>
             <ApplicationUrlConfig currentSlug={company?.slug || null} />
-            <SLAConfigEditor />
-            <RecruiterAssignmentSettings />
             <CrmSettingsList mcNumbers={mcNumbers} />
         </>
     );
@@ -59,25 +48,25 @@ async function SettingsData() {
 
 export default async function SettingsPage() {
     const session = await auth();
-
     if (!session?.user) {
         redirect('/login');
     }
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Recruiting Settings</h1>
-                <p className="text-muted-foreground">
-                    Manage integrations and lead sources per MC Number
-                </p>
-            </div>
-
-            <Suspense fallback={<div className="space-y-4">
-                <Skeleton className="h-48 w-full" />
-                <Skeleton className="h-48 w-full" />
-            </div>}>
-                <SettingsData />
+        <div className="space-y-4">
+            <Suspense fallback={
+                <div className="space-y-4">
+                    <Skeleton className="h-10 w-full max-w-xl" />
+                    <Skeleton className="h-48 w-full" />
+                </div>
+            }>
+                <CrmSettingsTabs
+                    integrationSlot={
+                        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+                            <IntegrationSettings />
+                        </Suspense>
+                    }
+                />
             </Suspense>
         </div>
     );

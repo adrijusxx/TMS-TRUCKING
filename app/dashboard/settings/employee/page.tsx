@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import MyProfileCategory from '@/components/settings/categories/MyProfileCategory';
 import NotificationsCategory from '@/components/settings/categories/NotificationsCategory';
 
@@ -55,16 +54,9 @@ export default function EmployeeSettingsPage() {
   };
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Settings', href: '/dashboard/settings/employee' }]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Employee Settings</h1>
-        </div>
-
-        {renderContent()}
+    <div className="space-y-4">
+{renderContent()}
       </div>
-    </>
   );
 }
 

@@ -87,7 +87,12 @@ async function buildDatabaseUrl(rdsSecretJson) {
         const port = 5432;
         const dbname = "tms_database";
         const encodedPassword = encodeURIComponent(secret.password);
-        return `postgresql://${secret.username}:${encodedPassword}@${endpoint}:${port}/${dbname}?sslmode=require`;
+        // Pool params tuned for single-instance PM2 fork mode on EC2:
+        // connection_limit=3  — small pool; 60s heartbeat keeps all connections warm
+        // pool_timeout=10     — fail fast if all connections busy
+        // connect_timeout=3   — RDS is same-region, <5ms away
+        // socket_timeout=3    — detect zombie TCP connections in 3s (not 30-60s OS default)
+        return `postgresql://${secret.username}:${encodedPassword}@${endpoint}:${port}/${dbname}?sslmode=require&connection_limit=3&pool_timeout=10&connect_timeout=3&socket_timeout=3`;
     } catch (e) {
         console.error("[Startup] Failed to parse RDS secret JSON", e);
         throw e;
@@ -234,6 +239,14 @@ async function main() {
             HOSTNAME: "0.0.0.0"
         },
     });
+
+    // Forward shutdown signals to Next.js child process for graceful shutdown
+    const shutdown = (signal) => {
+        console.log(`[Startup] Received ${signal}, shutting down...`);
+        nextStart.kill(signal);
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
 
     nextStart.on("close", (code) => {
         console.log(`[Startup] Next.js process exited with code ${code}`);

@@ -395,3 +395,47 @@ export function createFilterContext(
   };
 }
 
+/**
+ * Get lead filter based on role and CRM visibility settings
+ *
+ * If `recruiterSeeOnlyOwnLeads` is enabled in company CRM settings,
+ * non-admin users will only see leads assigned to them.
+ * Admins always see all leads.
+ *
+ * NOTE: MC filtering should be applied separately using buildMcNumberWhereClause
+ */
+export async function getLeadFilter(context: RoleFilterContext): Promise<any> {
+  const { userId, role, companyId } = context;
+
+  const baseFilter: any = {
+    companyId,
+    deletedAt: null,
+  };
+
+  const roleNorm = role.toUpperCase().replace('-', '_');
+  if (roleNorm === 'ADMIN' || roleNorm === 'SUPER_ADMIN') {
+    return baseFilter;
+  }
+
+  const companySettings = await prisma.companySettings.findUnique({
+    where: { companyId },
+    select: { generalSettings: true },
+  });
+
+  const generalSettings = (companySettings?.generalSettings as any) || {};
+  const crmSettings = generalSettings.crm || {};
+  const recruiterSeeOnlyOwnLeads = crmSettings.recruiterSeeOnlyOwnLeads === true;
+
+  if (recruiterSeeOnlyOwnLeads) {
+    return {
+      ...baseFilter,
+      OR: [
+        { assignedToId: userId },
+        { createdById: userId },
+      ],
+    };
+  }
+
+  return baseFilter;
+}
+

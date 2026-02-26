@@ -3,8 +3,8 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField, CustomBulkAction } from '@/components/data-table/types';
 import { DriverStatus, PayType } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 import McBadge from '@/components/mc-numbers/McBadge';
 import { UserCheck, UserX } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
@@ -71,12 +71,9 @@ const columns: ExtendedColumnDef<DriverData>[] = [
     accessorKey: 'driverNumber',
     header: 'Driver #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/drivers/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
+      <span className="text-primary hover:underline font-medium cursor-pointer">
         {row.original.driverNumber}
-      </Link>
+      </span>
     ),
     defaultVisible: true,
     required: true,
@@ -137,12 +134,9 @@ const columns: ExtendedColumnDef<DriverData>[] = [
     header: 'Truck',
     cell: ({ row }) =>
       row.original.currentTruck ? (
-        <Link
-          href={`/dashboard/trucks/${row.original.currentTruck.id}`}
-          className="text-primary hover:underline"
-        >
+        <EntityLink entityType="trucks" entityId={row.original.currentTruck.id}>
           {row.original.currentTruck.truckNumber}
-        </Link>
+        </EntityLink>
       ) : (
         'Unassigned'
       ),

@@ -8,7 +8,6 @@ export type MenuItemId =
   | '/dashboard/fleet'
   | '/dashboard/accounting'
   | '/dashboard/safety'
-  | '/dashboard/hr'
   | '/dashboard/reports'
   | '/dashboard/settings';
 

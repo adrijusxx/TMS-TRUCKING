@@ -62,6 +62,26 @@ export class SamsaraDeviceSyncService {
   }
 
   /**
+   * Reset a device back to PENDING for re-review (from any status)
+   */
+  async requeueDevice(
+    queueId: string,
+    userId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.queueManager.requeueDevice(queueId, userId);
+  }
+
+  /**
+   * Bulk reset devices to PENDING status
+   */
+  async bulkResetToPending(
+    queueIds: string[],
+    userId: string
+  ): Promise<{ success: number; failed: number }> {
+    return this.queueManager.bulkResetToPending(queueIds, userId);
+  }
+
+  /**
    * Sync odometer readings for all linked trucks
    */
   async syncOdometerReadings(): Promise<number> {

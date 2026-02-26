@@ -50,9 +50,13 @@ export class TelegramQueryService {
 
             return dialogs.map((dialog: any) => {
                 const id = dialog.id?.toString() || '';
+                const entity = dialog.entity;
                 return {
                     id,
                     title: dialog.title || dialog.name || 'Unknown',
+                    firstName: entity?.firstName || null,
+                    lastName: entity?.lastName || null,
+                    username: entity?.username || null,
                     unreadCount: dialog.unreadCount || 0,
                     lastMessage: dialog.message?.message || '',
                     lastMessageDate: dialog.message?.date ? new Date(dialog.message.date * 1000) : null,
@@ -60,7 +64,7 @@ export class TelegramQueryService {
                     isGroup: dialog.isGroup || false,
                     isChannel: dialog.isChannel || false,
                     aiAutoReply: aiSettingsMap.get(id) || false,
-                    phone: dialog.entity?.phone || null,
+                    phone: entity?.phone || null,
                 };
             });
         } catch (error) {
@@ -105,8 +109,16 @@ export class TelegramQueryService {
                 if (matchedDriverId) {
                     const telegramId = d.id?.toString() || '';
                     if (!telegramId) continue;
+                    const entity = d.entity;
                     await prisma.telegramDriverMapping.create({
-                        data: { telegramId, driverId: matchedDriverId }
+                        data: {
+                            telegramId,
+                            driverId: matchedDriverId,
+                            firstName: entity?.firstName || null,
+                            lastName: entity?.lastName || null,
+                            username: entity?.username || null,
+                            phoneNumber: rawTelegramPhone,
+                        }
                     }).catch(() => { }); // Handle race conditions
 
                     aiSettingsMap.set(telegramId, false);

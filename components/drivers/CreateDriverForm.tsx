@@ -19,10 +19,19 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PayType } from '@prisma/client';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { apiUrl } from '@/lib/utils';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
+
+function generatePassword(length = 10): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
 
 async function createDriver(data: CreateDriverInput) {
   const response = await fetch(apiUrl('/api/drivers'), {
@@ -51,6 +60,10 @@ export default function CreateDriverForm({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const defaultPassword = useState(() => generatePassword())[0];
 
   const {
     register,
@@ -62,8 +75,24 @@ export default function CreateDriverForm({
     resolver: zodResolver(createDriverSchema),
     defaultValues: {
       payType: 'PER_MILE',
+      password: defaultPassword,
     },
   });
+
+  const currentPassword = watch('password');
+
+  const handleRegeneratePassword = () => {
+    const newPwd = generatePassword();
+    setValue('password', newPwd);
+  };
+
+  const handleCopyPassword = () => {
+    if (currentPassword) {
+      navigator.clipboard.writeText(currentPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const mcNumberId = watch('mcNumberId');
 
@@ -181,17 +210,38 @@ export default function CreateDriverForm({
 
             <div className="space-y-2">
               <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="At least 8 characters"
-                {...register('password')}
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="At least 8 characters"
+                    className="pr-10 font-mono"
+                    {...register('password')}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <Button type="button" variant="outline" size="icon" onClick={handleRegeneratePassword} title="Generate new password">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+                <Button type="button" variant="outline" size="icon" onClick={handleCopyPassword} title="Copy password">
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
               {errors.password && (
-                <p className="text-sm text-destructive">
-                  {errors.password.message}
-                </p>
+                <p className="text-sm text-destructive">{errors.password.message}</p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Auto-generated. Copy and share with the driver.
+              </p>
             </div>
           </CardContent>
         </Card>

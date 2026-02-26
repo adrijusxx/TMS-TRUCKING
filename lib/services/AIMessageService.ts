@@ -62,13 +62,14 @@ export class AIMessageService {
             const userPrompt = this.buildUserPrompt(messageContent, driverContext);
 
             const completion = await this.openai.chat.completions.create({
-                model: 'gpt-4-turbo-preview',
+                model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt },
                 ],
                 response_format: { type: 'json_object' },
-                temperature: 0.3, // Lower temperature for more consistent analysis
+                temperature: 0.2,
+                max_tokens: 400,
             });
 
             const responseText = completion.choices[0]?.message?.content;
@@ -176,41 +177,11 @@ export class AIMessageService {
      * Build system prompt for message analysis
      */
     private buildSystemPrompt(settings: any): string {
-        return `You are an AI assistant for a trucking company's TMS (Transportation Management System). Your job is to analyze messages from truck drivers to detect operational issues and extract relevant information.
-
-Analyze the message and return a JSON object with the following structure:
-{
-  "isBreakdown": boolean, // true if this is a breakdown/mechanical issue that stops the truck
-  "isSafetyIncident": boolean, // true if this is a safety hazard, accident, or policy violation
-  "isMaintenanceRequest": boolean, // true if the truck needs repair but can still move
-  "category": "BREAKDOWN" | "SAFETY" | "MAINTENANCE" | "PAYROLL" | "ROUTE_ISSUE" | "GENERAL" | "OTHER",
-  "confidence": number, // 0-1
-  "truckNumber": string | null,
-  "location": string | null,
-  "problemDescription": string | null,
-  "breakdownType": "ENGINE_FAILURE" | "TRANSMISSION_FAILURE" | "BRAKE_FAILURE" | "TIRE_FLAT" | "TIRE_BLOWOUT" | "ELECTRICAL_ISSUE" | "COOLING_SYSTEM" | "FUEL_SYSTEM" | "SUSPENSION" | "ACCIDENT_DAMAGE" | "WEATHER_RELATED" | "OTHER" | null,
-  "urgency": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-  "suggestedResponse": string | null,
-  "requiresHumanReview": boolean,
-  "entities": {
-    "truckNumbers": string[],
-    "locations": string[],
-    "keywords": string[]
-  },
-  "sentiment": "POSITIVE" | "NEUTRAL" | "NEGATIVE" | "URGENT",
-  "language": "en" | "es" | "other"
-}
-
-Issue Classification:
-- **BREAKDOWN**: Mechanical failure stopping the truck (Engine, Transmission, Brakes, Tires, Electrical).
-- **SAFETY**: Accidents, collisions, hazards, windshield cracks, lights out, DOT issues, medical emergencies.
-- **MAINTENANCE**: Repairs needed but not urgent (oil change, small leaks, sensors, cosmetic damage).
-- **PAYROLL**: Salary, settlements, advances, deduction questions.
-- **ROUTE_ISSUE**: GPS problems, dock closed, wrong address, scale closed.
-
-Emergency keywords for CRITICAL: ${settings.emergencyKeywords.join(', ')}
-
-Be accurate. When in doubt, mark requiresHumanReview as true.`;
+        return `Trucking TMS message classifier. Return JSON:
+{"isBreakdown":bool,"isSafetyIncident":bool,"isMaintenanceRequest":bool,"category":"BREAKDOWN"|"SAFETY"|"MAINTENANCE"|"PAYROLL"|"ROUTE_ISSUE"|"GENERAL"|"OTHER","confidence":0-1,"truckNumber":str|null,"location":str|null,"problemDescription":str|null,"breakdownType":"ENGINE_FAILURE"|"TRANSMISSION_FAILURE"|"BRAKE_FAILURE"|"TIRE_FLAT"|"TIRE_BLOWOUT"|"ELECTRICAL_ISSUE"|"COOLING_SYSTEM"|"FUEL_SYSTEM"|"SUSPENSION"|"ACCIDENT_DAMAGE"|"WEATHER_RELATED"|"OTHER"|null,"urgency":"LOW"|"MEDIUM"|"HIGH"|"CRITICAL","suggestedResponse":str|null,"requiresHumanReview":bool,"entities":{"truckNumbers":[],"locations":[],"keywords":[]},"sentiment":"POSITIVE"|"NEUTRAL"|"NEGATIVE"|"URGENT","language":"en"|"es"|"other"}
+BREAKDOWN=mechanical failure stopping truck. SAFETY=accident/hazard/DOT/medical. MAINTENANCE=repair needed but truck moves. PAYROLL=pay/settlement. ROUTE_ISSUE=GPS/dock/address.
+Emergency keywords (→CRITICAL): ${settings.emergencyKeywords.join(',')}
+When unsure set requiresHumanReview=true.`;
     }
 
     /**
@@ -311,11 +282,11 @@ Be accurate. When in doubt, mark requiresHumanReview as true.`;
     async translateMessage(message: string, targetLang: 'en' | 'es'): Promise<string> {
         try {
             const completion = await this.openai.chat.completions.create({
-                model: 'gpt-4-turbo-preview',
+                model: 'gpt-4o-mini',
                 messages: [
                     {
                         role: 'system',
-                        content: `Translate the following message to ${targetLang === 'en' ? 'English' : 'Spanish'}. Maintain the tone and urgency. Only return the translation, nothing else.`,
+                        content: `Translate to ${targetLang === 'en' ? 'English' : 'Spanish'}. Keep tone/urgency. Return only translation.`,
                     },
                     { role: 'user', content: message },
                 ],

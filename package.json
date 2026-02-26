@@ -1,6 +1,6 @@
 {
   "name": "tms-trucking",
-  "version": "0.2.7",
+  "version": "0.2.15",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -133,8 +133,8 @@
     "react-hook-form": "^7.66.0",
     "react-is": "^19.2.1",
     "recharts": "^3.4.1",
+    "resend": "^6.9.2",
     "serwist": "^9.2.3",
-    "sip.js": "^0.21.2",
     "sonner": "^2.0.7",
     "stripe": "^20.1.0",
     "tailwind-merge": "^3.4.0",

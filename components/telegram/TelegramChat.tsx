@@ -31,6 +31,10 @@ import Link from 'next/link';
 interface Dialog {
     id: string;
     title: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    username?: string | null;
+    phone?: string | null;
     unreadCount: number;
     lastMessage: string;
     lastMessageDate: string | null;
@@ -206,6 +210,11 @@ export default function TelegramChat({ chat, onBack }: TelegramChatProps) {
 
     const getInitials = (name: string) => name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
+    const getDisplayName = () => {
+        const parts = [chat.firstName, chat.lastName].filter(Boolean);
+        return parts.length > 0 ? parts.join(' ') : chat.title;
+    };
+
     const getDialogIcon = (dialog: Dialog) => {
         if (dialog.isChannel) return <Radio className="h-4 w-4" />;
         if (dialog.isGroup) return <Users className="h-4 w-4" />;
@@ -243,17 +252,21 @@ export default function TelegramChat({ chat, onBack }: TelegramChatProps) {
                     </Button>
                     <Avatar>
                         <AvatarFallback className="bg-primary/10">
-                            {getInitials(chat.title)}
+                            {getInitials(getDisplayName())}
                         </AvatarFallback>
                     </Avatar>
                     <div>
                         <h2 className="font-semibold flex items-center gap-2">
                             {getDialogIcon(chat)}
-                            {chat.title}
+                            {getDisplayName()}
                         </h2>
-                        <p className="text-sm text-muted-foreground">
-                            {chat.isChannel ? 'Channel' : chat.isGroup ? 'Group' : 'Private Chat'}
-                        </p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            {chat.username && <span>@{chat.username}</span>}
+                            {chat.phone && <span className="font-mono">{chat.phone}</span>}
+                            {!chat.username && !chat.phone && (
+                                <span>{chat.isChannel ? 'Channel' : chat.isGroup ? 'Group' : 'Private Chat'}</span>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">

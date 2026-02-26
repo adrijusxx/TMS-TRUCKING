@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark' | 'amber' | 'system';
-type FontSize = 'small' | 'medium' | 'large';
+type FontSize = 'extra-small' | 'small' | 'medium' | 'large';
 
 interface ThemeContextType {
   theme: Theme;
@@ -81,18 +81,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [theme, mounted]);
 
-  // Apply font size
+  // Apply font size (both CSS variable and html class for globals.css rules)
   useEffect(() => {
     if (!mounted) return;
 
     const root = document.documentElement;
-    const fontSizeMap = {
-      small: '0.875rem',   // 14px
-      medium: '1rem',      // 16px (default)
-      large: '1.125rem',   // 18px
+    const fontSizeMap: Record<FontSize, string> = {
+      'extra-small': '0.75rem', // 12px
+      small: '0.875rem',        // 14px
+      medium: '1rem',           // 16px (default)
+      large: '1.125rem',        // 18px
     };
 
     root.style.setProperty('--base-font-size', fontSizeMap[fontSize]);
+    root.classList.remove('font-extra-small', 'font-small', 'font-medium', 'font-large');
+    root.classList.add(`font-${fontSize}`);
   }, [fontSize, mounted]);
 
   // Apply compact mode

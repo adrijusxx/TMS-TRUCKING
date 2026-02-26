@@ -85,7 +85,10 @@ export async function GET(request: Request) {
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
 
-        return NextResponse.json(combined);
+        return NextResponse.json({
+            data: combined,
+            meta: { totalCount: combined.length, page: 1, totalPages: 1 },
+        });
     } catch (error) {
         console.error('[INSPECTIONS_GET]', error);
         return new NextResponse('Internal Server Error', { status: 500 });

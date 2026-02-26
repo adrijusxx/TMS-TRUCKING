@@ -4,10 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Settings, RefreshCw } from 'lucide-react';
 import MonitoringStatsCards from './MonitoringStatsCards';
-import IdleDriversTable from './IdleDriversTable';
-import DormantEquipmentTable from './DormantEquipmentTable';
-import TruckInventoryTable from './TruckInventoryTable';
-import TrailerInventoryTable from './TrailerInventoryTable';
+import FleetInventoryTable from './FleetInventoryTable';
 import MonitoringSettingsDialog from './MonitoringSettingsDialog';
 import type { FleetMonitoringSnapshot } from '@/lib/managers/fleet-monitoring/types';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -69,23 +66,14 @@ export default function FleetMonitoringTab() {
       {/* Stats Cards */}
       <MonitoringStatsCards data={data} loading={loading} />
 
-      {/* Tables */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <IdleDriversTable drivers={data?.idleDrivers ?? []} loading={loading} />
-        <DormantEquipmentTable
-          trucks={data?.dormantTrucks ?? []}
-          trailers={data?.dormantTrailers ?? []}
-          loading={loading}
-          onMarkOOS={fetchData}
-        />
-      </div>
-
-      {/* Fleet Inventory */}
-      <div className="space-y-4 mt-6">
-        <h3 className="text-lg font-semibold">Fleet Inventory</h3>
-        <TruckInventoryTable />
-        <TrailerInventoryTable />
-      </div>
+      {/* Unified Fleet Table */}
+      <FleetInventoryTable
+        idleDrivers={data?.idleDrivers ?? []}
+        dormantTrucks={data?.dormantTrucks ?? []}
+        dormantTrailers={data?.dormantTrailers ?? []}
+        monitoringLoading={loading}
+        onMarkOOS={fetchData}
+      />
 
       {/* Settings Dialog */}
       <MonitoringSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />

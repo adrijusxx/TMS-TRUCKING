@@ -1,7 +1,6 @@
 
 // PrismaClient inherited from BaseImporter
 import { BaseImporter, ImportResult } from './BaseImporter';
-import { getRowValue } from '@/lib/import-export/import-utils';
 import * as bcrypt from 'bcryptjs';
 
 export class EmployeeImporter extends BaseImporter {
@@ -11,7 +10,7 @@ export class EmployeeImporter extends BaseImporter {
         updateExisting?: boolean;
         entity?: string;
         columnMapping?: Record<string, string>;
-        importBatchId?: string; // Add importBatchId
+        importBatchId?: string;
     }): Promise<ImportResult> {
         const { previewOnly, updateExisting, entity, columnMapping, importBatchId } = options;
         const errors: any[] = [];
@@ -20,14 +19,17 @@ export class EmployeeImporter extends BaseImporter {
         const employeesToUpdate: any[] = [];
         const existingInFile = new Set<string>();
 
-        // Pre-fetch
-        const existingUsers = await this.prisma.user.findMany({
+        // Pre-fetch: company users for duplicate/update checks (per-company uniqueness)
+        const companyUsers = await this.prisma.user.findMany({
             where: { companyId: this.companyId, deletedAt: null },
-            select: { email: true, id: true }
+            select: { email: true, id: true, employeeNumber: true }
         });
-
-        const dbEmailSet = new Set(existingUsers.map(u => u.email.toLowerCase().trim()));
-        const userIdMap = new Map(existingUsers.map(u => [u.email.toLowerCase().trim(), u.id]));
+        const userIdMap = new Map(companyUsers.map(u => [u.email.toLowerCase().trim(), u.id]));
+        const companyEmailSet = new Set(companyUsers.map(u => u.email.toLowerCase().trim()));
+        const companyEmpNumberSet = new Set(
+            companyUsers.filter(u => u.employeeNumber).map(u => u.employeeNumber!.toLowerCase().trim())
+        );
+        const fileEmployeeNumbers = new Set<string>();
 
         const passwordHash = await bcrypt.hash('User123!', 10);
 
@@ -41,7 +43,9 @@ export class EmployeeImporter extends BaseImporter {
                 let lastName = this.getValue(row, 'lastName', columnMapping, ['Last Name', 'last_name']);
 
                 if (!email) {
-                    email = `user.${rowNum}@tms.system`.toLowerCase();
+                    const shortId = this.companyId.slice(-6);
+                    const ts = Date.now().toString(36);
+                    email = `user.${rowNum}.${shortId}.${ts}@tms.system`.toLowerCase();
                     warnings.push(this.warning(rowNum, `Email missing, defaulted to ${email}`, 'email'));
                 }
 
@@ -51,16 +55,15 @@ export class EmployeeImporter extends BaseImporter {
                     warnings.push(this.warning(rowNum, `Name missing, defaulted to ${firstName} ${lastName}`, 'name'));
                 }
 
-
                 if (existingInFile.has(email)) {
                     errors.push(this.error(rowNum, `Duplicate found in file: ${email}`, 'Duplicate'));
                     continue;
                 }
 
-                const existsInDb = dbEmailSet.has(email);
+                const existsInCompany = companyEmailSet.has(email);
 
-                if (existsInDb && !updateExisting) {
-                    errors.push(this.error(rowNum, `User already exists in database: ${email}`, 'Database Duplicate'));
+                if (existsInCompany && !updateExisting) {
+                    errors.push(this.error(rowNum, `User already exists in this company: ${email}`, 'Database Duplicate'));
                     continue;
                 }
 
@@ -72,6 +75,31 @@ export class EmployeeImporter extends BaseImporter {
                 const rowMc = this.getValue(row, 'mcNumberId', columnMapping, ['MC Number', 'mc_number']);
                 const resolvedMcId = await this.resolveMcNumberId(rowMc);
 
+                // Generate unique employeeNumber (per-company uniqueness)
+                let employeeNumber = this.getValue(row, 'employeeNumber', columnMapping, ['Employee Number', 'employee_number', 'ID']);
+                if (!employeeNumber) {
+                    let base = `${firstName}-${lastName}`.toLowerCase().replace(/\s+/g, '-');
+                    let candidate = base;
+                    let suffix = 2;
+                    while (
+                        companyEmpNumberSet.has(candidate.toLowerCase()) ||
+                        fileEmployeeNumbers.has(candidate.toLowerCase())
+                    ) {
+                        candidate = `${base}-${suffix}`;
+                        suffix++;
+                    }
+                    employeeNumber = candidate;
+                    warnings.push(this.warning(rowNum, `Employee Number auto-generated: ${employeeNumber}`, 'employeeNumber'));
+                } else {
+                    const empNumLower = employeeNumber.toLowerCase().trim();
+                    if (companyEmpNumberSet.has(empNumLower) || fileEmployeeNumbers.has(empNumLower)) {
+                        if (!updateExisting) {
+                            errors.push(this.error(rowNum, `Employee Number already exists: ${employeeNumber}`, 'Duplicate'));
+                            continue;
+                        }
+                    }
+                }
+                fileEmployeeNumbers.add(employeeNumber.toLowerCase().trim());
 
                 const employeeData: any = {
                     companyId: this.companyId,
@@ -81,12 +109,11 @@ export class EmployeeImporter extends BaseImporter {
                     lastName,
                     phone: this.getValue(row, 'phone', columnMapping, ['Phone', 'phone', 'Cell']) || '',
                     role,
-                    isActive: true, // Default to true
-                    employeeNumber: this.getValue(row, 'employeeNumber', columnMapping, ['Employee Number', 'employee_number', 'ID']) || `${firstName}-${lastName}`.toLowerCase().replace(/\s+/g, '-'),
+                    isActive: true,
+                    employeeNumber,
                 };
 
-
-                if (existsInDb && updateExisting) {
+                if (existsInCompany && updateExisting) {
                     employeeData.id = userIdMap.get(email);
                     employeesToUpdate.push(employeeData);
                 } else {
@@ -107,7 +134,6 @@ export class EmployeeImporter extends BaseImporter {
                 errors: errors.length
             }, employeesToCreate.slice(0, 10), errors, warnings);
         }
-
 
         let createdCount = 0;
         let updatedCount = 0;

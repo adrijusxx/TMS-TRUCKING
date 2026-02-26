@@ -34,15 +34,15 @@ import {
   LineChart,
   Target,
   MessageSquare,
+  Activity,
 } from 'lucide-react';
 import type { DepartmentNavItem } from '@/components/layout/DepartmentNav';
 
 // Load Management
 export const loadNavItems: DepartmentNavItem[] = [
   { name: 'All Loads', href: '/dashboard/loads', icon: Package },
-  { name: 'My Dispatch', href: '/dashboard/dispatch-view', icon: UserCircle },
-  { name: 'Driver Week Board', href: '/dashboard/loads/board', icon: LayoutGrid },
-  { name: 'Operations Center', href: '/dashboard/operations', icon: Navigation },
+  { name: 'Dispatch Hub', href: '/dashboard/dispatch', icon: Navigation },
+  { name: 'War Room', href: '/dashboard/war-room', icon: Map },
 ];
 
 // Fleet Department
@@ -72,39 +72,23 @@ export const fleetNavItems: DepartmentNavItem[] = [
 
 // Safety Department
 export const safetyNavItems: DepartmentNavItem[] = [
-  { name: 'Dashboard', href: '/dashboard/safety', icon: LayoutDashboard },
-  { name: 'Compliance', href: '/dashboard/safety/compliance', icon: FileCheck },
-  { name: 'Fleet Safety', href: '/dashboard/safety/fleet', icon: Car },
-  { name: 'Incidents', href: '/dashboard/safety/incidents', icon: AlertCircle },
-  { name: 'Training', href: '/dashboard/safety/training', icon: GraduationCap },
+  { name: 'Safety Tasks', href: '/dashboard/safety', icon: ClipboardCheck },
+  { name: 'Safety Board', href: '/dashboard/safety/board', icon: LayoutGrid },
+  { name: 'Calendar', href: '/dashboard/safety/calendar', icon: Calendar },
+  { name: 'Inspections', href: '/dashboard/safety/inspections', icon: FileCheck },
+  { name: 'Claims', href: '/dashboard/safety/claims', icon: AlertCircle },
+  { name: 'Overview', href: '/dashboard/safety/overview', icon: LayoutDashboard },
+  { name: 'Audit Prep', href: '/dashboard/safety/audit-prep', icon: FileCheck },
+  { name: 'Analytics', href: '/dashboard/safety/analytics', icon: BarChart3 },
 ];
 
 // Accounting Department
 export const accountingNavItems: DepartmentNavItem[] = [
-  {
-    name: 'Invoices', href: '/dashboard/invoices', icon: FileText,
-    children: [
-      { name: 'All Invoices', href: '/dashboard/invoices' },
-      { name: 'Batches', href: '/dashboard/batches' },
-      { name: 'Aging', href: '/dashboard/invoices?tab=aging' },
-      { name: 'Reconciliation', href: '/dashboard/invoices?tab=reconciliation' },
-      { name: 'Generate', href: '/dashboard/invoices/generate' },
-      { name: 'Reports', href: '/dashboard/invoices?tab=reports' },
-    ],
-  },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users },
-  {
-    name: 'Settlements', href: '/dashboard/settlements', icon: CreditCard,
-    children: [
-      { name: 'Pending', href: '/dashboard/settlements?tab=pending' },
-      { name: 'Batches', href: '/dashboard/settlements?tab=batches' },
-      { name: 'All Settlements', href: '/dashboard/settlements?tab=statements' },
-      { name: 'Reports', href: '/dashboard/settlements?tab=report' },
-      { name: 'Balances', href: '/dashboard/settlements?tab=balances' },
-    ],
-  },
-  { name: 'Expenses', href: '/dashboard/accounting/expenses', icon: Receipt },
+  { name: 'Invoices', href: '/dashboard/invoices', icon: FileText },
+  { name: 'Settlements', href: '/dashboard/settlements', icon: CreditCard },
+  { name: 'Bills', href: '/dashboard/bills', icon: Receipt },
   { name: 'IFTA', href: '/dashboard/accounting/ifta', icon: Fuel },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users },
   {
     name: 'Factoring', href: '/dashboard/accounting/factoring', icon: Building2,
     children: [
@@ -117,8 +101,15 @@ export const accountingNavItems: DepartmentNavItem[] = [
 
 // HR Department
 export const hrNavItems: DepartmentNavItem[] = [
-  { name: 'HR Management', href: '/dashboard/hr', icon: Users },
-  { name: 'Drivers', href: '/dashboard/drivers', icon: UserCheck },
+  {
+    name: 'Workforce', href: '/dashboard/drivers', icon: Users,
+    children: [
+      { name: 'All Drivers', href: '/dashboard/drivers' },
+      { name: 'Driver Compliance', href: '/dashboard/safety/driver-compliance' },
+      { name: 'DQF', href: '/dashboard/safety/dqf' },
+    ],
+  },
+  { name: 'Monitoring', href: '/dashboard/drivers/monitoring', icon: Activity },
 ];
 
 // CRM / Recruiting Department
@@ -129,6 +120,7 @@ export const crmNavItems: DepartmentNavItem[] = [
     children: [
       { name: 'All Leads', href: '/dashboard/crm/leads' },
       { name: 'Kanban', href: '/dashboard/crm/kanban' },
+      { name: 'Follow-Up Calendar', href: '/dashboard/crm/calendar' },
       { name: 'Onboarding', href: '/dashboard/crm/onboarding' },
       { name: 'Campaigns', href: '/dashboard/crm/campaigns' },
     ],

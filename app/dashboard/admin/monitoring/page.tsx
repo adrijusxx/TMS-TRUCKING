@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -103,21 +102,9 @@ export default function MonitoringPage() {
   };
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Admin', href: '/dashboard/admin' },
-        { label: 'Monitoring' }
-      ]} />
-      <div className="space-y-6">
+    <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">System Monitoring</h1>
-            <p className="text-muted-foreground mt-1">
-              Real-time system health and performance metrics
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
+<div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -335,7 +322,6 @@ export default function MonitoringPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </>
   );
 }
 

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
-import { Check, X, UserPlus, Loader2, Truck, AlertTriangle } from 'lucide-react';
+import { Check, X, UserPlus, Loader2, Truck, AlertTriangle, Users, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 
@@ -24,8 +24,8 @@ interface ReviewItem {
     driverId?: string;
     driver?: {
         id: string;
-        user: { firstName: string; lastName: string };
-        currentTruck?: { id: string; truckNumber: string };
+        user: { firstName: string; lastName: string; phone?: string };
+        currentTruck?: { id: string; truckNumber: string; currentLocation?: string };
     };
 }
 
@@ -37,12 +37,21 @@ interface DriverOption {
     truckNumber?: string;
 }
 
+interface StaffOption {
+    id: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+}
+
 export default function ReviewItemActions({ item, onResolved }: { item: ReviewItem; onResolved: () => void }) {
     const queryClient = useQueryClient();
     const [driverOpen, setDriverOpen] = useState(false);
     const [selectedDriver, setSelectedDriver] = useState<DriverOption | null>(null);
     const [dismissNote, setDismissNote] = useState('');
     const [showDismiss, setShowDismiss] = useState(false);
+    const [staffOpen, setStaffOpen] = useState(false);
+    const [selectedStaff, setSelectedStaff] = useState<StaffOption | null>(null);
 
     const { data: drivers } = useQuery<DriverOption[]>({
         queryKey: ['drivers-for-linking'],
@@ -61,12 +70,27 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
         enabled: driverOpen,
     });
 
+    const { data: staffList } = useQuery<StaffOption[]>({
+        queryKey: ['staff-for-assignment'],
+        queryFn: async () => {
+            const res = await fetch(apiUrl('/api/users/staff?limit=50'));
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.data || [];
+        },
+        enabled: staffOpen,
+    });
+
     const approveMutation = useMutation({
         mutationFn: async (params: { driverId?: string; createCase?: boolean }) => {
             const res = await fetch(apiUrl(`/api/telegram/review-queue/${item.id}/approve`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params),
+                body: JSON.stringify({
+                    ...params,
+                    assignedToUserId: selectedStaff?.id,
+                    assignmentRole: 'Support',
+                }),
             });
             if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed'); }
             return res.json();
@@ -103,16 +127,50 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
 
     const isPending = approveMutation.isPending || dismissMutation.isPending;
 
+    const staffPicker = (
+        <Popover open={staffOpen} onOpenChange={setStaffOpen}>
+            <PopoverTrigger asChild>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                    <Users className="h-3 w-3" />
+                    {selectedStaff ? `${selectedStaff.firstName} ${selectedStaff.lastName}` : 'Assign To'}
+                    {selectedStaff && (
+                        <X className="h-2.5 w-2.5 ml-0.5 cursor-pointer" onClick={(e) => { e.stopPropagation(); setSelectedStaff(null); }} />
+                    )}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[240px] p-0" align="end">
+                <Command>
+                    <CommandInput placeholder="Search staff..." />
+                    <CommandList>
+                        <CommandEmpty>No staff found</CommandEmpty>
+                        <CommandGroup>
+                            {staffList?.map(s => (
+                                <CommandItem key={s.id}
+                                    value={`${s.firstName} ${s.lastName} ${s.role}`}
+                                    onSelect={() => { setSelectedStaff(s); setStaffOpen(false); }}>
+                                    <Check className={`mr-1.5 h-3 w-3 ${selectedStaff?.id === s.id ? 'opacity-100' : 'opacity-0'}`} />
+                                    <span className="text-xs">{s.firstName} {s.lastName}</span>
+                                    <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">{s.role}</Badge>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+
     // DRIVER_LINK_NEEDED: need to pick a driver first, then approve
     if (item.type === 'DRIVER_LINK_NEEDED') {
         return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
                 {selectedDriver ? (
                     <div className="flex items-center gap-1.5">
                         <Badge variant="secondary" className="text-xs">
                             {selectedDriver.firstName} {selectedDriver.lastName}
                             {selectedDriver.truckNumber && <> <Truck className="h-2.5 w-2.5 ml-0.5 inline" />{selectedDriver.truckNumber}</>}
                         </Badge>
+                        {staffPicker}
                         <Button size="sm" className="h-7 text-xs" disabled={isPending}
                             onClick={() => approveMutation.mutate({ driverId: selectedDriver.id, createCase: true })}>
                             {approveMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
@@ -159,6 +217,7 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
     // CASE_APPROVAL: driver already linked, just approve or dismiss
     return (
         <div className="flex items-center gap-2">
+            {staffPicker}
             <Button size="sm" className="h-7 text-xs" disabled={isPending}
                 onClick={() => approveMutation.mutate({ createCase: true })}>
                 {approveMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}

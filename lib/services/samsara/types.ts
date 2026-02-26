@@ -15,6 +15,7 @@ export interface SyncResult {
     created: number;
     updated: number;
     queued: number;
+    orphansReset?: number;
     errors: string[];
 }
 

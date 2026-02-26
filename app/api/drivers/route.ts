@@ -294,8 +294,16 @@ export async function GET(request: NextRequest) {
               trailerNumber: true,
             },
           },
+          _count: {
+            select: {
+              loads: {
+                where: { deletedAt: null },
+              },
+            },
+          },
           loads: {
             select: {
+              status: true,
               revenue: true,
               driverPay: true,
               totalMiles: true,
@@ -321,7 +329,11 @@ export async function GET(request: NextRequest) {
       prisma.driver.count({ where }),
     ]);
 
+    const activeStatuses = new Set(['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY']);
+
     const driversWithTariff = drivers.map((driver) => {
+      const liveLoadCount = (driver as any)._count?.loads ?? driver.totalLoads;
+      const activeLoadCount = driver.loads.filter((l: any) => activeStatuses.has(l.status)).length;
       return {
         ...driver,
         firstName: driver.user?.firstName ?? '',
@@ -336,6 +348,8 @@ export async function GET(request: NextRequest) {
         currentTruckId: driver.currentTruckId,
         currentTrailerId: driver.currentTrailerId,
         mcNumberId: driver.mcNumberId || null,
+        liveLoadCount,
+        activeLoadCount,
       };
     });
 
@@ -403,9 +417,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validated.email },
+    // Check if email already exists in this company
+    const existingUser = await prisma.user.findFirst({
+      where: { email: validated.email.toLowerCase().trim(), companyId: session.user.companyId, deletedAt: null },
     });
 
     if (existingUser) {
@@ -414,7 +428,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: 'CONFLICT',
-            message: 'User with this email already exists',
+            message: 'User with this email already exists in this company',
           },
         },
         { status: 409 }
@@ -498,6 +512,7 @@ export async function POST(request: NextRequest) {
       data: {
         email: validated.email,
         password: hashedPassword,
+        tempPassword: validated.password, // Store plaintext for admin viewing (cleared on first login)
         firstName: validated.firstName,
         lastName: validated.lastName,
         phone: validated.phone,

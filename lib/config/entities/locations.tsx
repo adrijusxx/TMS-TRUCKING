@@ -1,8 +1,8 @@
 import React from 'react';
+import Link from 'next/link';
 import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 
 interface LocationData {
   id: string;
@@ -29,10 +29,7 @@ const columns: ExtendedColumnDef<LocationData>[] = [
     accessorKey: 'locationNumber',
     header: 'Location #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/locations/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
+      <Link href={`/dashboard/locations/${row.original.id}`} className="text-primary hover:underline font-medium">
         {row.original.locationNumber}
       </Link>
     ),

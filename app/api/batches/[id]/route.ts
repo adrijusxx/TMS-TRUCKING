@@ -43,11 +43,44 @@ export async function GET(
             invoice: {
               include: {
                 customer: {
+                  select: { id: true, name: true, customerNumber: true },
+                },
+                load: {
                   select: {
                     id: true,
-                    name: true,
-                    customerNumber: true,
+                    loadNumber: true,
+                    shipmentId: true,
+                    driverPay: true,
+                    pickupDate: true,
+                    deliveryDate: true,
+                    deliveredAt: true,
+                    podUploadedAt: true,
+                    status: true,
+                    tripId: true,
+                    driver: {
+                      select: {
+                        user: { select: { firstName: true, lastName: true } },
+                      },
+                    },
+                    truck: {
+                      select: { truckNumber: true },
+                    },
+                    rateConfirmation: {
+                      select: {
+                        document: {
+                          select: { fileUrl: true },
+                        },
+                      },
+                    },
+                    documents: {
+                      where: { type: 'POD', deletedAt: null },
+                      select: { fileUrl: true },
+                      take: 1,
+                    },
                   },
+                },
+                factoringCompany: {
+                  select: { id: true, name: true },
                 },
               },
             },
@@ -64,6 +97,63 @@ export async function GET(
         },
         { status: 404 }
       );
+    }
+
+    // For invoices where load relation is null but loadIds array has entries,
+    // fetch the first load from loadIds so the table can display load data
+    const missingLoadIds: string[] = [];
+    for (const item of batch.items) {
+      if (!item.invoice.load && Array.isArray(item.invoice.loadIds) && item.invoice.loadIds.length > 0) {
+        missingLoadIds.push(item.invoice.loadIds[0]);
+      }
+    }
+
+    if (missingLoadIds.length > 0) {
+      const loads = await prisma.load.findMany({
+        where: { id: { in: missingLoadIds } },
+        select: {
+          id: true,
+          loadNumber: true,
+          shipmentId: true,
+          driverPay: true,
+          pickupDate: true,
+          deliveryDate: true,
+          deliveredAt: true,
+          podUploadedAt: true,
+          status: true,
+          tripId: true,
+          driver: {
+            select: {
+              user: { select: { firstName: true, lastName: true } },
+            },
+          },
+          truck: {
+            select: { truckNumber: true },
+          },
+          rateConfirmation: {
+            select: {
+              document: {
+                select: { fileUrl: true },
+              },
+            },
+          },
+          documents: {
+            where: { type: 'POD', deletedAt: null },
+            select: { fileUrl: true },
+            take: 1,
+          },
+        },
+      });
+
+      const loadMap = new Map(loads.map((l) => [l.id, l]));
+      for (const item of batch.items) {
+        if (!item.invoice.load && Array.isArray(item.invoice.loadIds) && item.invoice.loadIds.length > 0) {
+          const foundLoad = loadMap.get(item.invoice.loadIds[0]);
+          if (foundLoad) {
+            (item.invoice as any).load = foundLoad;
+          }
+        }
+      }
     }
 
     const invoiceCount = batch.items.length;

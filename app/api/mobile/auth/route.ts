@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
+  companyId: z.string().optional(), // For multi-company login
 });
 
 /**
@@ -20,9 +21,12 @@ export async function POST(request: NextRequest) {
     // Normalize email (lowercase and trim)
     const normalizedEmail = validated.email.toLowerCase().trim();
 
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
+    // Find user by email (+ company if provided)
+    const userWhere: { email: string; companyId?: string; deletedAt: null } = { email: normalizedEmail, deletedAt: null };
+    if (validated.companyId) userWhere.companyId = validated.companyId;
+
+    const user = await prisma.user.findFirst({
+      where: userWhere,
       include: {
         drivers: {
           include: {

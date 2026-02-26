@@ -100,7 +100,7 @@ export default function DriverCombobox({
         >
           {selectedDriver ? (
             <span className="truncate">
-              {selectedDriver.user?.firstName || 'Unknown'} {selectedDriver.user?.lastName || 'Driver'} (#{selectedDriver.driverNumber})
+              {selectedDriver.user?.firstName || 'Unknown'} {selectedDriver.user?.lastName || 'Driver'}
             </span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
@@ -111,7 +111,7 @@ export default function DriverCombobox({
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search by name or driver number..."
+            placeholder="Search by driver name..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -162,14 +162,9 @@ export default function DriverCombobox({
                           value === driver.id ? 'opacity-100' : 'opacity-0'
                         )}
                       />
-                      <div className="flex flex-col">
-                        <span className="font-medium text-xs">
-                          {driver.user?.firstName || 'Unknown'} {driver.user?.lastName || 'Driver'}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          #{driver.driverNumber}
-                        </span>
-                      </div>
+                      <span className="font-medium text-xs">
+                        {driver.user?.firstName || 'Unknown'} {driver.user?.lastName || 'Driver'}
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

@@ -1,7 +1,7 @@
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import BulkSettlementGeneration from '@/components/settlements/BulkSettlementGeneration';
+import { PageShell } from '@/components/layout/PageShell';
 
 export default async function BulkSettlementGenerationPage() {
   const session = await auth();
@@ -10,54 +10,13 @@ export default async function BulkSettlementGenerationPage() {
     redirect('/login');
   }
 
-  // Only ADMIN and ACCOUNTANT can access bulk generation
   if (!['ADMIN', 'ACCOUNTANT'].includes(session.user.role || '')) {
     redirect('/dashboard/settlements');
   }
 
   return (
-    <>
-      <Breadcrumb
-        items={[
-          { label: 'Settlements', href: '/dashboard/settlements' },
-          { label: 'Bulk Generation' },
-        ]}
-      />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Bulk Settlement Generation</h1>
-          <p className="text-muted-foreground">
-            Generate settlements for all active drivers for a specific pay period
-          </p>
-        </div>
-        <BulkSettlementGeneration />
-      </div>
-    </>
+    <PageShell title="Bulk Generate Settlements" description="Generate settlements for multiple drivers at once">
+      <BulkSettlementGeneration />
+    </PageShell>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

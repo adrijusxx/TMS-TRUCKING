@@ -5,6 +5,9 @@ import RecruitingStats from './RecruitingStats';
 import PipelineFunnel from './PipelineFunnel';
 import RecentLeadsWidget from './RecentLeadsWidget';
 import RecruiterPipelineWidget from './RecruiterPipelineWidget';
+import LeaderboardWidget from './LeaderboardWidget';
+import OverdueLeadsWidget from './OverdueLeadsWidget';
+import RecruiterWorkloadWidget from './RecruiterWorkloadWidget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +32,19 @@ interface DashboardData {
         priority: string;
         source: string;
         createdAt: string;
+        assignedTo?: { firstName: string; lastName: string } | null;
+    }>;
+    leaderboard: Array<{
+        name: string;
+        leadsThisMonth: number;
+        hiredThisMonth: number;
+    }>;
+    overdueLeads: Array<{
+        id: string;
+        firstName: string;
+        lastName: string;
+        status: string;
+        nextFollowUpDate: string;
         assignedTo?: { firstName: string; lastName: string } | null;
     }>;
 }
@@ -164,6 +180,21 @@ export default function RecruitingDashboard() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Leaderboard + Overdue Follow-ups */}
+            <div className="grid gap-6 lg:grid-cols-2">
+                <LeaderboardWidget
+                    data={data?.leaderboard ?? []}
+                    isLoading={isLoading}
+                />
+                <OverdueLeadsWidget
+                    leads={data?.overdueLeads ?? []}
+                    isLoading={isLoading}
+                />
+            </div>
+
+            {/* Recruiter Workload */}
+            <RecruiterWorkloadWidget />
 
             {/* Recruiter Personal Pipeline */}
             <RecruiterPipelineWidget />

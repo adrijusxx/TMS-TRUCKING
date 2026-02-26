@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { BreakdownType, BreakdownPriority } from '@prisma/client';
 import { getSamsaraVehicleLocations } from '@/lib/integrations/samsara/fleet';
+import { getSamsaraVehicleDiagnostics } from '@/lib/integrations/samsara/telematics';
 
 /**
  * Creates breakdown, safety, and maintenance cases from AI analysis.
@@ -16,6 +17,11 @@ export class TelegramCaseCreator {
         analysis: any,
         originalMessage: string
     ) {
+        // Validate truckId — required FK, empty string would cause constraint error
+        if (!truckId) {
+            throw new Error('Truck ID is required for breakdown cases. Driver must have an assigned truck.');
+        }
+
         const breakdownNumber = await this.generateCaseNumber('BD', 'breakdown', 'breakdownNumber');
 
         const priorityMap: Record<string, BreakdownPriority> = {
@@ -25,27 +31,48 @@ export class TelegramCaseCreator {
         let location = analysis.location || 'Unknown';
         let latitude: number | undefined;
         let longitude: number | undefined;
+        let telematicsSnapshot: Record<string, any> | undefined;
 
         if (samsaraId) {
             try {
-                const locations = await getSamsaraVehicleLocations([samsaraId]);
-                const loc = locations?.[0]?.location;
+                const [locResult, diagResult] = await Promise.all([
+                    getSamsaraVehicleLocations([samsaraId]).catch(() => null),
+                    getSamsaraVehicleDiagnostics([samsaraId]).catch(() => null),
+                ]);
+
+                const loc = locResult?.[0]?.location;
                 if (loc) {
                     location = (loc as any).formattedAddress || (loc as any).address || location;
                     latitude = (loc as any).latitude;
                     longitude = (loc as any).longitude;
                 }
+
+                const diag = diagResult?.[0];
+                if (diag) {
+                    telematicsSnapshot = {
+                        fetchedAt: new Date().toISOString(),
+                        checkEngineLightOn: diag.checkEngineLightOn || false,
+                        faults: diag.faults || [],
+                    };
+                }
             } catch {
-                console.warn('[TelegramCaseCreator] Samsara GPS lookup failed');
+                console.warn('[TelegramCaseCreator] Samsara data fetch failed');
             }
         }
+
+        // Resolve MC number from the truck
+        const truck = await prisma.truck.findUnique({
+            where: { id: truckId },
+            select: { mcNumberId: true },
+        });
 
         return prisma.breakdown.create({
             data: {
                 companyId: this.companyId,
                 breakdownNumber,
-                truckId: truckId || '',
+                truckId,
                 driverId,
+                mcNumberId: truck?.mcNumberId || null,
                 breakdownType: detectBreakdownType(analysis),
                 priority: priorityMap[analysis.urgency] || 'MEDIUM',
                 problem: analysis.problemDescription || 'Unknown',
@@ -53,6 +80,7 @@ export class TelegramCaseCreator {
                 location,
                 latitude,
                 longitude,
+                telematicsSnapshot: telematicsSnapshot || undefined,
                 odometerReading: 0,
                 status: 'REPORTED',
                 reportedAt: new Date(),

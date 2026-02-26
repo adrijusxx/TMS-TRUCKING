@@ -29,6 +29,7 @@ interface TrackingResult {
   } | null;
   proximityStatus: 'AT_STOP' | 'APPROACHING' | 'EN_ROUTE' | 'NO_DATA';
   proximityMiles: number | null;
+  _debug?: { reason: string };
 }
 
 /**
@@ -107,15 +108,23 @@ export async function GET(request: NextRequest) {
     for (const loadId of loadIds) {
       const load = loads.find((l) => l.id === loadId);
       if (!load) {
-        results[loadId] = makeNoData(loadId, null);
+        results[loadId] = makeNoData(loadId, null, 'INACTIVE_OR_NOT_FOUND');
         continue;
       }
 
       const sid = load.truck?.samsaraId;
+      if (!load.truck) {
+        results[loadId] = makeNoData(loadId, null, 'NO_TRUCK_ASSIGNED');
+        continue;
+      }
       const vehicleLoc = sid ? locationMap.get(sid) : null;
 
+      if (!sid) {
+        results[loadId] = makeNoData(loadId, load.truck.truckNumber, `NO_SAMSARA_ID: truck=${load.truck.truckNumber}`);
+        continue;
+      }
       if (!vehicleLoc) {
-        results[loadId] = makeNoData(loadId, load.truck?.truckNumber || null);
+        results[loadId] = makeNoData(loadId, load.truck.truckNumber, `NO_GPS_DATA: samsaraId=${sid}`);
         continue;
       }
 
@@ -192,6 +201,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function makeNoData(loadId: string, truckNumber: string | null): TrackingResult {
-  return { loadId, truckNumber, truckLocation: null, eta: null, nextStop: null, proximityStatus: 'NO_DATA', proximityMiles: null };
+function makeNoData(loadId: string, truckNumber: string | null, debugReason?: string): TrackingResult {
+  return { loadId, truckNumber, truckLocation: null, eta: null, nextStop: null, proximityStatus: 'NO_DATA', proximityMiles: null, _debug: debugReason ? { reason: debugReason } : undefined };
 }

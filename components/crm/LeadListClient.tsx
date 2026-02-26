@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import LeadSheet from './LeadSheet';
 import LeadListToolbar from './LeadListToolbar';
+import LeadListStats from './LeadListStats';
 import LeadBulkActionBar from './LeadBulkActionBar';
 import LogActivityDialog from './LogActivityDialog';
 import BulkStatusDialog from './BulkStatusDialog';
@@ -69,10 +71,15 @@ const formatStatus = (status: string) =>
     status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
 export default function LeadListClient() {
+    const { data: session } = useSession();
+    const currentUserId = session?.user?.id || '';
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [priorityFilter, setPriorityFilter] = useState('all');
     const [assignedToFilter, setAssignedToFilter] = useState('all');
+    const [sourceFilter, setSourceFilter] = useState('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -85,13 +92,16 @@ export default function LeadListClient() {
     const { initiateCall } = useClickToCall();
 
     const { data, isLoading, refetch, isFetching } = useQuery({
-        queryKey: ['leads', searchQuery, statusFilter, priorityFilter, assignedToFilter],
+        queryKey: ['leads', searchQuery, statusFilter, priorityFilter, assignedToFilter, sourceFilter, dateFrom, dateTo],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (searchQuery) params.append('search', searchQuery);
             if (statusFilter !== 'all') params.append('status', statusFilter);
             if (priorityFilter !== 'all') params.append('priority', priorityFilter);
             if (assignedToFilter !== 'all') params.append('assignedTo', assignedToFilter);
+            if (sourceFilter !== 'all') params.append('source', sourceFilter);
+            if (dateFrom) params.append('dateFrom', dateFrom);
+            if (dateTo) params.append('dateTo', dateTo);
             const res = await fetch(`/api/crm/leads?${params.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch leads');
             return res.json();
@@ -123,6 +133,7 @@ export default function LeadListClient() {
 
     return (
         <div className="space-y-4">
+            <LeadListStats />
             <LeadListToolbar
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
@@ -132,18 +143,27 @@ export default function LeadListClient() {
                 onPriorityChange={setPriorityFilter}
                 assignedToFilter={assignedToFilter}
                 onAssignedToChange={setAssignedToFilter}
+                sourceFilter={sourceFilter}
+                onSourceChange={setSourceFilter}
+                dateFrom={dateFrom}
+                onDateFromChange={setDateFrom}
+                dateTo={dateTo}
+                onDateToChange={setDateTo}
                 onRefresh={() => refetch()}
                 isFetching={isFetching}
                 onAddNew={() => { setSelectedLeadId(null); setIsSheetOpen(true); }}
+                currentUserId={currentUserId}
             />
 
             <LeadBulkActionBar
                 selectedCount={selectedIds.length}
+                selectedIds={selectedIds}
                 onChangeStatus={() => setBulkStatusOpen(true)}
                 onAssign={() => setBulkAssignOpen(true)}
                 onSendSms={() => setBulkSmsOpen(true)}
                 onSendEmail={() => setBulkEmailOpen(true)}
                 onClear={() => setSelectedIds([])}
+                onBulkDelete={handleBulkSuccess}
             />
 
             <div className="rounded-md border">

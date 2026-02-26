@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { type Permission } from '@/lib/permissions';
@@ -8,6 +9,10 @@ import { hasPermission } from '@/lib/permissions'; // Fallback for loading state
 /**
  * Hook to get user permissions from database (client-side)
  * Uses React Query to cache and fetch permissions
+ *
+ * IMPORTANT: `can`, `canAny`, `canAll` are memoized via useCallback to provide
+ * stable references. This prevents infinite re-render loops when these functions
+ * are used in useMemo/useEffect dependency arrays (e.g. in DataTableWrapper).
  */
 export function usePermissions() {
   const { data: session, status } = useSession();
@@ -15,6 +20,7 @@ export function usePermissions() {
   const roleSlug = session?.user?.roleSlug || session?.user?.role?.toLowerCase().replace('_', '-') || 'customer';
   const roleId = session?.user?.roleId;
   const roleName = session?.user?.roleName || session?.user?.role || 'Customer';
+  const sessionRole = (session?.user?.role || 'CUSTOMER') as string;
 
   // Fetch effective permissions from API (resolution engine)
   const { data: permissionsData, isLoading: permissionsLoading } = useQuery({
@@ -34,50 +40,31 @@ export function usePermissions() {
     retry: 1,
   });
 
-  // Return default permissions if session is loading or not available
-  if (status === 'loading' || !session || permissionsLoading) {
-    const defaultRole = (session?.user?.role || 'CUSTOMER') as string;
-
-    return {
-      /** @deprecated Use roleSlug instead */
-      role: defaultRole,
-      roleSlug,
-      roleId,
-      roleName,
-      can: (permission: Permission) => hasPermission(defaultRole, permission),
-      canAny: (permissions: Permission[]) => permissions.some((p) => hasPermission(defaultRole, p)),
-      canAll: (permissions: Permission[]) => permissions.every((p) => hasPermission(defaultRole, p)),
-      isAdmin: roleSlug === 'admin' || roleSlug === 'super-admin',
-      isDispatcher: roleSlug === 'dispatcher',
-      isAccountant: roleSlug === 'accountant',
-      isDriver: roleSlug === 'driver',
-      isCustomer: roleSlug === 'customer',
-      isEmployee: roleSlug !== 'admin' && roleSlug !== 'super-admin',
-      isSystemRole: true, // assume system during loading
-      isLoading: true,
-    };
-  }
-
+  const isLoading = status === 'loading' || !session || permissionsLoading;
   const permissions = Array.isArray(permissionsData?.permissions) ? permissionsData.permissions : [];
 
-  const can = (permission: Permission): boolean => {
+  // Memoize permission-check functions so they are stable references across renders.
+  // Deps only change when session/permissions actually change (not every render).
+  const can = useCallback((permission: Permission): boolean => {
+    if (isLoading) {
+      return hasPermission(sessionRole, permission);
+    }
     if (roleSlug === 'super-admin') return true;
     if (permissions.length > 0) return permissions.includes(permission);
-    // Fallback to static defaults
-    return hasPermission(session.user.role || 'CUSTOMER', permission);
-  };
+    return hasPermission(sessionRole, permission);
+  }, [isLoading, roleSlug, permissions, sessionRole]);
 
-  const canAny = (permissionsList: Permission[]): boolean => {
+  const canAny = useCallback((permissionsList: Permission[]): boolean => {
     return permissionsList.some((p) => can(p));
-  };
+  }, [can]);
 
-  const canAll = (permissionsList: Permission[]): boolean => {
+  const canAll = useCallback((permissionsList: Permission[]): boolean => {
     return permissionsList.every((p) => can(p));
-  };
+  }, [can]);
 
   return {
     /** @deprecated Use roleSlug instead */
-    role: session.user.role || roleSlug.toUpperCase(),
+    role: sessionRole,
     roleSlug,
     roleId,
     roleName,
@@ -90,7 +77,7 @@ export function usePermissions() {
     isDriver: roleSlug === 'driver',
     isCustomer: roleSlug === 'customer',
     isEmployee: roleSlug !== 'admin' && roleSlug !== 'super-admin',
-    isSystemRole: !roleId || ['super-admin', 'admin', 'dispatcher', 'driver', 'customer', 'accountant', 'hr', 'safety', 'fleet'].includes(roleSlug),
-    isLoading: false,
+    isSystemRole: isLoading ? true : (!roleId || ['super-admin', 'admin', 'dispatcher', 'driver', 'customer', 'accountant', 'hr', 'safety', 'fleet'].includes(roleSlug)),
+    isLoading,
   };
 }

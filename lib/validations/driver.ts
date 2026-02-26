@@ -30,6 +30,7 @@ export const updateDriverSchema = createDriverSchema.partial().extend({
   currentTruckId: z.string().nullable().optional(),
   currentTrailerId: z.string().nullable().optional(),
   password: z.string().min(8).optional(),
+  tempPassword: z.string().optional(),
   // Personal Information
   socialSecurityNumber: z.string().optional(),
   birthDate: z.string().or(z.date()).optional(),

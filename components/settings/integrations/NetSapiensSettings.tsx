@@ -7,23 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  AlertCircle, CheckCircle, Loader2, Save, Zap, Globe, Phone, Key, Search,
+  AlertCircle, CheckCircle, Loader2, Save, Zap, Globe, Phone, Key,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-interface WssProbeResult {
-  url: string;
-  status: 'ok' | 'failed';
-  error?: string;
-  latencyMs?: number;
-}
 
 interface NSConfigStatus {
   configured: boolean;
   hasApiKey: boolean;
   server: string | null;
   domain: string | null;
-  wssUrl: string | null;
 }
 
 export default function NetSapiensSettings() {
@@ -32,9 +24,6 @@ export default function NetSapiensSettings() {
   const [status, setStatus] = useState<NSConfigStatus | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [server, setServer] = useState('yokopbx.com');
-  const [wssUrl, setWssUrl] = useState('');
-  const [probing, setProbing] = useState(false);
-  const [probeResults, setProbeResults] = useState<WssProbeResult[] | null>(null);
 
   useEffect(() => {
     fetchStatus();
@@ -48,7 +37,6 @@ export default function NetSapiensSettings() {
       if (data.success) {
         setStatus(data.data);
         if (data.data.server) setServer(data.data.server);
-        if (data.data.wssUrl) setWssUrl(data.data.wssUrl);
       }
     } catch (err) {
       console.error('Failed to load NS settings:', err);
@@ -75,7 +63,6 @@ export default function NetSapiensSettings() {
         body: JSON.stringify({
           apiKey: apiKey || 'unchanged',
           server,
-          ...(wssUrl && { wssUrl }),
         }),
       });
 
@@ -89,35 +76,6 @@ export default function NetSapiensSettings() {
       toast.error(error.message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleProbeWss = async () => {
-    if (!server) {
-      toast.error('Enter a server hostname first');
-      return;
-    }
-    setProbing(true);
-    setProbeResults(null);
-    try {
-      const res = await fetch('/api/integrations/netsapiens/probe-wss', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ server }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setProbeResults(data.results);
-      if (data.recommended) {
-        setWssUrl(data.recommended);
-        toast.success(`Found working WSS: ${data.recommended}`);
-      } else {
-        toast.error('No working WSS endpoint found. Check server config or ask your PBX admin.');
-      }
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setProbing(false);
     }
   };
 
@@ -217,61 +175,6 @@ export default function NetSapiensSettings() {
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label>WebSocket URL (WSS) — Softphone</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                value={wssUrl}
-                onChange={(e) => setWssUrl(e.target.value)}
-                placeholder={`wss://${server || 'yokopbx.com'}:8089/ws`}
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleProbeWss}
-                disabled={probing || !server}
-                title="Auto-detect WSS endpoint"
-              >
-                {probing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                {probing ? 'Probing...' : 'Auto-detect'}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              WebSocket endpoint for browser softphone. Click &quot;Auto-detect&quot; to find it automatically.
-            </p>
-            {probeResults && (
-              <div className="mt-2 rounded border p-2 space-y-1 text-xs">
-                <p className="font-medium text-sm mb-1">Probe Results:</p>
-                {probeResults.map((r) => (
-                  <div key={r.url} className="flex items-center gap-2">
-                    {r.status === 'ok' ? (
-                      <CheckCircle className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                    ) : (
-                      <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
-                    )}
-                    <code className="text-[11px]">{r.url}</code>
-                    {r.status === 'ok' ? (
-                      <span className="text-green-600 ml-auto">{r.latencyMs}ms</span>
-                    ) : (
-                      <span className="text-muted-foreground ml-auto truncate max-w-[140px]">{r.error}</span>
-                    )}
-                    {r.status === 'ok' && r.url !== wssUrl && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 px-1.5 text-[10px]"
-                        onClick={() => { setWssUrl(r.url); toast.info(`Set to ${r.url}`); }}
-                      >
-                        Use
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className="flex gap-3 pt-4 border-t mt-4">
             <Button onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
@@ -298,7 +201,6 @@ export default function NetSapiensSettings() {
               { label: 'Voicemail', desc: 'Listen to voicemail from the TMS' },
               { label: 'Call Recordings', desc: 'Access call recordings for review' },
               { label: 'Active Calls', desc: 'See live calls across the company' },
-              { label: 'Browser Softphone', desc: 'Make & receive calls in your browser (WebRTC)' },
             ].map((f) => (
               <div key={f.label} className="flex items-start gap-2 p-2 rounded-lg bg-muted/50">
                 <Zap className="h-4 w-4 text-primary mt-0.5" />

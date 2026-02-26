@@ -445,6 +445,11 @@ export function DataTable<TData extends Record<string, any>>({
                               header.column.getCanResize() && 'resizable',
                               (header.column.columnDef as ExtendedColumnDef<TData>).className
                             )}
+                            aria-sort={
+                              header.column.getIsSorted() === 'asc' ? 'ascending' :
+                              header.column.getIsSorted() === 'desc' ? 'descending' :
+                              header.column.getCanSort() ? 'none' : undefined
+                            }
                           >
                             {header.isPlaceholder ? null : (
                               <div className="flex items-center justify-between w-full">
@@ -586,6 +591,8 @@ export function DataTable<TData extends Record<string, any>>({
                                       toggleRow(row.id);
                                     }}
                                     type="button"
+                                    aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+                                    aria-expanded={isExpanded}
                                   >
                                     {isExpanded ? (
                                       <ChevronUp className="h-3 w-3" />
@@ -667,6 +674,7 @@ export function DataTable<TData extends Record<string, any>>({
                 className="hidden sm:flex h-6 w-6 p-0"
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}
+                aria-label="Go to first page"
               >
                 <ChevronsLeft className="h-3 w-3" />
               </Button>
@@ -676,6 +684,7 @@ export function DataTable<TData extends Record<string, any>>({
                 className="h-6 w-6 p-0"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
+                aria-label="Go to previous page"
               >
                 <ChevronLeft className="h-3 w-3" />
               </Button>
@@ -705,6 +714,7 @@ export function DataTable<TData extends Record<string, any>>({
                 className="h-6 w-6 p-0"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
+                aria-label="Go to next page"
               >
                 <ChevronRight className="h-3 w-3" />
               </Button>
@@ -715,6 +725,7 @@ export function DataTable<TData extends Record<string, any>>({
                 className="hidden sm:flex h-6 w-6 p-0"
                 onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                 disabled={!table.getCanNextPage()}
+                aria-label="Go to last page"
               >
                 <ChevronsRight className="h-3 w-3" />
               </Button>

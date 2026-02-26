@@ -1,4 +1,3 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,14 +5,8 @@ import { ShoppingBag, Download, CheckCircle2, Star } from 'lucide-react';
 
 export default function MarketplacePage() {
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Apps & Marketplace', href: '/dashboard/apps/marketplace' }]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Apps & Marketplace</h1>
-        </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="space-y-4">
+<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -84,6 +77,5 @@ export default function MarketplacePage() {
         </Card>
       </div>
       </div>
-    </>
   );
 }

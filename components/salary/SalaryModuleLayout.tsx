@@ -4,7 +4,10 @@ import * as React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { FileText, Users, BarChart3, Wallet, Clock } from 'lucide-react';
+import { FileText, Users, BarChart3, Wallet, Clock, UserCheck, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/layout/PageShell';
 
 // Lazy load tab components for better performance
 const PendingSettlementsTab = React.lazy(() => import('./tabs/PendingSettlementsTab'));
@@ -12,28 +15,25 @@ const SalaryBatchesTab = React.lazy(() => import('./tabs/SalaryBatchesTab'));
 const DriverStatementsTab = React.lazy(() => import('./tabs/DriverStatementsTab'));
 const SalaryReportTab = React.lazy(() => import('./tabs/SalaryReportTab'));
 const DriverBalancesTab = React.lazy(() => import('./tabs/DriverBalancesTab'));
+const DispatcherSalaryTab = React.lazy(() => import('./tabs/DispatcherSalaryTab'));
 
 const SALARY_TABS = [
-    { id: 'pending', label: 'Pending', icon: Clock },
     { id: 'batches', label: 'Batches', icon: FileText },
+    { id: 'pending', label: 'Pending', icon: Clock },
     { id: 'statements', label: 'All Settlements', icon: Users },
     { id: 'report', label: 'Reports', icon: BarChart3 },
     { id: 'balances', label: 'Balances', icon: Wallet },
+    { id: 'dispatcher', label: 'Dispatcher Salary', icon: UserCheck },
 ] as const;
 
 type SalaryTabId = typeof SALARY_TABS[number]['id'];
 
-/**
- * SalaryModuleLayout - Main container for the Salary module with horizontal tabs
- * Matches the datatruck-style design with compact tabs and data tables
- */
 export default function SalaryModuleLayout() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
-    // Get active tab from URL or default to 'pending'
-    const activeTab = (searchParams.get('tab') as SalaryTabId) || 'pending';
+    const activeTab = (searchParams.get('tab') as SalaryTabId) || 'batches';
 
     const handleTabChange = (value: string) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -42,15 +42,10 @@ export default function SalaryModuleLayout() {
     };
 
     return (
-        <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold tracking-tight">Settlements</h1>
-            </div>
-
-            {/* Tabs */}
+        <PageShell>
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList className="h-auto p-0 bg-transparent border-b border-border rounded-none w-full justify-start gap-0">
+                <div className="flex items-center border-b border-border">
+                    <TabsList className="h-auto p-0 bg-transparent rounded-none flex-1 justify-start gap-0">
                     {SALARY_TABS.map((tab) => {
                         const Icon = tab.icon;
                         return (
@@ -70,40 +65,43 @@ export default function SalaryModuleLayout() {
                             </TabsTrigger>
                         );
                     })}
-                </TabsList>
+                    </TabsList>
+                    <Link href="/dashboard/settlements/generate" className="shrink-0 ml-auto pl-4">
+                        <Button size="sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Generate Settlement
+                        </Button>
+                    </Link>
+                </div>
 
-                {/* Tab Content */}
                 <React.Suspense fallback={<TabContentSkeleton />}>
                     <TabsContent value="pending" className="mt-4">
                         <PendingSettlementsTab />
                     </TabsContent>
-
                     <TabsContent value="batches" className="mt-4">
                         <SalaryBatchesTab />
                     </TabsContent>
-
                     <TabsContent value="statements" className="mt-4">
                         <DriverStatementsTab />
                     </TabsContent>
-
                     <TabsContent value="report" className="mt-4">
                         <SalaryReportTab />
                     </TabsContent>
-
                     <TabsContent value="balances" className="mt-4">
                         <DriverBalancesTab />
                     </TabsContent>
+                    <TabsContent value="dispatcher" className="mt-4">
+                        <DispatcherSalaryTab />
+                    </TabsContent>
                 </React.Suspense>
             </Tabs>
-        </div>
+        </PageShell>
     );
 }
 
-/** Loading skeleton for tab content */
 function TabContentSkeleton() {
     return (
         <div className="space-y-4 animate-pulse">
-            {/* Toolbar skeleton */}
             <div className="flex items-center gap-2">
                 <div className="h-9 w-20 bg-muted rounded" />
                 <div className="h-9 w-32 bg-muted rounded" />
@@ -111,7 +109,6 @@ function TabContentSkeleton() {
                 <div className="h-9 w-20 bg-muted rounded" />
                 <div className="h-9 w-24 bg-muted rounded" />
             </div>
-            {/* Table skeleton */}
             <div className="border rounded-lg">
                 <div className="h-12 bg-muted/50 border-b" />
                 {[...Array(5)].map((_, i) => (

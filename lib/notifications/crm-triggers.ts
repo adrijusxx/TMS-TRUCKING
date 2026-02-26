@@ -8,6 +8,25 @@
 import { prisma } from '../prisma';
 
 /**
+ * Get CRM notification preferences for a company.
+ * Returns defaults if not configured.
+ */
+async function getCrmNotificationPrefs(companyId: string) {
+    const settings = await prisma.companySettings.findUnique({
+        where: { companyId },
+        select: { notificationSettings: true },
+    });
+    const notifSettings = (settings?.notificationSettings as any) || {};
+    return {
+        notifyOnAssignment: true,
+        notifyOnFollowUpOverdue: true,
+        notifyOnSLABreach: true,
+        notifyOnNewApplication: true,
+        ...(notifSettings.crm || {}),
+    };
+}
+
+/**
  * Notify a recruiter that a lead follow-up is due/overdue
  */
 export async function notifyFollowUpDue(
@@ -15,9 +34,15 @@ export async function notifyFollowUpDue(
     assignedUserId: string,
     leadName: string,
     leadNumber: string,
-    followUpNote?: string | null
+    followUpNote?: string | null,
+    companyId?: string
 ) {
     try {
+        if (companyId) {
+            const prefs = await getCrmNotificationPrefs(companyId);
+            if (!prefs.notifyOnFollowUpOverdue) return;
+        }
+
         const message = followUpNote
             ? `Follow-up due for ${leadName} (${leadNumber}): ${followUpNote}`
             : `Follow-up due for ${leadName} (${leadNumber})`;
@@ -46,9 +71,15 @@ export async function notifyLeadSLABreach(
     leadNumber: string,
     status: string,
     daysSinceEntry: number,
-    threshold: number
+    threshold: number,
+    companyId?: string
 ) {
     try {
+        if (companyId) {
+            const prefs = await getCrmNotificationPrefs(companyId);
+            if (!prefs.notifyOnSLABreach) return;
+        }
+
         const message = `${leadName} (${leadNumber}) has been in "${status.replace(/_/g, ' ')}" for ${daysSinceEntry} days (SLA: ${threshold} days)`;
 
         // Notify assigned recruiter if there is one
@@ -78,6 +109,9 @@ export async function notifyNewApplication(
     leadNumber: string
 ) {
     try {
+        const prefs = await getCrmNotificationPrefs(companyId);
+        if (!prefs.notifyOnNewApplication) return;
+
         // Find all users who might handle recruiting (admins and HR)
         const recruiters = await prisma.user.findMany({
             where: {

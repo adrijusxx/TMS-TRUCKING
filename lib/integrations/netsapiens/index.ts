@@ -16,4 +16,3 @@ export * from './voicemail';
 export * from './recordings';
 export * from './contacts';
 export * from './subscriptions';
-export * from './devices';

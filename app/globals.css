@@ -217,10 +217,8 @@
 }
 
 /* --- High Density / Compact Mode --- */
-.compact-mode {
-  --base-font-size: 0.8125rem;
-  /* 13px */
-}
+/* Reduces density (spacing, padding, heights) without changing font size.
+   Font size is controlled independently by html.font-* classes. */
 
 .compact-mode .container {
   max-width: 100% !important;
@@ -228,29 +226,68 @@
   padding-right: 1rem;
 }
 
+/* Tables */
 .compact-mode td,
 .compact-mode th {
-  padding-top: 0.35rem !important;
-  padding-bottom: 0.35rem !important;
-  height: 2.25rem !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+  height: 2rem !important;
 }
 
-.compact-mode .card-header {
+/* Cards (via data-slot attributes) */
+.compact-mode [data-slot="card-header"] {
   padding: 0.75rem 1rem !important;
 }
-
-.compact-mode .card-content {
+.compact-mode [data-slot="card-content"] {
   padding: 0.75rem 1rem !important;
+  padding-top: 0 !important;
+}
+.compact-mode [data-slot="card-footer"] {
+  padding: 0.75rem 1rem !important;
+  padding-top: 0 !important;
 }
 
+/* Page header area */
 .compact-mode .header-container {
   padding-top: 0.5rem !important;
   padding-bottom: 0.5rem !important;
 }
 
+/* Sidebar navigation links */
 .compact-mode aside nav a {
-  padding-top: 0.35rem !important;
-  padding-bottom: 0.35rem !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+
+/* Inputs and selects */
+.compact-mode input:not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+.compact-mode select,
+.compact-mode [role="combobox"] {
+  height: 2rem !important;
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+
+/* Section gaps */
+.compact-mode .space-y-6 > * + * {
+  margin-top: 1rem !important;
+}
+.compact-mode .space-y-4 > * + * {
+  margin-top: 0.5rem !important;
+}
+.compact-mode .gap-6 {
+  gap: 1rem !important;
+}
+.compact-mode .gap-4 {
+  gap: 0.5rem !important;
+}
+
+/* Page padding overrides */
+.compact-mode .p-6 {
+  padding: 1rem !important;
+}
+.compact-mode .p-4 {
+  padding: 0.5rem !important;
 }
 
 /* Smooth Transitions — scoped to interactive elements */
@@ -324,23 +361,6 @@ button, a, input, select, textarea, [role="button"],
     @apply bg-background text-foreground;
   }
 
-  /* Compact mode styles */
-  .compact-mode {
-    --spacing-unit: 0.5rem;
-  }
-
-  .compact-mode .space-y-6>*+* {
-    margin-top: calc(var(--spacing-unit) * 3);
-  }
-
-  .compact-mode .p-4 {
-    padding: calc(var(--spacing-unit) * 2);
-  }
-
-  .compact-mode .gap-4 {
-    gap: calc(var(--spacing-unit) * 2);
-  }
-
   /* Reduce motion */
   .reduce-motion *,
   .reduce-motion *::before,
@@ -366,4 +386,9 @@ html.font-medium {
 html.font-large {
   --base-font-size: 1.125rem;
   font-size: 1.125rem;
+}
+
+html.font-extra-small {
+  --base-font-size: 0.75rem;
+  font-size: 0.75rem;
 }

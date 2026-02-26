@@ -53,20 +53,23 @@ export async function GET(
       );
     }
 
+    const noData = (reason: string) => ({
+      loadId, proximityStatus: 'NO_DATA' as const, truckLocation: null,
+      eta: null, nextStop: null, proximityMiles: null,
+      truckNumber: load.truck?.truckNumber || null, _debug: { reason },
+    });
+
     // Only track loads in active statuses
     if (!ACTIVE_STATUSES.includes(load.status as any)) {
-      return NextResponse.json({
-        success: true,
-        data: { loadId, proximityStatus: 'NO_DATA', truckLocation: null, eta: null, nextStop: null, proximityMiles: null, truckNumber: load.truck?.truckNumber || null },
-      });
+      return NextResponse.json({ success: true, data: noData(`INACTIVE_STATUS: load.status=${load.status}`) });
     }
 
     const samsaraId = load.truck?.samsaraId;
+    if (!load.truck) {
+      return NextResponse.json({ success: true, data: noData('NO_TRUCK_ASSIGNED') });
+    }
     if (!samsaraId) {
-      return NextResponse.json({
-        success: true,
-        data: { loadId, proximityStatus: 'NO_DATA', truckLocation: null, eta: null, nextStop: null, proximityMiles: null, truckNumber: load.truck?.truckNumber || null },
-      });
+      return NextResponse.json({ success: true, data: noData(`NO_SAMSARA_ID: truck=${load.truck.truckNumber}`) });
     }
 
     // Fetch live GPS from Samsara
@@ -74,10 +77,7 @@ export async function GET(
     const vehicleLoc = locations?.[0]?.location;
 
     if (!vehicleLoc) {
-      return NextResponse.json({
-        success: true,
-        data: { loadId, proximityStatus: 'NO_DATA', truckLocation: null, eta: null, nextStop: null, proximityMiles: null, truckNumber: load.truck?.truckNumber || null },
-      });
+      return NextResponse.json({ success: true, data: noData(`NO_GPS_DATA: samsaraId=${samsaraId}`) });
     }
 
     // Determine the next incomplete stop

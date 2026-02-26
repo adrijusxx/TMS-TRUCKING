@@ -1,6 +1,7 @@
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { redirect } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, Users, Truck, DollarSign } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import QuickActions from '@/components/dashboard/QuickActions';
@@ -13,10 +14,7 @@ import DriverPerformanceSummary from '@/components/dashboard/DriverPerformanceSu
 import TruckPerformanceSummary from '@/components/dashboard/TruckPerformanceSummary';
 import CustomerPerformanceMetrics from '@/components/dashboard/CustomerPerformanceMetrics';
 import TodayAtAGlance from '@/components/dashboard/TodayAtAGlance';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { PageTransition } from '@/components/ui/page-transition';
-import OnboardingGuide from '@/components/dashboard/OnboardingGuide';
-import { LoadStatus } from '@prisma/client';
 import { buildMcNumberWhereClause, buildMcNumberIdWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { cookies } from 'next/headers';
 import { getLoadFilter, getDriverFilter, getTruckFilter, createFilterContext } from '@/lib/filters/role-data-filter';
@@ -31,6 +29,22 @@ export default async function DashboardPage() {
 
     if (!session?.user?.companyId) {
       return <div>Loading...</div>;
+    }
+
+    // Auto-redirect new companies to onboarding wizard
+    const company = await prisma.company.findUnique({
+      where: { id: session.user.companyId },
+      select: { onboardingComplete: true },
+    });
+    if (company && !company.onboardingComplete) {
+      const [loadsCount, driversCount, trucksCount] = await Promise.all([
+        prisma.load.count({ where: { companyId: session.user.companyId, deletedAt: null } }),
+        prisma.driver.count({ where: { companyId: session.user.companyId, deletedAt: null } }),
+        prisma.truck.count({ where: { companyId: session.user.companyId, deletedAt: null } }),
+      ]);
+      if (loadsCount + driversCount + trucksCount === 0) {
+        redirect('/dashboard/onboarding');
+      }
     }
 
     // Build filters with MC number if applicable
@@ -226,16 +240,8 @@ export default async function DashboardPage() {
     ];
 
     return (
-      <div className="space-y-4 sm:space-y-6">
-        <Breadcrumb items={[{ label: 'Dashboard' }]} />
+      <div className="space-y-4">
         <PageTransition>
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold">Dashboard</h1>
-        </div>
-
-        {/* Onboarding Guide for New Users */}
-        <OnboardingGuide />
-
         {/* Today at a Glance */}
         <TodayAtAGlance
           activeLoads={activeLoads}
@@ -345,10 +351,12 @@ export default async function DashboardPage() {
       </div>
     );
   } catch (error) {
-    // Don't log Next.js build-time dynamic route warnings
-    if (error instanceof Error && error.message.includes('Dynamic server usage')) {
-      // This is a build-time warning, not a runtime error
-      // Re-throw to let Next.js handle it properly
+    // Re-throw Next.js internal errors (redirect, dynamic server usage)
+    if (error instanceof Error && (
+      error.message.includes('NEXT_REDIRECT') ||
+      error.message.includes('Dynamic server usage') ||
+      (error as any).digest?.startsWith('NEXT_REDIRECT')
+    )) {
       throw error;
     }
 

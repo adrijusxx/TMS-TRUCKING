@@ -34,23 +34,9 @@ export async function POST(request: NextRequest) {
     // Normalize email to lowercase (auth queries use lowercase)
     const normalizedEmail = validated.email.toLowerCase().trim();
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: normalizedEmail },
-    });
-
-    if (existingUser) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'CONFLICT',
-            message: 'User with this email already exists',
-          },
-        },
-        { status: 409 }
-      );
-    }
+    // Note: Email is now unique per-company (not globally).
+    // Since registration creates a new company, no duplicate check is needed here.
+    // The same person can register multiple companies with the same email.
 
     // Check if DOT number already registered
     const existingCompany = await prisma.company.findFirst({

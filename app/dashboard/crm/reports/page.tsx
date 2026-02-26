@@ -18,14 +18,7 @@ export default async function ReportsPage() {
 
     return (
         <div className="space-y-4">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Recruiting Reports</h1>
-                <p className="text-muted-foreground">
-                    Analytics on source ROI, conversion funnel, time-in-stage, and recruiter performance
-                </p>
-            </div>
-
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+<Suspense fallback={<Skeleton className="h-64 w-full" />}>
                 <RecruitingReports />
             </Suspense>
         </div>

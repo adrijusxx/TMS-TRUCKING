@@ -16,6 +16,10 @@ import { ImportModal } from '@/components/ui/import-modal';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
 import { exportToCSV } from '@/lib/export';
+
+// Stable reference to avoid infinite React Query refetch loops when no queryParams are passed
+const EMPTY_QUERY_PARAMS = {};
+
 import type {
   DataTableProps,
   ExtendedColumnDef,
@@ -137,7 +141,7 @@ interface DataTableWrapperProps<TData extends Record<string, any>> {
 export function DataTableWrapper<TData extends Record<string, any>>({
   config,
   fetchData,
-  queryParams = {},
+  queryParams = EMPTY_QUERY_PARAMS,
   rowActions,
   onRowClick,
   emptyMessage,
@@ -158,7 +162,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   onFiltersChange,
 }: DataTableWrapperProps<TData>) {
 
-  const { can } = usePermissions();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const isAdmin = useIsAdmin();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -181,6 +185,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   const [isCompact, setIsCompact] = React.useState(false);
 
   // Filter columns based on permissions
+  // Use permissionsLoading as stable dep instead of `can` (which is a new reference every render)
   const visibleColumns = React.useMemo(() => {
     return config.columns.filter((column) => {
       // Check column permission
@@ -189,7 +194,8 @@ export function DataTableWrapper<TData extends Record<string, any>>({
       }
       return true;
     });
-  }, [config.columns, can]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.columns, permissionsLoading]);
 
   // Build default visibility state from column definitions
   const defaultVisibility = React.useMemo(() => {
@@ -471,7 +477,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
       const pageSize = 100; // Use larger page size for efficiency
       let hasMore = true;
 
-      while (hasMore) {
+      while (hasMore && page <= 100) {
         const result = await fetchData({
           page,
           pageSize,
@@ -482,6 +488,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
         });
 
         const pageIds = (result.data || []).map((row: TData) => row.id).filter(Boolean);
+        if (pageIds.length === 0) break;
         allIds.push(...pageIds);
 
         // Check if there are more pages

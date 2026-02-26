@@ -1,4 +1,3 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { VendorsTableClient } from './VendorsTableClient';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
@@ -38,14 +37,6 @@ export default async function VendorsPage() {
   }));
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Vendors', href: '/dashboard/vendors' }]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Vendors</h1>
-        </div>
-        <VendorsTableClient data={data} />
-      </div>
-    </>
+    <VendorsTableClient data={data} />
   );
 }

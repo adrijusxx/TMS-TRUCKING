@@ -14,11 +14,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Upload, Download, Send, Trash2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Plus, Send, Trash2 } from 'lucide-react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { BulkActionBar } from '@/components/data-table/BulkActionBar';
-import ImportSheet from '@/components/import-export/ImportSheet';
-import ExportDialog from '@/components/import-export/ExportDialog';
+import { PageShell } from '@/components/layout/PageShell';
 import { usePermissions } from '@/hooks/usePermissions';
 import { batchesTableConfig } from '@/lib/config/entities/batches';
 import { apiUrl } from '@/lib/utils';
@@ -42,7 +48,12 @@ interface BatchData {
   };
 }
 
-export default function BatchListNew() {
+interface BatchListNewProps {
+  /** When true, skips PageShell wrapper (for use as embedded tab) */
+  embedded?: boolean;
+}
+
+export default function BatchListNew({ embedded }: BatchListNewProps = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
@@ -60,7 +71,6 @@ export default function BatchListNew() {
     if (params.page) queryParams.set('page', params.page.toString());
     if (params.pageSize) queryParams.set('limit', params.pageSize.toString());
 
-    // Handle filters
     if (params.filters) {
       params.filters.forEach((filter) => {
         if (filter.value !== undefined && filter.value !== null && filter.value !== '') {
@@ -69,7 +79,6 @@ export default function BatchListNew() {
       });
     }
 
-    // Add search if provided
     if (params.search) {
       queryParams.set('search', params.search);
     }
@@ -114,93 +123,102 @@ export default function BatchListNew() {
     }
   };
 
-  const handleSendToFactoring = async (batchId: string) => {
+  const handleSendSelected = async () => {
+    if (selectedIds.length === 0) return;
     try {
-      const response = await fetch(apiUrl(`/api/batches/${batchId}/send`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to send batch');
-      }
-      toast.success('Batch sent to factoring');
+      await Promise.all(
+        selectedIds.map((batchId) =>
+          fetch(apiUrl(`/api/batches/${batchId}/send`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          })
+        )
+      );
+      toast.success(`Sent ${selectedIds.length} batch(es)`);
+      setSelectedIds([]);
       queryClient.invalidateQueries({ queryKey: ['batches'] });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to send batch');
+    } catch {
+      toast.error('Failed to send batches');
+    }
+  };
+
+  const handleChangeStatus = async (status: string) => {
+    if (selectedIds.length === 0 || !status) return;
+    try {
+      await Promise.all(
+        selectedIds.map((batchId) =>
+          fetch(apiUrl(`/api/batches/${batchId}/status`), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postStatus: status }),
+          })
+        )
+      );
+      toast.success(`Updated ${selectedIds.length} batch(es) to ${status}`);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ['batches'] });
+    } catch {
+      toast.error('Failed to update batches');
     }
   };
 
   const rowActions = (row: BatchData) => (
     <div className="flex items-center gap-2">
       {row.postStatus === 'UNPOSTED' && (
-        <>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleSendToFactoring(row.id)}
-            title="Send to factoring"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setDeleteBatchId(row.id)}
-            className="text-destructive hover:text-destructive"
-            title="Delete batch"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </>
-      )}
-      <Link href={`/dashboard/batches/${row.id}`}>
-        <Button variant="ghost" size="sm">
-          View
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setDeleteBatchId(row.id)}
+          className="text-destructive hover:text-destructive"
+          title="Delete batch"
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
+      )}
+      <Link href={`/dashboard/invoices/batches/${row.id}`}>
+        <Button variant="ghost" size="sm">View</Button>
       </Link>
     </div>
   );
 
-  return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="flex items-center gap-2">
-          {can('data.import') && (
-            <ImportSheet
-              entityType="batches"
-              onImportComplete={() => queryClient.invalidateQueries({ queryKey: ['batches'] })}
-            >
-              <Button variant="outline" size="sm">
-                <Upload className="h-4 w-4 mr-2" />
-                Import
-              </Button>
-            </ImportSheet>
-          )}
-          {can('data.export') && (
-            <ExportDialog entityType="batches">
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </ExportDialog>
-          )}
-          {can('batches.create') && (
-            <Button size="sm" onClick={() => router.push('/dashboard/batches/new')}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Batch
-            </Button>
-          )}
-        </div>
-      </div>
+  const actions = (
+    <div className="flex items-center gap-2">
+      {selectedIds.length > 0 && (
+        <>
+          <Button variant="outline" size="sm" onClick={handleSendSelected}>
+            <Send className="h-4 w-4 mr-1" />
+            Send ({selectedIds.length})
+          </Button>
+          <Select value="" onValueChange={(v) => handleChangeStatus(v)}>
+            <SelectTrigger className="w-[150px] h-8">
+              <SelectValue placeholder="Change status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="UNPOSTED">Unposted</SelectItem>
+              <SelectItem value="POSTED">Posted</SelectItem>
+              <SelectItem value="PAID">Paid</SelectItem>
+            </SelectContent>
+          </Select>
+        </>
+      )}
+      {can('batches.create') && (
+        <Button size="sm" onClick={() => router.push('/dashboard/invoices/batches/new')}>
+          <Plus className="h-4 w-4 mr-1" />
+          Create Batch
+        </Button>
+      )}
+    </div>
+  );
 
-      {/* Data Table */}
+  const content = (
+    <>
+      {embedded && <div className="flex justify-end mb-3">{actions}</div>}
       <DataTableWrapper
         config={batchesTableConfig}
         fetchData={fetchBatches}
         rowActions={rowActions}
+        onRowClick={(row) => router.push(`/dashboard/invoices/batches/${row.id}`)}
         emptyMessage="No batches found. Get started by creating your first batch."
         enableColumnVisibility={can('data.column_visibility')}
         enableRowSelection={true}
@@ -249,7 +267,14 @@ export default function BatchListNew() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <PageShell title="Batches" description="Manage invoice batches for billing" actions={actions}>
+      {content}
+    </PageShell>
   );
 }
-

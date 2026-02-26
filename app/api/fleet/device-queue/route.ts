@@ -227,9 +227,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, queueId, recordId, recordType, reason, additionalData } = body;
 
-    if (!action || !queueId) {
+    if (!action) {
       return NextResponse.json(
-        { success: false, error: { code: 'BAD_REQUEST', message: 'Missing action or queueId' } },
+        { success: false, error: { code: 'BAD_REQUEST', message: 'Missing action' } },
+        { status: 400 }
+      );
+    }
+
+    if (action !== 'bulk-reset' && !queueId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'BAD_REQUEST', message: 'Missing queueId' } },
         { status: 400 }
       );
     }
@@ -283,6 +290,35 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({
             success: true,
             data: { action: 'rejected' },
+          });
+        }
+
+        case 'requeue': {
+          const result = await syncService.requeueDevice(queueId, session.user.id);
+          if (!result.success) {
+            return NextResponse.json(
+              { success: false, error: { code: 'OPERATION_FAILED', message: result.error } },
+              { status: 400 }
+            );
+          }
+          return NextResponse.json({
+            success: true,
+            data: { action: 'requeued' },
+          });
+        }
+
+        case 'bulk-reset': {
+          const { queueIds } = body;
+          if (!queueIds || !Array.isArray(queueIds)) {
+            return NextResponse.json(
+              { success: false, error: { code: 'BAD_REQUEST', message: 'Missing queueIds array' } },
+              { status: 400 }
+            );
+          }
+          const result = await syncService.bulkResetToPending(queueIds, session.user.id);
+          return NextResponse.json({
+            success: true,
+            data: { action: 'bulk-reset', success: result.success, failed: result.failed },
           });
         }
 

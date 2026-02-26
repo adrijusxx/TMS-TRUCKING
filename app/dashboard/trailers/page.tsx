@@ -1,4 +1,3 @@
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { TrailersTableClient } from './TrailersTableClient';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
@@ -57,14 +56,6 @@ export default async function TrailersPage() {
   }));
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Trailers', href: '/dashboard/trailers' }]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Trailers</h1>
-        </div>
-        <TrailersTableClient data={data} />
-      </div>
-    </>
+    <TrailersTableClient data={data} />
   );
 }

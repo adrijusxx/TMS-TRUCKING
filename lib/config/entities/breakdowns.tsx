@@ -3,8 +3,8 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField, CustomBulkAction } from '@/components/data-table/types';
 import { BreakdownStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { EntityLink } from '@/components/common/EntityLink';
 
 interface BreakdownData {
   id: string;
@@ -74,12 +74,9 @@ const columns: ExtendedColumnDef<BreakdownData>[] = [
     id: 'truck',
     header: 'Truck #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/trucks/${row.original.truck.id}`}
-        className="text-primary hover:underline"
-      >
+      <EntityLink entityType="trucks" entityId={row.original.truck.id}>
         {row.original.truck.truckNumber}
-      </Link>
+      </EntityLink>
     ),
     defaultVisible: true,
   },
@@ -143,12 +140,9 @@ const columns: ExtendedColumnDef<BreakdownData>[] = [
     header: 'Load',
     cell: ({ row }) =>
       row.original.load ? (
-        <Link
-          href={`/dashboard/loads/${row.original.load.id}`}
-          className="text-primary hover:underline"
-        >
+        <EntityLink entityType="loads" entityId={row.original.load.id}>
           {row.original.load.loadNumber}
-        </Link>
+        </EntityLink>
       ) : (
         'N/A'
       ),

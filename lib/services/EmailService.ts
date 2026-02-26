@@ -1,7 +1,5 @@
 
-import { SESClient, SendEmailCommand, SendRawEmailCommand } from "@aws-sdk/client-ses";
-
-
+import { Resend } from "resend";
 
 interface EmailOptions {
     to: string | string[];
@@ -27,103 +25,63 @@ interface EmailSendResult {
 }
 
 export class EmailService {
-    private static client: SESClient | null = null;
+    private static client: Resend | null = null;
 
-    private static getClient(): SESClient {
+    private static getClient(): Resend {
         if (!this.client) {
-            this.client = new SESClient({
-                region: process.env.AWS_REGION || "us-east-1",
-                // Only provide credentials if they exist; otherwise SDK falls back to IAM Role
-                ...(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
-                    ? {
-                        credentials: {
-                            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-                            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-                        },
-                    }
-                    : {}),
-            });
+            this.client = new Resend(process.env.RESEND_API_KEY);
         }
         return this.client;
     }
 
+    private static getFromEmail(from?: string): string {
+        return from || process.env.RESEND_FROM_EMAIL || process.env.AWS_SES_FROM_EMAIL!;
+    }
+
     static async sendEmail({ to, subject, html, from }: EmailOptions): Promise<boolean> {
         try {
-            const command = new SendEmailCommand({
-                Destination: {
-                    ToAddresses: Array.isArray(to) ? to : [to],
-                },
-                Message: {
-                    Body: {
-                        Html: {
-                            Charset: "UTF-8",
-                            Data: html,
-                        },
-                    },
-                    Subject: {
-                        Charset: "UTF-8",
-                        Data: subject,
-                    },
-                },
-                Source: from || process.env.AWS_SES_FROM_EMAIL || "noreply@yourdomain.com",
+            const { error } = await this.getClient().emails.send({
+                from: this.getFromEmail(from),
+                to: Array.isArray(to) ? to : [to],
+                subject,
+                html,
             });
 
-            const response = await this.getClient().send(command);
-            console.log("Email sent successfully:", response.MessageId);
+            if (error) {
+                console.error("Failed to send email:", error);
+                return false;
+            }
+
+            console.log("Email sent successfully via Resend");
             return true;
         } catch (error) {
             console.error("Failed to send email:", error);
-            // Don't throw, just return false so we don't break the registration flow
             return false;
         }
     }
 
-    /**
-     * Send email with PDF attachments via SES SendRawEmail.
-     * Builds a MIME multipart message with inline HTML and file attachments.
-     */
     static async sendEmailWithAttachment({
         to, subject, html, from, attachments,
     }: EmailWithAttachmentOptions): Promise<EmailSendResult> {
         try {
-            const sender = from || process.env.AWS_SES_FROM_EMAIL || "noreply@yourdomain.com";
-            const recipients = Array.isArray(to) ? to : [to];
-            const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
-            let rawMessage = `From: ${sender}\r\n`;
-            rawMessage += `To: ${recipients.join(", ")}\r\n`;
-            rawMessage += `Subject: ${subject}\r\n`;
-            rawMessage += `MIME-Version: 1.0\r\n`;
-            rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
-
-            // HTML body part
-            rawMessage += `--${boundary}\r\n`;
-            rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
-            rawMessage += `Content-Transfer-Encoding: 7bit\r\n\r\n`;
-            rawMessage += `${html}\r\n\r\n`;
-
-            // Attachment parts
-            for (const attachment of attachments) {
-                const base64Content = Buffer.from(attachment.content).toString("base64");
-                rawMessage += `--${boundary}\r\n`;
-                rawMessage += `Content-Type: ${attachment.contentType}; name="${attachment.filename}"\r\n`;
-                rawMessage += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n`;
-                rawMessage += `Content-Transfer-Encoding: base64\r\n\r\n`;
-                // Split base64 into 76-char lines per MIME spec
-                rawMessage += base64Content.replace(/(.{76})/g, "$1\r\n") + "\r\n\r\n";
-            }
-
-            rawMessage += `--${boundary}--\r\n`;
-
-            const command = new SendRawEmailCommand({
-                RawMessage: { Data: Buffer.from(rawMessage) },
-                Destinations: recipients,
-                Source: sender,
+            const { data, error } = await this.getClient().emails.send({
+                from: this.getFromEmail(from),
+                to: Array.isArray(to) ? to : [to],
+                subject,
+                html,
+                attachments: attachments.map((att) => ({
+                    filename: att.filename,
+                    content: Buffer.from(att.content),
+                })),
             });
 
-            const response = await this.getClient().send(command);
-            console.log("Email with attachment sent:", response.MessageId);
-            return { success: true, messageId: response.MessageId };
+            if (error) {
+                console.error("Failed to send email with attachment:", error);
+                return { success: false, error: error.message };
+            }
+
+            console.log("Email with attachment sent via Resend:", data?.id);
+            return { success: true, messageId: data?.id };
         } catch (error) {
             console.error("Failed to send email with attachment:", error);
             return {
@@ -134,7 +92,6 @@ export class EmailService {
     }
 
     static async sendWelcomeEmail(to: string, name: string): Promise<boolean> {
-        // Basic Welcome Template
         const subject = "Welcome to TMS Trucking Platform";
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -148,7 +105,7 @@ export class EmailService {
         </div>
         <p style="color: #666; font-size: 14px;">If you didn't create this account, please ignore this email.</p>
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="color: #999; font-size: 12px;">© ${new Date().getFullYear()} TMS Trucking. All rights reserved.</p>
+        <p style="color: #999; font-size: 12px;">&copy; ${new Date().getFullYear()} TMS Trucking. All rights reserved.</p>
       </div>
     `;
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -111,24 +110,10 @@ export function UnifiedDeviceQueue() {
   };
 
   return (
-    <>
-      <Breadcrumb
-        items={[
-          { label: 'Fleet', href: '/dashboard/fleet' },
-          { label: 'Samsara Devices' },
-        ]}
-      />
-
-      <div className="space-y-6">
+    <div className="space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Samsara Device Queue</h1>
-            <p className="text-muted-foreground mt-1">
-              Review and approve new devices from Samsara before adding to TMS
-            </p>
-          </div>
-          <div className="flex gap-2">
+<div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -260,7 +245,6 @@ export function UnifiedDeviceQueue() {
               </TabsContent>
             </Tabs>
       </div>
-    </>
   );
 }
 

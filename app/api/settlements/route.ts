@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
     const driverId = searchParams.get('driverId');
     const status = searchParams.get('status');
+    const fromDate = searchParams.get('fromDate');
+    const toDate = searchParams.get('toDate');
 
     // Build where clause - Settlement has no companyId, filter through driver relation
     const where: any = {
@@ -55,6 +57,13 @@ export async function GET(request: NextRequest) {
       where.status = status;
     }
 
+    // Date range filtering
+    if (fromDate || toDate) {
+      where.periodEnd = {};
+      if (fromDate) where.periodEnd.gte = new Date(fromDate);
+      if (toDate) where.periodEnd.lte = new Date(toDate);
+    }
+
     const [settlements, total] = await Promise.all([
       prisma.settlement.findMany({
         where,
@@ -69,6 +78,14 @@ export async function GET(request: NextRequest) {
                   lastName: true,
                 },
               },
+              mcNumber: { select: { number: true } },
+              currentTruck: { select: { truckNumber: true } },
+            },
+          },
+          salaryBatch: {
+            select: {
+              id: true,
+              batchNumber: true,
             },
           },
         },

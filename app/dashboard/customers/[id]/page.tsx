@@ -1,70 +1,23 @@
-import { auth } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
-import { notFound, redirect } from 'next/navigation';
-import CustomerDetail from '@/components/customers/CustomerDetail';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
+'use client';
 
-export default async function CustomerDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await auth();
+import { use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEntitySheet } from '@/lib/contexts/EntitySheetContext';
+import { Loader2 } from 'lucide-react';
 
-  if (!session?.user?.companyId) {
-    redirect('/login');
-  }
+export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const { openEntitySheet } = useEntitySheet();
 
-  // Await params as it's now a Promise in Next.js 15+
-  const resolvedParams = await params;
-
-  const customer = await prisma.customer.findFirst({
-    where: {
-      id: resolvedParams.id,
-      companyId: session.user.companyId,
-      deletedAt: null,
-    },
-    include: {
-      loads: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          loadNumber: true,
-          status: true,
-          pickupCity: true,
-          pickupState: true,
-          deliveryCity: true,
-          deliveryState: true,
-          revenue: true,
-          pickupDate: true,
-          deliveryDate: true,
-        },
-        take: 20,
-        orderBy: { createdAt: 'desc' },
-      },
-      contacts: {
-        orderBy: { isPrimary: 'desc' },
-      },
-    },
-  });
-
-  if (!customer) {
-    notFound();
-  }
+  useEffect(() => {
+    openEntitySheet('customers', id);
+    router.replace('/dashboard/customers');
+  }, [id, openEntitySheet, router]);
 
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Customers', href: '/dashboard/customers' },
-        { label: customer.name }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Customer Details</h1>
-        </div>
-        <CustomerDetail customer={customer} />
-      </div>
-    </>
+    <div className="flex h-96 items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+    </div>
   );
 }
-

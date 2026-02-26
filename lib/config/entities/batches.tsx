@@ -1,9 +1,9 @@
 import React from 'react';
+import Link from 'next/link';
 import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { BatchPostStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 interface BatchData {
@@ -38,10 +38,7 @@ const columns: ExtendedColumnDef<BatchData>[] = [
     accessorKey: 'batchNumber',
     header: 'Batch #',
     cell: ({ row }) => (
-      <Link
-        href={`/dashboard/batches/${row.original.id}`}
-        className="text-primary hover:underline font-medium"
-      >
+      <Link href={`/dashboard/invoices/batches/${row.original.id}`} className="text-primary hover:underline font-medium">
         {row.original.batchNumber}
       </Link>
     ),
@@ -63,8 +60,8 @@ const columns: ExtendedColumnDef<BatchData>[] = [
     id: 'mcNumber',
     accessorKey: 'mcNumber',
     header: 'MC Number',
-    cell: ({ row }) => row.original.mcNumber ?? 'N/A',
-    defaultVisible: false,
+    cell: ({ row }) => row.original.mcNumber ?? '-',
+    defaultVisible: true,
     permission: 'mc_numbers.view',
   },
   {
@@ -98,7 +95,7 @@ const columns: ExtendedColumnDef<BatchData>[] = [
     id: 'notes',
     accessorKey: 'notes',
     header: 'Notes',
-    cell: ({ row }) => row.original.notes || 'N/A',
+    cell: ({ row }) => row.original.notes || '-',
     defaultVisible: true,
   },
 ];

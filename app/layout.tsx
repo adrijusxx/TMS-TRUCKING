@@ -36,10 +36,10 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  const saved = localStorage.getItem('fontSize');
-                  if (saved === 'small' || saved === 'medium' || saved === 'large') {
+                  var saved = localStorage.getItem('fontSize');
+                  var sizes = { 'extra-small': '0.75rem', small: '0.875rem', medium: '1rem', large: '1.125rem' };
+                  if (saved && sizes[saved]) {
                     document.documentElement.classList.add('font-' + saved);
-                    const sizes = { small: '0.875rem', medium: '1rem', large: '1.125rem' };
                     document.documentElement.style.setProperty('--base-font-size', sizes[saved]);
                   } else {
                     document.documentElement.classList.add('font-medium');

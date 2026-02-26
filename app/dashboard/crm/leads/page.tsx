@@ -34,15 +34,6 @@ export default async function LeadsPage() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Recruiting Leads</h1>
-                    <p className="text-muted-foreground">
-                        Manage driver leads and track the hiring pipeline
-                    </p>
-                </div>
-            </div>
-
             <Suspense fallback={<LeadListSkeleton />}>
                 <LeadListClient />
             </Suspense>

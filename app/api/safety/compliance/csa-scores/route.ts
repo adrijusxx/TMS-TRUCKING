@@ -10,7 +10,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '30');
+    const limit = parseInt(searchParams.get('limit') || '100');
+    const includeHistory = searchParams.get('includeHistory') !== 'false';
 
     const scores = await prisma.cSAScore.findMany({
       where: {
@@ -28,9 +29,19 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {});
 
+    // Build monthly history grouped by category
+    const monthlyHistory = includeHistory ? scores.map(s => ({
+      basicCategory: s.basicCategory,
+      percentile: s.percentile,
+      score: s.score,
+      trend: s.trend,
+      violationCount: s.violationCount,
+      scoreDate: s.scoreDate instanceof Date ? s.scoreDate.toISOString() : String(s.scoreDate),
+    })) : [];
+
     return NextResponse.json({
       currentScores: scoresByCategory,
-      history: scores
+      history: monthlyHistory
     });
   } catch (error) {
     console.error('Error fetching CSA scores:', error);

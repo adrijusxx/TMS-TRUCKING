@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import CompanyOrganizationCategory from '@/components/settings/categories/CompanyOrganizationCategory';
 import TeamUsersCategory from '@/components/settings/categories/TeamUsersCategory';
 import SystemConfigCategory from '@/components/settings/categories/SystemConfigCategory';
@@ -120,18 +119,11 @@ export default function AdminSettingsPage() {
   };
 
   return (
-    <>
-      <Breadcrumb items={[{ label: 'Settings', href: '/dashboard/settings/admin' }]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Admin Settings</h1>
-        </div>
-
-        <div className="space-y-6">
+    <div className="space-y-4">
+<div className="space-y-4">
           {renderCategoryContent()}
         </div>
       </div>
-    </>
   );
 }
 

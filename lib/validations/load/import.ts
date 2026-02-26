@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LoadStatus } from '@prisma/client';
 import { baseLoadSchema } from './main';
 
 const datePreprocess = (val: unknown) => {
@@ -13,6 +14,9 @@ const datePreprocess = (val: unknown) => {
  */
 export const importLoadSchema = baseLoadSchema
     .extend({
+        // Status — set by LoadImporter (treatAsHistorical → PAID)
+        status: z.nativeEnum(LoadStatus).default(LoadStatus.PENDING),
+        totalExpenses: z.number().nonnegative().optional().default(0),
         pickupState: z.string().optional(),
         deliveryState: z.string().optional(),
         pickupZip: z.string().optional(),

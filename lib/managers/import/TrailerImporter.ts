@@ -176,17 +176,12 @@ export class TrailerImporter extends BaseImporter {
         let updatedCount = 0;
 
         if (trailersToCreate.length > 0) {
-            try {
-                await this.prisma.trailer.createMany({ data: trailersToCreate, skipDuplicates: true });
-                createdCount = trailersToCreate.length;
-            } catch (err: any) {
-                for (const item of trailersToCreate) {
-                    try {
-                        await this.prisma.trailer.create({ data: item });
-                        createdCount++;
-                    } catch (e: any) {
-                        errors.push(this.error(0, `Create failed for ${item.trailerNumber}: ${e.message}`));
-                    }
+            for (const item of trailersToCreate) {
+                try {
+                    await this.prisma.trailer.create({ data: item });
+                    createdCount++;
+                } catch (e: any) {
+                    errors.push(this.error(0, `Create failed for ${item.trailerNumber}: ${e.message}`));
                 }
             }
         }

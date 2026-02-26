@@ -1,20 +1,10 @@
 import AgingReport from '@/components/invoices/AgingReport';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { PageShell } from '@/components/layout/PageShell';
 
 export default function AgingReportPage() {
   return (
-    <>
-      <Breadcrumb items={[
-        { label: 'Invoices', href: '/dashboard/invoices' },
-        { label: 'Aging Report' }
-      ]} />
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Invoice Aging Report</h1>
-        </div>
-        <AgingReport />
-      </div>
-    </>
+    <PageShell title="Aging Report" description="Track outstanding invoices by age">
+      <AgingReport />
+    </PageShell>
   );
 }
-

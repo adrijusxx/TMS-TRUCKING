@@ -5,9 +5,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Bell, CheckCircle2, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { Bell, CheckCircle2, AlertTriangle, XCircle, Clock, ArrowUpCircle, Settings } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiUrl } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
+import NotificationPreferences from './NotificationPreferences';
 
 interface Alert {
   id: string;
@@ -54,6 +56,19 @@ export default function AlertCenter() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
     }
+  });
+
+  const escalateMutation = useMutation({
+    mutationFn: async (alertId: string) => {
+      const response = await fetch(apiUrl(`/api/safety/alerts/${alertId}/escalate`), {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to escalate alert');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    },
   });
 
   if (isLoading) {
@@ -110,7 +125,16 @@ export default function AlertCenter() {
   };
 
   return (
-    <div className="space-y-6">
+    <Tabs defaultValue="alerts" className="space-y-6">
+      <TabsList>
+        <TabsTrigger value="alerts">Alerts</TabsTrigger>
+        <TabsTrigger value="preferences" className="flex items-center gap-1">
+          <Settings className="h-3 w-3" />
+          Preferences
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="alerts" className="space-y-6">
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -209,14 +233,25 @@ export default function AlertCenter() {
                     </div>
                   </div>
                   {alert.status === 'ACTIVE' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAcknowledge(alert.id)}
-                      disabled={acknowledgeMutation.isPending}
-                    >
-                      Acknowledge
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => escalateMutation.mutate(alert.id)}
+                        disabled={escalateMutation.isPending}
+                      >
+                        <ArrowUpCircle className="h-4 w-4 mr-1" />
+                        Escalate
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAcknowledge(alert.id)}
+                        disabled={acknowledgeMutation.isPending}
+                      >
+                        Acknowledge
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -283,15 +318,26 @@ export default function AlertCenter() {
                     </div>
                   </div>
                   {alert.status === 'ACTIVE' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAcknowledge(alert.id)}
-                      disabled={acknowledgeMutation.isPending}
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Acknowledge
-                    </Button>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => escalateMutation.mutate(alert.id)}
+                        disabled={escalateMutation.isPending}
+                      >
+                        <ArrowUpCircle className="h-4 w-4 mr-1" />
+                        Escalate
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAcknowledge(alert.id)}
+                        disabled={acknowledgeMutation.isPending}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Acknowledge
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -299,7 +345,12 @@ export default function AlertCenter() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="preferences">
+        <NotificationPreferences />
+      </TabsContent>
+    </Tabs>
   );
 }
 
