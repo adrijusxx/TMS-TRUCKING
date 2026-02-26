@@ -186,7 +186,7 @@ async function main() {
         const mcAccess = role === 'ADMIN' ? [] : [defaultMcNumber.id];
 
         const user = await prisma.user.upsert({
-          where: { email },
+          where: { email_companyId: { email, companyId: company.id } },
           update: {},
           create: {
             email,
