@@ -5,6 +5,10 @@ on:
     branches: [ main, master ]
   workflow_dispatch: # Allows manual trigger
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -82,7 +86,8 @@ jobs:
             scripts/db-push-aws.js \
             scripts/db-reset-aws.js \
             scripts/rollback.sh \
-            scripts/keepalive.sh
+            scripts/keepalive.sh \
+            scripts/server-wrapper.js
 
       - name: Deploy to AWS EC2 via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -175,10 +180,10 @@ jobs:
             echo "Switching to new release..."
             ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 
-            # Restart all PM2 apps (tms + tms-keepalive) from the new release
+            # Graceful reload: reuse PM2 process entry if it exists, start fresh if not
+            # Avoids pm2 delete all which causes brief port 3001 downtime → ALB queues requests
             cd "${CURRENT_LINK}"
-            pm2 delete all 2>/dev/null || true
-            pm2 start ecosystem.config.js
+            pm2 startOrReload ecosystem.config.js --update-env
 
             # Cleanup: keep only the last N releases
             echo "Cleaning up old releases..."

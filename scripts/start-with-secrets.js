@@ -221,11 +221,19 @@ async function main() {
 
     // Check if standalone server exists
     const standalonePath = path.join(process.cwd(), '.next', 'standalone', 'server.js');
+    const wrapperPath = path.join(process.cwd(), 'scripts', 'server-wrapper.js');
 
     let cmd = 'node';
-    let args = [standalonePath];
+    let args;
 
-    if (!fs.existsSync(standalonePath)) {
+    if (fs.existsSync(standalonePath) && fs.existsSync(wrapperPath)) {
+        // Use wrapper to patch keepAliveTimeout > ALB idle timeout (fixes 30s freeze)
+        console.log('[Startup] Using server-wrapper.js (keepAlive patched)');
+        args = [wrapperPath];
+    } else if (fs.existsSync(standalonePath)) {
+        console.warn('[Startup] server-wrapper.js not found, using server.js directly');
+        args = [standalonePath];
+    } else {
         console.warn("[Startup] Standalone server.js not found. Falling back to 'npm start'...");
         cmd = 'npm';
         args = ['start', '--', '-p', '3001'];
