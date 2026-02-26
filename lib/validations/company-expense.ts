@@ -11,7 +11,7 @@ export const createCompanyExpenseSchema = z.object({
   paymentInstrumentId: z.string().optional().nullable(),
   vendorId: z.string().optional().nullable(),
   vendorName: z.string().max(200).optional().nullable(),
-  receiptUrl: z.string().url().optional().nullable(),
+  receiptUrl: z.string().optional().nullable(),
   documentIds: z.array(z.string()).optional().default([]),
   hasReceipt: z.boolean().optional().default(false),
   isRecurring: z.boolean().optional().default(false),

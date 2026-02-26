@@ -1,15 +1,28 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
   Search, Filter, RefreshCw, ExternalLink, ChevronLeft, ChevronRight,
-  ArrowUp, ArrowDown, ArrowUpDown,
+  ArrowUp, ArrowDown, ArrowUpDown, Pencil, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { CompanyExpenseForm } from './CompanyExpenseForm';
+import { ExpenseApprovalActions } from './ExpenseApprovalActions';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   Select,
   SelectContent,
@@ -29,6 +42,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentInstrumentBadge } from './PaymentInstrumentBadge';
 import { ExpenseReceiptCell } from './ExpenseReceiptCell';
 import { apiUrl, cn, formatCurrency } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { UnifiedExpenseEntry, FeedSource } from '@/app/api/company-expenses/feed/route';
 
 const DEPARTMENTS = [
@@ -135,11 +149,15 @@ function SortHead({
 }
 
 export function CompanyExpenseTable() {
+  const qc = useQueryClient();
+  const { can } = usePermissions();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [sort, setSort] = useState<SortState>({ field: 'date', dir: 'desc' });
+  const [editExpenseId, setEditExpenseId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const handleSearchChange = (value: string) => {
     setFilters((f) => ({ ...f, search: value }));
@@ -173,6 +191,20 @@ export function CompanyExpenseTable() {
     staleTime: 60_000,
   });
   const instruments = instrumentsData?.data ?? [];
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(apiUrl(`/api/company-expenses/${id}`), { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete expense');
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['company-expenses-feed'] });
+      qc.invalidateQueries({ queryKey: ['company-expenses-summary'] });
+      setDeleteTargetId(null);
+      toast.success('Expense deleted');
+    },
+    onError: () => toast.error('Failed to delete expense'),
+  });
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
@@ -332,13 +364,14 @@ export function CompanyExpenseTable() {
               <TableHead className="text-xs w-16">Source</TableHead>
               <TableHead className="text-xs w-20">Receipt</TableHead>
               <SortHead field="amount" label="Amount" sort={sort} onSort={handleSort} className="w-24 text-right" />
+              <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading
               ? Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 11 }).map((_, j) => (
+                    {Array.from({ length: 12 }).map((_, j) => (
                       <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                     ))}
                   </TableRow>
@@ -346,7 +379,7 @@ export function CompanyExpenseTable() {
               : entries.length === 0
               ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-sm text-muted-foreground py-12">
+                    <TableCell colSpan={12} className="text-center text-sm text-muted-foreground py-12">
                       No expenses found.{hasActiveFilters && ' Try clearing filters.'}
                     </TableCell>
                   </TableRow>
@@ -428,11 +461,67 @@ export function CompanyExpenseTable() {
                     <TableCell className="text-xs py-1.5 text-right font-medium">
                       {formatCurrency(entry.amount)}
                     </TableCell>
+                    <TableCell className="py-1.5">
+                      {entry.source === 'COMPANY_EXPENSE' && (
+                        <div className="flex items-center gap-0.5 flex-wrap">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setEditExpenseId(entry.id)}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTargetId(entry.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                          <ExpenseApprovalActions
+                            id={entry.id}
+                            source={entry.source}
+                            approvalStatus={entry.approvalStatus}
+                            canApprove={can('company_expenses.approve')}
+                          />
+                        </div>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
           </TableBody>
         </Table>
       </div>
+
+      {/* Edit dialog (controlled) */}
+      <CompanyExpenseForm
+        expenseId={editExpenseId}
+        open={!!editExpenseId}
+        onOpenChange={(v) => { if (!v) setEditExpenseId(null); }}
+      />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(v) => { if (!v) setDeleteTargetId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this expense?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The expense record will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTargetId && deleteMutation.mutate(deleteTargetId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Pagination */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
