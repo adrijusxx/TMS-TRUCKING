@@ -155,6 +155,54 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {});
 
+    // Calculate compliance percentage
+    const totalDrivers = activeDrivers;
+    let compliantDrivers = 0;
+    if (totalDrivers > 0) {
+      // Count drivers with no expired critical documents
+      const driversWithExpired = await prisma.document.groupBy({
+        by: ['driverId'],
+        where: {
+          ...documentMcFilter,
+          driverId: { not: null },
+          expiryDate: { lt: new Date() },
+          type: { in: ['MEDICAL_CARD', 'CDL', 'MVR'] },
+          deletedAt: null,
+        },
+      });
+      compliantDrivers = totalDrivers - driversWithExpired.length;
+    }
+    const compliancePercentage = totalDrivers > 0
+      ? Math.round((compliantDrivers / totalDrivers) * 100)
+      : 100;
+
+    // Previous period metrics (compare last 30 days to prior 30 days)
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    let prevAccidents = 0;
+    try {
+      prevAccidents = await prisma.safetyIncident.count({
+        where: {
+          companyId: mcWhere.companyId,
+          date: { gte: sixtyDaysAgo, lt: thirtyDaysAgo },
+          deletedAt: null,
+        },
+      });
+    } catch { /* model may not exist */ }
+
+    let currentAccidents = 0;
+    try {
+      currentAccidents = await prisma.safetyIncident.count({
+        where: {
+          companyId: mcWhere.companyId,
+          date: { gte: thirtyDaysAgo },
+          deletedAt: null,
+        },
+      });
+    } catch { /* model may not exist */ }
+
     return NextResponse.json({
       metrics: {
         activeDrivers,
@@ -162,9 +210,17 @@ export async function GET(request: NextRequest) {
         daysSinceAccident,
         openViolations,
         expiringDocuments,
+        compliancePercentage,
         csaScores: csaByCategory
       },
-      alerts: activeAlerts
+      alerts: activeAlerts,
+      previousPeriod: {
+        openDefects: 0,
+        accidentsThisMonth: prevAccidents,
+        hardExpirations: 0,
+        csaScore: 0,
+      },
+      currentAccidents,
     });
   } catch (error) {
     console.error('Error fetching safety dashboard:', error);

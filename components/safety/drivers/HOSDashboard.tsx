@@ -13,8 +13,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { AlertTriangle, Clock, TrendingUp, Calendar } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiUrl } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
+import HOSTimelineChart from './HOSTimelineChart';
+import HOSRollingView from './HOSRollingView';
 
 interface HOSRecord {
   id: string;
@@ -230,68 +233,86 @@ export default function HOSDashboard({ driverId }: HOSDashboardProps) {
         </Card>
       )}
 
-      {/* HOS Records */}
-      <Card>
-        <CardHeader>
-          <CardTitle>HOS Records</CardTitle>
-          <CardDescription>Daily hours of service records</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {hosRecords.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No HOS records for selected period</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {hosRecords.map((record) => (
-                <div key={record.id} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="font-medium">{formatDate(record.date)}</div>
-                    {record.violations.length > 0 && (
-                      <Badge className="bg-red-100 text-red-800">
-                        {record.violations.length} Violation(s)
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-5 gap-4 text-sm">
-                    <div>
-                      <div className="text-muted-foreground">Driving</div>
-                      <div className="font-medium">{record.drivingHours.toFixed(1)}h</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">On-Duty</div>
-                      <div className="font-medium">{record.onDutyHours.toFixed(1)}h</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Off-Duty</div>
-                      <div className="font-medium">{record.offDutyHours.toFixed(1)}h</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Sleeper</div>
-                      <div className="font-medium">{record.sleeperBerthHours.toFixed(1)}h</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Total</div>
-                      <div className="font-medium">{record.totalHours.toFixed(1)}h</div>
-                    </div>
-                  </div>
-                  {record.violations.length > 0 && (
-                    <div className="mt-3 pt-3 border-t">
-                      <div className="text-sm font-medium text-red-600 mb-2">Violations:</div>
-                      {record.violations.map((violation) => (
-                        <div key={violation.id} className="text-sm text-muted-foreground">
-                          • {violation.violationDescription}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+      {/* HOS Visualization */}
+      <Tabs defaultValue="records">
+        <TabsList>
+          <TabsTrigger value="records">Daily Records</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="rolling">Rolling Hours</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="records">
+          <Card>
+            <CardHeader>
+              <CardTitle>HOS Records</CardTitle>
+              <CardDescription>Daily hours of service records</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {hosRecords.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No HOS records for selected period</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : (
+                <div className="space-y-3">
+                  {hosRecords.map((record) => (
+                    <div key={record.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="font-medium">{formatDate(record.date)}</div>
+                        {record.violations.length > 0 && (
+                          <Badge className="bg-red-100 text-red-800">
+                            {record.violations.length} Violation(s)
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-5 gap-4 text-sm">
+                        <div>
+                          <div className="text-muted-foreground">Driving</div>
+                          <div className="font-medium">{record.drivingHours.toFixed(1)}h</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">On-Duty</div>
+                          <div className="font-medium">{record.onDutyHours.toFixed(1)}h</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Off-Duty</div>
+                          <div className="font-medium">{record.offDutyHours.toFixed(1)}h</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Sleeper</div>
+                          <div className="font-medium">{record.sleeperBerthHours.toFixed(1)}h</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Total</div>
+                          <div className="font-medium">{record.totalHours.toFixed(1)}h</div>
+                        </div>
+                      </div>
+                      {record.violations.length > 0 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <div className="text-sm font-medium text-red-600 mb-2">Violations:</div>
+                          {record.violations.map((violation) => (
+                            <div key={violation.id} className="text-sm text-muted-foreground">
+                              • {violation.violationDescription}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="timeline">
+          <HOSTimelineChart records={hosRecords} />
+        </TabsContent>
+
+        <TabsContent value="rolling">
+          <HOSRollingView records={hosRecords} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

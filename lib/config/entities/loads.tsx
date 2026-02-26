@@ -248,6 +248,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     enableSorting: false,
     enableColumnFilter: false,
     tooltip: 'Live GPS tracking: ETA, speed, and proximity to next stop via Samsara.',
+    className: 'min-w-[130px]',
   },
   {
     id: 'origin',

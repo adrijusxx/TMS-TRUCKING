@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
         // Run all queries in parallel
+        const companyId = session.user.companyId;
+
         const [
             totalLeads,
             openLeads,
@@ -25,6 +27,8 @@ export async function GET(request: NextRequest) {
             sourceRaw,
             recentLeads,
             hiredLeadsForVelocity,
+            recruiterLeaderboard,
+            overdueLeads,
         ] = await Promise.all([
             // Total leads (non-deleted)
             prisma.lead.count({
@@ -85,6 +89,33 @@ export async function GET(request: NextRequest) {
                 select: { updatedAt: true },
                 orderBy: { updatedAt: 'desc' },
             }),
+
+            // Recruiter leaderboard — this month's hires and total assigned
+            prisma.lead.groupBy({
+                by: ['assignedToId'],
+                where: {
+                    ...mcWhere, deletedAt: null,
+                    assignedToId: { not: null },
+                    updatedAt: { gte: startOfMonth },
+                },
+                _count: { id: true },
+            }),
+
+            // Overdue follow-ups (SLA violations widget)
+            prisma.lead.findMany({
+                where: {
+                    ...mcWhere, deletedAt: null,
+                    nextFollowUpDate: { lt: now },
+                    status: { notIn: ['HIRED', 'REJECTED'] },
+                },
+                select: {
+                    id: true, firstName: true, lastName: true,
+                    status: true, nextFollowUpDate: true,
+                    assignedTo: { select: { firstName: true, lastName: true } },
+                },
+                orderBy: { nextFollowUpDate: 'asc' },
+                take: 10,
+            }),
         ]);
 
         // Calculate avg time-to-hire from recent hired leads
@@ -144,6 +175,33 @@ export async function GET(request: NextRequest) {
             .map(([week, hires]) => ({ week, hires }))
             .sort((a, b) => a.week.localeCompare(b.week));
 
+        // Recruiter leaderboard processing
+        const recruiterIds = recruiterLeaderboard.map((r) => r.assignedToId!).filter(Boolean);
+        const hiredByRecruiterMonth = await prisma.lead.groupBy({
+            by: ['assignedToId'],
+            where: {
+                ...mcWhere, deletedAt: null,
+                status: 'HIRED', assignedToId: { in: recruiterIds },
+                updatedAt: { gte: startOfMonth },
+            },
+            _count: { id: true },
+        });
+        const hiredMapMonth = Object.fromEntries(hiredByRecruiterMonth.map((h) => [h.assignedToId!, h._count.id]));
+
+        const recruiterUsers = recruiterIds.length > 0
+            ? await prisma.user.findMany({ where: { id: { in: recruiterIds } }, select: { id: true, firstName: true, lastName: true } })
+            : [];
+        const recruiterUserMap = Object.fromEntries(recruiterUsers.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
+
+        const leaderboard = recruiterLeaderboard
+            .map((r) => ({
+                name: recruiterUserMap[r.assignedToId!] || 'Unknown',
+                leadsThisMonth: r._count.id,
+                hiredThisMonth: hiredMapMonth[r.assignedToId!] || 0,
+            }))
+            .sort((a, b) => b.hiredThisMonth - a.hiredThisMonth || b.leadsThisMonth - a.leadsThisMonth)
+            .slice(0, 5);
+
         return NextResponse.json({
             stats: {
                 totalLeads,
@@ -155,6 +213,8 @@ export async function GET(request: NextRequest) {
             sourceBreakdown,
             hiringVelocity,
             recentLeads,
+            leaderboard,
+            overdueLeads,
         });
     } catch (error) {
         console.error('[CRM Dashboard GET] Error:', error);

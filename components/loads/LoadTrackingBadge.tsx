@@ -38,14 +38,14 @@ export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, com
 
   if (proximityStatus === 'AT_STOP') {
     content = (
-      <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 gap-1">
+      <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 text-[10px] h-5 gap-1 whitespace-nowrap">
         <MapPin className="h-3 w-3" /> At {stopLabel}
       </Badge>
     );
   } else if (proximityStatus === 'APPROACHING') {
     content = (
       <>
-        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 gap-1">
+        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px] h-5 gap-1 whitespace-nowrap">
           <Navigation className="h-3 w-3" /> ~{proximityMiles} mi from {stopLabel}
         </Badge>
         {!compact && speed > 0 && (
@@ -58,7 +58,7 @@ export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, com
   } else if (eta) {
     content = (
       <>
-        <Badge variant="outline" className={`${etaColors[eta.status]} text-[10px] h-5 gap-1`}>
+        <Badge variant="outline" className={`${etaColors[eta.status]} text-[10px] h-5 gap-1 whitespace-nowrap`}>
           <Navigation className="h-3 w-3" /> ETA {eta.etaFormatted}
         </Badge>
         {!compact && (
@@ -77,7 +77,7 @@ export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, com
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex flex-col gap-0.5 cursor-help">
+          <div className="flex flex-col gap-0.5 cursor-help whitespace-nowrap">
             {content}
           </div>
         </TooltipTrigger>

@@ -14,7 +14,7 @@ const createUserSchema = z.object({
   lastName: z.string().min(1),
   phone: z.string().optional(),
   role: z.enum(['ADMIN', 'DISPATCHER', 'ACCOUNTANT', 'DRIVER', 'CUSTOMER', 'HR', 'SAFETY', 'FLEET']),
-  roleId: z.string().optional(), // FK to custom Role table
+  roleId: z.string().nullable().optional(), // FK to custom Role table
   mcNumberId: z.string().min(1, 'MC number is required'),
   mcAccess: z.array(z.string()).optional(), // Array of MC IDs user can access
 });
@@ -423,7 +423,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'Invalid input data',
+            message: error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; '),
             details: error.issues,
           },
         },

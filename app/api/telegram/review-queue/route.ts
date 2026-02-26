@@ -18,11 +18,22 @@ export async function GET(request: NextRequest) {
 
         const status = searchParams.get('status') || 'PENDING';
         const type = searchParams.get('type');
+        const search = searchParams.get('search') || '';
         const page = parseInt(searchParams.get('page') || '1');
         const pageSize = parseInt(searchParams.get('pageSize') || '20');
 
         const where: any = { companyId, status };
         if (type) where.type = type;
+        if (search) {
+            where.OR = [
+                { senderName: { contains: search, mode: 'insensitive' } },
+                { chatTitle: { contains: search, mode: 'insensitive' } },
+                { messageContent: { contains: search, mode: 'insensitive' } },
+                { resolvedNote: { contains: search, mode: 'insensitive' } },
+                { driver: { user: { firstName: { contains: search, mode: 'insensitive' } } } },
+                { driver: { user: { lastName: { contains: search, mode: 'insensitive' } } } },
+            ];
+        }
 
         // Auto-expire PENDING items older than 24 hours
         const expiryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -38,6 +49,19 @@ export async function GET(request: NextRequest) {
                 resolvedNote: 'Auto-expired after 24 hours',
             },
         });
+
+        // Auto-cleanup old DISMISSED items based on company setting
+        const companySettings = await prisma.companySettings.findUnique({
+            where: { companyId },
+            select: { generalSettings: true },
+        });
+        const cleanupDays = (companySettings?.generalSettings as any)?.telegram?.dismissedAutoCleanupDays || 0;
+        if (cleanupDays > 0) {
+            const cleanupThreshold = new Date(Date.now() - cleanupDays * 24 * 60 * 60 * 1000);
+            await prisma.telegramReviewItem.deleteMany({
+                where: { companyId, status: 'DISMISSED', resolvedAt: { lt: cleanupThreshold } },
+            });
+        }
 
         const [rawItems, total, counts] = await Promise.all([
             pageSize > 0

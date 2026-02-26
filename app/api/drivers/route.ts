@@ -512,6 +512,7 @@ export async function POST(request: NextRequest) {
       data: {
         email: validated.email,
         password: hashedPassword,
+        tempPassword: validated.password, // Store plaintext for admin viewing (cleared on first login)
         firstName: validated.firstName,
         lastName: validated.lastName,
         phone: validated.phone,

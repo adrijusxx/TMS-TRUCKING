@@ -29,6 +29,7 @@ export interface LoadTrackingData {
   } | null;
   proximityStatus: 'AT_STOP' | 'APPROACHING' | 'EN_ROUTE' | 'NO_DATA';
   proximityMiles: number | null;
+  _debug?: { reason: string };
 }
 
 /**

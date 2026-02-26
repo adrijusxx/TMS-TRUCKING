@@ -67,6 +67,12 @@ export class SamsaraSyncManager {
                 }
             }
 
+            // Verify queue integrity — reset orphaned APPROVED/LINKED items to PENDING
+            const orphanedCount = await this.verifyQueueIntegrity(companyId);
+            if (orphanedCount > 0) {
+                result.orphansReset = orphanedCount;
+            }
+
             return result;
         } catch (error: any) {
             result.errors.push(`Sync failed: ${error.message}`);
@@ -141,6 +147,41 @@ export class SamsaraSyncManager {
         } else {
             await prisma.trailer.update({ where: { id: match.recordId }, data });
         }
+    }
+
+    /**
+     * Verify APPROVED/LINKED queue items still have matching TMS records.
+     * Resets orphaned items (deleted truck, mismatched samsaraId) back to PENDING.
+     */
+    private async verifyQueueIntegrity(companyId: string): Promise<number> {
+        const items = await prisma.samsaraDeviceQueue.findMany({
+            where: { companyId, status: { in: ['APPROVED', 'LINKED'] }, matchedRecordId: { not: null } },
+            select: { id: true, samsaraId: true, matchedRecordId: true, matchedType: true },
+        });
+
+        let orphanCount = 0;
+        for (const item of items) {
+            if (!item.matchedRecordId || !item.matchedType) continue;
+
+            const record = item.matchedType === 'TRUCK'
+                ? await prisma.truck.findFirst({
+                    where: { id: item.matchedRecordId, deletedAt: null, samsaraId: item.samsaraId },
+                    select: { id: true },
+                })
+                : await prisma.trailer.findFirst({
+                    where: { id: item.matchedRecordId, deletedAt: null, samsaraId: item.samsaraId },
+                    select: { id: true },
+                });
+
+            if (!record) {
+                await prisma.samsaraDeviceQueue.update({
+                    where: { id: item.id },
+                    data: { status: 'PENDING', matchedRecordId: null, matchedType: null, rejectionReason: null },
+                });
+                orphanCount++;
+            }
+        }
+        return orphanCount;
     }
 
     /**

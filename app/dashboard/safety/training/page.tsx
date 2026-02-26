@@ -1,9 +1,13 @@
-export default function TrainingPage() {
-    return (
+import TrainingCenter from '@/components/safety/training/TrainingCenter';
+
+export default function TrainingCenterPage() {
+  return (
     <div className="space-y-4">
-<div className="p-10 border border-dashed rounded-lg text-center text-muted-foreground">
-                    Training & Documents Consolidation In Progress...
-                </div>
-            </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Training Center</h2>
+        <p className="text-muted-foreground">Manage training records, materials, and track certificate expiration</p>
+      </div>
+      <TrainingCenter />
+    </div>
   );
 }

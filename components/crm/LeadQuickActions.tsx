@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Phone, MessageSquare, Mail, Calendar } from 'lucide-react';
+import { Phone, MessageSquare, Mail, Calendar, Merge } from 'lucide-react';
 import LogActivityDialog from './LogActivityDialog';
 import LeadFollowUpScheduler from './LeadFollowUpScheduler';
+import MergeLeadsDialog from './MergeLeadsDialog';
 
 interface LeadQuickActionsProps {
     leadId: string;
@@ -23,6 +24,7 @@ const actions = [
 export default function LeadQuickActions({ leadId, leadData, onSuccess }: LeadQuickActionsProps) {
     const [dialogType, setDialogType] = useState<'CALL' | 'SMS' | 'EMAIL' | null>(null);
     const [followUpOpen, setFollowUpOpen] = useState(false);
+    const [mergeOpen, setMergeOpen] = useState(false);
 
     return (
         <>
@@ -59,6 +61,20 @@ export default function LeadQuickActions({ leadId, leadData, onSuccess }: LeadQu
                         </TooltipTrigger>
                         <TooltipContent>Schedule Follow-Up</TooltipContent>
                     </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-orange-600 hover:bg-orange-50"
+                                onClick={() => setMergeOpen(true)}
+                            >
+                                <Merge className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Merge with Duplicate</TooltipContent>
+                    </Tooltip>
                 </TooltipProvider>
             </div>
 
@@ -88,6 +104,13 @@ export default function LeadQuickActions({ leadId, leadData, onSuccess }: LeadQu
                     />
                 </DialogContent>
             </Dialog>
+            <MergeLeadsDialog
+                open={mergeOpen}
+                onOpenChange={setMergeOpen}
+                primaryLeadId={leadId}
+                primaryLeadName={leadData ? `${leadData.firstName} ${leadData.lastName}` : ''}
+                onSuccess={() => { setMergeOpen(false); onSuccess?.(); }}
+            />
         </>
     );
 }

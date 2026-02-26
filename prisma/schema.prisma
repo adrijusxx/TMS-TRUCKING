@@ -18,6 +18,8 @@ model User {
   email          String  // Unique per company (same email can exist in different companies)
   password       String
   tempPassword   String? // Temporary plaintext password for admin viewing (cleared after first login)
+  resetToken       String? // Password reset token (hashed)
+  resetTokenExpiry DateTime? // Reset token expiration
   firstName      String
   lastName       String
   phone          String?

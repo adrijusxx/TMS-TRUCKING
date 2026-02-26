@@ -10,6 +10,7 @@ import { getMcContext } from '@/lib/utils/query-keys';
 import SafetyStats, { SafetyStatsData } from './SafetyStats';
 import ActionCenter, { ActionItem } from './ActionCenter';
 import DriverRiskHeatmap from './DriverRiskHeatmap';
+import ComplianceGauge from './ComplianceGauge';
 
 interface SafetyDashboardData {
   metrics: {
@@ -18,6 +19,7 @@ interface SafetyDashboardData {
     daysSinceAccident: number | null;
     openViolations: number;
     expiringDocuments: number;
+    compliancePercentage?: number;
     csaScores: Record<string, {
       percentile: number;
       trend: string;
@@ -116,23 +118,39 @@ export default function SafetyDashboard() {
               <CardTitle className="text-xl">Quick Links</CardTitle>
               <CardDescription>Most accessed resources</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
-              <Link href="/dashboard/safety/compliance" className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-muted/50 transition-colors text-center">
-                <UserCheck className="h-6 w-6 mb-2 text-primary" />
-                <span className="text-sm font-medium">Driver Compliance</span>
-              </Link>
-              <Link href="/dashboard/safety/fleet" className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-muted/50 transition-colors text-center">
-                <Truck className="h-6 w-6 mb-2 text-blue-600" />
-                <span className="text-sm font-medium">Fleet Safety</span>
-              </Link>
-              <Link href="/dashboard/safety/incidents" className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-muted/50 transition-colors text-center">
-                <AlertCircle className="h-6 w-6 mb-2 text-red-600" />
-                <span className="text-sm font-medium">Incidents</span>
-              </Link>
-              <Link href="/dashboard/safety/training" className="flex flex-col items-center justify-center p-4 border rounded-lg hover:bg-muted/50 transition-colors text-center">
-                <GraduationCap className="h-6 w-6 mb-2 text-indigo-600" />
-                <span className="text-sm font-medium">Training</span>
-              </Link>
+            <CardContent>
+              <div className="flex items-center justify-center mb-4">
+                <ComplianceGauge
+                  value={metrics.compliancePercentage ?? 0}
+                  label="Overall Compliance"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <Link href="/dashboard/safety/compliance" className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-muted/50 transition-colors text-center">
+                  <UserCheck className="h-5 w-5 mb-1 text-primary" />
+                  <span className="text-xs font-medium">Compliance</span>
+                </Link>
+                <Link href="/dashboard/safety/fleet" className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-muted/50 transition-colors text-center">
+                  <Truck className="h-5 w-5 mb-1 text-blue-600" />
+                  <span className="text-xs font-medium">Fleet</span>
+                </Link>
+                <Link href="/dashboard/safety/incidents" className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-muted/50 transition-colors text-center">
+                  <AlertCircle className="h-5 w-5 mb-1 text-red-600" />
+                  <span className="text-xs font-medium">Incidents</span>
+                </Link>
+                <Link href="/dashboard/safety/training" className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-muted/50 transition-colors text-center">
+                  <GraduationCap className="h-5 w-5 mb-1 text-indigo-600" />
+                  <span className="text-xs font-medium">Training</span>
+                </Link>
+                <Link href="/dashboard/safety/audit-prep" className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-muted/50 transition-colors text-center">
+                  <ClipboardCheck className="h-5 w-5 mb-1 text-emerald-600" />
+                  <span className="text-xs font-medium">Audit Prep</span>
+                </Link>
+                <Link href="/dashboard/safety/analytics" className="flex flex-col items-center justify-center p-3 border rounded-lg hover:bg-muted/50 transition-colors text-center">
+                  <Activity className="h-5 w-5 mb-1 text-violet-600" />
+                  <span className="text-xs font-medium">Analytics</span>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -13,13 +13,28 @@ export class SamsaraQueueManager {
      * Add device to pending review queue
      */
     async addToQueue(companyId: string, device: SamsaraDevice, deviceType: 'TRUCK' | 'TRAILER') {
+        const yearValue = device.year ? (typeof device.year === 'string' ? parseInt(device.year, 10) : device.year) : null;
+        const validYear = yearValue && !isNaN(yearValue) ? yearValue : null;
+
         const existingQueueItem = await prisma.samsaraDeviceQueue.findUnique({
             where: { samsaraId: device.id },
         });
 
-        if (existingQueueItem) return;
-
-        const yearValue = device.year ? (typeof device.year === 'string' ? parseInt(device.year, 10) : device.year) : null;
+        if (existingQueueItem) {
+            // Update metadata (name/VIN/etc may have changed in Samsara) but keep status
+            await prisma.samsaraDeviceQueue.update({
+                where: { id: existingQueueItem.id },
+                data: {
+                    name: device.name || existingQueueItem.name,
+                    vin: device.vin || existingQueueItem.vin,
+                    licensePlate: device.licensePlate || existingQueueItem.licensePlate,
+                    make: device.make || existingQueueItem.make,
+                    model: device.model || existingQueueItem.model,
+                    year: validYear ?? existingQueueItem.year,
+                },
+            });
+            return;
+        }
 
         await prisma.samsaraDeviceQueue.create({
             data: {
@@ -31,7 +46,7 @@ export class SamsaraQueueManager {
                 licensePlate: device.licensePlate,
                 make: device.make,
                 model: device.model,
-                year: yearValue && !isNaN(yearValue) ? yearValue : null,
+                year: validYear,
                 status: 'PENDING',
             },
         });
@@ -46,7 +61,8 @@ export class SamsaraQueueManager {
         additionalData?: ApproveQueuedDeviceParams
     ): Promise<ApproveQueuedDeviceResult> {
         const queueItem = await prisma.samsaraDeviceQueue.findUnique({ where: { id: queueId } });
-        if (!queueItem || queueItem.status !== 'PENDING') return { success: false, error: 'Invalid or processed item' };
+        if (!queueItem) return { success: false, error: 'Queue item not found' };
+        if (queueItem.status === 'REJECTED') return { success: false, error: 'Item was rejected — use Re-queue first' };
 
         try {
             if (queueItem.deviceType === 'TRUCK') {
@@ -282,22 +298,38 @@ export class SamsaraQueueManager {
     }
 
     /**
-     * Reset a rejected device back to PENDING so it can be re-reviewed
+     * Reset a device back to PENDING for re-review (from any status)
      */
     async requeueDevice(queueId: string, userId: string) {
         const item = await prisma.samsaraDeviceQueue.findUnique({ where: { id: queueId } });
         if (!item) return { success: false, error: 'Queue item not found' };
-        if (item.status !== 'REJECTED') return { success: false, error: 'Only rejected devices can be re-queued' };
+        if (item.status === 'PENDING') return { success: true }; // Already pending
 
         await prisma.samsaraDeviceQueue.update({
             where: { id: queueId },
             data: {
                 status: 'PENDING',
+                matchedRecordId: null,
+                matchedType: null,
                 reviewedAt: new Date(),
                 reviewedBy: { connect: { id: userId } },
                 rejectionReason: null,
             },
         });
         return { success: true };
+    }
+
+    /**
+     * Bulk reset queue items to PENDING status
+     */
+    async bulkResetToPending(queueIds: string[], userId: string) {
+        let success = 0;
+        let failed = 0;
+        for (const id of queueIds) {
+            const result = await this.requeueDevice(id, userId);
+            if (result.success) success++;
+            else failed++;
+        }
+        return { success, failed };
     }
 }

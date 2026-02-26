@@ -1,18 +1,13 @@
-export default function RecognitionProgramsPage() {
+import RecognitionTable from '@/components/safety/recognition/RecognitionTable';
+
+export default function DriverRecognitionPage() {
   return (
     <div className="space-y-4">
-<div className="bg-card rounded-lg border p-6">
-          <p className="text-muted-foreground">
-            Recognition program management coming soon. This feature will allow you to:
-          </p>
-          <ul className="list-disc list-inside mt-4 space-y-2 text-muted-foreground">
-            <li>Track safety milestones and achievements</li>
-            <li>Manage recognition awards</li>
-            <li>View driver safety records</li>
-            <li>Generate recognition reports</li>
-          </ul>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Driver Recognition</h2>
+        <p className="text-muted-foreground">Manage safety campaigns, awards, and driver recognition programs</p>
       </div>
+      <RecognitionTable />
+    </div>
   );
 }
-

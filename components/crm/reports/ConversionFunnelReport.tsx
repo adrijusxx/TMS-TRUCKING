@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import ReportDateFilter, { downloadCsv } from './ReportDateFilter';
 
 const statusColors: Record<string, string> = {
     NEW: 'bg-blue-500', CONTACTED: 'bg-yellow-500', QUALIFIED: 'bg-emerald-500',
@@ -10,27 +12,41 @@ const statusColors: Record<string, string> = {
 };
 
 export default function ConversionFunnelReport() {
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+
     const { data, isLoading } = useQuery({
-        queryKey: ['crm-report-funnel'],
+        queryKey: ['crm-report-funnel', from, to],
         queryFn: async () => {
-            const res = await fetch('/api/crm/reports?type=funnel');
+            const params = new URLSearchParams({ type: 'funnel' });
+            if (from) params.append('from', from);
+            if (to) params.append('to', to);
+            const res = await fetch(`/api/crm/reports?${params}`);
             if (!res.ok) throw new Error('Failed');
             return res.json();
         },
     });
 
-    if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>;
-
     const rows = data?.data || [];
     const total = data?.total || 0;
     const maxCount = Math.max(...rows.map((r: any) => r.count), 1);
 
+    const handleExport = () => {
+        downloadCsv('conversion-funnel-report.csv',
+            ['Status', 'Count', 'Percentage %'],
+            rows.map((r: any) => [r.status.replace(/_/g, ' '), r.count, r.percentage]),
+        );
+    };
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-2">
+            <ReportDateFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} onExportCsv={handleExport} />
             <p className="text-sm text-muted-foreground">
                 Leads at each pipeline stage ({total} total).
             </p>
-            {rows.length === 0 ? (
+            {isLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+            ) : rows.length === 0 ? (
                 <p className="text-center py-8 text-muted-foreground">No data yet</p>
             ) : (
                 <div className="space-y-3">

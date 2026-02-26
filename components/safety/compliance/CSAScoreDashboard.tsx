@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
+import CSATrendChart from './CSATrendChart';
+import CSARecommendations from './CSARecommendations';
 
 interface CSAScore {
   basicCategory: string;
@@ -240,6 +242,14 @@ export default function CSAScoreDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Trend Chart */}
+      {data?.history && data.history.length > 0 && (
+        <CSATrendChart history={data.history} />
+      )}
+
+      {/* Recommendations */}
+      <CSARecommendations scores={currentScores} />
     </div>
   );
 }

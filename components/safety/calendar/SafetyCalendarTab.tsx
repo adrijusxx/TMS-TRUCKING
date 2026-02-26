@@ -2,21 +2,22 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from 'lucide-react';
+import ExpirationCalendar from './ExpirationCalendar';
 
 export default function SafetyCalendarTab() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Calendar View
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground">
-          Calendar view of safety events, inspections, court dates, and training schedules coming soon.
-        </p>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Expiration Calendar
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ExpirationCalendar />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

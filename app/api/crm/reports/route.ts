@@ -3,7 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 
-// GET /api/crm/reports?type=source|funnel|time-in-stage|recruiter
+// GET /api/crm/reports?type=source|funnel|time-in-stage|recruiter&from=ISO&to=ISO
 export async function GET(request: NextRequest) {
     try {
         const session = await auth();
@@ -13,19 +13,31 @@ export async function GET(request: NextRequest) {
 
         const { searchParams } = new URL(request.url);
         const type = searchParams.get('type') || 'source';
+        const fromParam = searchParams.get('from');
+        const toParam = searchParams.get('to');
         const mcWhere = await buildMcNumberWhereClause(session, request);
         const companyId = session.user.companyId;
+
+        // Build date range filter on createdAt
+        const dateFilter: any = {};
+        if (fromParam) dateFilter.gte = new Date(fromParam);
+        if (toParam) dateFilter.lte = new Date(toParam);
+        const hasDateFilter = fromParam || toParam;
+        const baseWhere = {
+            ...mcWhere, companyId, deletedAt: null,
+            ...(hasDateFilter ? { createdAt: dateFilter } : {}),
+        };
 
         switch (type) {
             case 'source': {
                 const leads = await prisma.lead.groupBy({
                     by: ['source'],
-                    where: { ...mcWhere, companyId, deletedAt: null },
+                    where: baseWhere,
                     _count: { id: true },
                 });
                 const hired = await prisma.lead.groupBy({
                     by: ['source'],
-                    where: { ...mcWhere, companyId, deletedAt: null, status: 'HIRED' },
+                    where: { ...baseWhere, status: 'HIRED' },
                     _count: { id: true },
                 });
                 const hiredMap = Object.fromEntries(hired.map((h) => [h.source, h._count.id]));
@@ -43,7 +55,7 @@ export async function GET(request: NextRequest) {
             case 'funnel': {
                 const pipeline = await prisma.lead.groupBy({
                     by: ['status'],
-                    where: { ...mcWhere, companyId, deletedAt: null },
+                    where: baseWhere,
                     _count: { id: true },
                 });
                 const statusOrder = ['NEW', 'CONTACTED', 'QUALIFIED', 'DOCUMENTS_PENDING', 'DOCUMENTS_COLLECTED', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED'];
@@ -60,12 +72,14 @@ export async function GET(request: NextRequest) {
             }
 
             case 'time-in-stage': {
-                // Calculate avg time leads spend in each status using activities
+                const activityWhere: any = {
+                    type: 'STATUS_CHANGE',
+                    lead: { ...mcWhere, companyId, deletedAt: null },
+                };
+                if (hasDateFilter) activityWhere.createdAt = dateFilter;
+
                 const activities = await prisma.leadActivity.findMany({
-                    where: {
-                        type: 'STATUS_CHANGE',
-                        lead: { ...mcWhere, companyId, deletedAt: null },
-                    },
+                    where: activityWhere,
                     select: { leadId: true, createdAt: true, metadata: true },
                     orderBy: { createdAt: 'asc' },
                 });
@@ -98,12 +112,12 @@ export async function GET(request: NextRequest) {
             case 'recruiter': {
                 const recruiters = await prisma.lead.groupBy({
                     by: ['assignedToId'],
-                    where: { ...mcWhere, companyId, deletedAt: null, assignedToId: { not: null } },
+                    where: { ...baseWhere, assignedToId: { not: null } },
                     _count: { id: true },
                 });
                 const hiredByRecruiter = await prisma.lead.groupBy({
                     by: ['assignedToId'],
-                    where: { ...mcWhere, companyId, deletedAt: null, status: 'HIRED', assignedToId: { not: null } },
+                    where: { ...baseWhere, status: 'HIRED', assignedToId: { not: null } },
                     _count: { id: true },
                 });
                 const hiredMap = Object.fromEntries(hiredByRecruiter.map((h) => [h.assignedToId!, h._count.id]));

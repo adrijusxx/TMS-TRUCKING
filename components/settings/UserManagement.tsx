@@ -142,9 +142,11 @@ async function fetchMcNumbers() {
 }
 
 async function createUser(data: UserFormData) {
-  // Remove password if empty, and remove isActive from create
-  const { isActive, password, ...createData } = data;
-  const payload = password && password.length > 0 ? { ...createData, password } : createData;
+  // Remove password if empty, strip null roleId, and remove isActive from create
+  const { isActive, password, roleId, ...createData } = data;
+  const payload: Record<string, unknown> = { ...createData };
+  if (password && password.length > 0) payload.password = password;
+  if (roleId) payload.roleId = roleId;
 
   const response = await fetch(apiUrl('/api/settings/users'), {
     method: 'POST',
@@ -152,8 +154,15 @@ async function createUser(data: UserFormData) {
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'Failed to create user');
+    const errorData = await response.json();
+    const details = errorData.error?.details;
+    if (Array.isArray(details) && details.length > 0) {
+      const fieldErrors = details.map((d: { path: string[]; message: string }) =>
+        `${d.path.join('.')}: ${d.message}`
+      ).join(', ');
+      throw new Error(fieldErrors);
+    }
+    throw new Error(errorData.error?.message || 'Failed to create user');
   }
   return response.json();
 }

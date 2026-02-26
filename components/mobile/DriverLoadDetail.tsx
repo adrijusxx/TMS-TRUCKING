@@ -4,14 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Package, MapPin, Calendar, Building2, DollarSign, ArrowLeft } from 'lucide-react';
-import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
+import { Package, Building2, DollarSign, ArrowLeft } from 'lucide-react';
+import { formatCurrency, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import LoadStatusUpdate from '@/components/mobile/LoadStatusUpdate';
 import LoadFuelStops from '@/components/mobile/LoadFuelStops';
-import { LoadStatus } from '@prisma/client';
+import PODCaptureFlow from '@/components/mobile/PODCaptureFlow';
+import LoadDocumentList from '@/components/mobile/LoadDocumentList';
+import RouteStopsView from '@/components/mobile/RouteStopsView';
+import LoadNotesSection from '@/components/mobile/LoadNotesSection';
 
 interface Load {
   id: string;
@@ -136,62 +138,13 @@ export default function DriverLoadDetail({ loadId }: DriverLoadDetailProps) {
             </CardContent>
           </Card>
 
-          {/* Route */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Route
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Pickup</p>
-                <p className="font-semibold">
-                  {load.pickup.city}, {load.pickup.state}
-                </p>
-                {load.pickup.address && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {load.pickup.address}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 mt-1">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {formatDate(load.pickup.date)}
-                  </span>
-                </div>
-                {load.pickup.contact && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Contact: {load.pickup.contact} {load.pickup.phone && `(${load.pickup.phone})`}
-                  </p>
-                )}
-              </div>
-              <Separator />
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Delivery</p>
-                <p className="font-semibold">
-                  {load.delivery.city}, {load.delivery.state}
-                </p>
-                {load.delivery.address && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {load.delivery.address}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 mt-1">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {formatDate(load.delivery.date)}
-                  </span>
-                </div>
-                {load.delivery.contact && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Contact: {load.delivery.contact} {load.delivery.phone && `(${load.delivery.phone})`}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Route with Navigation */}
+          <RouteStopsView
+            pickup={load.pickup}
+            delivery={load.delivery}
+            currentStatus={load.status}
+            totalMiles={load.totalMiles}
+          />
 
           {/* Load Details */}
           {(load.commodity || load.weight || load.totalMiles) && (
@@ -257,8 +210,19 @@ export default function DriverLoadDetail({ loadId }: DriverLoadDetailProps) {
             </Card>
           )}
 
+          {/* Load Notes / Communication */}
+          <LoadNotesSection loadId={loadId} />
+
+          {/* Documents */}
+          <LoadDocumentList loadId={loadId} />
+
           {/* Actions */}
           <div className="space-y-2">
+            <PODCaptureFlow
+              loadId={loadId}
+              loadNumber={load.loadNumber}
+              currentStatus={load.status}
+            />
             <LoadStatusUpdate loadId={loadId} currentStatus={load.status} />
           </div>
         </div>

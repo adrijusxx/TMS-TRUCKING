@@ -22,7 +22,8 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { formatDistanceToNow } from 'date-fns';
-import { Loader2, Send, MoreHorizontal, Pencil, Trash2, X, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, Send, MoreHorizontal, Pencil, Trash2, X, Check, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Note {
@@ -49,6 +50,7 @@ export default function LeadNotes({ leadId, currentUserId }: LeadNotesProps) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editContent, setEditContent] = useState('');
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const fetchNotes = async () => {
         try {
@@ -126,14 +128,31 @@ export default function LeadNotes({ leadId, currentUserId }: LeadNotesProps) {
 
     if (initialLoading) return <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>;
 
+    const filteredNotes = searchQuery
+        ? notes.filter((n) => n.content.toLowerCase().includes(searchQuery.toLowerCase()))
+        : notes;
+
     return (
         <div className="flex flex-col h-[500px]">
+            {notes.length > 3 && (
+                <div className="relative mb-3">
+                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                        placeholder="Search notes..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 h-8 text-sm"
+                    />
+                </div>
+            )}
             <ScrollArea className="flex-1 pr-4 mb-4">
                 <div className="space-y-4">
-                    {notes.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-8">No notes yet</p>
+                    {filteredNotes.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">
+                            {searchQuery ? 'No notes match your search' : 'No notes yet'}
+                        </p>
                     ) : (
-                        notes.map((note) => (
+                        filteredNotes.map((note) => (
                             <NoteItem
                                 key={note.id}
                                 note={note}

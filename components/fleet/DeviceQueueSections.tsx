@@ -316,20 +316,55 @@ export function DeviceQueueSections({
       {!canPerformActions && items.length > 0 && (
         <Card className="border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
           <div className="p-4">
-            <div className="flex items-center gap-3">
-              <Info className="h-5 w-5 text-gray-500 flex-shrink-0" />
-              <div>
-                <p className="font-semibold text-sm">
-                  {currentStatus === 'LINKED' && 'These devices are already linked to TMS records'}
-                  {currentStatus === 'APPROVED' && 'These devices have been approved'}
-                  {currentStatus === 'REJECTED' && 'These devices have been rejected'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {currentStatus === 'LINKED' && 'If trucks are missing MC numbers, use the orange banner above to assign them.'}
-                  {currentStatus === 'APPROVED' && 'These records have been created in TMS. No further action needed.'}
-                  {currentStatus === 'REJECTED' && 'Click "Re-queue" on any device to move it back to Pending for review.'}
-                </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Info className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-sm">
+                    {currentStatus === 'LINKED' && 'These devices are already linked to TMS records'}
+                    {currentStatus === 'APPROVED' && 'These devices have been approved'}
+                    {currentStatus === 'REJECTED' && 'These devices have been rejected'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {currentStatus === 'LINKED' && 'If trucks are missing MC numbers, use the orange banner above to assign them.'}
+                    {currentStatus === 'APPROVED' && 'These records have been created in TMS. No further action needed.'}
+                    {currentStatus === 'REJECTED' && 'Click "Re-queue" on any device to move it back to Pending for review.'}
+                  </p>
+                </div>
               </div>
+              {(currentStatus === 'APPROVED' || currentStatus === 'LINKED') && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={bulkActioning}
+                  onClick={async () => {
+                    const ids = items.map(i => i.id);
+                    setBulkActioning(true);
+                    try {
+                      const res = await fetch('/api/fleet/device-queue', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'bulk-reset', queueIds: ids }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast.success(`Reset ${data.data?.success || ids.length} device(s) to Pending`);
+                        onActionComplete();
+                      } else {
+                        toast.error(data.error?.message || 'Failed to reset devices');
+                      }
+                    } catch {
+                      toast.error('Network error');
+                    } finally {
+                      setBulkActioning(false);
+                    }
+                  }}
+                  className="whitespace-nowrap"
+                >
+                  <RotateCcw className="h-4 w-4 mr-1" />
+                  Reset All to Pending
+                </Button>
+              )}
             </div>
           </div>
         </Card>

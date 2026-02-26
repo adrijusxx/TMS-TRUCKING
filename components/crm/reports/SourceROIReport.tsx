@@ -1,30 +1,46 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
+import ReportDateFilter, { downloadCsv } from './ReportDateFilter';
 
 export default function SourceROIReport() {
+    const [from, setFrom] = useState('');
+    const [to, setTo] = useState('');
+
     const { data, isLoading } = useQuery({
-        queryKey: ['crm-report-source'],
+        queryKey: ['crm-report-source', from, to],
         queryFn: async () => {
-            const res = await fetch('/api/crm/reports?type=source');
+            const params = new URLSearchParams({ type: 'source' });
+            if (from) params.append('from', from);
+            if (to) params.append('to', to);
+            const res = await fetch(`/api/crm/reports?${params}`);
             if (!res.ok) throw new Error('Failed');
             return res.json();
         },
     });
 
-    if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>;
-
     const rows = data?.data || [];
 
+    const handleExport = () => {
+        downloadCsv('source-roi-report.csv',
+            ['Source', 'Total Leads', 'Hired', 'Conversion Rate %'],
+            rows.map((r: any) => [r.source, r.total, r.hired, r.conversionRate]),
+        );
+    };
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-2">
+            <ReportDateFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} onExportCsv={handleExport} />
             <p className="text-sm text-muted-foreground">
                 Leads and hires by source, with conversion rates.
             </p>
-            {rows.length === 0 ? (
+            {isLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+            ) : rows.length === 0 ? (
                 <p className="text-center py-8 text-muted-foreground">No data yet</p>
             ) : (
                 <Table>

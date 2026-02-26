@@ -224,6 +224,19 @@ export type Permission =
   | 'safety.citations.create'
   | 'safety.citations.edit'
   | 'safety.overview.view'
+  // Safety Programs & Extended Operations
+  | 'safety.meetings.view'
+  | 'safety.meetings.manage'
+  | 'safety.policies.view'
+  | 'safety.policies.manage'
+  | 'safety.recognition.view'
+  | 'safety.recognition.manage'
+  | 'safety.insurance.view'
+  | 'safety.insurance.manage'
+  | 'safety.reports.view'
+  | 'safety.audit.view'
+  | 'safety.oos.view'
+  | 'safety.oos.manage'
   // Department Access
   | 'departments.accounting.view'
   | 'departments.fleet.view'
@@ -316,6 +329,12 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.inspections.view', 'safety.inspections.create', 'safety.inspections.edit',
     'safety.citations.view', 'safety.citations.create', 'safety.citations.edit',
     'safety.overview.view',
+    'safety.meetings.view', 'safety.meetings.manage',
+    'safety.policies.view', 'safety.policies.manage',
+    'safety.recognition.view', 'safety.recognition.manage',
+    'safety.insurance.view', 'safety.insurance.manage',
+    'safety.reports.view', 'safety.audit.view',
+    'safety.oos.view', 'safety.oos.manage',
     'departments.accounting.view',
     'departments.fleet.view',
     'departments.safety.view',
@@ -390,6 +409,12 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.inspections.view', 'safety.inspections.create', 'safety.inspections.edit',
     'safety.citations.view', 'safety.citations.create', 'safety.citations.edit',
     'safety.overview.view',
+    'safety.meetings.view', 'safety.meetings.manage',
+    'safety.policies.view', 'safety.policies.manage',
+    'safety.recognition.view', 'safety.recognition.manage',
+    'safety.insurance.view', 'safety.insurance.manage',
+    'safety.reports.view', 'safety.audit.view',
+    'safety.oos.view', 'safety.oos.manage',
     // Department Access - All departments enabled by default for admin
     'departments.accounting.view',
     'departments.fleet.view',
@@ -498,6 +523,12 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.inspections.view', 'safety.inspections.create', 'safety.inspections.edit',
     'safety.citations.view', 'safety.citations.create', 'safety.citations.edit',
     'safety.overview.view',
+    'safety.meetings.view', 'safety.meetings.manage',
+    'safety.policies.view', 'safety.policies.manage',
+    'safety.recognition.view', 'safety.recognition.manage',
+    'safety.insurance.view', 'safety.insurance.manage',
+    'safety.reports.view', 'safety.audit.view',
+    'safety.oos.view', 'safety.oos.manage',
     // Department Access
     'departments.safety.view',
     'departments.reports.view',
@@ -653,6 +684,17 @@ export function getAllPermissions(): Permission[] {
     'safety.training.view', 'safety.training.manage',
     'safety.compliance.view', 'safety.compliance.manage',
     'safety.alerts.view', 'safety.alerts.manage',
+    'safety.tasks.view', 'safety.tasks.create', 'safety.tasks.edit', 'safety.tasks.delete', 'safety.tasks.lock',
+    'safety.claims.view', 'safety.claims.create', 'safety.claims.edit',
+    'safety.inspections.view', 'safety.inspections.create', 'safety.inspections.edit',
+    'safety.citations.view', 'safety.citations.create', 'safety.citations.edit',
+    'safety.overview.view',
+    'safety.meetings.view', 'safety.meetings.manage',
+    'safety.policies.view', 'safety.policies.manage',
+    'safety.recognition.view', 'safety.recognition.manage',
+    'safety.insurance.view', 'safety.insurance.manage',
+    'safety.reports.view', 'safety.audit.view',
+    'safety.oos.view', 'safety.oos.manage',
     // Department Access
     'departments.accounting.view',
     'departments.fleet.view',

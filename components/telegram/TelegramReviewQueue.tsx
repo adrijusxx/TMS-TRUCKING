@@ -5,16 +5,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     ClipboardCheck, Loader2, MessageSquare, AlertTriangle, Wrench,
     ShieldAlert, UserX, Clock, CheckCircle2, XCircle, Timer,
-    Phone, MapPin, Truck,
+    Phone, MapPin, Truck, Search,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { apiUrl } from '@/lib/utils';
+import { useDebounce } from '@/hooks/useDebounce';
 import ReviewItemActions from './ReviewItemActions';
+import DismissedAdminControls from './DismissedAdminControls';
 
 interface ReviewItem {
     id: string;
@@ -65,11 +68,15 @@ export default function TelegramReviewQueue() {
     const queryClient = useQueryClient();
     const [statusFilter, setStatusFilter] = useState<string>('PENDING');
     const [page, setPage] = useState(1);
+    const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebounce(searchQuery, 300);
 
     const { data, isLoading } = useQuery<ReviewData>({
-        queryKey: ['telegram-review-queue', statusFilter, page],
+        queryKey: ['telegram-review-queue', statusFilter, page, debouncedSearch],
         queryFn: async () => {
-            const res = await fetch(apiUrl(`/api/telegram/review-queue?status=${statusFilter}&page=${page}&pageSize=20`));
+            const params = new URLSearchParams({ status: statusFilter, page: String(page), pageSize: '20' });
+            if (debouncedSearch) params.set('search', debouncedSearch);
+            const res = await fetch(apiUrl(`/api/telegram/review-queue?${params}`));
             if (!res.ok) throw new Error('Failed to fetch');
             const json = await res.json();
             return json.data;
@@ -121,7 +128,16 @@ export default function TelegramReviewQueue() {
                         Telegram Review Queue
                     </CardTitle>
                 </div>
-                <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+                <div className="relative max-w-sm">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                        placeholder="Search names, messages, notes..."
+                        value={searchQuery}
+                        onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                        className="h-8 pl-8 text-xs"
+                    />
+                </div>
+                <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); setSearchQuery(''); }}>
                     <TabsList className="grid w-full grid-cols-3 max-w-md">
                         <TabsTrigger value="PENDING" className="gap-1.5">
                             <Clock className="h-3.5 w-3.5" /> Pending
@@ -140,6 +156,12 @@ export default function TelegramReviewQueue() {
             </CardHeader>
 
             <CardContent className="p-0">
+                {statusFilter === 'DISMISSED' && (
+                    <DismissedAdminControls
+                        dismissedCount={counts.dismissed}
+                        onDeleted={() => queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] })}
+                    />
+                )}
                 <ScrollArea className="h-[500px]">
                     {items.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">

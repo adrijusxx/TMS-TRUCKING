@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow, isPast, isToday } from 'date-fns';
-import { User, Phone, Mail, Calendar, Clock, MessageSquare, StickyNote } from 'lucide-react';
+import { User, Phone, Mail, Calendar, Clock, MessageSquare, StickyNote, Search, Filter, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import LeadSheet from './LeadSheet';
 import HireLeadDialog from './HireLeadDialog';
@@ -22,6 +25,7 @@ interface Lead {
     priority: string | null;
     phone: string;
     email: string | null;
+    source?: string;
     assignedTo?: { firstName: string; lastName: string } | null;
     updatedAt: string;
     nextFollowUpDate?: string | null;
@@ -56,6 +60,47 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [hireDialogOpen, setHireDialogOpen] = useState(false);
     const [hireLeadData, setHireLeadData] = useState<{ id: string; name: string } | null>(null);
+
+    // Filters
+    const [searchQuery, setSearchQuery] = useState('');
+    const [priorityFilter, setPriorityFilter] = useState('all');
+    const [recruiterFilter, setRecruiterFilter] = useState('all');
+    const [overdueOnly, setOverdueOnly] = useState(false);
+
+    const recruiterNames = useMemo(() => {
+        const names = new Map<string, string>();
+        leads.forEach((l) => {
+            if (l.assignedTo) {
+                const key = `${l.assignedTo.firstName} ${l.assignedTo.lastName}`;
+                names.set(key, key);
+            }
+        });
+        return Array.from(names.values()).sort();
+    }, [leads]);
+
+    const filteredLeads = useMemo(() => {
+        return leads.filter((l) => {
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                const match = `${l.firstName} ${l.lastName} ${l.phone} ${l.email || ''}`.toLowerCase().includes(q);
+                if (!match) return false;
+            }
+            if (priorityFilter !== 'all' && l.priority !== priorityFilter) return false;
+            if (recruiterFilter !== 'all') {
+                if (recruiterFilter === 'unassigned' && l.assignedTo) return false;
+                if (recruiterFilter !== 'unassigned') {
+                    const name = l.assignedTo ? `${l.assignedTo.firstName} ${l.assignedTo.lastName}` : '';
+                    if (name !== recruiterFilter) return false;
+                }
+            }
+            if (overdueOnly) {
+                if (!l.nextFollowUpDate || !isPast(new Date(l.nextFollowUpDate))) return false;
+            }
+            return true;
+        });
+    }, [leads, searchQuery, priorityFilter, recruiterFilter, overdueOnly]);
+
+    const hasFilters = searchQuery || priorityFilter !== 'all' || recruiterFilter !== 'all' || overdueOnly;
 
     const handleCardClick = (leadId: string) => {
         setSelectedLeadId(leadId);
@@ -119,11 +164,69 @@ export default function KanbanBoard({ leads: initialLeads, onRefresh }: KanbanBo
         }
     };
 
-    const getLeadsByStatus = (status: string) => leads.filter((lead) => lead.status === status);
+    const getLeadsByStatus = (status: string) => filteredLeads.filter((lead) => lead.status === status);
 
     return (
         <>
-            <div className="h-[calc(100vh-12rem)] flex gap-4 overflow-x-auto pb-4">
+            {/* Filter Toolbar */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+                <div className="relative">
+                    <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                        placeholder="Search leads..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 h-8 w-48 text-sm"
+                    />
+                </div>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="w-28 h-8 text-sm">
+                        <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Priority</SelectItem>
+                        <SelectItem value="HOT">Hot</SelectItem>
+                        <SelectItem value="WARM">Warm</SelectItem>
+                        <SelectItem value="COLD">Cold</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={recruiterFilter} onValueChange={setRecruiterFilter}>
+                    <SelectTrigger className="w-36 h-8 text-sm">
+                        <SelectValue placeholder="Recruiter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Recruiters</SelectItem>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {recruiterNames.map((name) => (
+                            <SelectItem key={name} value={name}>{name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Button
+                    variant={overdueOnly ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setOverdueOnly(!overdueOnly)}
+                    className="gap-1.5 h-8"
+                >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Overdue
+                </Button>
+                {hasFilters && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => { setSearchQuery(''); setPriorityFilter('all'); setRecruiterFilter('all'); setOverdueOnly(false); }}
+                    >
+                        Clear
+                    </Button>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                    {filteredLeads.length} of {leads.length} leads
+                </span>
+            </div>
+
+            <div className="h-[calc(100vh-15rem)] flex gap-4 overflow-x-auto pb-4">
                 {COLUMNS.map((column) => {
                     const columnLeads = getLeadsByStatus(column.id);
 
@@ -210,7 +313,8 @@ function LeadCard({ lead, isDragging, onDragStart, onClick, onCall, onNoteAdded 
                 isDragging ? "opacity-50" : "",
                 lead.priority === 'HOT' ? "border-l-red-500" :
                     lead.priority === 'WARM' ? "border-l-yellow-500" :
-                        lead.priority === 'COLD' ? "border-l-blue-300" : "border-l-gray-300"
+                        lead.priority === 'COLD' ? "border-l-blue-300" : "border-l-gray-300",
+                lead.nextFollowUpDate && isPast(new Date(lead.nextFollowUpDate)) && "ring-1 ring-red-400/50 bg-red-50/30 dark:bg-red-950/10"
             )}
             onClick={() => onClick(lead.id)}
         >

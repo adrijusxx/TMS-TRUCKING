@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
         const status = searchParams.get('status');
         const priority = searchParams.get('priority');
         const assignedTo = searchParams.get('assignedTo');
+        const source = searchParams.get('source');
+        const dateFrom = searchParams.get('dateFrom');
+        const dateTo = searchParams.get('dateTo');
         const limit = parseInt(searchParams.get('limit') || '100');
 
         // Build MC filter
@@ -55,6 +58,16 @@ export async function GET(request: NextRequest) {
             where.assignedToId = null;
         } else if (assignedTo && assignedTo !== 'all') {
             where.assignedToId = assignedTo;
+        }
+
+        if (source && source !== 'all') {
+            where.source = source;
+        }
+
+        if (dateFrom || dateTo) {
+            where.createdAt = {};
+            if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+            if (dateTo) where.createdAt.lte = new Date(dateTo);
         }
 
         if (search) {

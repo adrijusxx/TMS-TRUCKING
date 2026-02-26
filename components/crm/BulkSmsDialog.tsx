@@ -22,6 +22,7 @@ export default function BulkSmsDialog({
     open, onOpenChange, selectedIds, onSuccess,
 }: BulkSmsDialogProps) {
     const [message, setMessage] = useState('');
+    const [showPreview, setShowPreview] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [progress, setProgress] = useState(0);
     const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
@@ -73,6 +74,7 @@ export default function BulkSmsDialog({
     const handleClose = () => {
         if (!isSubmitting) {
             setMessage('');
+            setShowPreview(false);
             setProgress(0);
             setResult(null);
             onOpenChange(false);
@@ -100,21 +102,43 @@ export default function BulkSmsDialog({
                         </span>
                     </div>
 
-                    <div>
-                        <Label>Message</Label>
-                        <Textarea
-                            placeholder="Type your SMS message..."
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            rows={4}
-                            maxLength={1600}
-                            disabled={isSubmitting}
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                            {message.length}/1600 characters
-                            {message.length > 160 && ` (${Math.ceil(message.length / 160)} segments)`}
-                        </p>
-                    </div>
+                    {!showPreview ? (
+                        <div>
+                            <Label>Message</Label>
+                            <Textarea
+                                placeholder="Type your SMS message..."
+                                value={message}
+                                onChange={(e) => setMessage(e.target.value)}
+                                rows={4}
+                                maxLength={1600}
+                                disabled={isSubmitting}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {message.length}/1600 characters
+                                {message.length > 160 && ` (${Math.ceil(message.length / 160)} segments)`}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <Label>Preview</Label>
+                            <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl p-4 max-w-[280px] mx-auto">
+                                <div className="bg-green-500 text-white rounded-2xl rounded-br-sm p-3 text-sm whitespace-pre-wrap">
+                                    {message}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground text-right mt-1">
+                                    {Math.ceil(message.length / 160)} SMS segment{message.length > 160 ? 's' : ''}
+                                </p>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => setShowPreview(false)}
+                            >
+                                Edit Message
+                            </Button>
+                        </div>
+                    )}
 
                     {isSubmitting && (
                         <Progress value={progress} className="h-2" />
@@ -135,7 +159,16 @@ export default function BulkSmsDialog({
                     <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
                         {result ? 'Close' : 'Cancel'}
                     </Button>
-                    {!result && (
+                    {!result && !showPreview && (
+                        <Button
+                            variant="secondary"
+                            onClick={() => setShowPreview(true)}
+                            disabled={!message.trim()}
+                        >
+                            Preview
+                        </Button>
+                    )}
+                    {!result && showPreview && (
                         <Button onClick={handleSubmit} disabled={isSubmitting || !message.trim()}>
                             {isSubmitting ? (
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

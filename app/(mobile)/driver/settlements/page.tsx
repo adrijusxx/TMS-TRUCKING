@@ -4,9 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, DollarSign, Calendar } from 'lucide-react';
+import { DollarSign, Calendar, ChevronRight } from 'lucide-react';
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { SettlementStatus } from '@prisma/client';
+import Link from 'next/link';
+import AdvanceRequestForm from '@/components/mobile/AdvanceRequestForm';
 
 interface Settlement {
   id: string;
@@ -77,52 +79,41 @@ function SimpleBarChart({ data }: { data: WeeklyEarning[] }) {
 }
 
 function SettlementCard({ settlement }: { settlement: Settlement }) {
-  const handleDownload = async () => {
-    // TODO: Implement PDF download
-    console.log('Download settlement:', settlement.id);
-    // For now, just show an alert
-    alert('PDF download functionality will be implemented soon');
-  };
-
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <p className="font-semibold">Settlement #{settlement.settlementNumber}</p>
-            <p className="text-sm text-muted-foreground">
-              <Calendar className="h-3 w-3 inline mr-1" />
-              {formatDate(settlement.periodStart)} - {formatDate(settlement.periodEnd)}
-            </p>
+    <Link href={`/driver/settlements/${settlement.id}`}>
+      <Card className="hover:bg-muted/50 transition-colors">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="font-semibold">Settlement #{settlement.settlementNumber}</p>
+              <p className="text-sm text-muted-foreground">
+                <Calendar className="h-3 w-3 inline mr-1" />
+                {formatDate(settlement.periodStart)} - {formatDate(settlement.periodEnd)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className={statusColors[settlement.status] || 'bg-gray-100 text-gray-800'}>
+                {formatStatus(settlement.status)}
+              </Badge>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
           </div>
-          <Badge className={statusColors[settlement.status] || 'bg-gray-100 text-gray-800'}>
-            {formatStatus(settlement.status)}
-          </Badge>
-        </div>
 
-        <div className="space-y-2 pt-2 border-t">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Gross Pay:</span>
-            <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
+          <div className="space-y-2 pt-2 border-t">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Gross Pay:</span>
+              <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Net Pay:</span>
+              <span className="font-semibold text-lg text-green-600">
+                {formatCurrency(settlement.netPay)}
+              </span>
+            </div>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Net Pay:</span>
-            <span className="font-semibold text-lg text-green-600">
-              {formatCurrency(settlement.netPay)}
-            </span>
-          </div>
-        </div>
-
-        <Button
-          variant="outline"
-          className="w-full mt-3"
-          onClick={handleDownload}
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Download PDF
-        </Button>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -134,7 +125,12 @@ export default function DriverSettlementsPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold mb-4">Settlements</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Settlements</h1>
+      </div>
+
+      {/* Advance Request */}
+      <AdvanceRequestForm />
 
       {/* Earnings Graph */}
       {data?.weeklyEarnings && data.weeklyEarnings.length > 0 && (

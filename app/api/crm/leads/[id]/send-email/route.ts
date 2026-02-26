@@ -3,7 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { EmailService } from '@/lib/services/EmailService';
 
-// POST /api/crm/leads/[id]/send-email — Send email to a lead via AWS SES
+// POST /api/crm/leads/[id]/send-email — Send email to a lead via Resend
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }

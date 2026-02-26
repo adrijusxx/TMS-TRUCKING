@@ -47,6 +47,7 @@ export async function GET(
             lastLogin: true,
             role: true,
             isActive: true,
+            tempPassword: true,
           },
         },
         currentTruck: {
@@ -514,7 +515,10 @@ export async function PATCH(
       const hashedPassword = await bcrypt.hash(validated.password, 10);
       await prisma.user.update({
         where: { id: existingDriver.userId },
-        data: { password: hashedPassword },
+        data: {
+          password: hashedPassword,
+          ...(validated.tempPassword && { tempPassword: validated.tempPassword }),
+        },
       });
     }
 
