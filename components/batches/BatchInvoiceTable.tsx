@@ -19,6 +19,7 @@ import {
   computeBatchTotals,
   type BatchInvoiceRow,
 } from './batch-invoice-columns';
+import { InvoicePackageDialog } from './InvoicePackageDialog';
 
 interface BatchInvoiceTableProps {
   data: BatchInvoiceRow[];
@@ -36,6 +37,11 @@ export default function BatchInvoiceTable({
   isLoading,
 }: BatchInvoiceTableProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [packageDialog, setPackageDialog] = useState<{
+    open: boolean;
+    invoiceId: string;
+    invoiceNumber: string;
+  }>({ open: false, invoiceId: '', invoiceNumber: '' });
 
   const downloadPackage = async (invoiceId: string, invoiceNumber: string) => {
     setDownloadingId(invoiceId);
@@ -58,7 +64,14 @@ export default function BatchInvoiceTable({
     }
   };
 
-  const columns = useMemo(() => createBatchInvoiceColumns(), []);
+  const handleViewPackage = useCallback((invoiceId: string, invoiceNumber: string) => {
+    setPackageDialog({ open: true, invoiceId, invoiceNumber });
+  }, []);
+
+  const columns = useMemo(
+    () => createBatchInvoiceColumns({ onViewPackage: handleViewPackage }),
+    [handleViewPackage]
+  );
   const totals = useMemo(() => computeBatchTotals(data), [data]);
 
   const handleExportCSV = useCallback(() => {
@@ -127,7 +140,7 @@ export default function BatchInvoiceTable({
         onRowSelectionChange={onRowSelectionChange}
         rowActions={rowActions}
         entityType="batch-invoices"
-        filterKey="invoiceNumber,customerName,loadNumber,shipmentId"
+        filterKey="invoiceNumber,customerName,loadNumber"
         searchPlaceholder="Search invoices..."
         onExport={handleExportCSV}
         emptyMessage="No invoices in this batch"
@@ -155,6 +168,14 @@ export default function BatchInvoiceTable({
           <span className="text-muted-foreground text-xs">{data.length} invoice(s)</span>
         </div>
       )}
+
+      {/* Invoice Package Preview Dialog */}
+      <InvoicePackageDialog
+        open={packageDialog.open}
+        onOpenChange={(open) => setPackageDialog((prev) => ({ ...prev, open }))}
+        invoiceId={packageDialog.invoiceId}
+        invoiceNumber={packageDialog.invoiceNumber}
+      />
     </div>
   );
 }

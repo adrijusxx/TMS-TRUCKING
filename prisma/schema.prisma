@@ -126,6 +126,10 @@ model User {
   // Recruiter assignment profile
   recruiterProfile RecruiterProfile? @relation("RecruiterProfile")
 
+  // Company Payments Module
+  companyExpensesCreated  CompanyExpense[] @relation("CompanyExpenseCreator")
+  companyExpensesApproved CompanyExpense[] @relation("CompanyExpenseApprover")
+
   @@unique([email, companyId])
   @@unique([employeeNumber, companyId])
   @@index([companyId])
@@ -418,6 +422,11 @@ model Company {
   vendorPayments         VendorPayment[]
   vendorScheduledPayments VendorScheduledPayment[]
   dispatcherCommissions  DispatcherCommission[]
+  // Company Payments Module
+  paymentInstruments     PaymentInstrument[]
+  companyExpenses        CompanyExpense[]
+  companyExpenseTypes    CompanyExpenseType[]
+  departmentBudgets      DepartmentBudget[]
   // CRM Relations
   leads                  Lead[]
   onboardingChecklists   OnboardingChecklist[]
@@ -2710,6 +2719,10 @@ model LoadExpense {
   settlementId String?
   settlement   Settlement? @relation(fields: [settlementId], references: [id])
 
+  // Payment instrument tracking (which specific card/account was used)
+  paymentInstrumentId String?
+  paymentInstrument   PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
@@ -2720,6 +2733,7 @@ model LoadExpense {
   settlementDeductions SettlementDeduction[]
 
   @@index([loadId])
+  @@index([paymentInstrumentId])
   @@index([expenseType])
   @@index([vendorId])
   @@index([settlementId])
@@ -3112,6 +3126,10 @@ model Payment {
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
 
+  // Payment instrument tracking (which specific card/account was used)
+  paymentInstrumentId String?
+  paymentInstrument   PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
+
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
 
@@ -3129,6 +3147,7 @@ model Payment {
   @@index([paymentDate])
   @@index([createdById])
   @@index([type])
+  @@index([paymentInstrumentId])
 }
 
 enum PaymentType {
@@ -3152,6 +3171,37 @@ enum PaymentMethod {
   CASHAPP
   ZELLE
   VENMO
+}
+
+enum PaymentInstrumentType {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_ACCOUNT
+  ZELLE
+  CASHAPP
+  VENMO
+  EFS
+  COMDATA
+  CASH
+  OTHER
+}
+
+enum ExpenseDepartment {
+  OPERATIONS
+  FLEET
+  RECRUITING
+  DISPATCH
+  SAFETY
+  ACCOUNTING
+  ADMIN
+  OTHER
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUAL
 }
 
 enum FactoringStatus {
@@ -3223,6 +3273,168 @@ enum DeductionType {
   OVERTIME
   INCENTIVE
   REIMBURSEMENT
+}
+
+// ============================================
+// COMPANY PAYMENTS MODULE
+// ============================================
+
+model PaymentInstrument {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id])
+  mcNumberId      String?
+  mcNumber        McNumber?             @relation(fields: [mcNumberId], references: [id])
+
+  name            String                // e.g. "Chase Sapphire - John ending 4521"
+  institutionName String
+  type            PaymentInstrumentType
+  lastFour        String?               // Last 4 digits for cards
+  cardholderName  String?
+  isActive        Boolean               @default(true)
+  notes           String?
+  color           String?               // Hex color for UI badge
+
+  // Spending controls
+  monthlyLimit    Float?                // Soft monthly spending cap
+  alertThreshold  Float?                // Alert when monthly spend crosses this amount
+
+  // QuickBooks integration
+  qbAccountId     String?
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  deletedAt       DateTime?
+
+  // Relations
+  companyExpenses CompanyExpense[]
+  payments        Payment[]
+  loadExpenses    LoadExpense[]
+
+  @@index([companyId, isActive])
+  @@index([mcNumberId])
+  @@index([type])
+}
+
+model CompanyExpenseType {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  mcNumberId  String?   // Per-MC scoped
+  mcNumber    McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  name        String
+  description String?
+  isDefault   Boolean   @default(false) // True for system-seeded types
+  color       String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+
+  // QuickBooks mapping
+  qbExpenseAccountId String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  companyExpenses CompanyExpense[]
+  departmentBudgets DepartmentBudget[]
+
+  @@unique([companyId, mcNumberId, name])
+  @@index([companyId, mcNumberId, isActive])
+}
+
+model CompanyExpense {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  mcNumberId    String?
+  mcNumber      McNumber? @relation(fields: [mcNumberId], references: [id])
+
+  expenseNumber String    @unique // Auto-generated: CE-2026-0001
+
+  amount        Float
+  date          DateTime
+  description   String
+
+  // Classification
+  expenseTypeId String
+  expenseType   CompanyExpenseType @relation(fields: [expenseTypeId], references: [id])
+  department    ExpenseDepartment  @default(OTHER)
+
+  // Payment instrument (which card/account was used)
+  paymentInstrumentId String?
+  paymentInstrument   PaymentInstrument? @relation(fields: [paymentInstrumentId], references: [id])
+
+  // Vendor (optional)
+  vendorId   String?
+  vendor     Vendor?  @relation(fields: [vendorId], references: [id])
+  vendorName String?  // Free-text for ad-hoc vendors not in system
+
+  // Documentation
+  receiptUrl  String?
+  documentIds String[] @default([])
+  hasReceipt  Boolean  @default(false)
+
+  // Recurring expense tracking
+  isRecurring        Boolean            @default(false)
+  recurringFrequency RecurringFrequency?
+  recurringParentId  String?
+  recurringParent    CompanyExpense?    @relation("RecurringChain", fields: [recurringParentId], references: [id])
+  recurringChildren  CompanyExpense[]   @relation("RecurringChain")
+
+  // Approval workflow
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedById    String?
+  approvedBy      User?          @relation("CompanyExpenseApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // QuickBooks sync
+  qbExpenseId          String?
+  accountingSyncStatus AccountingSyncStatus @default(NOT_SYNCED)
+  accountingSyncedAt   DateTime?
+
+  notes       String?
+  createdById String
+  createdBy   User     @relation("CompanyExpenseCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([companyId, mcNumberId])
+  @@index([expenseTypeId])
+  @@index([paymentInstrumentId])
+  @@index([vendorId])
+  @@index([department])
+  @@index([approvalStatus])
+  @@index([date])
+  @@index([isRecurring])
+  @@index([createdById])
+  @@index([expenseNumber])
+}
+
+model DepartmentBudget {
+  id          String            @id @default(cuid())
+  companyId   String
+  company     Company           @relation(fields: [companyId], references: [id])
+  mcNumberId  String?
+  mcNumber    McNumber?         @relation(fields: [mcNumberId], references: [id])
+
+  // Optional: link to a specific expense type for type-level budgeting
+  expenseTypeId String?
+  expenseType   CompanyExpenseType? @relation(fields: [expenseTypeId], references: [id])
+
+  department    ExpenseDepartment
+  month         Int               // 1-12
+  year          Int
+  budgetAmount  Float
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@unique([companyId, mcNumberId, department, month, year])
+  @@index([companyId, mcNumberId, year, month])
 }
 
 // ============================================
@@ -3839,6 +4051,7 @@ model Vendor {
   maintenanceRecords MaintenanceRecord[]
   vendorBills        VendorBill[]
   scheduledPayments  VendorScheduledPayment[]
+  companyExpenses    CompanyExpense[]
   createdBy          User?                  @relation("VendorCreatedBy", fields: [createdById], references: [id])
   createdById        String?
 
@@ -6354,6 +6567,11 @@ model McNumber {
   crmIntegrations       CrmIntegration[]
   // AI Relations
   aiAnomalies           AIAnomaly[]
+  // Company Payments Module
+  paymentInstruments    PaymentInstrument[]
+  companyExpenses       CompanyExpense[]
+  companyExpenseTypes   CompanyExpenseType[]
+  departmentBudgets     DepartmentBudget[]
 
   @@unique([companyId, number]) // MC number must be unique per company
   @@index([companyId])

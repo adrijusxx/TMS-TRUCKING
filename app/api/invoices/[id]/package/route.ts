@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/invoices/:id/package
- * Returns a merged PDF containing Invoice + Rate Confirmation + POD + BOL.
+ * Returns a merged PDF: Invoice + (optionally) Rate Confirmation + POD + BOL.
+ * Query params: rateCon=true|false, pod=true|false, bol=true|false (all default true)
  */
 export async function GET(
   request: NextRequest,
@@ -23,6 +24,12 @@ export async function GET(
     }
 
     const { id: invoiceId } = await params;
+    const sp = request.nextUrl.searchParams;
+    const options = {
+      includeRateCon: sp.get('rateCon') !== 'false',
+      includePod: sp.get('pod') !== 'false',
+      includeBol: sp.get('bol') !== 'false',
+    };
 
     // Verify invoice belongs to company
     const invoice = await prisma.invoice.findFirst({
@@ -47,13 +54,13 @@ export async function GET(
       );
     }
 
-    // Build the merged PDF package
-    const pkg = await InvoiceDocumentBuilder.buildPackage(invoiceId, session.user.companyId);
+    // Build the merged PDF package with selected document types
+    const pkg = await InvoiceDocumentBuilder.buildPackage(invoiceId, session.user.companyId, options);
 
     return new NextResponse(Buffer.from(pkg.buffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${pkg.filename}"`,
+        'Content-Disposition': `inline; filename="${pkg.filename}"`,
       },
     });
   } catch (error) {

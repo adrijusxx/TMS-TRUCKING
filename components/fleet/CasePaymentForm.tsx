@@ -14,6 +14,7 @@ import {
 import { Plus, Loader2, DollarSign, CreditCard, Receipt } from 'lucide-react';
 import { cn, apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
+import { PaymentInstrumentPicker } from '@/components/company-expenses/PaymentInstrumentPicker';
 
 interface Payment {
   id: string;
@@ -64,6 +65,7 @@ export default function CasePaymentForm({ breakdownId, payments, totalPaid, tota
   const [formData, setFormData] = useState({
     amount: '',
     paymentMethod: 'CREDIT_CARD',
+    paymentInstrumentId: null as string | null,
     referenceNumber: '',
     notes: '',
   });
@@ -74,7 +76,7 @@ export default function CasePaymentForm({ breakdownId, payments, totalPaid, tota
       queryClient.invalidateQueries({ queryKey: ['activeBreakdowns-compact'] });
       queryClient.invalidateQueries({ queryKey: ['fleet-metrics-summary'] });
       toast.success('Payment added');
-      setFormData({ amount: '', paymentMethod: 'CREDIT_CARD', referenceNumber: '', notes: '' });
+      setFormData({ amount: '', paymentMethod: 'CREDIT_CARD', paymentInstrumentId: null, referenceNumber: '', notes: '' });
       setShowForm(false);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -89,6 +91,7 @@ export default function CasePaymentForm({ breakdownId, payments, totalPaid, tota
     addMutation.mutate({
       amount: parseFloat(formData.amount),
       paymentMethod: formData.paymentMethod,
+      paymentInstrumentId: formData.paymentInstrumentId || undefined,
       referenceNumber: formData.referenceNumber || undefined,
       notes: formData.notes || undefined,
     });
@@ -186,6 +189,16 @@ export default function CasePaymentForm({ breakdownId, payments, totalPaid, tota
               </Select>
             </div>
           </div>
+          {formData.paymentMethod === 'CREDIT_CARD' || formData.paymentMethod === 'CASHAPP' || formData.paymentMethod === 'ZELLE' || formData.paymentMethod === 'VENMO' ? (
+            <div className="space-y-1">
+              <Label className="text-xs">Card / Account</Label>
+              <PaymentInstrumentPicker
+                value={formData.paymentInstrumentId}
+                onChange={(v) => setFormData(p => ({ ...p, paymentInstrumentId: v }))}
+                placeholder="Select card or account..."
+              />
+            </div>
+          ) : null}
           <div className="space-y-1">
             <Label className="text-xs">Reference # (optional)</Label>
             <Input

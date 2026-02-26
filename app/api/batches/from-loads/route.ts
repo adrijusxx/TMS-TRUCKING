@@ -255,12 +255,9 @@ async function validateLoadsForInvoicing(loads: any[]) {
 }
 
 function groupLoadsByCustomerAndMc(loads: any[]) {
+  // One invoice per load (strict 1:1 relationship)
   return loads.reduce((acc, load) => {
-    const key = `${load.customerId}_${load.mcNumberId || 'null'}`;
-    if (!acc[key]) {
-      acc[key] = { customerId: load.customerId, customer: load.customer, loadIds: [] };
-    }
-    acc[key].loadIds.push(load.id);
+    acc[load.id] = { customerId: load.customerId, customer: load.customer, loadIds: [load.id] };
     return acc;
   }, {} as Record<string, { customerId: string; customer: any; loadIds: string[] }>);
 }

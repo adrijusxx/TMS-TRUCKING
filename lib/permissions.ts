@@ -110,6 +110,23 @@ export type Permission =
   | 'advances.create'
   | 'advances.approve'
   | 'advances.delete'
+  // Company Payments Module
+  | 'company_expenses.view'
+  | 'company_expenses.create'
+  | 'company_expenses.edit'
+  | 'company_expenses.delete'
+  | 'company_expenses.approve'
+  | 'company_expenses.export'
+  | 'payment_instruments.view'
+  | 'payment_instruments.create'
+  | 'payment_instruments.edit'
+  | 'payment_instruments.delete'
+  | 'company_expense_types.view'
+  | 'company_expense_types.create'
+  | 'company_expense_types.edit'
+  | 'company_expense_types.delete'
+  | 'department_budgets.view'
+  | 'department_budgets.manage'
   // Fleet Operations
   | 'maintenance.view'
   | 'maintenance.create'
@@ -344,6 +361,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'departments.crm.view',
     // CRM Permissions
     'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage', 'crm.templates.manage',
+    // Company Payments Module
+    'company_expenses.view', 'company_expenses.create', 'company_expenses.edit', 'company_expenses.delete', 'company_expenses.approve', 'company_expenses.export',
+    'payment_instruments.view', 'payment_instruments.create', 'payment_instruments.edit', 'payment_instruments.delete',
+    'company_expense_types.view', 'company_expense_types.create', 'company_expense_types.edit', 'company_expense_types.delete',
+    'department_budgets.view', 'department_budgets.manage',
   ],
   ADMIN: [
     // Full access to everything
@@ -425,6 +447,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'departments.crm.view',
     // CRM Permissions
     'crm.leads.view', 'crm.leads.create', 'crm.leads.edit', 'crm.leads.delete', 'crm.leads.assign', 'crm.hire', 'crm.onboarding.view', 'crm.onboarding.manage', 'crm.templates.manage',
+    // Company Payments Module
+    'company_expenses.view', 'company_expenses.create', 'company_expenses.edit', 'company_expenses.delete', 'company_expenses.approve', 'company_expenses.export',
+    'payment_instruments.view', 'payment_instruments.create', 'payment_instruments.edit', 'payment_instruments.delete',
+    'company_expense_types.view', 'company_expense_types.create', 'company_expense_types.edit', 'company_expense_types.delete',
+    'department_budgets.view', 'department_budgets.manage',
   ],
   DISPATCHER: [
     // Load management and dispatch operations
@@ -447,6 +474,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     // 'departments.fleet.view', // REMOVED: No full fleet dashboard
     // 'departments.reports.view', // REMOVED: No reports access
     'departments.settings.view', // Allow access to settings (profile)
+    // Company Payments Module (dispatchers can log expenses)
+    'company_expenses.view', 'company_expenses.create',
+    'payment_instruments.view',
+    'company_expense_types.view',
+    'department_budgets.view',
   ],
   ACCOUNTANT: [
     // Financial management and accounting
@@ -464,6 +496,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'advances.view', 'advances.create', 'advances.approve', 'advances.delete',
     // IFTA
     'ifta.view', 'ifta.calculate',
+    // Company Payments Module
+    'company_expenses.view', 'company_expenses.create', 'company_expenses.edit', 'company_expenses.approve', 'company_expenses.export',
+    'payment_instruments.view', 'payment_instruments.create', 'payment_instruments.edit',
+    'company_expense_types.view', 'company_expense_types.create', 'company_expense_types.edit',
+    'department_budgets.view', 'department_budgets.manage',
     // Department Access
     'departments.accounting.view',
     'departments.reports.view',
@@ -491,6 +528,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'documents.view', 'documents.upload',
     'reports.view', 'reports.export',
     'analytics.view',
+    // Company Payments Module (HR can log recruiting expenses)
+    'company_expenses.view', 'company_expenses.create',
+    'payment_instruments.view',
+    'company_expense_types.view',
+    'department_budgets.view',
     // Department Access
     'departments.hr.view',
     'departments.reports.view',
@@ -529,6 +571,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.insurance.view', 'safety.insurance.manage',
     'safety.reports.view', 'safety.audit.view',
     'safety.oos.view', 'safety.oos.manage',
+    // Company Payments Module (safety can log drug tests, MVR costs etc.)
+    'company_expenses.view', 'company_expenses.create',
+    'payment_instruments.view',
+    'company_expense_types.view',
+    'department_budgets.view',
     // Department Access
     'departments.safety.view',
     'departments.reports.view',
@@ -553,6 +600,11 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'vendors.view', 'vendors.create', 'vendors.edit', 'vendors.delete',
     // Extended Fleet Operations
     'fleet.reports', 'fleet.costs', 'fleet.communications', 'fleet.hotspots', 'fleet.on_call', 'fleet.monitoring', 'fleet.monitoring.settings',
+    // Company Payments Module (fleet can log breakdown expenses)
+    'company_expenses.view', 'company_expenses.create',
+    'payment_instruments.view',
+    'company_expense_types.view',
+    'department_budgets.view',
     // Department Access
     'departments.fleet.view',
     'departments.reports.view',

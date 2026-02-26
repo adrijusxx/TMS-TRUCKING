@@ -15,6 +15,7 @@ interface ExpenseData {
   description?: string;
   receiptUrl?: string;
   date?: Date;
+  paymentInstrumentId?: string;
 }
 
 interface ExpenseApproval {
@@ -48,6 +49,7 @@ export class LoadExpenseManager {
         ...(expenseData.vendorId && { vendorId: expenseData.vendorId }),
         ...(expenseData.description && { description: expenseData.description }),
         ...(expenseData.receiptUrl && { receiptUrl: expenseData.receiptUrl }),
+        ...(expenseData.paymentInstrumentId && { paymentInstrumentId: expenseData.paymentInstrumentId }),
         date: expenseData.date || new Date(),
         approvalStatus: 'PENDING',
       },

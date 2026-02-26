@@ -18,6 +18,7 @@ import {
   History,
   LogOut,
   BookOpen,
+  Receipt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -62,6 +63,7 @@ const navigationGroups: NavigationGroup[] = [
       { name: 'Fleet', href: '/dashboard/fleet', icon: Truck, permission: 'departments.fleet.view' },
       { name: 'Safety', href: '/dashboard/safety', icon: Shield, permission: 'departments.safety.view' },
       { name: 'Accounting', href: '/dashboard/invoices', icon: DollarSign, permission: 'departments.accounting.view', activePaths: ['/dashboard/invoices', '/dashboard/settlements', '/dashboard/customers', '/dashboard/accounting', '/dashboard/bills'] },
+      { name: 'Company Expenses', href: '/dashboard/company-expenses', icon: Receipt, permission: 'company_expenses.view' },
       { name: 'HR', href: '/dashboard/drivers', icon: Users, permission: 'departments.hr.view' },
       { name: 'Recruiting', href: '/dashboard/crm', icon: UserPlus, permission: 'departments.crm.view' },
     ],

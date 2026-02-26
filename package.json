@@ -3,7 +3,7 @@
   "version": "0.2.14",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "dev:quiet": "node scripts/filter-dev-logs.js",
     "prebuild": "prisma generate",
     "build": "next build",

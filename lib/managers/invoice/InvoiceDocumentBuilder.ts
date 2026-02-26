@@ -25,6 +25,12 @@ export interface DocumentPackageResult {
   filename: string;
 }
 
+export interface DocumentOptions {
+  includeRateCon?: boolean; // default: true
+  includePod?: boolean;     // default: true
+  includeBol?: boolean;     // default: true
+}
+
 export class InvoiceDocumentBuilder {
   /**
    * Check that all required documents exist for an invoice's loads.
@@ -76,8 +82,12 @@ export class InvoiceDocumentBuilder {
    */
   static async buildPackage(
     invoiceId: string,
-    companyId: string
+    companyId: string,
+    options?: DocumentOptions
   ): Promise<DocumentPackageResult> {
+    const includeRateCon = options?.includeRateCon !== false;
+    const includePod = options?.includePod !== false;
+    const includeBol = options?.includeBol !== false;
     const documents: DocumentInput[] = [];
 
     // 1. Generate Invoice PDF
@@ -91,21 +101,26 @@ export class InvoiceDocumentBuilder {
     });
     if (!invoice) throw new Error(`Invoice ${invoiceId} not found`);
 
-    // 3. For each load, collect Rate Con, POD, BOL
+    // 3. For each load, collect Rate Con, POD, BOL per selected options
     for (const loadId of invoice.loadIds) {
-      const rateConPdf = await this.generateRateConPdf(loadId, companyId);
-      if (rateConPdf) {
-        documents.push({ buffer: rateConPdf, mimeType: 'application/pdf', label: `Rate Con - ${loadId}` });
+      if (includeRateCon) {
+        const rateConPdf = await this.generateRateConPdf(loadId, companyId);
+        if (rateConPdf) {
+          documents.push({ buffer: rateConPdf, mimeType: 'application/pdf', label: `Rate Con - ${loadId}` });
+        } else {
+          const rateConDoc = await this.fetchUploadedDocument(loadId, 'RATE_CONFIRMATION');
+          if (rateConDoc) documents.push(rateConDoc);
+        }
       }
 
-      const podDoc = await this.fetchUploadedDocument(loadId, 'POD');
-      if (podDoc) {
-        documents.push(podDoc);
+      if (includePod) {
+        const podDoc = await this.fetchUploadedDocument(loadId, 'POD');
+        if (podDoc) documents.push(podDoc);
       }
 
-      const bolDoc = await this.fetchUploadedDocument(loadId, 'BOL');
-      if (bolDoc) {
-        documents.push(bolDoc);
+      if (includeBol) {
+        const bolDoc = await this.fetchUploadedDocument(loadId, 'BOL');
+        if (bolDoc) documents.push(bolDoc);
       }
     }
 
@@ -189,7 +204,7 @@ export class InvoiceDocumentBuilder {
   /**
    * Generate Rate Confirmation PDF buffer for a load.
    */
-  private static async generateRateConPdf(
+  static async generateRateConPdf(
     loadId: string,
     companyId: string
   ): Promise<Uint8Array | null> {
@@ -266,7 +281,7 @@ export class InvoiceDocumentBuilder {
    */
   private static async fetchUploadedDocument(
     loadId: string,
-    type: 'POD' | 'BOL'
+    type: 'POD' | 'BOL' | 'RATE_CONFIRMATION'
   ): Promise<DocumentInput | null> {
     const doc = await prisma.document.findFirst({
       where: { loadId, type, deletedAt: null },

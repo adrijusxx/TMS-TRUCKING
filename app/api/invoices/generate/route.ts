@@ -241,22 +241,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Group loads by customer AND MC Number (Strict Isolation)
+    // One invoice per load (strict 1:1 relationship)
     const loadsGrouped = loads.reduce((acc, load) => {
-      // Create a unique key for grouping
-      const groupKey = `${load.customerId}_${load.mcNumberId || 'null'}`;
-
-      if (!acc[groupKey]) {
-        acc[groupKey] = {
-          customerId: load.customerId,
-          mcNumberId: load.mcNumberId,
-          customer: load.customer,
-          loads: [],
-          totalRevenue: 0,
-        };
-      }
-      acc[groupKey].loads.push(load);
-      acc[groupKey].totalRevenue += load.revenue;
+      acc[load.id] = {
+        customerId: load.customerId,
+        mcNumberId: load.mcNumberId,
+        customer: load.customer,
+        loads: [load],
+        totalRevenue: load.revenue,
+      };
       return acc;
     }, {} as Record<string, any>);
 

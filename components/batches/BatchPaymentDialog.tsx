@@ -17,6 +17,7 @@ import { Loader2 } from 'lucide-react';
 import { apiUrl, formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { PaymentInstrumentPicker } from '@/components/company-expenses/PaymentInstrumentPicker';
 
 interface BatchPaymentDialogProps {
   open: boolean;
@@ -42,6 +43,7 @@ export default function BatchPaymentDialog({
   const [amount, setAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [paymentMethod, setPaymentMethod] = useState<string>('CHECK');
+  const [paymentInstrumentId, setPaymentInstrumentId] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,6 +76,7 @@ export default function BatchPaymentDialog({
           amount: numAmount,
           paymentDate: new Date(paymentDate).toISOString(),
           paymentMethod,
+          paymentInstrumentId: paymentInstrumentId || undefined,
           referenceNumber: referenceNumber || undefined,
           notes: notes || undefined,
         }),
@@ -95,6 +98,7 @@ export default function BatchPaymentDialog({
   const resetAndClose = () => {
     setInvoiceId('');
     setAmount('');
+    setPaymentInstrumentId(null);
     setReferenceNumber('');
     setNotes('');
     onClose();
@@ -156,6 +160,14 @@ export default function BatchPaymentDialog({
               <Input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)}
                 placeholder="Check #, wire ref..." />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Card / Account</Label>
+            <PaymentInstrumentPicker
+              value={paymentInstrumentId}
+              onChange={setPaymentInstrumentId}
+              placeholder="Select card or account (optional)..."
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>

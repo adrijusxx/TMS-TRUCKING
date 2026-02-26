@@ -1,7 +1,8 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, FileText } from 'lucide-react';
 import type { ExtendedColumnDef } from '@/components/data-table/types';
 import { EntityLink } from '@/components/common/EntityLink';
 
@@ -11,7 +12,6 @@ import { EntityLink } from '@/components/common/EntityLink';
 
 export interface BatchInvoiceRow {
   id: string;
-  shipmentId: string;
   customerName: string;
   customerId: string;
   loadNumber: string;
@@ -54,7 +54,6 @@ export function flattenBatchItems(
     const log = emailLogs[inv.id];
     return {
       id: inv.id,
-      shipmentId: load?.shipmentId || '-',
       customerName: inv.customer?.name || '-',
       customerId: inv.customer?.id || '',
       loadNumber: load?.loadNumber || '-',
@@ -80,8 +79,10 @@ export function flattenBatchItems(
       balance: inv.balance || 0,
       truckNumber: load?.truck?.truckNumber || '-',
       factoringCompanyId: inv.factoringCompany?.id || '',
-      rateConfirmationUrl: load?.rateConfirmation?.document?.fileUrl || '',
-      podUrl: load?.documents?.[0]?.fileUrl || '',
+      rateConfirmationUrl: (load?.rateConfirmation || load?.documents?.find((d: any) => d.type === 'RATE_CONFIRMATION')) && load?.id
+        ? `/api/loads/${load.id}/ratecon`
+        : '',
+      podUrl: load?.documents?.find((d: any) => d.type === 'POD')?.fileUrl || '',
     };
   });
 }
@@ -119,9 +120,13 @@ const statusVariant = (status: string) => {
 // Column definitions
 // ---------------------------------------------------------------------------
 
-export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[] {
+interface ColumnOptions {
+  onViewPackage: (invoiceId: string, invoiceNumber: string) => void;
+}
+
+export function createBatchInvoiceColumns(opts: ColumnOptions): ExtendedColumnDef<BatchInvoiceRow>[] {
   return [
-    // --- Primary columns (visible by default) ---
+    // Invoice #
     {
       id: 'invoiceNumber',
       accessorKey: 'invoiceNumber',
@@ -139,6 +144,7 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       defaultVisible: true,
       required: true,
     },
+    // Customer
     {
       id: 'customerName',
       accessorKey: 'customerName',
@@ -158,6 +164,7 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       className: 'min-w-[140px]',
       defaultVisible: true,
     },
+    // Load #
     {
       id: 'loadNumber',
       accessorKey: 'loadNumber',
@@ -176,6 +183,7 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
         ),
       defaultVisible: true,
     },
+    // Status
     {
       id: 'status',
       accessorKey: 'status',
@@ -187,6 +195,7 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       ),
       defaultVisible: true,
     },
+    // Amount
     {
       id: 'total',
       accessorKey: 'total',
@@ -197,6 +206,7 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       className: 'text-right min-w-[90px]',
       defaultVisible: true,
     },
+    // Driver Gross
     {
       id: 'driverPay',
       accessorKey: 'driverPay',
@@ -208,6 +218,7 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       className: 'text-right min-w-[100px]',
       defaultVisible: true,
     },
+    // Balance
     {
       id: 'balance',
       accessorKey: 'balance',
@@ -220,22 +231,18 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       className: 'text-right min-w-[90px]',
       defaultVisible: true,
     },
+    // Pickup
     {
-      id: 'driverName',
-      accessorKey: 'driverName',
-      header: 'Driver',
-      cell: ({ row }) => (
-        <span className="truncate block max-w-[140px]">{row.original.driverName}</span>
-      ),
-      className: 'min-w-[100px]',
+      id: 'pickupDate',
+      accessorKey: 'pickupDate',
+      header: 'Pickup',
+      cell: ({ row }) =>
+        row.original.pickupDate
+          ? <span className="whitespace-nowrap">{formatDate(new Date(row.original.pickupDate))}</span>
+          : <span className="text-muted-foreground">-</span>,
       defaultVisible: true,
     },
-    {
-      id: 'truckNumber',
-      accessorKey: 'truckNumber',
-      header: 'Truck',
-      defaultVisible: true,
-    },
+    // Delivery
     {
       id: 'deliveryDate',
       accessorKey: 'deliveryDate',
@@ -246,6 +253,36 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
           : <span className="text-muted-foreground">-</span>,
       defaultVisible: true,
     },
+    // Delivered At
+    {
+      id: 'deliveredAt',
+      accessorKey: 'deliveredAt',
+      header: 'Delivered At',
+      cell: ({ row }) =>
+        row.original.deliveredAt
+          ? <span className="whitespace-nowrap">{formatDate(new Date(row.original.deliveredAt))}</span>
+          : <span className="text-muted-foreground">-</span>,
+      defaultVisible: true,
+    },
+    // Driver
+    {
+      id: 'driverName',
+      accessorKey: 'driverName',
+      header: 'Driver',
+      cell: ({ row }) => (
+        <span className="truncate block max-w-[140px]">{row.original.driverName}</span>
+      ),
+      className: 'min-w-[100px]',
+      defaultVisible: true,
+    },
+    // Truck
+    {
+      id: 'truckNumber',
+      accessorKey: 'truckNumber',
+      header: 'Truck',
+      defaultVisible: true,
+    },
+    // Billing
     {
       id: 'billingType',
       accessorKey: 'billingType',
@@ -257,6 +294,7 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       ),
       defaultVisible: true,
     },
+    // POD
     {
       id: 'pod',
       accessorKey: 'podUrl',
@@ -277,54 +315,48 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
       enableSorting: false,
       defaultVisible: true,
     },
-
-    // --- Secondary columns (hidden by default, user can enable) ---
+    // Rate Con
     {
-      id: 'shipmentId',
-      accessorKey: 'shipmentId',
-      header: 'Shipment',
-      defaultVisible: false,
-    },
-    {
-      id: 'pickupDate',
-      accessorKey: 'pickupDate',
-      header: 'Pickup',
+      id: 'rateConfirmation',
+      accessorKey: 'rateConfirmationUrl',
+      header: 'Rate Con',
       cell: ({ row }) =>
-        row.original.pickupDate
-          ? <span className="whitespace-nowrap">{formatDate(new Date(row.original.pickupDate))}</span>
-          : <span className="text-muted-foreground">-</span>,
-      defaultVisible: false,
-    },
-    {
-      id: 'deliveredAt',
-      accessorKey: 'deliveredAt',
-      header: 'Delivered At',
-      cell: ({ row }) =>
-        row.original.deliveredAt
-          ? <span className="whitespace-nowrap">{formatDate(new Date(row.original.deliveredAt))}</span>
-          : <span className="text-muted-foreground">-</span>,
-      defaultVisible: false,
-    },
-    {
-      id: 'factoringPdf',
-      accessorKey: 'factoringCompanyId',
-      header: 'Factoring PDF',
-      cell: ({ row }) =>
-        row.original.factoringCompanyId ? (
+        row.original.rateConfirmationUrl ? (
           <a
-            href={`/api/invoices/${row.original.invoiceId}/package`}
+            href={row.original.rateConfirmationUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary hover:underline"
+            className="text-primary hover:underline font-medium"
           >
-            View PDF
+            PDF
           </a>
         ) : (
           <span className="text-muted-foreground">-</span>
         ),
       enableSorting: false,
-      defaultVisible: false,
+      defaultVisible: true,
     },
+    // Factoring PDF — opens InvoicePackageDialog for all invoices
+    {
+      id: 'factoringPdf',
+      accessorKey: 'invoiceId',
+      header: 'Package',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs text-primary hover:underline font-medium"
+          onClick={() => opts.onViewPackage(row.original.invoiceId, row.original.invoiceNumber)}
+        >
+          <FileText className="h-3 w-3 mr-1" />
+          View PDF
+        </Button>
+      ),
+      enableSorting: false,
+      defaultVisible: true,
+    },
+
+    // --- Secondary columns (hidden by default) ---
     {
       id: 'isSent',
       accessorKey: 'isSent',
@@ -336,26 +368,6 @@ export function createBatchInvoiceColumns(): ExtendedColumnDef<BatchInvoiceRow>[
           <XCircle className="h-4 w-4 text-muted-foreground mx-auto" />
         ),
       className: 'text-center',
-      defaultVisible: false,
-    },
-    {
-      id: 'rateConfirmation',
-      accessorKey: 'rateConfirmationUrl',
-      header: 'Rate Con',
-      cell: ({ row }) =>
-        row.original.rateConfirmationUrl ? (
-          <a
-            href={row.original.rateConfirmationUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            View
-          </a>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        ),
-      enableSorting: false,
       defaultVisible: false,
     },
     {

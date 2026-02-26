@@ -13,6 +13,7 @@ const createPaymentSchema = z.object({
   amount: z.number().positive(),
   paymentDate: z.string().datetime().or(z.string()),
   paymentMethod: z.enum(['CHECK', 'WIRE', 'ACH', 'CREDIT_CARD', 'CASH', 'OTHER', 'FACTOR', 'QUICK_PAY']),
+  paymentInstrumentId: z.string().optional().nullable(),
   referenceNumber: z.string().optional(),
   receiptNumber: z.string().optional(),
   invoiceNumber: z.string().optional(), // Vendor invoice number
@@ -398,6 +399,7 @@ export async function POST(request: NextRequest) {
         referenceNumber: validated.referenceNumber,
         receiptNumber: validated.receiptNumber,
         invoiceNumber: validated.invoiceNumber, // Vendor invoice number
+        paymentInstrumentId: validated.paymentInstrumentId || null,
         hasReceipt: validated.hasReceipt,
         hasInvoice: validated.hasInvoice,
         documentIds: validated.documentIds || [],

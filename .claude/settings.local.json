@@ -8,7 +8,9 @@
       "Bash(xargs:*)",
       "Bash(npx tsx:*)",
       "Bash(grep:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(taskkill:*)",
+      "Bash(git -C \"c:/Users/Wegos/Documents/Github Projects/TMS-TRUCKING\" log --oneline -5)"
     ]
   }
 }

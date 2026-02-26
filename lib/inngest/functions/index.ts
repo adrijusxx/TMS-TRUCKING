@@ -60,6 +60,8 @@ import { generateLeadSummary } from './generate-lead-summary';
 import { checkFleetDormancy } from './check-fleet-dormancy';
 import { autoArchiveLeads } from './auto-archive-leads';
 import { databaseKeepAlive } from './keep-alive';
+import { processRecurringExpenses } from './recurring-expenses';
+import { sendMissingReceiptAlerts } from './missing-receipt-alerts';
 
 export { syncCrmLeads } from './sync-crm-leads';
 export { checkLeadFollowUps } from './check-lead-follow-ups';
@@ -72,6 +74,8 @@ export { generateLeadSummary } from './generate-lead-summary';
 export { checkFleetDormancy } from './check-fleet-dormancy';
 export { autoArchiveLeads } from './auto-archive-leads';
 export { databaseKeepAlive } from './keep-alive';
+export { processRecurringExpenses } from './recurring-expenses';
+export { sendMissingReceiptAlerts } from './missing-receipt-alerts';
 
 export const allFunctions = [
   // Settlements
@@ -106,5 +110,8 @@ export const allFunctions = [
   autoArchiveLeads,
   // Database Keep-Alive
   databaseKeepAlive,
+  // Company Expenses Automation
+  processRecurringExpenses,
+  sendMissingReceiptAlerts,
 ];
 

@@ -29,6 +29,7 @@ const expenseSchema = z.object({
   description: z.string().max(500).optional(),
   receiptUrl: z.string().url().optional(),
   date: z.string().datetime().optional(),
+  paymentInstrumentId: z.string().optional().nullable(),
 });
 
 /**
@@ -82,6 +83,7 @@ export async function POST(
       description: validated.description,
       receiptUrl: validated.receiptUrl,
       date: validated.date ? new Date(validated.date) : undefined,
+      paymentInstrumentId: validated.paymentInstrumentId ?? undefined,
     });
 
     return NextResponse.json({

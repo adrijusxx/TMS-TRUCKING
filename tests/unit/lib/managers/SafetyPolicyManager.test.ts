@@ -46,7 +46,7 @@ describe('SafetyPolicyManager', () => {
 
       const result = await manager.createPolicy('company-1', {
         policyName: 'Safety Manual',
-        category: 'GENERAL',
+        category: 'OTHER',
         content: 'Content here',
         effectiveDate: new Date('2026-03-01'),
       });

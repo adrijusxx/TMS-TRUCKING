@@ -88,8 +88,7 @@ export class SamsaraQueueManager {
             }
 
             if (existingTruck.samsaraId) {
-                await this.rejectQueueItem(queueId, userId, `Already linked to different device`);
-                return { success: true, recordId: existingTruck.id, action: 'rejected' };
+                return { success: false, error: `Truck "${existingTruck.truckNumber}" is already linked to a different Samsara device. Use the Link action to connect this device to a different truck.` };
             }
 
             await this.linkTruck(existingTruck.id, queueItem);
@@ -119,8 +118,7 @@ export class SamsaraQueueManager {
             }
 
             if (existingTrailer.samsaraId) {
-                await this.rejectQueueItem(queueId, userId, `Already linked to different device`);
-                return { success: true, recordId: existingTrailer.id, action: 'rejected' };
+                return { success: false, error: `Trailer "${existingTrailer.trailerNumber}" is already linked to a different Samsara device. Use the Link action to connect this device to a different trailer.` };
             }
 
             await this.linkTrailer(existingTrailer.id, queueItem);

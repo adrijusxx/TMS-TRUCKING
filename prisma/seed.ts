@@ -964,6 +964,65 @@ async function main() {
   console.log(`✅ Created ${accessorialCharges.length} accessorial charges`);
 
   // ============================================
+  // DEFAULT COMPANY EXPENSE TYPES (per MC number)
+  // ============================================
+  console.log('💳 Creating default company expense types...');
+
+  const DEFAULT_EXPENSE_TYPES = [
+    // Fleet
+    { name: 'Fuel', color: '#f59e0b', sortOrder: 0 },
+    { name: 'Repairs & Maintenance', color: '#ef4444', sortOrder: 1 },
+    { name: 'Tires', color: '#6366f1', sortOrder: 2 },
+    { name: 'Truck Insurance', color: '#0ea5e9', sortOrder: 3 },
+    { name: 'Trailer Insurance', color: '#0891b2', sortOrder: 4 },
+    // Operations
+    { name: 'Tolls', color: '#84cc16', sortOrder: 5 },
+    { name: 'Scales / Weigh Stations', color: '#22c55e', sortOrder: 6 },
+    { name: 'Parking', color: '#10b981', sortOrder: 7 },
+    { name: 'Lumper Services', color: '#14b8a6', sortOrder: 8 },
+    // Recruiting
+    { name: 'Drug Tests', color: '#a855f7', sortOrder: 9 },
+    { name: 'MVR Reports', color: '#8b5cf6', sortOrder: 10 },
+    { name: 'Background Checks', color: '#7c3aed', sortOrder: 11 },
+    { name: 'Taxi / Transportation', color: '#ec4899', sortOrder: 12 },
+    { name: 'Hotel / Lodging', color: '#f43f5e', sortOrder: 13 },
+    // Admin
+    { name: 'Monthly Subscriptions', color: '#64748b', sortOrder: 14 },
+    { name: 'Office Supplies', color: '#475569', sortOrder: 15 },
+    { name: 'Phone Bills', color: '#334155', sortOrder: 16 },
+    // Other
+    { name: 'Miscellaneous', color: '#94a3b8', sortOrder: 17 },
+  ];
+
+  let expenseTypeCount = 0;
+  for (const mc of mcNumbers) {
+    for (const typeData of DEFAULT_EXPENSE_TYPES) {
+      await prisma.companyExpenseType.upsert({
+        where: {
+          companyId_mcNumberId_name: {
+            companyId: mc.companyId,
+            mcNumberId: mc.id,
+            name: typeData.name,
+          },
+        },
+        update: {},
+        create: {
+          companyId: mc.companyId,
+          mcNumberId: mc.id,
+          name: typeData.name,
+          color: typeData.color,
+          isDefault: true,
+          isActive: true,
+          sortOrder: typeData.sortOrder,
+        },
+      });
+      expenseTypeCount++;
+    }
+  }
+
+  console.log(`✅ Created ${expenseTypeCount} default company expense types`);
+
+  // ============================================
   // SUMMARY
   // ============================================
   console.log('');
@@ -990,6 +1049,7 @@ async function main() {
   console.log(`   Expense Types: ${expenseTypes.length}`);
   console.log(`   Deduction Rules: ${deductionRules.length}`);
   console.log(`   Accessorial Charges: ${accessorialCharges.length}`);
+  console.log(`   Company Expense Types: ${expenseTypeCount}`);
   console.log('');
   console.log('🔑 Login Credentials (all passwords: password123):');
   console.log('   Admin: admin1@demotruckingcompany.com');
