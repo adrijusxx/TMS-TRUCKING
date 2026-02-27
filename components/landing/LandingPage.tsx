@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useRef } from 'react';
@@ -178,11 +179,9 @@ export default function LandingPage() {
       >
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 shadow-lg shadow-purple-500/20">
-                <Truck className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">TMS Pro</span>
+            <div className="flex items-center gap-2">
+              <Image src="/logo.png" alt="Alogix Logo" width={36} height={36} className="rounded-xl shadow-lg" />
+              <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">Alogix</span>
             </div>
             <div className="hidden md:flex items-center space-x-8 text-sm font-medium">
               <Link href="#features" className="text-slate-300 hover:text-white transition-colors tracking-wide">Features</Link>
@@ -487,11 +486,9 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             <div>
-              <div className="flex items-center space-x-2 mb-6">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 shadow-md">
-                  <Truck className="h-5 w-5 text-white" />
-                </div>
-                <span className="font-bold text-xl tracking-tight">TMS Pro</span>
+              <div className="flex items-center gap-2 mb-6">
+                <Image src="/logo.png" alt="Alogix Logo" width={32} height={32} className="rounded-lg shadow-md" />
+                <span className="font-bold text-xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">Alogix</span>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed max-w-xs">
                 The modern operating system for the transportation industry. Built to scale with your ambitions.
@@ -522,7 +519,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-slate-500 font-light">&copy; {new Date().getFullYear()} TMS Pro Systems. All rights reserved.</p>
+            <p className="text-sm text-slate-500 font-light">&copy; {new Date().getFullYear()} Alogix. All rights reserved.</p>
             <div className="flex space-x-6">
               <span className="text-slate-500 hover:text-white cursor-pointer transition-colors text-sm">Twitter</span>
               <span className="text-slate-500 hover:text-white cursor-pointer transition-colors text-sm">LinkedIn</span>
