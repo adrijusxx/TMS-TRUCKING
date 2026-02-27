@@ -89,7 +89,7 @@ async function testSamsaraConnection(companyId: string, mcNumberId?: string, tok
         }
 
         // Test the connection by calling Samsara API
-        const response = await fetch('https://api.samsara.com/fleet/vehicles?limit=1', {
+        const response = await fetch('https://api.samsara.com/fleet/vehicles?limit=512', {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,

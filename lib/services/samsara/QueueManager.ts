@@ -284,10 +284,20 @@ export class SamsaraQueueManager {
 
     async linkQueuedDevice(queueId: string, recordId: string, recordType: 'TRUCK' | 'TRAILER', userId: string, updateInfo = true) {
         const queueItem = await prisma.samsaraDeviceQueue.findUnique({ where: { id: queueId } });
-        if (!queueItem) throw new Error('Queue item not found');
+        if (!queueItem) return { success: false, error: 'Queue item not found' };
 
-        if (recordType === 'TRUCK') await this.linkTruck(recordId, queueItem, updateInfo);
-        else await this.linkTrailer(recordId, queueItem, updateInfo);
+        try {
+            if (recordType === 'TRUCK') await this.linkTruck(recordId, queueItem, updateInfo);
+            else await this.linkTrailer(recordId, queueItem, updateInfo);
+        } catch (error: any) {
+            if (error.code === 'P2002') {
+                return {
+                    success: false,
+                    error: `VIN conflict: another ${recordType.toLowerCase()} already has VIN "${queueItem.vin}". Uncheck "Update vehicle info" or resolve the duplicate first.`,
+                };
+            }
+            throw error;
+        }
 
         await this.markQueueLinked(queueId, userId, recordId, recordType);
         return { success: true };

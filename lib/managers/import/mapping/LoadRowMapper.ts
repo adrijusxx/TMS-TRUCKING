@@ -130,15 +130,49 @@ export class LoadRowMapper {
             || parseImportDate(getValue(row, 'delDate', mapping, []));
         const lastUpdate = parseImportDate(getValue(row, 'lastUpdate', mapping, ['Last Update', 'last_update', 'Updated', 'Last Modified', 'last_modified']));
 
-        const finalPickupDate = pickupDate || new Date();
-        const finalDeliveryDate = deliveryDate || new Date(finalPickupDate.getTime() + 24 * 60 * 60 * 1000);
+        // Build warnings for date issues
+        const dateWarnings: string[] = [];
+
+        let finalPickupDate: Date;
+        let finalDeliveryDate: Date;
+
+        if (pickupDate) {
+            finalPickupDate = pickupDate;
+        } else {
+            finalPickupDate = new Date();
+            dateWarnings.push('Pickup date missing — defaulted to today');
+        }
+
+        if (deliveryDate) {
+            finalDeliveryDate = deliveryDate;
+        } else {
+            finalDeliveryDate = new Date(finalPickupDate.getTime() + 24 * 60 * 60 * 1000);
+            dateWarnings.push('Delivery date missing — defaulted to pickup + 1 day');
+        }
+
+        // Sanity checks
+        if (finalDeliveryDate < finalPickupDate) {
+            dateWarnings.push(`Delivery date (${finalDeliveryDate.toLocaleDateString()}) is before pickup date (${finalPickupDate.toLocaleDateString()})`);
+        }
+
+        const now = new Date();
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        const threeMonthsAhead = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+
+        if (finalPickupDate < sixMonthsAgo) {
+            dateWarnings.push(`Pickup date (${finalPickupDate.toLocaleDateString()}) is over 6 months in the past`);
+        }
+        if (finalDeliveryDate > threeMonthsAhead) {
+            dateWarnings.push(`Delivery date (${finalDeliveryDate.toLocaleDateString()}) is over 3 months in the future`);
+        }
 
         return {
             pickupDate: finalPickupDate,
             deliveryDate: finalDeliveryDate,
             pickupDateRaw: pickupDate,
             deliveryDateRaw: deliveryDate,
-            lastUpdate: lastUpdate || undefined
+            lastUpdate: lastUpdate || undefined,
+            dateWarnings,
         };
     }
 

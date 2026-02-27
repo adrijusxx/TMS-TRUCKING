@@ -662,7 +662,7 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
   ],
   requiredColumns: ['loadNumber'],
   bulkEditFields,
-  defaultSort: [{ id: 'createdAt', desc: true }], // Newest loads first
+  defaultSort: [{ id: 'pickupDate', desc: true }], // Newest pickup dates first
   defaultPageSize: 20,
   enableRowSelection: true,
   enableColumnVisibility: true,

@@ -1,12 +1,24 @@
 /**
  * Automated Load Status Updates
- * 
- * Automatically updates load statuses based on dates and conditions
+ *
+ * Automatically updates load statuses based on dates and conditions.
+ *
+ * Guards:
+ *  - Skips loads imported within the last 24 hours (let user review first)
+ *  - Skips loads with pickup dates > 7 days in the past (stale/historical)
+ *  - Only advances loads that have a driver assigned
+ *  - Uses correct location per status phase (pickup vs delivery)
  */
 
 import { prisma } from '../prisma';
 import { createActivityLog } from '../activity-log';
 import { LoadStatus } from '@prisma/client';
+
+/** Max days past pickup date before we consider a load stale and stop auto-updating */
+const STALE_THRESHOLD_DAYS = 7;
+
+/** Min hours after import before auto-updates kick in */
+const IMPORT_COOLDOWN_HOURS = 24;
 
 /**
  * Automatically update load statuses based on pickup/delivery dates
@@ -15,13 +27,15 @@ export async function autoUpdateLoadStatuses(companyId: string) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Find loads that need status updates
+  // Loads eligible for date-based auto-updates
   const loadsToUpdate = await prisma.load.findMany({
     where: {
       companyId,
       deletedAt: null,
+      // Must have a driver assigned — unassigned loads shouldn't auto-progress
+      driverId: { not: null },
       status: {
-        in: ['PENDING', 'ASSIGNED', 'EN_ROUTE_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
+        in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
       },
     },
     include: {
@@ -35,7 +49,7 @@ export async function autoUpdateLoadStatuses(companyId: string) {
   for (const load of loadsToUpdate) {
     // Skip loads without required dates
     if (!load.pickupDate || !load.deliveryDate) continue;
-    
+
     const pickupDate = new Date(load.pickupDate);
     const deliveryDate = new Date(load.deliveryDate);
     const pickupDateOnly = new Date(
@@ -49,12 +63,26 @@ export async function autoUpdateLoadStatuses(companyId: string) {
       deliveryDate.getDate()
     );
 
+    // Guard: Skip loads with stale pickup dates (> STALE_THRESHOLD_DAYS in the past)
+    // These are likely historical loads that shouldn't be auto-updated
+    const daysSincePickup = Math.floor(
+      (today.getTime() - pickupDateOnly.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysSincePickup > STALE_THRESHOLD_DAYS) continue;
+
+    // Guard: Skip recently imported loads (give user time to review/correct)
+    const hoursSinceCreation = (now.getTime() - new Date(load.createdAt).getTime()) / (1000 * 60 * 60);
+    if (hoursSinceCreation < IMPORT_COOLDOWN_HOURS) continue;
+
+    // Guard: Delivery date must be >= pickup date (sanity check)
+    if (deliveryDateOnly < pickupDateOnly) continue;
+
     let newStatus: LoadStatus | null = null;
 
-    // Auto-update based on dates
-    if (load.status === 'PENDING' || load.status === 'ASSIGNED') {
-      // If pickup date is today or past, and load is assigned, mark as en route to pickup
-      if (load.driverId && pickupDateOnly <= today) {
+    // Auto-update based on dates — one step at a time
+    if (load.status === 'ASSIGNED') {
+      // If pickup date is today or past, mark as en route to pickup
+      if (pickupDateOnly <= today) {
         newStatus = 'EN_ROUTE_PICKUP';
       }
     } else if (load.status === 'EN_ROUTE_PICKUP') {
@@ -85,14 +113,20 @@ export async function autoUpdateLoadStatuses(companyId: string) {
         data: { status: newStatus },
       });
 
+      // Use the correct location based on the status phase
+      const isPickupPhase = ['EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED'].includes(newStatus);
+      const location = isPickupPhase
+        ? `${load.pickupCity}, ${load.pickupState}`
+        : `${load.deliveryCity}, ${load.deliveryState}`;
+
       // Create status history
       await prisma.loadStatusHistory.create({
         data: {
           loadId: load.id,
           status: newStatus,
-          location: `${load.deliveryCity}, ${load.deliveryState}`,
+          location,
           notes: 'Automated status update based on dates',
-          createdBy: 'system', // System user for automated updates
+          createdBy: 'system',
         },
       });
 
@@ -207,4 +241,3 @@ export async function findLoadsReadyForSettlement(
 
   return loads.filter((load) => !settledLoadIds.has(load.id));
 }
-

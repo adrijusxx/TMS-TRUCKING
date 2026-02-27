@@ -63,10 +63,33 @@ export class LoadImporter extends BaseImporter {
                 // 3. Status & Type Mapping
                 const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'load_status', 'Current Status']);
                 const csvStatus = this.mapLoadStatusSmart(statusStr);
-                const status = treatAsHistorical ? LoadStatus.PAID : csvStatus;
+
+                // If not explicitly historical, auto-detect: if both dates are in the past
+                // and delivery date is > 7 days ago, treat as DELIVERED to prevent
+                // the auto-status-updater from churning through stale loads
+                let status: LoadStatus;
+                if (treatAsHistorical) {
+                    status = LoadStatus.PAID;
+                } else if (
+                    csvStatus === LoadStatus.PENDING &&
+                    dates.pickupDateRaw && dates.deliveryDateRaw &&
+                    dates.deliveryDate < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+                ) {
+                    status = LoadStatus.DELIVERED;
+                    warnings.push(this.warning(rowNum, 'Load dates are in the past with no status — auto-set to DELIVERED', 'status'));
+                } else {
+                    status = csvStatus;
+                }
 
                 const typeStr = this.getValue(row, 'loadType', columnMapping, ['Load Type', 'load_type', 'Type', 'size', 'Size']);
                 const loadType = this.mapLoadTypeSmart(typeStr);
+
+                // 3b. Surface date warnings
+                if (dates.dateWarnings?.length) {
+                    for (const dw of dates.dateWarnings) {
+                        warnings.push(this.warning(rowNum, dw, 'date'));
+                    }
+                }
 
                 // 4. Anomaly Detection & Driver Pay Auto-Calculation
                 const { suspicious, anomalies } = LoadAnomalyDetector.detect({ ...financial, profit: financial.revenue - financial.driverPay }, updateExisting);

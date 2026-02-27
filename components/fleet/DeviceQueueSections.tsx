@@ -682,6 +682,26 @@ function LinkDialog({ device, onClose, onLinked }: LinkDialogProps) {
             </p>
           )}
 
+          {/* VIN mismatch warning */}
+          {selected && updateInfo && device.vin && selected.vin && device.vin !== selected.vin && (
+            <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-500/10 border border-amber-500/30">
+              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+              <div className="text-xs">
+                <p className="font-medium text-amber-500">VIN mismatch detected</p>
+                <p className="text-muted-foreground mt-0.5">
+                  TMS: <span className="font-mono">{selected.vin}</span>
+                </p>
+                <p className="text-muted-foreground">
+                  Samsara: <span className="font-mono">{device.vin}</span>
+                </p>
+                <p className="text-muted-foreground mt-1">
+                  Uncheck &ldquo;Update vehicle info&rdquo; to keep the existing VIN, or verify
+                  which VIN is correct before linking.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Update info option */}
           {(device.vin || device.make || device.model || device.year) && (
             <label className="flex items-start gap-2.5 cursor-pointer group">

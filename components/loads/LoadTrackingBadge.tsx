@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { MapPin, Navigation, Gauge } from 'lucide-react';
+import { MapPin, Navigation, Gauge, CheckCircle2, Circle, SignalZero } from 'lucide-react';
 import { useLoadTracking, LoadTrackingData } from '@/hooks/useLoadTracking';
 
 const TRACKING_TOOLTIP = 'Live GPS via Samsara, updates every 30s. ETA based on current speed and distance. Green = On Time, Amber = At Risk, Red = Late.';
@@ -13,6 +13,14 @@ const ACTIVE_STATUSES = new Set([
 ]);
 
 const DEFAULT_TRACKING_WINDOW_DAYS = 7;
+
+const COMPLETED_STATUSES = new Set([
+  'DELIVERED', 'BILLED', 'READY_TO_BILL', 'READY_TO_SETTLE', 'SETTLED', 'PAID', 'INVOICED',
+]);
+
+const PRE_DISPATCH_STATUSES = new Set([
+  'DRAFT', 'PENDING', 'QUOTED', 'BOOKED',
+]);
 
 function isWithinTrackingWindow(pickupDate: Date | string, windowDays?: number): boolean {
   const days = windowDays ?? DEFAULT_TRACKING_WINDOW_DAYS;
@@ -38,7 +46,13 @@ const etaColors = {
 export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, compact }: Props) {
   if (loadStatus && !ACTIVE_STATUSES.has(loadStatus)) return null;
   if (isLoading) return <Skeleton className="h-5 w-20" />;
-  if (!tracking || tracking.proximityStatus === 'NO_DATA') return null;
+  if (!tracking || tracking.proximityStatus === 'NO_DATA') {
+    return (
+      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+        <SignalZero className="h-3 w-3" /> No GPS
+      </span>
+    );
+  }
 
   const { proximityStatus, proximityMiles, eta, truckLocation, nextStop } = tracking;
   const speed = truckLocation?.speed ?? 0;
@@ -111,7 +125,32 @@ export function SelfFetchingTrackingBadge({
   const shouldTrack = isActive && isRecent;
   const { data, isLoading } = useLoadTracking(loadId, shouldTrack);
 
-  if (!shouldTrack) return null;
+  if (!shouldTrack) {
+    if (loadStatus && COMPLETED_STATUSES.has(loadStatus)) {
+      return (
+        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3" /> Delivered
+        </span>
+      );
+    }
+    if (loadStatus === 'CANCELLED') {
+      return (
+        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+          — Cancelled
+        </span>
+      );
+    }
+    if (loadStatus && PRE_DISPATCH_STATUSES.has(loadStatus)) {
+      return (
+        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <Circle className="h-3 w-3" /> Pending
+        </span>
+      );
+    }
+    return (
+      <span className="text-[10px] text-muted-foreground">—</span>
+    );
+  }
 
   return (
     <LoadTrackingBadge

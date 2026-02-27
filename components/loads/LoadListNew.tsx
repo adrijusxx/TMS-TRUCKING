@@ -188,8 +188,8 @@ export default function LoadListNew() {
       queryParams.set('sortBy', sortFields.join(','));
       queryParams.set('sortOrder', sortOrders.join(','));
     } else {
-      queryParams.set('sortBy', 'createdAt');
-      queryParams.set('sortOrder', 'desc');
+      queryParams.set('sortBy', 'pickupDate,deliveryDate');
+      queryParams.set('sortOrder', 'desc,desc');
     }
 
     const filterParams = convertFiltersToQueryParams(params.filters || [], params.search);

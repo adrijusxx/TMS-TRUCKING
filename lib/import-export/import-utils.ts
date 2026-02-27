@@ -51,32 +51,32 @@ export const parseImportDate = (value: any): Date | null => {
             return null;
         }
 
-        // Standard JS parsing
-        let date = new Date(trimmed);
-        if (!isNaN(date.getTime())) return date;
-
-        // Excel serial date match
-        const excelSerialMatch = trimmed.match(/^(\d+)(\.\d+)?$/);
+        // Check for Excel serial date as string FIRST (pure numeric like "45692")
+        const excelSerialMatch = trimmed.match(/^(\d{1,5})(\.\d+)?$/);
         if (excelSerialMatch) {
-            const excelSerial = parseFloat(excelSerialMatch[1]);
-            const excelEpoch = new Date(1899, 11, 30);
-            date = new Date(excelEpoch.getTime() + excelSerial * 24 * 60 * 60 * 1000);
-            if (!isNaN(date.getTime())) return date;
+            const excelSerial = parseFloat(trimmed);
+            if (excelSerial > 0 && excelSerial < 100000) {
+                const excelEpoch = new Date(1899, 11, 30);
+                const date = new Date(excelEpoch.getTime() + excelSerial * 24 * 60 * 60 * 1000);
+                if (!isNaN(date.getTime())) return date;
+            }
         }
 
-        // Common human-readable formats
+        // Common human-readable formats (explicit parsing preferred over new Date())
         const formats = [
-            /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, // MM/DD/YYYY
-            /^(\d{4})-(\d{1,2})-(\d{1,2})$/, // YYYY-MM-DD
-            /^(\d{1,2})-(\d{1,2})-(\d{4})$/, // MM-DD-YYYY
-            /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, // MM.DD.YYYY
+            /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,           // MM/DD/YYYY
+            /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/,            // MM/DD/YY
+            /^(\d{4})-(\d{1,2})-(\d{1,2})/,               // YYYY-MM-DD (ISO prefix)
+            /^(\d{1,2})-(\d{1,2})-(\d{4})$/,              // MM-DD-YYYY
+            /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/,            // MM.DD.YYYY
         ];
 
         for (const format of formats) {
             const match = trimmed.match(format);
             if (match) {
-                let year, month, day;
-                if (format === formats[1]) {
+                let year: number, month: number, day: number;
+                if (format === formats[2]) {
+                    // YYYY-MM-DD
                     year = parseInt(match[1]);
                     month = parseInt(match[2]) - 1;
                     day = parseInt(match[3]);
@@ -84,25 +84,41 @@ export const parseImportDate = (value: any): Date | null => {
                     month = parseInt(match[1]) - 1;
                     day = parseInt(match[2]);
                     year = parseInt(match[3]);
-                    if (month > 11) { // Assume DD/MM/YYYY
+                    // Handle 2-digit year
+                    if (year < 100) year += year < 50 ? 2000 : 1900;
+                    if (month > 11) {
+                        // Swap to DD/MM/YYYY
                         day = parseInt(match[1]);
                         month = parseInt(match[2]) - 1;
                     }
                 }
-                date = new Date(year, month, day);
+                const date = new Date(year, month, day);
                 if (!isNaN(date.getTime())) return date;
             }
         }
+
+        // Fallback: Standard JS parsing for natural language dates ("Jan 29, 2025", etc.)
+        const date = new Date(trimmed);
+        if (!isNaN(date.getTime())) return date;
     }
 
     if (typeof value === 'number') {
-        if (value > 0 && value < 10000000000000) {
+        // Excel serial dates are typically 1–73050 (1900–2099)
+        // Unix timestamps in seconds are > 10^9, in milliseconds > 10^12
+        if (value > 0 && value < 100000) {
+            // Treat as Excel serial date
+            const excelEpoch = new Date(1899, 11, 30);
+            const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+            if (!isNaN(date.getTime())) return date;
+        } else if (value >= 1_000_000_000_000 && value < 10_000_000_000_000) {
+            // Treat as Unix timestamp in milliseconds
             const date = new Date(value);
             if (!isNaN(date.getTime())) return date;
+        } else if (value >= 1_000_000_000 && value < 10_000_000_000) {
+            // Treat as Unix timestamp in seconds
+            const date = new Date(value * 1000);
+            if (!isNaN(date.getTime())) return date;
         }
-        const excelEpoch = new Date(1899, 11, 30);
-        const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
-        if (!isNaN(date.getTime())) return date;
     }
 
     return null;
