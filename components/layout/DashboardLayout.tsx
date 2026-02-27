@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Sparkles,
 } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/notifications/NotificationBell';
@@ -120,137 +121,135 @@ export default function DashboardLayout({
 
   return (
     <SmsMessengerProvider>
-    <EntitySheetWrapper>
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      {!hideMainNav && (
-        <aside
-          className={cn(
-            'fixed top-0 left-0 z-50 h-full flex flex-col bg-secondary text-secondary-foreground border-r border-border/50 shadow-lg transform transition-all duration-300 ease-in-out',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-            'lg:translate-x-0',
-            mainSidebarCollapsed ? 'w-16 lg:w-16' : 'w-64 lg:w-64'
+      <EntitySheetWrapper>
+        <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+          {/* Mobile sidebar backdrop */}
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
           )}
-        >
-          {/* Logo */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
-            <div className={cn(
-              'flex items-center space-x-2 transition-opacity',
-              mainSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
-            )}>
-              <div className="rounded-lg bg-primary p-2">
-                <Truck className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="font-bold text-lg dark:text-foreground whitespace-nowrap">TMS</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
-                onClick={toggleMainSidebar}
-                title={mainSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              >
-                {mainSidebarCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-accent/10"
-                onClick={() => setSidebarOpen(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
 
-          {/* Grouped Navigation + User Profile + Logout */}
-          <SidebarNav
-            collapsed={mainSidebarCollapsed}
-            onItemClick={() => setSidebarOpen(false)}
-          />
-          <AppVersionBadge collapsed={mainSidebarCollapsed} />
-        </aside>
-      )}
-
-      {/* Main content */}
-      <div className={cn(
-        hideMainNav && 'lg:pl-0',
-        !hideMainNav && mainSidebarCollapsed && 'lg:pl-16',
-        !hideMainNav && !mainSidebarCollapsed && 'lg:pl-64'
-      )}>
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 dark:bg-card/80">
-          <div className="flex items-center gap-2 px-4 py-3 header-container">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden flex-shrink-0"
-              onClick={() => setSidebarOpen(true)}
+          {/* Sidebar */}
+          {!hideMainNav && (
+            <aside
+              className={cn(
+                'fixed top-0 left-0 z-50 h-full flex flex-col bg-secondary text-secondary-foreground border-r border-border/50 shadow-lg transform transition-all duration-300 ease-in-out',
+                sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+                'lg:translate-x-0',
+                mainSidebarCollapsed ? 'w-16 lg:w-16' : 'w-64 lg:w-64'
+              )}
             >
-              <Menu className="h-5 w-5" />
-            </Button>
+              {/* Logo */}
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <div className={cn(
+                  'flex items-center space-x-2 transition-opacity',
+                  mainSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'
+                )}>
+                  <Image src="/logo.png" alt="Alogix Logo" width={32} height={32} className="rounded-lg shadow-sm" />
+                  <span className="font-bold text-xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600 whitespace-nowrap">Alogix</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden lg:flex text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                    onClick={toggleMainSidebar}
+                    title={mainSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  >
+                    {mainSidebarCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
 
-            {/* Department Header Navigation - shown only on respective routes */}
-            {isLoadManagementSection && <DepartmentNav items={loadNavItems} basePath="/dashboard/loads" />}
-            {isFleetSection && <DepartmentNav items={fleetNavItems} basePath="/dashboard/fleet" />}
-            {isSafetySection && <DepartmentNav items={safetyNavItems} basePath="/dashboard/safety" />}
-            {isAccountingSection && <DepartmentNav items={accountingNavItems} />}
-            {isHRSection && <DepartmentNav items={hrNavItems} basePath="/dashboard/drivers" />}
-            {isCRMSection && <DepartmentNav items={crmNavItems} basePath="/dashboard/crm" />}
-            {isAnalyticsSection && <DepartmentNav items={analyticsNavItems} basePath="/dashboard/analytics" />}
+              {/* Grouped Navigation + User Profile + Logout */}
+              <SidebarNav
+                collapsed={mainSidebarCollapsed}
+                onItemClick={() => setSidebarOpen(false)}
+              />
+              <AppVersionBadge collapsed={mainSidebarCollapsed} />
+            </aside>
+          )}
+
+          {/* Main content */}
+          <div className={cn(
+            hideMainNav && 'lg:pl-0',
+            !hideMainNav && mainSidebarCollapsed && 'lg:pl-16',
+            !hideMainNav && !mainSidebarCollapsed && 'lg:pl-64'
+          )}>
+            {/* Top bar */}
+            <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 dark:bg-card/80">
+              <div className="flex items-center gap-2 px-4 py-3 header-container">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden flex-shrink-0"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+
+                {/* Department Header Navigation - shown only on respective routes */}
+                {isLoadManagementSection && <DepartmentNav items={loadNavItems} basePath="/dashboard/loads" />}
+                {isFleetSection && <DepartmentNav items={fleetNavItems} basePath="/dashboard/fleet" />}
+                {isSafetySection && <DepartmentNav items={safetyNavItems} basePath="/dashboard/safety" />}
+                {isAccountingSection && <DepartmentNav items={accountingNavItems} />}
+                {isHRSection && <DepartmentNav items={hrNavItems} basePath="/dashboard/drivers" />}
+                {isCRMSection && <DepartmentNav items={crmNavItems} basePath="/dashboard/crm" />}
+                {isAnalyticsSection && <DepartmentNav items={analyticsNavItems} basePath="/dashboard/analytics" />}
 
 
-            <div className="flex-1 min-w-0" />
-            <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-              <McViewSelector />
-              <div className="hidden sm:block h-6 w-px bg-border" />
-              <GlobalSearch />
-              <div className="hidden sm:block"><FontSizeToggle /></div>
-              <div className="hidden sm:block"><ThemeToggle /></div>
-              <NotificationBell />
-              {/* Help & Support Toggle in Header */}
-              <Button
-                variant="outline"
-                onClick={() => setIsAiChatOpen(!isAiChatOpen)}
-                className={cn(
-                  "gap-2 h-9 px-3 text-sm font-medium transition-colors border-primary/30",
-                  isAiChatOpen
-                    ? "bg-primary/10 text-primary border-primary/50"
-                    : "hover:bg-primary/5 hover:border-primary/40"
-                )}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span className="hidden sm:inline">Help & Support</span>
-              </Button>
-            </div>
+                <div className="flex-1 min-w-0" />
+                <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+                  <McViewSelector />
+                  <div className="hidden sm:block h-6 w-px bg-border" />
+                  <GlobalSearch />
+                  <div className="hidden sm:block"><FontSizeToggle /></div>
+                  <div className="hidden sm:block"><ThemeToggle /></div>
+                  <NotificationBell />
+                  {/* Help & Support Toggle in Header */}
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAiChatOpen(!isAiChatOpen)}
+                    className={cn(
+                      "gap-2 h-9 px-3 text-sm font-medium transition-colors border-primary/30",
+                      isAiChatOpen
+                        ? "bg-primary/10 text-primary border-primary/50"
+                        : "hover:bg-primary/5 hover:border-primary/40"
+                    )}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span className="hidden sm:inline">Help & Support</span>
+                  </Button>
+                </div>
+              </div>
+            </header>
+
+            {/* Page content */}
+            <main className="p-2 sm:p-3 lg:p-4">
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
+            </main>
+            <AIAssistantChat
+              isOpen={isAiChatOpen}
+              onOpenChange={setIsAiChatOpen}
+              hideTrigger={true}
+            />
+            <SmsMessengerOverlay />
+            <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
           </div>
-        </header>
-
-        {/* Page content */}
-        <main className="p-2 sm:p-3 lg:p-4">
-          <ErrorBoundary>
-            {children}
-          </ErrorBoundary>
-        </main>
-        <AIAssistantChat
-          isOpen={isAiChatOpen}
-          onOpenChange={setIsAiChatOpen}
-          hideTrigger={true}
-        />
-        <SmsMessengerOverlay />
-        <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-      </div>
-    </div>
-    </EntitySheetWrapper>
+        </div>
+      </EntitySheetWrapper>
     </SmsMessengerProvider>
   );
 }
