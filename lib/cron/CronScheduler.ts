@@ -14,6 +14,7 @@ import { runCrmSyncTask } from './tasks/crm-sync-task';
 import { runFollowUpCheckTask } from './tasks/crm-follow-up-task';
 import { runSLACheckTask } from './tasks/crm-sla-task';
 import { runDripStepsTask } from './tasks/drip-steps-task';
+import { runSamsaraFaultsTask } from './tasks/samsara-faults-task';
 import {
   runDailyAutomationTasks,
   runHourlyAutomationTasks,
@@ -22,33 +23,35 @@ import {
 
 // ─── Job Registry ──────────────────────────────────────────────
 
-export type JobKey = 'CRM_SYNC' | 'CRM_FOLLOWUP' | 'CRM_SLA' | 'DRIP_STEPS' | 'HOURLY' | 'DAILY' | 'WEEKLY';
+export type JobKey = 'CRM_SYNC' | 'CRM_FOLLOWUP' | 'CRM_SLA' | 'DRIP_STEPS' | 'HOURLY' | 'DAILY' | 'WEEKLY' | 'SAMSARA_FAULTS';
 
 export interface JobDefinition {
   name: string;
   defaultSchedule: string;
   description: string;
-  category: 'CRM' | 'Campaign' | 'Automation';
+  category: 'CRM' | 'Campaign' | 'Automation' | 'Fleet';
 }
 
 export const JOB_REGISTRY: Record<JobKey, JobDefinition> = {
-  CRM_SYNC:     { name: 'CRM Lead Sync',       defaultSchedule: '*/15 * * * *', description: 'Syncs new leads from Google Sheets',          category: 'CRM' },
-  CRM_FOLLOWUP: { name: 'CRM Follow-Up Check',  defaultSchedule: '5 * * * *',    description: 'Notifies recruiters about overdue follow-ups', category: 'CRM' },
-  CRM_SLA:      { name: 'CRM SLA Check',         defaultSchedule: '0 6 * * *',    description: 'Alerts when leads exceed SLA time limits',    category: 'CRM' },
-  DRIP_STEPS:   { name: 'Campaign Drip Steps',   defaultSchedule: '*/15 * * * *', description: 'Sends scheduled drip campaign messages',      category: 'Campaign' },
-  HOURLY:       { name: 'Hourly Automation',      defaultSchedule: '0 * * * *',    description: 'Load status updates',                        category: 'Automation' },
-  DAILY:        { name: 'Daily Automation',       defaultSchedule: '0 2 * * *',    description: 'Document expiry checks, HOS violations',     category: 'Automation' },
-  WEEKLY:       { name: 'Weekly Automation',      defaultSchedule: '0 3 * * 0',    description: 'Extended document expiry checks',             category: 'Automation' },
+  CRM_SYNC:       { name: 'CRM Lead Sync',         defaultSchedule: '*/15 * * * *', description: 'Syncs new leads from Google Sheets',          category: 'CRM' },
+  CRM_FOLLOWUP:   { name: 'CRM Follow-Up Check',    defaultSchedule: '5 * * * *',    description: 'Notifies recruiters about overdue follow-ups', category: 'CRM' },
+  CRM_SLA:        { name: 'CRM SLA Check',           defaultSchedule: '0 6 * * *',    description: 'Alerts when leads exceed SLA time limits',    category: 'CRM' },
+  DRIP_STEPS:     { name: 'Campaign Drip Steps',     defaultSchedule: '*/15 * * * *', description: 'Sends scheduled drip campaign messages',      category: 'Campaign' },
+  HOURLY:         { name: 'Hourly Automation',        defaultSchedule: '0 * * * *',    description: 'Load status updates',                        category: 'Automation' },
+  DAILY:          { name: 'Daily Automation',         defaultSchedule: '0 2 * * *',    description: 'Document expiry checks, HOS violations',     category: 'Automation' },
+  WEEKLY:         { name: 'Weekly Automation',        defaultSchedule: '0 3 * * 0',    description: 'Extended document expiry checks',             category: 'Automation' },
+  SAMSARA_FAULTS: { name: 'Samsara Fault Sync',      defaultSchedule: '0 * * * *',    description: 'Syncs truck fault codes from Samsara',       category: 'Fleet' },
 };
 
 const JOB_TASKS: Record<JobKey, () => Promise<unknown>> = {
-  CRM_SYNC:     runCrmSyncTask,
-  CRM_FOLLOWUP: runFollowUpCheckTask,
-  CRM_SLA:      runSLACheckTask,
-  DRIP_STEPS:   runDripStepsTask,
-  HOURLY:       runHourlyAutomationTasks,
-  DAILY:        runDailyAutomationTasks,
-  WEEKLY:       runWeeklyAutomationTasks,
+  CRM_SYNC:       runCrmSyncTask,
+  CRM_FOLLOWUP:   runFollowUpCheckTask,
+  CRM_SLA:        runSLACheckTask,
+  DRIP_STEPS:     runDripStepsTask,
+  HOURLY:         runHourlyAutomationTasks,
+  DAILY:          runDailyAutomationTasks,
+  WEEKLY:         runWeeklyAutomationTasks,
+  SAMSARA_FAULTS: runSamsaraFaultsTask,
 };
 
 export type JobOverride = { enabled?: boolean; schedule?: string };

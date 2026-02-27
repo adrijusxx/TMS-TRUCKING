@@ -8,38 +8,77 @@ import { samsaraRequest } from './client';
 import { SamsaraVehicle } from './types';
 
 /**
- * Get all vehicles in the fleet
+ * Get all vehicles in the fleet (handles cursor-based pagination)
  */
 export async function getSamsaraVehicles(companyId?: string): Promise<SamsaraVehicle[] | null> {
-    const result = await samsaraRequest<SamsaraVehicle[] | { data?: SamsaraVehicle[] }>(
-        '/fleet/vehicles',
-        {},
-        companyId
-    );
+    const allVehicles: SamsaraVehicle[] = [];
+    let after: string | undefined;
 
-    if (!result) return null;
-    if (Array.isArray(result)) return result;
-    if (Array.isArray(result.data)) return result.data;
+    while (true) {
+        const params = new URLSearchParams({ limit: '512' });
+        if (after) params.set('after', after);
 
-    return null;
+        const result = await samsaraRequest<
+            SamsaraVehicle[] | { data?: SamsaraVehicle[]; pagination?: { endCursor?: string; hasNextPage?: boolean } }
+        >(`/fleet/vehicles?${params.toString()}`, {}, companyId);
+
+        if (!result) break;
+
+        if (Array.isArray(result)) {
+            // Legacy flat-array response — no pagination metadata
+            allVehicles.push(...result);
+            break;
+        }
+
+        if (Array.isArray(result.data)) {
+            allVehicles.push(...result.data);
+        }
+
+        if (result.pagination?.hasNextPage && result.pagination.endCursor) {
+            after = result.pagination.endCursor;
+        } else {
+            break;
+        }
+    }
+
+    return allVehicles.length > 0 ? allVehicles : null;
 }
 
 /**
- * Get all assets (trailers) in the fleet
+ * Get all assets (trailers) in the fleet (handles cursor-based pagination)
  */
 export async function getSamsaraAssets(companyId?: string): Promise<SamsaraVehicle[] | null> {
     try {
-        const result = await samsaraRequest<SamsaraVehicle[] | { data?: SamsaraVehicle[] }>(
-            '/fleet/assets',
-            {},
-            companyId
-        );
+        const allAssets: SamsaraVehicle[] = [];
+        let after: string | undefined;
 
-        if (!result) return null;
-        if (Array.isArray(result)) return result;
-        if (Array.isArray(result.data)) return result.data;
+        while (true) {
+            const params = new URLSearchParams({ limit: '512' });
+            if (after) params.set('after', after);
 
-        return null;
+            const result = await samsaraRequest<
+                SamsaraVehicle[] | { data?: SamsaraVehicle[]; pagination?: { endCursor?: string; hasNextPage?: boolean } }
+            >(`/fleet/assets?${params.toString()}`, {}, companyId);
+
+            if (!result) break;
+
+            if (Array.isArray(result)) {
+                allAssets.push(...result);
+                break;
+            }
+
+            if (Array.isArray(result.data)) {
+                allAssets.push(...result.data);
+            }
+
+            if (result.pagination?.hasNextPage && result.pagination.endCursor) {
+                after = result.pagination.endCursor;
+            } else {
+                break;
+            }
+        }
+
+        return allAssets.length > 0 ? allAssets : null;
     } catch (error) {
         console.debug('[Samsara] Assets endpoint not available');
         return null;

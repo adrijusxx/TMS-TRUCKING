@@ -134,6 +134,12 @@ jobs:
             cp -r .next/static .next/standalone/.next/
             cp -r public/* .next/standalone/public/ || true
 
+            # Persistent uploads: symlink standalone/public/uploads → shared/uploads
+            # so uploaded files (POD, BOL, rate con) survive across deployments
+            mkdir -p "${SHARED_DIR}/uploads/documents"
+            rm -rf "${RELEASE_DIR}/.next/standalone/public/uploads"
+            ln -sfn "${SHARED_DIR}/uploads" "${RELEASE_DIR}/.next/standalone/public/uploads"
+
             echo "Making scripts executable..."
             chmod +x scripts/*.sh || true
 

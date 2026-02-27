@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Loader2, Download, ExternalLink, RotateCcw } from 'lucide-react';
+import { Loader2, Download, ExternalLink, RotateCcw, RefreshCw } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -45,29 +45,44 @@ export function InvoicePackageDialog({
   invoiceNumber,
 }: InvoicePackageDialogProps) {
   const [options, setOptions] = useState<DocOptions>(DEFAULT_OPTIONS);
-  // The URL the iframe currently displays — updated only when user clicks "Regenerate PDF"
   const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Build preview URL when dialog opens (reset to defaults)
+  // Auto-regenerate preview when options change (debounced)
+  useEffect(() => {
+    if (!open) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setIsLoading(true);
+    debounceRef.current = setTimeout(() => {
+      setPreviewUrl(buildPackageUrl(invoiceId, options));
+    }, 700);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [options, invoiceId, open]);
+
+  // Reset options when dialog opens; useEffect handles preview URL
   const handleOpenChange = useCallback(
     (isOpen: boolean) => {
       if (isOpen) {
         setOptions(DEFAULT_OPTIONS);
-        setPreviewUrl(buildPackageUrl(invoiceId, DEFAULT_OPTIONS));
+      } else {
+        setPreviewUrl('');
       }
       onOpenChange(isOpen);
     },
-    [invoiceId, onOpenChange]
+    [onOpenChange]
   );
 
-  const handleRegenerate = () => {
-    setPreviewUrl(buildPackageUrl(invoiceId, options));
+  const handleRefresh = () => {
+    setIsLoading(true);
+    setPreviewUrl(buildPackageUrl(invoiceId, options) + `&_t=${Date.now()}`);
   };
 
   const handleReset = () => {
     setOptions(DEFAULT_OPTIONS);
-    setPreviewUrl(buildPackageUrl(invoiceId, DEFAULT_OPTIONS));
   };
 
   const handleDownload = async () => {
@@ -138,10 +153,15 @@ export function InvoicePackageDialog({
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleReset}>
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Reset to Default
+              Reset
             </Button>
-            <Button variant="outline" size="sm" onClick={handleRegenerate}>
-              Regenerate PDF
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Refresh
             </Button>
             <Button
               variant="outline"
@@ -163,17 +183,29 @@ export function InvoicePackageDialog({
         </div>
 
         {/* PDF Preview */}
-        <div className="flex-1 bg-muted/20 overflow-hidden">
+        <div className="flex-1 bg-muted/20 overflow-hidden relative">
           {previewUrl ? (
-            <iframe
-              key={previewUrl}
-              src={previewUrl}
-              className="w-full h-full border-0"
-              title={`Invoice ${invoiceNumber} Package`}
-            />
+            <>
+              <iframe
+                key={previewUrl}
+                src={previewUrl}
+                className="w-full h-full border-0"
+                title={`Invoice ${invoiceNumber} Package`}
+                onLoad={() => setIsLoading(false)}
+              />
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <span className="text-sm">Generating PDF…</span>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-              Click "Regenerate PDF" to preview
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              Loading preview…
             </div>
           )}
         </div>

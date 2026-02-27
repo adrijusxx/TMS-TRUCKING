@@ -26,6 +26,7 @@ export interface FaultSummary {
 
 export interface FaultSyncResult {
   trucksProcessed: number;
+  trucksSkipped: number;
   newFaults: number;
   resolvedFaults: number;
   errors: string[];
@@ -88,6 +89,7 @@ export class FleetMaintenanceService {
   async syncFaultCodes(): Promise<FaultSyncResult> {
     const result: FaultSyncResult = {
       trucksProcessed: 0,
+      trucksSkipped: 0,
       newFaults: 0,
       resolvedFaults: 0,
       errors: [],
@@ -137,8 +139,11 @@ export class FleetMaintenanceService {
             const syncResult = await this.processTruckDiagnostics(truck.id, diag.faults, diag.checkEngineLightOn);
             result.newFaults += syncResult.newFaults;
             result.resolvedFaults += syncResult.resolvedFaults;
+            result.trucksProcessed++;
+          } else {
+            // Truck is linked in TMS but Samsara no longer returns data for it
+            result.trucksSkipped++;
           }
-          result.trucksProcessed++;
         } catch (err: any) {
           result.errors.push(`Truck ${truck.truckNumber}: ${err.message}`);
         }

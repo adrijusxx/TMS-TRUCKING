@@ -47,7 +47,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   RefreshCw, Truck, Container, Check, X, Link, MoreHorizontal,
-  AlertTriangle, Clock, CheckCircle2, CheckSquare, Square
+  AlertTriangle, Clock, CheckCircle2, CheckSquare, Square, RotateCcw
 } from 'lucide-react';
 import { apiUrl, cn, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -106,7 +106,7 @@ interface LinkDialogState {
 // ============================================
 
 async function fetchQueue(status: string): Promise<QueueResponse['data']> {
-  const res = await fetch(apiUrl(`/api/fleet/device-queue?status=${status}`));
+  const res = await fetch(apiUrl(`/api/fleet/device-queue?status=${status}&pageSize=200`));
   if (!res.ok) throw new Error('Failed to fetch device queue');
   const data = await res.json();
   return data.data;
@@ -316,6 +316,35 @@ export default function SamsaraDeviceQueue() {
     }
   };
 
+  const handleBulkRequeue = async () => {
+    if (selectedIds.size === 0) return;
+    const queueIds = Array.from(selectedIds);
+
+    const total = queueIds.length;
+    toast.loading(`Requeuing ${total} device(s)...`);
+
+    const res = await fetch(apiUrl('/api/fleet/device-queue'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bulk-reset', queueIds }),
+    });
+
+    const result = await res.json().catch(() => ({}));
+    queryClient.invalidateQueries({ queryKey: ['device-queue'] });
+    setSelectedIds(new Set());
+
+    if (result.success) {
+      const { success: ok, failed } = result.data || {};
+      if (failed > 0) {
+        toast.warning(`Requeued ${ok}/${total} devices. ${failed} failed.`);
+      } else {
+        toast.success(`Requeued ${total} device(s) back to Pending`);
+      }
+    } else {
+      toast.error(result.error?.message || 'Requeue failed');
+    }
+  };
+
   const counts = data?.counts || { pending: 0, approved: 0, linked: 0, rejected: 0 };
 
   return (
@@ -361,8 +390,8 @@ export default function SamsaraDeviceQueue() {
           </div>
         </div>
 
-        {/* Bulk Actions */}
-        {statusFilter === 'PENDING' && data?.items && data.items.length > 0 && (
+        {/* Bulk Actions — shown for PENDING and REJECTED tabs */}
+        {(statusFilter === 'PENDING' || statusFilter === 'REJECTED') && data?.items && data.items.length > 0 && (
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -387,7 +416,7 @@ export default function SamsaraDeviceQueue() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {selectedIds.size > 0 && (
+            {selectedIds.size > 0 && statusFilter === 'PENDING' && (
               <>
                 <Button
                   variant="outline"
@@ -410,6 +439,18 @@ export default function SamsaraDeviceQueue() {
                   Reject ({selectedIds.size})
                 </Button>
               </>
+            )}
+
+            {selectedIds.size > 0 && statusFilter === 'REJECTED' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                onClick={handleBulkRequeue}
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Requeue ({selectedIds.size})
+              </Button>
             )}
           </div>
         )}
@@ -452,7 +493,7 @@ export default function SamsaraDeviceQueue() {
           <Table>
             <TableHeader>
               <TableRow className="text-xs">
-                {statusFilter === 'PENDING' && (
+                {(statusFilter === 'PENDING' || statusFilter === 'REJECTED') && (
                   <TableHead className="h-8 py-1 w-8"></TableHead>
                 )}
                 <TableHead className="h-8 py-1">Device</TableHead>
@@ -466,7 +507,7 @@ export default function SamsaraDeviceQueue() {
             <TableBody>
               {data?.items.map(item => (
                 <TableRow key={item.id} className="text-xs">
-                  {statusFilter === 'PENDING' && (
+                  {(statusFilter === 'PENDING' || statusFilter === 'REJECTED') && (
                     <TableCell className="py-2">
                       <Checkbox
                         checked={selectedIds.has(item.id)}
@@ -552,6 +593,20 @@ export default function SamsaraDeviceQueue() {
                           <X className="h-3.5 w-3.5" />
                         </Button>
                       </div>
+                    ) : item.status === 'REJECTED' ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        onClick={() =>
+                          actionMutation.mutate({ action: 'requeue', queueId: item.id })
+                        }
+                        disabled={actionMutation.isPending}
+                        title="Move back to Pending"
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Requeue
+                      </Button>
                     ) : (
                       <span className="text-muted-foreground text-[10px]">
                         {item.reviewedAt ? formatDate(item.reviewedAt) : '—'}
