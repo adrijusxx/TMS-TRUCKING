@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
+import { Zap, Shield, BarChart3, CheckCircle2, Loader2, ArrowRight, ArrowLeft, Building2 } from 'lucide-react';
 
 const features = [
   { icon: Zap, label: 'Real-time dispatch & tracking', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
