@@ -24,17 +24,9 @@ export const databaseKeepAlive = inngest.createFunction(
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown';
       logger.error(`Keep-alive FAILED: ${msg}`);
-
-      // Flush stale pool and re-establish fresh connections
-      try {
-        await prisma.$disconnect();
-        await prisma.$connect();
-        logger.info('Keep-alive: pool reconnected after failure');
-      } catch (reconnectErr) {
-        const rmsg = reconnectErr instanceof Error ? reconnectErr.message : 'Unknown';
-        logger.error(`Keep-alive: reconnect also failed: ${rmsg}`);
-      }
-
+      // Do NOT call $disconnect()/$connect() — it kills ALL active connections
+      // and freezes every in-flight request. Prisma's pool auto-recovers with
+      // socket_timeout=3 in DATABASE_URL.
       return { status: 'error', error: msg };
     }
   }
