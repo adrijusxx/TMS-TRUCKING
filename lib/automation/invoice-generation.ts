@@ -96,23 +96,14 @@ export async function autoGenerateInvoices(companyId: string): Promise<AutoInvoi
       return true;
     });
 
-    // Group by customer for batch invoicing
-    const loadsByCustomer = new Map<string, typeof eligibleLoads>();
+    // One invoice per load (strict 1:1 relationship)
     for (const load of eligibleLoads) {
-      const cid = load.customerId;
-      if (!loadsByCustomer.has(cid)) {
-        loadsByCustomer.set(cid, []);
-      }
-      loadsByCustomer.get(cid)!.push(load);
-    }
-
-    // Generate one invoice per customer
-    for (const [customerId, customerLoads] of loadsByCustomer) {
       try {
-        const customer = customerLoads[0].customer!;
+        const customer = load.customer!;
+        const customerId = load.customerId;
 
-        // Calculate financials using customer's actual tax rate
-        const subtotal = customerLoads.reduce((sum, l) => sum + (l.revenue || 0), 0);
+        // Calculate financials for this single load
+        const subtotal = load.revenue || 0;
         const taxRate = customer.isTaxExempt ? 0 : (customer.taxRate ?? 0);
         const tax = Number((subtotal * (taxRate / 100)).toFixed(2));
         const total = Number((subtotal + tax).toFixed(2));
@@ -141,8 +132,7 @@ export async function autoGenerateInvoices(companyId: string): Promise<AutoInvoi
           }
         }
 
-        // Create invoice
-        const loadIds = customerLoads.map((l) => l.id);
+        // Create invoice (one per load)
         const invoice = await prisma.invoice.create({
           data: {
             companyId,
@@ -155,15 +145,16 @@ export async function autoGenerateInvoices(companyId: string): Promise<AutoInvoi
             total,
             balance: total,
             status: InvoiceStatus.DRAFT,
-            loadIds,
+            loadIds: [load.id],
+            loadId: load.id,
             ...factoringData,
           },
         });
 
-        // Mark loads as invoiced and ready for settlement
+        // Mark load as invoiced and ready for settlement
         const now = new Date();
         await prisma.load.updateMany({
-          where: { id: { in: loadIds } },
+          where: { id: { in: [load.id] } },
           data: {
             status: LoadStatus.INVOICED,
             invoicedAt: now,
@@ -171,10 +162,10 @@ export async function autoGenerateInvoices(companyId: string): Promise<AutoInvoi
           },
         });
 
-        // Apply financial lock to invoiced loads (if not already locked)
+        // Apply financial lock (if not already locked)
         await prisma.load.updateMany({
           where: {
-            id: { in: loadIds },
+            id: load.id,
             financialLockedAt: null,
           },
           data: {
@@ -184,18 +175,19 @@ export async function autoGenerateInvoices(companyId: string): Promise<AutoInvoi
         });
 
         result.invoicesGenerated++;
-        result.loadsProcessed += customerLoads.length;
+        result.loadsProcessed++;
 
         await createActivityLog({
           companyId,
           action: 'INVOICE_GENERATED',
           entityType: 'Invoice',
           entityId: invoice.id,
-          description: `Auto-invoice ${invoiceNumber} for ${customer.name} (${customerLoads.length} loads, $${total.toFixed(2)})`,
+          description: `Auto-invoice ${invoiceNumber} for ${customer.name} (load ${load.loadNumber}, $${total.toFixed(2)})`,
           metadata: {
             invoiceNumber,
             customerId,
-            loadCount: customerLoads.length,
+            loadId: load.id,
+            loadNumber: load.loadNumber,
             subtotal,
             tax,
             total,
@@ -203,7 +195,7 @@ export async function autoGenerateInvoices(companyId: string): Promise<AutoInvoi
           },
         });
       } catch (error) {
-        const msg = `Invoice generation failed for customer ${customerId}: ${error instanceof Error ? error.message : String(error)}`;
+        const msg = `Invoice generation failed for load ${load.loadNumber}: ${error instanceof Error ? error.message : String(error)}`;
         result.errors.push(msg);
         logger.error(msg);
       }
