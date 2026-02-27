@@ -12,8 +12,8 @@ import { EnvInit } from '@/components/providers/EnvInit';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'TMS - Transportation Management System',
-  description: 'Custom TMS for trucking fleet management',
+  title: 'Alogix - Logistics Technology & TMS',
+  description: 'Alogix - Transportation management system and logistics platform',
 };
 
 export const viewport: Viewport = {

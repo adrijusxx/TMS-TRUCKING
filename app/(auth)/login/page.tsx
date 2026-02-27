@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Truck, ArrowRight, ArrowLeft, Loader2, Shield, Zap, BarChart3, CheckCircle2, Building2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 
 const features = [
@@ -199,10 +199,10 @@ export default function LoginPage() {
 
         <div className="relative z-10 w-full max-w-lg mx-auto flex-1 flex flex-col justify-center">
           <Link href="/" className="flex items-center space-x-3 mb-16 inline-block">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20">
-              <Truck className="h-7 w-7 text-white" />
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="Alogix Logo" width={48} height={48} className="rounded-xl shadow-lg" />
+              <span className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">Alogix</span>
             </div>
-            <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">TMS Pro</span>
           </Link>
 
           <motion.div
@@ -258,10 +258,8 @@ export default function LoginPage() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center mb-10">
             <Link href="/" className="flex items-center space-x-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20">
-                <Truck className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-2xl font-bold tracking-tight text-white">TMS Pro</span>
+              <Image src="/logo.png" alt="Alogix Logo" width={32} height={32} className="rounded-lg shadow-lg" />
+              <span className="text-2xl font-bold tracking-tight text-white">Alogix</span>
             </Link>
           </div>
 
