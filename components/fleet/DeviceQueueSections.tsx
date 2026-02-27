@@ -83,6 +83,13 @@ const CONFIDENCE_LABELS: Record<Confidence, string> = {
   gateway: 'Gateway',
 };
 
+const CONFIDENCE_TOOLTIPS: Record<Confidence, string> = {
+  high: 'High confidence — Samsara has a VIN. The system will auto-match to an existing TMS truck by VIN or number. Click Approve to link.',
+  medium: 'Medium confidence — Has license plate or make/model but no VIN. May auto-match by truck number. Review before approving, or use Link to pick manually.',
+  low: 'Low confidence — No VIN, plate, or make/model. Cannot reliably auto-match. Use the Link button to manually select the correct TMS truck.',
+  gateway: 'Gateway / hardware device — This is NOT a truck. It is a telematics gateway or deactivated device. Approving will always fail. You must Reject it.',
+};
+
 // ─── Main table component ────────────────────────────────────────────────────
 
 export function DeviceQueueTable({
@@ -99,6 +106,7 @@ export function DeviceQueueTable({
   const [linkTarget, setLinkTarget] = useState<DeviceQueueItem | null>(null);
 
   const isPending = currentStatus === 'PENDING';
+  const isRejected = currentStatus === 'REJECTED';
 
   const filtered = useMemo(() => {
     if (!search.trim()) return items;
@@ -146,7 +154,9 @@ export function DeviceQueueTable({
     if (selectedIds.size === 0) return;
     setBulkActioning(true);
     let ok = 0;
-    let fail = 0;
+    const errors: string[] = [];
+    const idToName = new Map(items.map((d) => [d.id, d.name]));
+
     for (const id of selectedIds) {
       const res = await fetch('/api/fleet/device-queue', {
         method: 'POST',
@@ -157,13 +167,58 @@ export function DeviceQueueTable({
           additionalData: { mcNumberId: currentMcNumberId },
         }),
       });
-      if (res.ok) ok++; else fail++;
+      if (res.ok) {
+        ok++;
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const msg = data.error?.message || 'Unknown error';
+        errors.push(`${idToName.get(id) || id}: ${msg}`);
+      }
     }
+
     if (ok > 0) toast.success(`${ok} device(s) ${action === 'approve' ? 'approved' : 'rejected'}`);
-    if (fail > 0) toast.error(`${fail} device(s) failed — check each one individually`);
+    if (errors.length > 0) {
+      const preview = errors.slice(0, 4).join('\n');
+      const suffix = errors.length > 4 ? `\n…and ${errors.length - 4} more` : '';
+      toast.error(`${errors.length} device(s) failed`, {
+        description: preview + suffix,
+        duration: 10000,
+      });
+    }
+
     setSelectedIds(new Set());
     onActionComplete();
     setBulkActioning(false);
+  };
+
+  const runBulkRequeue = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkActioning(true);
+    const queueIds = Array.from(selectedIds);
+    try {
+      const res = await fetch('/api/fleet/device-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'bulk-reset', queueIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        const { success: successCount, failed } = data.data || {};
+        if (failed > 0) {
+          toast.warning(`Re-queued ${successCount}/${queueIds.length}. ${failed} failed.`);
+        } else {
+          toast.success(`${successCount} device(s) moved back to Pending`);
+        }
+      } else {
+        toast.error(data.error?.message || 'Requeue failed');
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setSelectedIds(new Set());
+      onActionComplete();
+      setBulkActioning(false);
+    }
   };
 
   const allSelected = filtered.length > 0 && filtered.every((d) => selectedIds.has(d.id));
@@ -213,35 +268,50 @@ export function DeviceQueueTable({
             {filtered.length} / {items.length}
           </span>
         )}
-        {!isPending && currentStatus === 'REJECTED' && (
+        {isRejected && selectedIds.size === 0 && (
           <span className="text-xs text-muted-foreground ml-auto">
-            Use Re-queue to move a device back to Pending
+            Select devices to bulk re-queue them back to Pending
           </span>
         )}
       </div>
 
-      {/* Bulk action bar — only for PENDING */}
-      {isPending && selectedIds.size > 0 && (
+      {/* Bulk action bar — PENDING and REJECTED */}
+      {(isPending || isRejected) && selectedIds.size > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-primary/20 bg-primary/5">
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
           <div className="flex gap-2 ml-auto">
-            <Button
-              size="sm"
-              onClick={() => runBulk('approve')}
-              disabled={bulkActioning}
-            >
-              <CheckCircle2 className="h-4 w-4 mr-1.5" />
-              Approve {selectedIds.size}
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => runBulk('reject')}
-              disabled={bulkActioning}
-            >
-              <XCircle className="h-4 w-4 mr-1.5" />
-              Reject {selectedIds.size}
-            </Button>
+            {isPending && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => runBulk('approve')}
+                  disabled={bulkActioning}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                  Approve {selectedIds.size}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => runBulk('reject')}
+                  disabled={bulkActioning}
+                >
+                  <XCircle className="h-4 w-4 mr-1.5" />
+                  Reject {selectedIds.size}
+                </Button>
+              </>
+            )}
+            {isRejected && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={runBulkRequeue}
+                disabled={bulkActioning}
+              >
+                <RotateCcw className="h-4 w-4 mr-1.5" />
+                Re-queue {selectedIds.size}
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -259,7 +329,7 @@ export function DeviceQueueTable({
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b">
             <tr>
-              {isPending && (
+              {(isPending || isRejected) && (
                 <th className="w-10 px-3 py-2.5 text-center">
                   <input
                     type="checkbox"
@@ -283,7 +353,13 @@ export function DeviceQueueTable({
               </th>
               {isPending && (
                 <th className="px-3 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wide w-20">
-                  Match
+                  <span
+                    className="inline-flex items-center gap-1 cursor-help border-b border-dashed border-muted-foreground/40"
+                    title="Match confidence shows how likely this device can be automatically linked to an existing TMS truck.&#10;&#10;● High (green) — Has a VIN. Will auto-match by VIN or truck number.&#10;● Medium (blue) — Has plate or make/model. May auto-match by number.&#10;● Review (yellow) — No identifying info. Use Link to pick manually.&#10;● Gateway (red) — Hardware device, NOT a truck. Must be Rejected."
+                  >
+                    Match
+                    <Info className="h-3 w-3 opacity-50" />
+                  </span>
                 </th>
               )}
               {!isPending && (
@@ -309,7 +385,7 @@ export function DeviceQueueTable({
                     selectedIds.has(device.id) ? 'bg-primary/5' : ''
                   }`}
                 >
-                  {isPending && (
+                  {(isPending || isRejected) && (
                     <td className="px-3 py-2.5 text-center">
                       <input
                         type="checkbox"
@@ -369,7 +445,8 @@ export function DeviceQueueTable({
                   {isPending && (
                     <td className="px-3 py-2.5">
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CONFIDENCE_STYLES[confidence]}`}
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium cursor-help ${CONFIDENCE_STYLES[confidence]}`}
+                        title={CONFIDENCE_TOOLTIPS[confidence]}
                       >
                         {CONFIDENCE_LABELS[confidence]}
                       </span>
@@ -485,6 +562,7 @@ function LinkDialog({ device, onClose, onLinked }: LinkDialogProps) {
   const [fetchLoading, setFetchLoading] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
   const [linking, setLinking] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(true);
 
   const isTruck = device.deviceType === 'TRUCK';
   const endpoint = isTruck ? '/api/trucks' : '/api/trailers';
@@ -526,6 +604,7 @@ function LinkDialog({ device, onClose, onLinked }: LinkDialogProps) {
           queueId: device.id,
           recordId: selected.id,
           recordType: device.deviceType,
+          updateInfo,
         }),
       });
       const data = await res.json();
@@ -601,6 +680,34 @@ function LinkDialog({ device, onClose, onLinked }: LinkDialogProps) {
                 </span>
               )}
             </p>
+          )}
+
+          {/* Update info option */}
+          {(device.vin || device.make || device.model || device.year) && (
+            <label className="flex items-start gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={updateInfo}
+                onChange={(e) => setUpdateInfo(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded cursor-pointer"
+              />
+              <div>
+                <span className="text-sm font-medium group-hover:text-foreground transition-colors">
+                  Update vehicle info from Samsara
+                </span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Will write to the TMS record:{' '}
+                  {[
+                    device.vin && `VIN: ${device.vin}`,
+                    device.make && `Make: ${device.make}`,
+                    device.model && `Model: ${device.model}`,
+                    device.year && `Year: ${device.year}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+            </label>
           )}
         </div>
 

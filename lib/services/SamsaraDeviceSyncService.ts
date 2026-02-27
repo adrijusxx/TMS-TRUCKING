@@ -45,9 +45,10 @@ export class SamsaraDeviceSyncService {
     queueId: string,
     recordId: string,
     recordType: 'TRUCK' | 'TRAILER',
-    userId: string
+    userId: string,
+    updateInfo = true
   ): Promise<{ success: boolean; error?: string }> {
-    return this.queueManager.linkQueuedDevice(queueId, recordId, recordType, userId);
+    return this.queueManager.linkQueuedDevice(queueId, recordId, recordType, userId, updateInfo);
   }
 
   /**

@@ -1,11 +1,12 @@
 'use client';
 
 import { useRef, useCallback } from 'react';
-import { Upload, FileText, Trash2, ArrowRight, Loader2, Download } from 'lucide-react';
+import { Upload, FileText, Trash2, ArrowRight, Loader2, Download, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 import { apiUrl } from '@/lib/utils';
 import type { UseImportWizardReturn } from '@/lib/hooks/useImportWizard';
@@ -163,6 +164,17 @@ export function ImportUploadStep({ wizard }: ImportUploadStepProps) {
               </label>
             </div>
           ))}
+          {wizard.autoCreate.drivers && (
+            <Alert className="mt-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-xs text-yellow-800 dark:text-yellow-200">
+                <strong>Duplicate driver warning:</strong> Drivers are matched by driver number and full name.
+                If your file uses nicknames, abbreviations, or names that don&apos;t exactly match existing drivers,
+                duplicates may be created. For best results, import drivers separately first, or ensure driver
+                names in your file match exactly what&apos;s already in the system.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       )}
 

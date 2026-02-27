@@ -3,8 +3,20 @@ import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { getSamsaraVehicles, getSamsaraVehicleLocations } from '@/lib/integrations/samsara';
 
+function buildLocationResponse(loc: { latitude: number; longitude: number; speedMilesPerHour?: number; heading?: number; address?: string }) {
+  return {
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    speed: loc.speedMilesPerHour,
+    heading: loc.heading,
+    address: loc.address || undefined,
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
 /**
- * Get driver's current location from Samsara for a specific load
+ * Get driver's current location from Samsara for a specific load.
+ * Primary lookup: truck.samsaraId. Fallback: license plate / VIN matching.
  */
 export async function GET(
   request: NextRequest,
@@ -20,20 +32,12 @@ export async function GET(
     }
 
     const { id: loadId } = await params;
+    const companyId = session.user.companyId;
 
-    // Get load with driver and truck
     const load = await prisma.load.findFirst({
-      where: {
-        id: loadId,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
+      where: { id: loadId, companyId, deletedAt: null },
       include: {
-        driver: {
-          include: {
-            user: true,
-          },
-        },
+        driver: { include: { user: true } },
         truck: true,
       },
     });
@@ -45,106 +49,53 @@ export async function GET(
       );
     }
 
-    // If no driver assigned, return null
     if (!load.driver || !load.truck) {
-      return NextResponse.json({
-        success: true,
-        data: null,
-        message: 'No driver or truck assigned to this load',
-      });
+      return NextResponse.json({ success: true, data: null, message: 'No driver or truck assigned to this load' });
     }
 
-    // Try to get vehicle location from Samsara
-    // Match truck with Samsara vehicle by license plate or VIN
     try {
-      // First, get all Samsara vehicles to find a match
-      const samsaraVehicles = await getSamsaraVehicles();
-      
+      // Primary: use samsaraId directly (fast, reliable)
+      if (load.truck.samsaraId) {
+        const locations = await getSamsaraVehicleLocations([load.truck.samsaraId], companyId);
+        const loc = locations?.[0]?.location;
+        if (loc) {
+          return NextResponse.json({ success: true, data: buildLocationResponse(loc) });
+        }
+      }
+
+      // Fallback: match by license plate or VIN
+      const samsaraVehicles = await getSamsaraVehicles(companyId);
       if (!samsaraVehicles || samsaraVehicles.length === 0) {
-        return NextResponse.json({
-          success: true,
-          data: null,
-          message: 'No vehicles found in Samsara',
-        });
+        return NextResponse.json({ success: true, data: null, message: 'No vehicles found in Samsara' });
       }
 
-      // Try to match truck with Samsara vehicle
-      // Match by license plate (case-insensitive, remove spaces/dashes)
       const normalizePlate = (plate: string) => plate.replace(/[\s-]/g, '').toUpperCase();
-      
-      if (!load.truck) {
-        return NextResponse.json(
-          { success: false, error: { code: 'NO_TRUCK', message: 'Load has no assigned truck' } },
-          { status: 400 }
-        );
-      }
+      const truckPlate = load.truck.licensePlate ? normalizePlate(load.truck.licensePlate) : null;
 
-      const truckPlateNormalized = normalizePlate(load.truck.licensePlate);
-      
       const matchedVehicle = samsaraVehicles.find((vehicle) => {
-        // Match by license plate
-        if (vehicle.licensePlate) {
-          const vehiclePlateNormalized = normalizePlate(vehicle.licensePlate);
-          if (vehiclePlateNormalized === truckPlateNormalized) {
-            return true;
-          }
-        }
-        
-        // Match by VIN (if available)
-        if (vehicle.vin && load.truck?.vin) {
-          if (vehicle.vin.toUpperCase() === load.truck.vin.toUpperCase()) {
-            return true;
-          }
-        }
-        
+        if (truckPlate && vehicle.licensePlate && normalizePlate(vehicle.licensePlate) === truckPlate) return true;
+        if (vehicle.vin && load.truck?.vin && vehicle.vin.toUpperCase() === load.truck.vin.toUpperCase()) return true;
         return false;
       });
 
       if (!matchedVehicle) {
-        return NextResponse.json({
-          success: true,
-          data: null,
-          message: `Truck ${load.truck.truckNumber} not found in Samsara fleet`,
-        });
+        return NextResponse.json({ success: true, data: null, message: `Truck ${load.truck.truckNumber} not found in Samsara fleet` });
       }
 
-      // Get location for the matched vehicle
-      const vehicleLocations = await getSamsaraVehicleLocations([matchedVehicle.id]);
-      
-      if (vehicleLocations && vehicleLocations.length > 0) {
-        const vehicleLocation = vehicleLocations[0];
-        
-        if (vehicleLocation && vehicleLocation.location) {
-          return NextResponse.json({
-            success: true,
-            data: {
-              latitude: vehicleLocation.location.latitude,
-              longitude: vehicleLocation.location.longitude,
-              speed: vehicleLocation.location.speedMilesPerHour,
-              heading: vehicleLocation.location.heading,
-              address: vehicleLocation.location.address || undefined,
-              lastUpdated: new Date().toISOString(),
-            },
-          });
-        }
+      const vehicleLocations = await getSamsaraVehicleLocations([matchedVehicle.id], companyId);
+      const loc = vehicleLocations?.[0]?.location;
+      if (loc) {
+        return NextResponse.json({ success: true, data: buildLocationResponse(loc) });
       }
     } catch (error) {
       console.error('Samsara location fetch error:', error);
-      // Don't fail the request, just return null
     }
 
-    return NextResponse.json({
-      success: true,
-      data: null,
-      message: 'Driver location not available from Samsara',
-    });
+    return NextResponse.json({ success: true, data: null, message: 'Driver location not available from Samsara' });
   } catch (error: any) {
     console.error('Driver location error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to get driver location' },
-      },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to get driver location' } },
       { status: 500 }
     );
   }

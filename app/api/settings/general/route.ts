@@ -25,6 +25,7 @@ const generalSettingsSchema = z.object({
   invoiceNumberPrefix: z.string().optional(),
   invoiceNumberFormat: z.enum(['SEQUENTIAL', 'DATE_SEQUENTIAL', 'CUSTOM']).optional(),
   dispatcherSeeAllLoads: z.boolean().optional(), // Allow dispatchers to see all loads (default: true)
+  trackingWindowDays: z.number().min(1).max(90).optional(), // Only show GPS tracking for loads within this many days
 });
 
 export async function GET(request: NextRequest) {
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
             invoiceNumberPrefix: '',
             invoiceNumberFormat: 'DATE_SEQUENTIAL',
             dispatcherSeeAllLoads: true, // Default: dispatchers see all loads
+            trackingWindowDays: 7, // Default: show tracking for loads within 7 days
           },
         },
       });

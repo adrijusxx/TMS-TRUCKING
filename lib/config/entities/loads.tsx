@@ -241,6 +241,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
       <SelfFetchingTrackingBadge
         loadId={row.original.id}
         loadStatus={row.original.status}
+        pickupDate={row.original.pickupDate}
         compact
       />
     ),

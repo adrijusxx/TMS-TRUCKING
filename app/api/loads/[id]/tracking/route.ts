@@ -64,6 +64,16 @@ export async function GET(
       return NextResponse.json({ success: true, data: noData(`INACTIVE_STATUS: load.status=${load.status}`) });
     }
 
+    // Skip tracking for loads outside the tracking window (default 7 days)
+    const pickupStop = load.stops.find(s => s.stopType === 'PICKUP');
+    if (pickupStop?.earliestArrival) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      if (new Date(pickupStop.earliestArrival) < cutoff) {
+        return NextResponse.json({ success: true, data: noData('OUTSIDE_TRACKING_WINDOW') });
+      }
+    }
+
     const samsaraId = load.truck?.samsaraId;
     if (!load.truck) {
       return NextResponse.json({ success: true, data: noData('NO_TRUCK_ASSIGNED') });

@@ -215,32 +215,36 @@ export class SamsaraQueueManager {
         });
     }
 
-    private async linkTruck(id: string, queueItem: any) {
+    private async linkTruck(id: string, queueItem: any, updateInfo = true) {
         await prisma.truck.update({
             where: { id },
             data: {
                 samsaraId: queueItem.samsaraId,
                 samsaraSyncedAt: new Date(),
                 samsaraSyncStatus: 'SYNCED',
-                make: queueItem.make || undefined,
-                model: queueItem.model || undefined,
-                year: queueItem.year || undefined,
-                vin: queueItem.vin || undefined,
+                ...(updateInfo ? {
+                    make: queueItem.make || undefined,
+                    model: queueItem.model || undefined,
+                    year: queueItem.year || undefined,
+                    vin: queueItem.vin || undefined,
+                } : {}),
             },
         });
     }
 
-    private async linkTrailer(id: string, queueItem: any) {
+    private async linkTrailer(id: string, queueItem: any, updateInfo = true) {
         await prisma.trailer.update({
             where: { id },
             data: {
                 samsaraId: queueItem.samsaraId,
                 samsaraSyncedAt: new Date(),
                 samsaraSyncStatus: 'SYNCED',
-                make: queueItem.make || undefined,
-                model: queueItem.model || undefined,
-                year: queueItem.year || undefined,
-                vin: queueItem.vin || undefined,
+                ...(updateInfo ? {
+                    make: queueItem.make || undefined,
+                    model: queueItem.model || undefined,
+                    year: queueItem.year || undefined,
+                    vin: queueItem.vin || undefined,
+                } : {}),
             },
         });
     }
@@ -278,13 +282,12 @@ export class SamsaraQueueManager {
         return { success: false, error: error.message };
     }
 
-    async linkQueuedDevice(queueId: string, recordId: string, recordType: 'TRUCK' | 'TRAILER', userId: string) {
-        const now = new Date();
+    async linkQueuedDevice(queueId: string, recordId: string, recordType: 'TRUCK' | 'TRAILER', userId: string, updateInfo = true) {
         const queueItem = await prisma.samsaraDeviceQueue.findUnique({ where: { id: queueId } });
         if (!queueItem) throw new Error('Queue item not found');
 
-        if (recordType === 'TRUCK') await this.linkTruck(recordId, queueItem);
-        else await this.linkTrailer(recordId, queueItem);
+        if (recordType === 'TRUCK') await this.linkTruck(recordId, queueItem, updateInfo);
+        else await this.linkTrailer(recordId, queueItem, updateInfo);
 
         await this.markQueueLinked(queueId, userId, recordId, recordType);
         return { success: true };

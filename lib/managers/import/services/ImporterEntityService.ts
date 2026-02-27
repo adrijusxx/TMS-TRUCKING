@@ -91,9 +91,13 @@ export class ImporterEntityService {
         let id = driverMap.get(lowerName);
         if (id) return id;
 
-        if (previewOnly) return allowCreate
-            ? `PREVIEW_NEW_DRV_${lowerName.replace(/[^a-zA-Z0-9]/g, '')}`
-            : `SKIPPED_DRV_${lowerName.replace(/[^a-zA-Z0-9]/g, '')}`;
+        if (previewOnly) {
+            const previewId = allowCreate
+                ? `PREVIEW_NEW_DRV_${lowerName.replace(/[^a-zA-Z0-9]/g, '')}`
+                : `SKIPPED_DRV_${lowerName.replace(/[^a-zA-Z0-9]/g, '')}`;
+            driverMap.set(lowerName, previewId);
+            return previewId;
+        }
 
         let dNumber = name;
         let dFirst = 'Driver';

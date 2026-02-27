@@ -47,7 +47,8 @@ const generalSettingsSchema = z.object({
   requirePOD: z.boolean(),
   enableLoadTemplates: z.boolean(),
   dispatcherSeeAllLoads: z.boolean().optional(), // Allow dispatchers to see all loads (default: true)
-  
+  trackingWindowDays: z.number().min(1).max(90).optional(), // GPS tracking window in days
+
   // Numbering
   loadNumberPrefix: z.string().optional(),
   loadNumberFormat: z.enum(['SEQUENTIAL', 'DATE_SEQUENTIAL', 'CUSTOM']),
@@ -127,6 +128,7 @@ export default function GeneralSettings() {
       requirePOD: false,
       enableLoadTemplates: true,
       dispatcherSeeAllLoads: true, // Default: dispatchers see all loads
+      trackingWindowDays: 7,
       loadNumberPrefix: '',
       loadNumberFormat: 'DATE_SEQUENTIAL',
       invoiceNumberPrefix: '',
@@ -482,6 +484,25 @@ export default function GeneralSettings() {
             <Switch
               checked={watch('dispatcherSeeAllLoads') ?? true}
               onCheckedChange={(checked) => setValue('dispatcherSeeAllLoads', checked, { shouldDirty: true })}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="trackingWindowDays">Tracking Window (days)</Label>
+              <p className="text-sm text-muted-foreground">
+                Only show live GPS tracking for loads with pickup dates within this many days. Prevents stale tracking data for old loads stuck in active statuses.
+              </p>
+            </div>
+            <Input
+              id="trackingWindowDays"
+              type="number"
+              className="w-20"
+              min={1}
+              max={90}
+              {...register('trackingWindowDays', { valueAsNumber: true })}
             />
           </div>
         </CardContent>

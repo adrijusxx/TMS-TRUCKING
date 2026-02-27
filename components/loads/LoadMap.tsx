@@ -390,11 +390,11 @@ export default function LoadMap({ load, compact = false }: LoadMapProps) {
         fillColor: '#16a34a',
         fillOpacity: 1,
         strokeColor: '#ffffff',
-        strokeWeight: 1,
+        strokeWeight: 2,
         rotation: driverLocation.heading || 0,
       },
       title: load.truck
-        ? `Truck ${load.truck.truckNumber} location`
+        ? `Truck ${load.truck.truckNumber}${load.driver ? ` - ${load.driver.user.firstName} ${load.driver.user.lastName}` : ''}`
         : 'Driver location',
       label: load.truck
         ? {
@@ -403,25 +403,24 @@ export default function LoadMap({ load, compact = false }: LoadMapProps) {
             fontSize: '10px',
           }
         : undefined,
+      zIndex: 1000,
     });
 
     const infoWindow = new google.maps.InfoWindow({
       content: `
         <div style="padding: 8px;">
-          ${
-            load.truck
-              ? `<strong>Truck ${load.truck.truckNumber}</strong><br/>`
-              : '<strong>Driver location</strong><br/>'
-          }
+          ${load.truck ? `<strong>Truck ${load.truck.truckNumber}</strong><br/>` : '<strong>Driver location</strong><br/>'}
+          ${load.driver ? `Driver: ${load.driver.user.firstName} ${load.driver.user.lastName}<br/>` : ''}
           ${driverLocation.address ? `${driverLocation.address}<br/>` : ''}
-          Updated: ${new Date(driverLocation.lastUpdated).toLocaleString()}
+          ${driverLocation.speed ? `Speed: ${driverLocation.speed.toFixed(0)} mph<br/>` : ''}
+          <small>Updated: ${new Date(driverLocation.lastUpdated).toLocaleTimeString()}</small>
         </div>
       `,
     });
 
     marker.addListener('click', () => infoWindow.open(map, marker));
     setDriverMarker(marker);
-  }, [map, driverLocation, load.truck]);
+  }, [map, driverLocation, load.truck, load.driver]);
 
   // Fallback function to display route with markers only
   const displayRouteWithMarkers = () => {
@@ -544,73 +543,6 @@ export default function LoadMap({ load, compact = false }: LoadMapProps) {
     });
   };
 
-  // Update driver location marker
-  useEffect(() => {
-    if (!map || !driverLocation || !window.google) return;
-
-    const google = window.google;
-
-    // Remove existing marker
-    if (driverMarker) {
-      driverMarker.setMap(null);
-    }
-
-    // Create new marker for driver location
-    const marker = new google.maps.Marker({
-      position: { lat: driverLocation.latitude, lng: driverLocation.longitude },
-      map: map,
-      icon: {
-        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-        scale: 5,
-        fillColor: '#ef4444',
-        fillOpacity: 1,
-        strokeColor: '#ffffff',
-        strokeWeight: 2,
-        rotation: driverLocation.heading || 0,
-      },
-      title: `Driver: ${load.driver?.user.firstName} ${load.driver?.user.lastName}`,
-      zIndex: 1000,
-    });
-
-    // Add info window
-    const infoWindow = new google.maps.InfoWindow({
-      content: `
-        <div style="padding: 8px;">
-          <strong>Truck ${load.truck?.truckNumber}</strong><br/>
-          Driver: ${load.driver?.user.firstName} ${load.driver?.user.lastName}<br/>
-          ${driverLocation.address || 'Location updated'}<br/>
-          ${driverLocation.speed ? `Speed: ${driverLocation.speed.toFixed(0)} mph` : ''}<br/>
-          <small>Updated: ${new Date(driverLocation.lastUpdated).toLocaleTimeString()}</small>
-        </div>
-      `,
-    });
-
-    marker.addListener('click', () => {
-      infoWindow.open(map, marker);
-    });
-
-    setDriverMarker(marker);
-
-    // Update map bounds to include driver location and route
-    if (map && window.google) {
-      const google = window.google;
-      const bounds = new google.maps.LatLngBounds();
-      
-      // Add driver location
-      bounds.extend({ lat: driverLocation.latitude, lng: driverLocation.longitude });
-      
-      // Try to include route bounds if available
-      // The route will be handled by the directions renderer, but we can extend bounds
-      map.fitBounds(bounds);
-      
-      // Ensure minimum zoom level
-      google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
-        if (map.getZoom() && map.getZoom() > 15) {
-          map.setZoom(15);
-        }
-      });
-    }
-  }, [map, driverLocation, load.driver, load.truck]);
 
   if (error) {
     return (

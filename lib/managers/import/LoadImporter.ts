@@ -152,7 +152,17 @@ export class LoadImporter extends BaseImporter {
             customerMap: new Map(customers.map(c => [c.name.toLowerCase(), c.id])),
             truckMap: new Map(trucks.map(t => [t.truckNumber.toLowerCase(), t.id])),
             trailerMap: new Map(trailers.map(t => [t.trailerNumber.toLowerCase(), t.id])),
-            driverMap: new Map(drivers.map(d => [d.driverNumber.toLowerCase(), d.id])),
+            driverMap: (() => {
+                const map = new Map<string, string>();
+                for (const d of drivers) {
+                    map.set(d.driverNumber.toLowerCase(), d.id);
+                    if (d.user?.firstName && d.user?.lastName) {
+                        const fullName = `${d.user.firstName} ${d.user.lastName}`.toLowerCase().trim();
+                        if (!map.has(fullName)) map.set(fullName, d.id);
+                    }
+                }
+                return map;
+            })(),
             driverPayMap: new Map(drivers.map(d => [d.id, { payType: d.payType, payRate: Number(d.payRate) }])),
             dispatcherMap: new Map(users.map(u => [`${u.firstName} ${u.lastName}`.toLowerCase(), u.id])),
             defaultMcId: mcNumbers.find(mc => mc.isDefault)?.id || mcNumbers[0]?.id

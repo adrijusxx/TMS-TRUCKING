@@ -266,7 +266,8 @@ export async function POST(request: NextRequest) {
               { status: 400 }
             );
           }
-          const result = await syncService.linkQueuedDevice(queueId, recordId, recordType, session.user.id);
+          const updateInfo = body.updateInfo !== false; // default true
+          const result = await syncService.linkQueuedDevice(queueId, recordId, recordType, session.user.id, updateInfo);
           if (!result.success) {
             return NextResponse.json(
               { success: false, error: { code: 'OPERATION_FAILED', message: result.error } },

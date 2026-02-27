@@ -52,7 +52,7 @@ export function UnifiedDeviceQueue() {
   const fetchDevices = async (status = activeStatus) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/fleet/device-queue?status=${status}&pageSize=100`);
+      const res = await fetch(`/api/fleet/device-queue?status=${status}&pageSize=500`);
       const result = await res.json();
       if (result.success) setData(result.data);
     } catch { /* ignore */ } finally { setLoading(false); }

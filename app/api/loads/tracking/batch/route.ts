@@ -78,9 +78,22 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Filter out loads outside tracking window (default 7 days)
+    const trackingCutoff = new Date();
+    trackingCutoff.setDate(trackingCutoff.getDate() - 7);
+
+    const recentLoads = loads.filter((load) => {
+      const pickupStop = load.stops.find(s => s.stopType === 'PICKUP');
+      if (pickupStop?.earliestArrival && new Date(pickupStop.earliestArrival) < trackingCutoff) {
+        return false;
+      }
+      return true;
+    });
+    const staleLoadIds = new Set(loads.filter(l => !recentLoads.includes(l)).map(l => l.id));
+
     // Collect unique Samsara IDs for one batched API call
     const samsaraIdMap = new Map<string, typeof loads[0][]>();
-    for (const load of loads) {
+    for (const load of recentLoads) {
       const sid = load.truck?.samsaraId;
       if (sid) {
         const existing = samsaraIdMap.get(sid) || [];
@@ -106,6 +119,11 @@ export async function GET(request: NextRequest) {
     const results: Record<string, TrackingResult> = {};
 
     for (const loadId of loadIds) {
+      if (staleLoadIds.has(loadId)) {
+        const staleLoad = loads.find((l) => l.id === loadId);
+        results[loadId] = makeNoData(loadId, staleLoad?.truck?.truckNumber || null, 'OUTSIDE_TRACKING_WINDOW');
+        continue;
+      }
       const load = loads.find((l) => l.id === loadId);
       if (!load) {
         results[loadId] = makeNoData(loadId, null, 'INACTIVE_OR_NOT_FOUND');

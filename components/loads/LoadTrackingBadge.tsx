@@ -12,6 +12,16 @@ const ACTIVE_STATUSES = new Set([
   'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY',
 ]);
 
+const DEFAULT_TRACKING_WINDOW_DAYS = 7;
+
+function isWithinTrackingWindow(pickupDate: Date | string, windowDays?: number): boolean {
+  const days = windowDays ?? DEFAULT_TRACKING_WINDOW_DAYS;
+  const pickup = new Date(pickupDate);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return pickup >= cutoff;
+}
+
 interface Props {
   tracking?: LoadTrackingData | undefined;
   isLoading?: boolean;
@@ -94,12 +104,14 @@ export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, com
  * Used in table columns and dispatch board cards where data isn't pre-fetched.
  */
 export function SelfFetchingTrackingBadge({
-  loadId, loadStatus, compact,
-}: { loadId: string; loadStatus?: string; compact?: boolean }) {
+  loadId, loadStatus, pickupDate, compact,
+}: { loadId: string; loadStatus?: string; pickupDate?: Date | string | null; compact?: boolean }) {
   const isActive = !loadStatus || ACTIVE_STATUSES.has(loadStatus);
-  const { data, isLoading } = useLoadTracking(loadId, isActive);
+  const isRecent = !pickupDate || isWithinTrackingWindow(pickupDate);
+  const shouldTrack = isActive && isRecent;
+  const { data, isLoading } = useLoadTracking(loadId, shouldTrack);
 
-  if (!isActive) return null;
+  if (!shouldTrack) return null;
 
   return (
     <LoadTrackingBadge
