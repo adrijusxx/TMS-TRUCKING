@@ -11,7 +11,7 @@ import { CampaignManager } from '@/lib/managers/CampaignManager';
 
 export const processDripSteps = inngest.createFunction(
     { id: 'process-drip-steps', name: 'Process Campaign Drip Steps' },
-    { cron: '*/15 * * * *' }, // Every 15 minutes
+    { event: 'campaigns/drip-steps.process' }, // Scheduling handled by node-cron (CronScheduler.ts)
     async ({ step }) => {
         const dueRecipients = await step.run('find-due-recipients', async () => {
             return prisma.campaignRecipient.findMany({

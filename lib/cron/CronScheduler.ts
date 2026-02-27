@@ -33,14 +33,14 @@ export interface JobDefinition {
 }
 
 export const JOB_REGISTRY: Record<JobKey, JobDefinition> = {
-  CRM_SYNC:       { name: 'CRM Lead Sync',         defaultSchedule: '*/15 * * * *', description: 'Syncs new leads from Google Sheets',          category: 'CRM' },
-  CRM_FOLLOWUP:   { name: 'CRM Follow-Up Check',    defaultSchedule: '5 * * * *',    description: 'Notifies recruiters about overdue follow-ups', category: 'CRM' },
-  CRM_SLA:        { name: 'CRM SLA Check',           defaultSchedule: '0 6 * * *',    description: 'Alerts when leads exceed SLA time limits',    category: 'CRM' },
-  DRIP_STEPS:     { name: 'Campaign Drip Steps',     defaultSchedule: '*/15 * * * *', description: 'Sends scheduled drip campaign messages',      category: 'Campaign' },
-  HOURLY:         { name: 'Hourly Automation',        defaultSchedule: '0 * * * *',    description: 'Load status updates',                        category: 'Automation' },
-  DAILY:          { name: 'Daily Automation',         defaultSchedule: '0 2 * * *',    description: 'Document expiry checks, HOS violations',     category: 'Automation' },
-  WEEKLY:         { name: 'Weekly Automation',        defaultSchedule: '0 3 * * 0',    description: 'Extended document expiry checks',             category: 'Automation' },
-  SAMSARA_FAULTS: { name: 'Samsara Fault Sync',      defaultSchedule: '0 * * * *',    description: 'Syncs truck fault codes from Samsara',       category: 'Fleet' },
+  CRM_SYNC:       { name: 'CRM Lead Sync',         defaultSchedule: '2,17,32,47 * * * *', description: 'Syncs new leads from Google Sheets',          category: 'CRM' },
+  CRM_FOLLOWUP:   { name: 'CRM Follow-Up Check',    defaultSchedule: '5 * * * *',          description: 'Notifies recruiters about overdue follow-ups', category: 'CRM' },
+  CRM_SLA:        { name: 'CRM SLA Check',           defaultSchedule: '0 6 * * *',          description: 'Alerts when leads exceed SLA time limits',    category: 'CRM' },
+  DRIP_STEPS:     { name: 'Campaign Drip Steps',     defaultSchedule: '9,24,39,54 * * * *', description: 'Sends scheduled drip campaign messages',      category: 'Campaign' },
+  HOURLY:         { name: 'Hourly Automation',        defaultSchedule: '0 * * * *',          description: 'Load status updates',                        category: 'Automation' },
+  DAILY:          { name: 'Daily Automation',         defaultSchedule: '0 2 * * *',          description: 'Document expiry checks, HOS violations',     category: 'Automation' },
+  WEEKLY:         { name: 'Weekly Automation',        defaultSchedule: '0 3 * * 0',          description: 'Extended document expiry checks',             category: 'Automation' },
+  SAMSARA_FAULTS: { name: 'Samsara Fault Sync',      defaultSchedule: '12 * * * *',         description: 'Syncs truck fault codes from Samsara',       category: 'Fleet' },
 };
 
 const JOB_TASKS: Record<JobKey, () => Promise<unknown>> = {

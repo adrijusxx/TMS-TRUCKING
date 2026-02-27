@@ -12,7 +12,7 @@ import { notifyLeadSLABreach } from '@/lib/notifications/crm-triggers';
 
 export const checkLeadSLA = inngest.createFunction(
     { id: 'check-lead-sla', name: 'CRM Pipeline SLA Check' },
-    { cron: '0 6 * * *' }, // Daily at 6 AM
+    { event: 'crm/sla.check' }, // Scheduling handled by node-cron (CronScheduler.ts)
     async ({ step }) => {
         // Get all companies with SLA configs
         const slaConfigs = await step.run('load-sla-configs', async () => {
