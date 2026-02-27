@@ -8,7 +8,7 @@ interface CalendarEvent {
   label: string;
   driverName?: string;
   driverId?: string;
-  expirationDate: Date;
+  expirationDate: string;
   urgency: 'EXPIRED' | 'CRITICAL' | 'WARNING' | 'UPCOMING';
 }
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
           label: 'Medical Card',
           driverName: `${card.driver.user?.firstName ?? ''} ${card.driver.user?.lastName ?? ''}`,
           driverId: card.driver.id,
-          expirationDate: card.expirationDate,
+          expirationDate: card.expirationDate.toISOString(),
           urgency: getUrgency(card.expirationDate),
         });
       }
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
           label: 'CDL',
           driverName: `${cdl.driver.user?.firstName ?? ''} ${cdl.driver.user?.lastName ?? ''}`,
           driverId: cdl.driver.id,
-          expirationDate: cdl.expirationDate,
+          expirationDate: cdl.expirationDate.toISOString(),
           urgency: getUrgency(cdl.expirationDate),
         });
       }
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
           label: t.trainingName,
           driverName: `${t.driver.user?.firstName ?? ''} ${t.driver.user?.lastName ?? ''}`,
           driverId: t.driver.id,
-          expirationDate: t.expiryDate,
+          expirationDate: t.expiryDate.toISOString(),
           urgency: getUrgency(t.expiryDate),
         });
       }
@@ -124,13 +124,13 @@ export async function GET(request: NextRequest) {
           id: p.id,
           type: 'INSURANCE',
           label: `${p.policyType} - ${p.policyNumber}`,
-          expirationDate: p.renewalDate,
+          expirationDate: p.renewalDate.toISOString(),
           urgency: getUrgency(p.renewalDate),
         });
       }
     }
 
-    events.sort((a, b) => a.expirationDate.getTime() - b.expirationDate.getTime());
+    events.sort((a, b) => a.expirationDate.localeCompare(b.expirationDate));
 
     return NextResponse.json({ data: events });
   } catch (error) {

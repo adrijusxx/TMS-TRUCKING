@@ -1,8 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { unlink } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 import { join } from 'path';
+
+/**
+ * GET /api/documents/[id]
+ * Serve a document file (PDF, image, etc.)
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.companyId) {
+      return NextResponse.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
+        { status: 401 }
+      );
+    }
+
+    const { id: documentId } = await params;
+
+    const document = await prisma.document.findUnique({
+      where: {
+        id: documentId,
+        companyId: session.user.companyId,
+        deletedAt: null,
+      },
+      select: { fileUrl: true, fileName: true, mimeType: true },
+    });
+
+    if (!document) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Document not found' } },
+        { status: 404 }
+      );
+    }
+
+    const filePath = join(process.cwd(), 'public', document.fileUrl);
+    const fileBuffer = await readFile(filePath);
+
+    return new NextResponse(fileBuffer, {
+      headers: {
+        'Content-Type': document.mimeType || 'application/octet-stream',
+        'Content-Disposition': `inline; filename="${document.fileName || 'document'}"`,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error serving document:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to serve document' },
+      },
+      { status: 500 }
+    );
+  }
+}
 
 /**
  * DELETE /api/documents/[id]

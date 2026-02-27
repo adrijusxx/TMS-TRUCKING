@@ -36,7 +36,7 @@ const urgencyBadgeColors: Record<string, string> = {
 };
 
 const typeFilters = [
-  { value: '', label: 'All Types' },
+  { value: 'ALL', label: 'All Types' },
   { value: 'MEDICAL_CARD', label: 'Medical Cards' },
   { value: 'CDL', label: 'CDL' },
   { value: 'TRAINING', label: 'Training' },
@@ -45,7 +45,7 @@ const typeFilters = [
 
 export default function ExpirationCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [filterType, setFilterType] = useState('');
+  const [filterType, setFilterType] = useState('ALL');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const year = currentDate.getFullYear();
@@ -58,7 +58,7 @@ export default function ExpirationCalendar() {
     queryKey: ['expiration-calendar', startDate, endDate, filterType],
     queryFn: async () => {
       let url = `/api/safety/expirations/calendar?startDate=${startDate}&endDate=${endDate}`;
-      if (filterType) url += `&type=${filterType}`;
+      if (filterType && filterType !== 'ALL') url += `&type=${filterType}`;
       const res = await fetch(apiUrl(url));
       if (!res.ok) throw new Error('Failed to fetch expirations');
       const json = await res.json();
@@ -135,7 +135,7 @@ export default function ExpirationCalendar() {
           </SelectTrigger>
           <SelectContent>
             {typeFilters.map((f) => (
-              <SelectItem key={f.value || 'all'} value={f.value}>
+              <SelectItem key={f.value} value={f.value}>
                 {f.label}
               </SelectItem>
             ))}

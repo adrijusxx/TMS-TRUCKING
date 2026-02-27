@@ -41,9 +41,10 @@ export const getRowValue = (row: any, headerNames: string[]): any => {
  * Parses a date string or number into a Date object.
  * Handles Excel serial dates and various string formats.
  */
-export const parseImportDate = (value: any): Date | null => {
+export const parseImportDate = (value: any, dateFormatHint?: 'auto' | 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD'): Date | null => {
     if (!value) return null;
     if (value instanceof Date) return value;
+    const hint = dateFormatHint && dateFormatHint !== 'auto' ? dateFormatHint : null;
 
     if (typeof value === 'string') {
         const trimmed = value.trim();
@@ -64,11 +65,11 @@ export const parseImportDate = (value: any): Date | null => {
 
         // Common human-readable formats (explicit parsing preferred over new Date())
         const formats = [
-            /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,           // MM/DD/YYYY
-            /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/,            // MM/DD/YY
+            /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,           // MM/DD/YYYY or DD/MM/YYYY
+            /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/,            // MM/DD/YY or DD/MM/YY
             /^(\d{4})-(\d{1,2})-(\d{1,2})/,               // YYYY-MM-DD (ISO prefix)
-            /^(\d{1,2})-(\d{1,2})-(\d{4})$/,              // MM-DD-YYYY
-            /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/,            // MM.DD.YYYY
+            /^(\d{1,2})-(\d{1,2})-(\d{4})$/,              // MM-DD-YYYY or DD-MM-YYYY
+            /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/,            // MM.DD.YYYY or DD.MM.YYYY
         ];
 
         for (const format of formats) {
@@ -81,15 +82,25 @@ export const parseImportDate = (value: any): Date | null => {
                     month = parseInt(match[2]) - 1;
                     day = parseInt(match[3]);
                 } else {
-                    month = parseInt(match[1]) - 1;
-                    day = parseInt(match[2]);
                     year = parseInt(match[3]);
-                    // Handle 2-digit year
                     if (year < 100) year += year < 50 ? 2000 : 1900;
-                    if (month > 11) {
-                        // Swap to DD/MM/YYYY
+
+                    if (hint === 'DD/MM/YYYY') {
+                        // User explicitly said day comes first
                         day = parseInt(match[1]);
                         month = parseInt(match[2]) - 1;
+                    } else if (hint === 'MM/DD/YYYY') {
+                        // User explicitly said month comes first
+                        month = parseInt(match[1]) - 1;
+                        day = parseInt(match[2]);
+                    } else {
+                        // Auto-detect: assume MM/DD/YYYY, swap if month > 12
+                        month = parseInt(match[1]) - 1;
+                        day = parseInt(match[2]);
+                        if (month > 11) {
+                            day = parseInt(match[1]);
+                            month = parseInt(match[2]) - 1;
+                        }
                     }
                 }
                 const date = new Date(year, month, day);

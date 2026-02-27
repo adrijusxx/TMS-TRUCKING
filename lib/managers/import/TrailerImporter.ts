@@ -10,9 +10,11 @@ export class TrailerImporter extends BaseImporter {
         currentMcNumber?: string;
         updateExisting?: boolean;
         columnMapping?: Record<string, string>;
-        importBatchId?: string; // Add importBatchId
+        importBatchId?: string;
+        formatSettings?: { dateFormat?: string };
     }): Promise<ImportResult> {
-        const { previewOnly, currentMcNumber, updateExisting, columnMapping, importBatchId } = options;
+        const { previewOnly, currentMcNumber, updateExisting, columnMapping, importBatchId, formatSettings } = options;
+        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
         const errors: any[] = [];
         const warnings: any[] = [];
         const trailersToCreate: any[] = [];
@@ -131,9 +133,9 @@ export class TrailerImporter extends BaseImporter {
                     type: trailerType,
                     status: status,
                     operatorDriverId: driverId || undefined,
-                    registrationExpiry: parseImportDate(this.getValue(row, 'registrationExpiry', columnMapping, ['Registration Expiry', 'registration_expiry'])) || futureDate,
-                    insuranceExpiry: parseImportDate(this.getValue(row, 'insuranceExpiry', columnMapping, ['Insurance Expiry', 'insurance_expiry'])) || futureDate,
-                    inspectionExpiry: parseImportDate(this.getValue(row, 'inspectionExpiry', columnMapping, ['Inspection Expiry', 'inspection_expiry'])) || futureDate,
+                    registrationExpiry: parseImportDate(this.getValue(row, 'registrationExpiry', columnMapping, ['Registration Expiry', 'registration_expiry']), dateHint) || futureDate,
+                    insuranceExpiry: parseImportDate(this.getValue(row, 'insuranceExpiry', columnMapping, ['Insurance Expiry', 'insurance_expiry']), dateHint) || futureDate,
+                    inspectionExpiry: parseImportDate(this.getValue(row, 'inspectionExpiry', columnMapping, ['Inspection Expiry', 'inspection_expiry']), dateHint) || futureDate,
                     importBatchId
                 };
 

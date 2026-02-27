@@ -16,15 +16,27 @@ export class LoadRowMapper {
             || getValue(row, 'pickupAddress', mapping, ['Pickup Address', 'pickup_address', 'Origin Address']);
         const pickupParsed = parseLocationString(pickupString);
         const expPickupCity = getValue(row, 'pickupCity', mapping, ['Pickup City', 'pickup_city', 'Origin City', 'origin_city']);
-        const expPickupState = getValue(row, 'pickupState', mapping, ['Pickup State', 'pickup_state', 'Origin State', 'origin_state']);
+        const expPickupState = getValue(row, 'pickupState', mapping, [
+            'Pickup State', 'pickup_state', 'Origin State', 'origin_state',
+            'PU State', 'pu_state', 'PU ST', 'Orig State', 'Orig ST',
+            'Pickup ST', 'pickup_st', 'Ship From State', 'ship_from_state'
+        ]);
         const expPickupZip = getValue(row, 'pickupZip', mapping, ['Pickup Zip', 'pickup_zip', 'Origin Zip', 'origin_zip']);
         const pickupCompany = getValue(row, 'pickupCompany', mapping, ['Pickup Company', 'pickup_company', 'Shipper', 'shipper']);
 
+        // Fallback: extract state from city if city contains comma (e.g., "Chicago, IL")
+        let parsedPickupCity = expPickupCity;
+        let parsedPickupState = expPickupState;
+        if (!parsedPickupState && parsedPickupCity && String(parsedPickupCity).includes(',')) {
+            const cityParsed = parseLocationString(String(parsedPickupCity));
+            if (cityParsed?.state) { parsedPickupState = cityParsed.state; parsedPickupCity = cityParsed.city; }
+        }
+
         const pickup = {
-            city: (expPickupCity || pickupParsed?.city || 'Unknown').trim(),
-            state: normalizeState(expPickupState || pickupParsed?.state) || '',
+            city: (parsedPickupCity || pickupParsed?.city || 'Unknown').trim(),
+            state: normalizeState(parsedPickupState || pickupParsed?.state) || '',
             zip: (expPickupZip || pickupParsed?.zip || '00000').trim(),
-            location: pickupString || (expPickupCity ? `${expPickupCity}, ${expPickupState || ''}` : 'Unknown'),
+            location: pickupString || (parsedPickupCity ? `${parsedPickupCity}, ${parsedPickupState || ''}` : 'Unknown'),
             company: pickupCompany ? String(pickupCompany).trim() : undefined
         };
 
@@ -33,15 +45,27 @@ export class LoadRowMapper {
             || getValue(row, 'deliveryAddress', mapping, ['Delivery Address', 'delivery_address', 'Destination Address']);
         const deliveryParsed = parseLocationString(deliveryString);
         const expDeliveryCity = getValue(row, 'deliveryCity', mapping, ['Delivery City', 'delivery_city', 'Destination City', 'destination_city', 'Dest City', 'dest_city']);
-        const expDeliveryState = getValue(row, 'deliveryState', mapping, ['Delivery State', 'delivery_state', 'Destination State', 'destination_state', 'Dest State', 'dest_state']);
+        const expDeliveryState = getValue(row, 'deliveryState', mapping, [
+            'Delivery State', 'delivery_state', 'Destination State', 'destination_state',
+            'Dest State', 'dest_state', 'DEL State', 'del_state', 'DEL ST',
+            'Dest ST', 'Delivery ST', 'delivery_st', 'Ship To State', 'ship_to_state'
+        ]);
         const expDeliveryZip = getValue(row, 'deliveryZip', mapping, ['Delivery Zip', 'delivery_zip', 'Destination Zip', 'destination_zip', 'Dest Zip', 'dest_zip']);
         const deliveryCompany = getValue(row, 'deliveryCompany', mapping, ['Delivery Company', 'delivery_company', 'Consignee', 'consignee']);
 
+        // Fallback: extract state from city if city contains comma (e.g., "Dallas, TX")
+        let parsedDeliveryCity = expDeliveryCity;
+        let parsedDeliveryState = expDeliveryState;
+        if (!parsedDeliveryState && parsedDeliveryCity && String(parsedDeliveryCity).includes(',')) {
+            const cityParsed = parseLocationString(String(parsedDeliveryCity));
+            if (cityParsed?.state) { parsedDeliveryState = cityParsed.state; parsedDeliveryCity = cityParsed.city; }
+        }
+
         const delivery = {
-            city: (expDeliveryCity || deliveryParsed?.city || 'Unknown').trim(),
-            state: normalizeState(expDeliveryState || deliveryParsed?.state) || '',
+            city: (parsedDeliveryCity || deliveryParsed?.city || 'Unknown').trim(),
+            state: normalizeState(parsedDeliveryState || deliveryParsed?.state) || '',
             zip: (expDeliveryZip || deliveryParsed?.zip || '00000').trim(),
-            location: deliveryString || (expDeliveryCity ? `${expDeliveryCity}, ${expDeliveryState || ''}` : 'Unknown'),
+            location: deliveryString || (parsedDeliveryCity ? `${parsedDeliveryCity}, ${parsedDeliveryState || ''}` : 'Unknown'),
             company: deliveryCompany ? String(deliveryCompany).trim() : undefined
         };
 
@@ -123,12 +147,13 @@ export class LoadRowMapper {
     /**
      * Parse dates from row
      */
-    static mapDates(row: any, getValue: Function, mapping?: Record<string, string>) {
-        const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date', 'puDate', 'Pu Date', 'pu_date', 'PU Date', 'pickup_time', 'Pickup Time', 'pickup_appointment_time']))
-            || parseImportDate(getValue(row, 'puDate', mapping, []));
-        const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date', 'delDate', 'Del Date', 'del_date', 'Del date', 'delivery_time', 'Delivery Time', 'delivery_appointment_time']))
-            || parseImportDate(getValue(row, 'delDate', mapping, []));
-        const lastUpdate = parseImportDate(getValue(row, 'lastUpdate', mapping, ['Last Update', 'last_update', 'Updated', 'Last Modified', 'last_modified']));
+    static mapDates(row: any, getValue: Function, mapping?: Record<string, string>, dateFormatHint?: string) {
+        const hint = dateFormatHint as Parameters<typeof parseImportDate>[1];
+        const pickupDate = parseImportDate(getValue(row, 'pickupDate', mapping, ['Pickup Date', 'pickup_date', 'PU date', 'puDate', 'Pu Date', 'pu_date', 'PU Date', 'pickup_time', 'Pickup Time', 'pickup_appointment_time']), hint)
+            || parseImportDate(getValue(row, 'puDate', mapping, []), hint);
+        const deliveryDate = parseImportDate(getValue(row, 'deliveryDate', mapping, ['Delivery Date', 'delivery_date', 'DEL date', 'Delivery date', 'delDate', 'Del Date', 'del_date', 'Del date', 'delivery_time', 'Delivery Time', 'delivery_appointment_time']), hint)
+            || parseImportDate(getValue(row, 'delDate', mapping, []), hint);
+        const lastUpdate = parseImportDate(getValue(row, 'lastUpdate', mapping, ['Last Update', 'last_update', 'Updated', 'Last Modified', 'last_modified']), hint);
 
         // Build warnings for date issues
         const dateWarnings: string[] = [];
@@ -179,7 +204,7 @@ export class LoadRowMapper {
     /**
      * Parse additional details (Commodity, Ref#, Notes, Equipment)
      */
-    static mapDetails(row: any, getValue: Function, mapping?: Record<string, string>) {
+    static mapDetails(row: any, getValue: Function, mapping?: Record<string, string>, dateFormatHint?: string) {
         const commodity = getValue(row, 'commodity', mapping, ['Commodity', 'commodity', 'Cargo', 'cargo', 'Item', 'item']);
         const shipmentId = getValue(row, 'shipmentId', mapping, ['Ref', 'Ref#', 'Reference', 'PO', 'PO#', 'BOL', 'bol', 'Shipment ID', 'shipment_id']);
         const tripId = getValue(row, 'tripId', mapping, ['Trip ID', 'trip_id', 'Trip', 'trip', 'Trip #', 'Trip Number']);
@@ -220,7 +245,7 @@ export class LoadRowMapper {
 
         // New Fields
         const urgency = getValue(row, 'urgency', mapping, ['Urgency', 'urgency', 'Priority', 'priority']);
-        const eta = parseImportDate(getValue(row, 'eta', mapping, ['ETA', 'eta', 'Estimated Arrival']));
+        const eta = parseImportDate(getValue(row, 'eta', mapping, ['ETA', 'eta', 'Estimated Arrival']), dateFormatHint as Parameters<typeof parseImportDate>[1]);
         const quickPayFee = parseImportNumber(getValue(row, 'quickPayFee', mapping, ['Quick Pay Fee', 'quick_pay_fee']));
 
         return {

@@ -30,8 +30,9 @@ export class LoadImporter extends BaseImporter {
     }
 
     async importLoads(data: any[], options: any): Promise<ImportResult> {
-        const { previewOnly, updateExisting, columnMapping, importBatchId, treatAsHistorical } = options;
+        const { previewOnly, updateExisting, columnMapping, importBatchId, treatAsHistorical, formatSettings } = options;
         const autoCreate = options.autoCreate ?? { drivers: true, customers: true, trucks: true, trailers: true };
+        const dateFormatHint = formatSettings?.dateFormat;
         const maps = await this.preFetchLookups();
         const entityService = new ImporterEntityService(this.prisma, this.companyId, maps.defaultMcId);
 
@@ -45,8 +46,8 @@ export class LoadImporter extends BaseImporter {
                 // 1. Mapping & Parsing
                 const locations = LoadRowMapper.mapRowLocations(row, this.getValue.bind(this), columnMapping);
                 const financial = LoadRowMapper.mapFinancials(row, this.getValue.bind(this), columnMapping);
-                const dates = LoadRowMapper.mapDates(row, this.getValue.bind(this), columnMapping);
-                const details = LoadRowMapper.mapDetails(row, this.getValue.bind(this), columnMapping);
+                const dates = LoadRowMapper.mapDates(row, this.getValue.bind(this), columnMapping, dateFormatHint);
+                const details = LoadRowMapper.mapDetails(row, this.getValue.bind(this), columnMapping, dateFormatHint);
 
                 // 2. Entity Resolution (JIT)
                 // Customer Resolution: Try explicit Customer column first, then customerId (often contains name), then Pickup Location
@@ -110,7 +111,11 @@ export class LoadImporter extends BaseImporter {
                 }
 
                 // 5. Construct Load Object
-                const dispatcherNameRaw = this.getValue(row, 'dispatcherId', columnMapping, ['Dispatcher', 'dispatcher', 'Dispatch', 'Agent', 'created_by', 'Created By'])?.toLowerCase().trim();
+                const dispatcherNameRaw = this.getValue(row, 'dispatcherId', columnMapping, [
+                    'Dispatcher', 'dispatcher', 'Dispatch', 'Agent', 'created_by', 'Created By',
+                    'Dispatcher Name', 'dispatcher_name', 'Dispatcher Email', 'dispatcher_email',
+                    'Assigned Dispatcher', 'Dispatch Agent'
+                ])?.toLowerCase().trim();
                 let dispatcherId = maps.dispatcherMap.get(dispatcherNameRaw);
 
                 // Fallback: Try partial match on First Name if full name fails
@@ -187,7 +192,23 @@ export class LoadImporter extends BaseImporter {
                 return map;
             })(),
             driverPayMap: new Map(drivers.map(d => [d.id, { payType: d.payType, payRate: Number(d.payRate) }])),
-            dispatcherMap: new Map(users.map(u => [`${u.firstName} ${u.lastName}`.toLowerCase(), u.id])),
+            dispatcherMap: (() => {
+                const map = new Map<string, string>();
+                for (const u of users) {
+                    const fullName = `${u.firstName} ${u.lastName}`.toLowerCase().trim();
+                    if (fullName && fullName !== ' ') map.set(fullName, u.id);
+                    if (u.email) map.set(u.email.toLowerCase().trim(), u.id);
+                    if (u.firstName) {
+                        const fn = u.firstName.toLowerCase().trim();
+                        if (fn && !map.has(fn)) map.set(fn, u.id);
+                    }
+                    if (u.lastName) {
+                        const ln = u.lastName.toLowerCase().trim();
+                        if (ln && !map.has(ln)) map.set(ln, u.id);
+                    }
+                }
+                return map;
+            })(),
             defaultMcId: mcNumbers.find(mc => mc.isDefault)?.id || mcNumbers[0]?.id
         };
     }

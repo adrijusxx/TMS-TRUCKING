@@ -12,8 +12,10 @@ export class DriverImporter extends BaseImporter {
         updateExisting?: boolean;
         columnMapping?: Record<string, string>;
         importBatchId?: string;
+        formatSettings?: { dateFormat?: string };
     }): Promise<ImportResult> {
-        const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId } = options;
+        const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId, formatSettings } = options;
+        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
 
         console.log(`[DriverImporter] Starting import of ${data.length} records. MC: ${currentMcNumber}, Preview: ${previewOnly}`);
 
@@ -194,13 +196,13 @@ export class DriverImporter extends BaseImporter {
 
                 const futureDate = this.getFutureDate(1);
 
-                let licenseExpiry = parseImportDate(this.getValue(row, 'licenseExpiry', columnMapping, ['License Expiry', 'license_expiry']));
+                let licenseExpiry = parseImportDate(this.getValue(row, 'licenseExpiry', columnMapping, ['License Expiry', 'license_expiry']), dateHint);
                 if (!licenseExpiry) {
                     licenseExpiry = futureDate;
                     warnings.push(this.warning(rowNum, 'License Expiry missing, defaulted to +1 Year', 'licenseExpiry'));
                 }
 
-                let medicalCardExpiry = parseImportDate(this.getValue(row, 'medicalCardExpiry', columnMapping, ['Medical Card Expiry', 'medical_card_expiry']));
+                let medicalCardExpiry = parseImportDate(this.getValue(row, 'medicalCardExpiry', columnMapping, ['Medical Card Expiry', 'medical_card_expiry']), dateHint);
                 if (!medicalCardExpiry) {
                     medicalCardExpiry = futureDate;
                     warnings.push(this.warning(rowNum, 'Medical Card Expiry missing, defaulted to +1 Year', 'medicalCardExpiry'));

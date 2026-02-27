@@ -112,7 +112,7 @@ export function InvoicePackageDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-5 pt-4 pb-3 border-b">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base font-semibold">
@@ -121,64 +121,66 @@ export function InvoicePackageDialog({
           </div>
         </DialogHeader>
 
-        {/* Document Options Bar */}
-        <div className="flex items-center gap-6 px-5 py-3 border-b bg-muted/30 flex-shrink-0">
-          <span className="text-sm font-medium text-muted-foreground">Document Options</span>
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="opt-ratecon"
-                checked={options.rateCon}
-                onCheckedChange={() => toggle('rateCon')}
-              />
-              <Label htmlFor="opt-ratecon" className="text-sm cursor-pointer">Rate Confirmation</Label>
+        {/* Document Options & Actions Bar */}
+        <div className="px-5 py-3 border-b bg-muted/30 flex-shrink-0 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-muted-foreground">Include:</span>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="opt-ratecon"
+                  checked={options.rateCon}
+                  onCheckedChange={() => toggle('rateCon')}
+                />
+                <Label htmlFor="opt-ratecon" className="text-sm cursor-pointer whitespace-nowrap">Rate Con</Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="opt-pod"
+                  checked={options.pod}
+                  onCheckedChange={() => toggle('pod')}
+                />
+                <Label htmlFor="opt-pod" className="text-sm cursor-pointer">POD</Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="opt-bol"
+                  checked={options.bol}
+                  onCheckedChange={() => toggle('bol')}
+                />
+                <Label htmlFor="opt-bol" className="text-sm cursor-pointer">BOL</Label>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="opt-pod"
-                checked={options.pod}
-                onCheckedChange={() => toggle('pod')}
-              />
-              <Label htmlFor="opt-pod" className="text-sm cursor-pointer">Proof of Delivery</Label>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" onClick={handleReset}>
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Reset
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(buildPackageUrl(invoiceId, options), '_blank')}
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                Open
+              </Button>
+              <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
+                {isDownloading ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Download
+              </Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="opt-bol"
-                checked={options.bol}
-                onCheckedChange={() => toggle('bol')}
-              />
-              <Label htmlFor="opt-bol" className="text-sm cursor-pointer">Bill of Lading</Label>
-            </div>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleReset}>
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Reset
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open(buildPackageUrl(invoiceId, options), '_blank')}
-            >
-              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-              Open
-            </Button>
-            <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
-              {isDownloading ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              Download
-            </Button>
           </div>
         </div>
 

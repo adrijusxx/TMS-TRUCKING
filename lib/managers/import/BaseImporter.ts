@@ -43,6 +43,10 @@ export abstract class BaseImporter {
             trucks?: boolean;
             trailers?: boolean;
         };
+        formatSettings?: {
+            dispatcherMatchBy?: 'name' | 'email';
+            dateFormat?: 'auto' | 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
+        };
     }): Promise<ImportResult>;
 
     protected error(row: number, error: string, field?: string) {

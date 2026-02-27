@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 import { apiUrl } from '@/lib/utils';
 import type { UseImportWizardReturn } from '@/lib/hooks/useImportWizard';
@@ -174,6 +175,58 @@ export function ImportUploadStep({ wizard }: ImportUploadStepProps) {
                 names in your file match exactly what&apos;s already in the system.
               </AlertDescription>
             </Alert>
+          )}
+        </div>
+      )}
+
+      {/* Import Format Settings (all entity types) */}
+      {wizard.selectedFile && (
+        <div className="space-y-3 pt-2">
+          <Label className="text-xs font-medium">Import Format Settings</Label>
+          <p className="text-xs text-muted-foreground">
+            Configure how your file data should be interpreted to ensure everything maps correctly.
+          </p>
+
+          {/* Date format hint - all entities */}
+          <div className="flex items-center gap-3">
+            <Label className="text-xs text-muted-foreground min-w-[140px]">Date format</Label>
+            <Select
+              value={wizard.formatSettings.dateFormat}
+              onValueChange={(val: 'auto' | 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD') =>
+                wizard.setFormatSettings((prev: typeof wizard.formatSettings) => ({ ...prev, dateFormat: val }))
+              }
+            >
+              <SelectTrigger className="h-8 w-[180px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto-detect (default)</SelectItem>
+                <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Dispatcher match - loads only */}
+          {wizard.entityType === 'loads' && (
+            <div className="flex items-center gap-3">
+              <Label className="text-xs text-muted-foreground min-w-[140px]">Dispatcher match by</Label>
+              <Select
+                value={wizard.formatSettings.dispatcherMatchBy}
+                onValueChange={(val: 'name' | 'email') =>
+                  wizard.setFormatSettings((prev: typeof wizard.formatSettings) => ({ ...prev, dispatcherMatchBy: val }))
+                }
+              >
+                <SelectTrigger className="h-8 w-[180px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">By Name (default)</SelectItem>
+                  <SelectItem value="email">By Email</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
       )}

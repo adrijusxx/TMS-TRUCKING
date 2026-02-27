@@ -216,6 +216,7 @@ export async function POST(
     let currentMcNumber: string | undefined;
     let columnMapping: any = {};
     let autoCreate: any;
+    let formatSettings: any;
 
     const contentType = request.headers.get('content-type') || '';
 
@@ -230,6 +231,7 @@ export async function POST(
       currentMcNumber = body.currentMcNumber || body.mcNumberId;
       columnMapping = body.columnMapping || {};
       autoCreate = body.autoCreate;
+      formatSettings = body.formatSettings;
 
       if (!data || data.length === 0) {
         return NextResponse.json({ success: false, error: { code: 'EMPTY_DATA', message: 'No data provided' } }, { status: 400 });
@@ -346,6 +348,7 @@ export async function POST(
       importBatchId,
       ...(entity === 'loads' && { treatAsHistorical }),
       ...(entity === 'loads' && autoCreate && { autoCreate }),
+      ...(formatSettings && { formatSettings }),
     };
     const result = await importer.import(data, importOptions);
 

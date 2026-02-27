@@ -14,8 +14,10 @@ export class SettlementImporter extends BaseImporter {
         updateExisting?: boolean;
         columnMapping?: Record<string, string>;
         importBatchId?: string;
+        formatSettings?: { dateFormat?: string };
     }): Promise<ImportResult> {
-        const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId } = options;
+        const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId, formatSettings } = options;
+        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
         const records = data;
         const mapping = columnMapping;
         const created: Settlement[] = [];
@@ -91,11 +93,11 @@ export class SettlementImporter extends BaseImporter {
                     || this.getPlaceholder('SETT', rowNum);
                 const periodStartVal = this.getValue(row, 'periodStart', mapping, ['Start Date', 'Period Start', 'From']);
                 const periodEndVal = this.getValue(row, 'periodEnd', mapping, ['End Date', 'Period End', 'To']);
-                const periodStart = parseImportDate(periodStartVal) || new Date();
-                const periodEnd = parseImportDate(periodEndVal) || new Date();
+                const periodStart = parseImportDate(periodStartVal, dateHint) || new Date();
+                const periodEnd = parseImportDate(periodEndVal, dateHint) || new Date();
 
                 const paymentDateVal = this.getValue(row, 'paidDate', mapping, ['Date', 'Payment Date', 'Check Date']);
-                const paidDate = parseImportDate(paymentDateVal);
+                const paidDate = parseImportDate(paymentDateVal, dateHint);
 
                 // --- Financials ---
                 const grossPay = parseImportNumber(this.getValue(row, 'grossPay', mapping, ['Gross', 'Gross Pay', 'Total Pay'])) || 0;

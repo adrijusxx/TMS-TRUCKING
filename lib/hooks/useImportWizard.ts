@@ -38,6 +38,11 @@ export interface PreviewData {
   warnings: any[];
 }
 
+export interface ImportFormatSettings {
+  dispatcherMatchBy: 'name' | 'email';
+  dateFormat: 'auto' | 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
+}
+
 interface UseImportWizardOptions {
   entityType: string;
   onImportComplete?: (data: any[]) => void;
@@ -65,6 +70,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
   const [updateExisting, setUpdateExisting] = useState(false);
   const [treatAsHistorical, setTreatAsHistorical] = useState(true);
   const [autoCreate, setAutoCreate] = useState({ drivers: true, customers: true, trucks: true, trailers: true });
+  const [formatSettings, setFormatSettings] = useState<ImportFormatSettings>({ dispatcherMatchBy: 'name', dateFormat: 'auto' });
 
   // Preview
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -218,6 +224,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
     setImportProgress({ status: 'idle', message: '', progress: 0 });
     setSelectedMcNumberId('');
     setAutoCreate({ drivers: true, customers: true, trucks: true, trailers: true });
+    setFormatSettings({ dispatcherMatchBy: 'name', dateFormat: 'auto' });
     setLogs([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
@@ -253,6 +260,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
           previewOnly: true,
           treatAsHistorical: entityType === 'loads' ? treatAsHistorical : undefined,
           autoCreate: entityType === 'loads' ? autoCreate : undefined,
+          formatSettings,
         }),
       });
       const data = await res.json();
@@ -328,6 +336,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
               importMode: entityType === 'drivers' && updateExisting ? 'upsert' : undefined,
               treatAsHistorical: entityType === 'loads' ? treatAsHistorical : undefined,
               autoCreate: entityType === 'loads' ? autoCreate : undefined,
+              formatSettings,
             }),
           });
           const data = await res.json();
@@ -385,6 +394,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
     updateExisting, setUpdateExisting,
     treatAsHistorical, setTreatAsHistorical,
     autoCreate, setAutoCreate,
+    formatSettings, setFormatSettings,
     previewData, setPreviewData, previewMutation,
     importProgress, importDetails, importMutation,
     logs, logsEndRef,

@@ -74,7 +74,7 @@ export async function GET(
                     },
                     documents: {
                       where: { type: { in: ['POD', 'RATE_CONFIRMATION'] }, deletedAt: null },
-                      select: { fileUrl: true, type: true },
+                      select: { id: true, fileUrl: true, type: true },
                     },
                   },
                 },
@@ -138,7 +138,7 @@ export async function GET(
           },
           documents: {
             where: { type: { in: ['POD', 'RATE_CONFIRMATION'] }, deletedAt: null },
-            select: { fileUrl: true, type: true },
+            select: { id: true, fileUrl: true, type: true },
           },
         },
       });

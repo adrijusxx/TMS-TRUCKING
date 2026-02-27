@@ -14,8 +14,10 @@ export class InvoiceImporter extends BaseImporter {
         updateExisting?: boolean;
         columnMapping?: Record<string, string>;
         importBatchId?: string;
+        formatSettings?: { dateFormat?: string };
     }): Promise<ImportResult> {
-        const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId } = options;
+        const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId, formatSettings } = options;
+        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
         const records = data;
         const mapping = columnMapping;
         const created: Invoice[] = [];
@@ -69,10 +71,10 @@ export class InvoiceImporter extends BaseImporter {
                     || this.getPlaceholder('INV', rowNum);
 
                 const invoiceDateVal = this.getValue(row, 'invoiceDate', mapping, ['Date', 'Invoice Date', 'Bill Date']);
-                const invoiceDate = parseImportDate(invoiceDateVal) || new Date();
+                const invoiceDate = parseImportDate(invoiceDateVal, dateHint) || new Date();
 
                 const dueDateVal = this.getValue(row, 'dueDate', mapping, ['Due Date', 'Due']);
-                const dueDate = parseImportDate(dueDateVal) || new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000); // Default Net 30
+                const dueDate = parseImportDate(dueDateVal, dateHint) || new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000); // Default Net 30
 
                 // --- Financials ---
                 const totalAmount = parseImportNumber(this.getValue(row, 'totalAmount', mapping, ['Amount', 'Total', 'Total Amount'])) || 0;

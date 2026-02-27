@@ -38,10 +38,12 @@ export class LeadImporter extends BaseImporter {
         updateExisting?: boolean;
         columnMapping?: Record<string, string>;
         importBatchId?: string;
+        formatSettings?: { dateFormat?: string };
     }): Promise<ImportResult> {
         const errors: ImportResult['errors'] = [];
         const warnings: ImportResult['warnings'] = [];
         const mapping = options.columnMapping;
+        const dateHint = options.formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
 
         // Pre-fetch existing leads for dedup (phone + email)
         const existingLeads = await this.prisma.lead.findMany({
@@ -109,7 +111,7 @@ export class LeadImporter extends BaseImporter {
                         (email && l.email?.toLowerCase() === email)
                     );
                     if (existing) {
-                        const updateData = this.buildLeadData(row, mapping, rowNum, warnings);
+                        const updateData = this.buildLeadData(row, mapping, rowNum, warnings, dateHint);
                         toUpdate.push({ id: existing.id, data: updateData });
                         continue;
                     }
@@ -119,7 +121,7 @@ export class LeadImporter extends BaseImporter {
                 continue;
             }
 
-            const leadData = this.buildLeadData(row, mapping, rowNum, warnings);
+            const leadData = this.buildLeadData(row, mapping, rowNum, warnings, dateHint);
             const leadNumber = `CRM-${String(nextNum++).padStart(3, '0')}`;
 
             toCreate.push({
@@ -192,7 +194,7 @@ export class LeadImporter extends BaseImporter {
         );
     }
 
-    private buildLeadData(row: any, mapping: Record<string, string> | undefined, rowNum: number, warnings: ImportResult['warnings']): Record<string, any> {
+    private buildLeadData(row: any, mapping: Record<string, string> | undefined, rowNum: number, warnings: ImportResult['warnings'], dateHint?: Parameters<typeof parseImportDate>[1]): Record<string, any> {
         const data: Record<string, any> = {};
 
         // Address fields
@@ -217,7 +219,7 @@ export class LeadImporter extends BaseImporter {
             data.cdlClass = normalized || cdlClassRaw.trim().toUpperCase();
         }
         if (cdlExpRaw) {
-            const parsed = parseImportDate(cdlExpRaw);
+            const parsed = parseImportDate(cdlExpRaw, dateHint);
             if (parsed) data.cdlExpiration = parsed;
             else warnings.push(this.warning(rowNum, `Invalid CDL expiration date: ${cdlExpRaw}`, 'cdlExpiration'));
         }
@@ -243,7 +245,7 @@ export class LeadImporter extends BaseImporter {
         // DOB
         const dobRaw = this.val(row, 'dateOfBirth', mapping, ['Date of Birth', 'date_of_birth', 'DOB', 'dob', 'Birthday']);
         if (dobRaw) {
-            const parsed = parseImportDate(dobRaw);
+            const parsed = parseImportDate(dobRaw, dateHint);
             if (parsed) data.dateOfBirth = parsed;
         }
 

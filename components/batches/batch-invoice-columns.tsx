@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import { CheckCircle2, XCircle, FileText } from 'lucide-react';
 import type { ExtendedColumnDef } from '@/components/data-table/types';
 import { EntityLink } from '@/components/common/EntityLink';
@@ -82,7 +82,9 @@ export function flattenBatchItems(
       rateConfirmationUrl: (load?.rateConfirmation || load?.documents?.find((d: any) => d.type === 'RATE_CONFIRMATION')) && load?.id
         ? `/api/loads/${load.id}/ratecon`
         : '',
-      podUrl: load?.documents?.find((d: any) => d.type === 'POD')?.fileUrl || '',
+      podUrl: load?.documents?.find((d: any) => d.type === 'POD') && load?.id
+        ? `/api/loads/${load.id}/pod`
+        : '',
     };
   });
 }
@@ -302,7 +304,7 @@ export function createBatchInvoiceColumns(opts: ColumnOptions): ExtendedColumnDe
       cell: ({ row }) =>
         row.original.podUrl ? (
           <a
-            href={row.original.podUrl}
+            href={apiUrl(row.original.podUrl)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline font-medium"
@@ -323,7 +325,7 @@ export function createBatchInvoiceColumns(opts: ColumnOptions): ExtendedColumnDe
       cell: ({ row }) =>
         row.original.rateConfirmationUrl ? (
           <a
-            href={row.original.rateConfirmationUrl}
+            href={apiUrl(row.original.rateConfirmationUrl)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline font-medium"
