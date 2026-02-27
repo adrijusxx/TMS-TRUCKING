@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find existing invoices for already-invoiced loads
+    // Split any multi-load invoices into 1:1 invoices
     const existingInvoiceIds: string[] = [];
     if (loadsAlreadyInvoiced.length > 0) {
       const loadIds = loadsAlreadyInvoiced.map((l) => l.id);
@@ -113,9 +114,45 @@ export async function POST(request: NextRequest) {
           ],
           customer: { companyId: session.user.companyId },
         },
-        select: { id: true },
+        select: {
+          id: true, loadIds: true, loadId: true, companyId: true,
+          customerId: true, mcNumber: true, mcNumberId: true,
+          status: true, dueDate: true,
+        },
       });
-      existingInvoiceIds.push(...existingInvoices.map((inv) => inv.id));
+
+      const invoiceManager = new InvoiceManager();
+
+      for (const inv of existingInvoices) {
+        const invLoadIds = (inv.loadIds as string[]) || [];
+        if (invLoadIds.length <= 1) {
+          // Already 1:1, use as-is
+          existingInvoiceIds.push(inv.id);
+        } else {
+          // Multi-load invoice: split into 1:1 invoices
+          // Delete old multi-load invoice first
+          await prisma.invoiceBatchItem.deleteMany({ where: { invoiceId: inv.id } });
+          await prisma.invoice.delete({ where: { id: inv.id } });
+
+          // Re-generate 1:1 invoices for each load in the old invoice
+          for (const lid of invLoadIds) {
+            // Reset load status so generateInvoice can set it
+            await prisma.load.update({
+              where: { id: lid },
+              data: { status: 'DELIVERED' },
+            });
+
+            const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+            const result = await invoiceManager.generateInvoice(
+              [lid],
+              { invoiceNumber, dueDate: inv.dueDate }
+            );
+            if (result.success && result.invoice) {
+              existingInvoiceIds.push(result.invoice.id);
+            }
+          }
+        }
+      }
     }
 
     // Combine all invoice IDs

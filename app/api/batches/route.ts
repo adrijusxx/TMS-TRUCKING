@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { generateBatchNumber } from '@/lib/utils/batch-numbering';
+import { InvoiceManager } from '@/lib/managers/InvoiceManager';
 import { z } from 'zod';
 
 const createBatchSchema = z.object({
@@ -155,34 +156,76 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Split any multi-load invoices into 1:1 invoices
+    const finalInvoiceIds: string[] = [];
+    const invoiceManager = new InvoiceManager();
+
+    for (const inv of invoices) {
+      const invLoadIds = (inv.loadIds as string[]) || [];
+      if (invLoadIds.length <= 1) {
+        // Already 1:1, keep as-is
+        finalInvoiceIds.push(inv.id);
+      } else {
+        // Multi-load invoice: split into 1:1 invoices
+        await prisma.invoiceBatchItem.deleteMany({ where: { invoiceId: inv.id } });
+        await prisma.invoice.delete({ where: { id: inv.id } });
+
+        for (const lid of invLoadIds) {
+          await prisma.load.update({
+            where: { id: lid },
+            data: { status: 'DELIVERED' },
+          });
+          const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+          const result = await invoiceManager.generateInvoice(
+            [lid],
+            { invoiceNumber, dueDate: inv.dueDate }
+          );
+          if (result.success && result.invoice) {
+            finalInvoiceIds.push(result.invoice.id);
+          }
+        }
+      }
+    }
+
     // Check if invoices are already in a batch
     const existingBatchItems = await prisma.invoiceBatchItem.findMany({
       where: {
-        invoiceId: { in: validated.invoiceIds },
+        invoiceId: { in: finalInvoiceIds },
       },
     });
 
     if (existingBatchItems.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'INVOICES_IN_BATCH',
-            message: 'Some invoices are already in a batch',
+      const alreadyBatched = new Set(existingBatchItems.map((i) => i.invoiceId));
+      const unbatchedIds = finalInvoiceIds.filter((id) => !alreadyBatched.has(id));
+      if (unbatchedIds.length === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'INVOICES_IN_BATCH',
+              message: 'All invoices are already in a batch',
+            },
           },
-        },
-        { status: 400 }
-      );
+          { status: 400 }
+        );
+      }
+      // Use only unbatched invoices
+      finalInvoiceIds.length = 0;
+      finalInvoiceIds.push(...unbatchedIds);
     }
 
     // Generate batch number if not provided
     const batchNumber = validated.batchNumber || (await generateBatchNumber(session.user.companyId));
 
-    // Calculate total amount
-    const totalAmount = invoices.reduce((sum, inv) => sum + inv.total, 0);
+    // Calculate total from final invoices
+    const finalInvoices = await prisma.invoice.findMany({
+      where: { id: { in: finalInvoiceIds } },
+      select: { total: true, mcNumber: true },
+    });
+    const totalAmount = finalInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
 
     // Get MC number from first invoice or use provided
-    const mcNumber = validated.mcNumber || invoices[0]?.mcNumber || null;
+    const mcNumber = validated.mcNumber || finalInvoices[0]?.mcNumber || null;
 
     // Create batch with items
     const batch = await prisma.invoiceBatch.create({
@@ -194,7 +237,7 @@ export async function POST(request: NextRequest) {
         totalAmount,
         notes: validated.notes,
         items: {
-          create: validated.invoiceIds.map((invoiceId) => ({
+          create: finalInvoiceIds.map((invoiceId) => ({
             invoiceId,
           })),
         },
