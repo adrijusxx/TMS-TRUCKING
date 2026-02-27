@@ -53,17 +53,10 @@ if (!globalForPrisma.keepAliveTimer) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown';
       console.warn('[Prisma] Keep-alive failed:', msg);
-
-      // Flush entire zombie pool and re-establish fresh connections
-      try {
-        console.log('[Prisma] Reconnecting — flushing stale pool...');
-        await prisma.$disconnect();
-        await prisma.$connect();
-        console.log('[Prisma] Reconnect successful');
-      } catch (reconnectErr) {
-        const rmsg = reconnectErr instanceof Error ? reconnectErr.message : 'Unknown';
-        console.error('[Prisma] Reconnect failed:', rmsg);
-      }
+      // Do NOT call $disconnect()/$connect() here — it kills ALL active connections
+      // and causes a full pool flush, freezing every in-flight request.
+      // With socket_timeout=3 in DATABASE_URL, Prisma's internal pool automatically
+      // evicts dead connections and creates fresh ones on the next query.
     }
   }, HEARTBEAT_MS);
 
