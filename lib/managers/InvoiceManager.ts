@@ -80,7 +80,7 @@ export class InvoiceManager {
         const tax = (load.customer as any).isTaxExempt ? 0 : (subtotal * ((load.customer as any).taxRate || 0) / 100);
         const total = subtotal + tax;
 
-        const invoiceNumber = loads.length > 1 && options?.invoiceNumber
+        const invoiceNumber: string = loads.length > 1 && options?.invoiceNumber
           ? `${options.invoiceNumber}-${invoices.length + 1}`
           : (options?.invoiceNumber || `INV-${Date.now().toString().slice(-8)}`);
 
