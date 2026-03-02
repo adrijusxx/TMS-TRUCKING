@@ -1,42 +1,32 @@
 'use client';
 
 import * as React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { DataTable } from './DataTable';
 import { ColumnVisibilityManager } from './ColumnVisibilityManager';
 import { TableToolbar } from './TableToolbar';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
-import { ColumnPreferenceManager } from '@/lib/managers/ColumnPreferenceManager';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ChevronDown } from 'lucide-react';
-import { cn, apiUrl } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { ImportModal } from '@/components/ui/import-modal';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { ShowDeletedToggle } from '@/components/common/ShowDeletedToggle';
-import { exportToCSV } from '@/lib/export';
-
-// Stable reference to avoid infinite React Query refetch loops when no queryParams are passed
-const EMPTY_QUERY_PARAMS = {};
+import { useColumnPreferences } from './hooks/useColumnPreferences';
+import { useTableData } from './hooks/useTableData';
 
 import type {
-  DataTableProps,
   ExtendedColumnDef,
   EntityTableConfig,
-  UserColumnPreferences,
 } from './types';
-import type { RowSelectionState, SortingState, ColumnFiltersState, VisibilityState } from '@tanstack/react-table';
-import { mergePreferences, preferencesToVisibilityState, visibilityStateToPreferences, preferencesToColumnOrder, columnOrderToPreferences } from '@/lib/utils/column-preferences';
+import type { RowSelectionState, SortingState, ColumnFiltersState } from '@tanstack/react-table';
+
+// Stable reference to avoid infinite React Query refetch loops
+const EMPTY_QUERY_PARAMS = {};
 
 interface DataTableWrapperProps<TData extends Record<string, any>> {
-  /**
-   * Entity table configuration
-   */
   config: EntityTableConfig<TData>;
-  /**
-   * Data fetching function
-   */
   fetchData: (params: {
     page?: number;
     pageSize?: number;
@@ -52,91 +42,34 @@ interface DataTableWrapperProps<TData extends Record<string, any>> {
       pageSize?: number;
     };
   }>;
-  /**
-   * Additional query parameters for data fetching
-   */
   queryParams?: Record<string, any>;
-  /**
-   * Custom row actions
-   */
   rowActions?: (row: TData) => React.ReactNode;
-  /**
-   * On row click handler
-   */
   onRowClick?: (row: TData) => void;
-  /**
-   * Empty state message
-   */
   emptyMessage?: string;
-  /**
-   * Enable column visibility (default: true)
-   */
   enableColumnVisibility?: boolean;
-  /**
-   * Enable row selection (default: true)
-   */
   enableRowSelection?: boolean;
-  /**
-   * Initial sorting state
-   */
   initialSorting?: SortingState;
-  /**
-   * Initial filters
-   */
   initialFilters?: ColumnFiltersState;
-  /**
-   * On row selection change callback
-   */
   onRowSelectionChange?: (selection: RowSelectionState) => void;
-  /**
-   * Enable search toolbar (default: true)
-   */
   enableSearch?: boolean;
-  /**
-   * Search placeholder text
-   */
   searchPlaceholder?: string;
-  /**
-   * Inline edit component for expandable row editing
-   */
   inlineEditComponent?: React.ComponentType<{
     row: TData;
     onSave: () => void;
     onCancel: () => void;
   }>;
-  /**
-   * Function to get custom className for a row
-   */
   getRowClassName?: (row: TData) => string;
-  /**
-   * Handler for bulk delete action
-   */
   onDeleteSelected?: (selectedIds: string[]) => void;
-  /**
-   * Handler for bulk export action
-   */
   onExportSelected?: (selectedIds: string[]) => void;
-  /**
-   * Enable inline filter row below headers
-   */
   enableInlineFilters?: boolean;
-  /**
-   * Enable draggable column reordering
-   */
   enableColumnReorder?: boolean;
-  /**
-   * Custom actions to be rendered in the toolbar
-   */
   toolbarActions?: React.ReactNode;
-  /**
-   * Callback when column filters change (exposes filter state to parent)
-   */
   onFiltersChange?: (filters: ColumnFiltersState) => void;
 }
 
 /**
- * DataTableWrapper component
- * Combines DataTable with data fetching, column visibility, and state management
+ * DataTableWrapper component.
+ * Combines DataTable with data fetching, column visibility, and state management.
  */
 export function DataTableWrapper<TData extends Record<string, any>>({
   config,
@@ -161,166 +94,44 @@ export function DataTableWrapper<TData extends Record<string, any>>({
   toolbarActions,
   onFiltersChange,
 }: DataTableWrapperProps<TData>) {
-
   const { can, isLoading: permissionsLoading } = usePermissions();
   const isAdmin = useIsAdmin();
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  // Get includeDeleted from URL params (admins only)
   const includeDeleted = searchParams.get('includeDeleted') === 'true';
+
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting || config.defaultSort || []);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(initialFilters || []);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: config.defaultPageSize || 20,
   });
-  const [userPreferences, setUserPreferences] = React.useState<UserColumnPreferences | null>(null);
-  const [isSelectingAll, setIsSelectingAll] = React.useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
-  const [columnOrder, setColumnOrder] = React.useState<string[]>([]);
   const [isCompact, setIsCompact] = React.useState(false);
 
   // Filter columns based on permissions
-  // Use permissionsLoading as stable dep instead of `can` (which is a new reference every render)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const visibleColumns = React.useMemo(() => {
     return config.columns.filter((column) => {
-      // Check column permission
-      if (column.permission && !can(column.permission as any)) {
-        return false;
-      }
+      if (column.permission && !can(column.permission as any)) return false;
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.columns, permissionsLoading]);
 
-  // Build default visibility state from column definitions
-  const defaultVisibility = React.useMemo(() => {
-    const visibility: VisibilityState = {};
-    const defaultVisibleColumns = config.defaultVisibleColumns || [];
-
-    visibleColumns.forEach((column) => {
-      const columnId = column.id || (typeof column.accessorKey === 'string' ? column.accessorKey : '');
-      // If column is in defaultVisibleColumns, it's visible
-      // Otherwise, check defaultVisible property
-      if (defaultVisibleColumns.length > 0) {
-        visibility[columnId] = Array.isArray(defaultVisibleColumns) && defaultVisibleColumns.includes(columnId);
-      } else {
-        visibility[columnId] = column.defaultVisible ?? true;
-      }
-    });
-
-    return visibility;
-  }, [visibleColumns, config.defaultVisibleColumns]);
-
-  // Load user column preferences
-  // Use a ref to track the last entity type we loaded preferences for
-  const lastEntityTypeRef = React.useRef<string | null>(null);
-  const defaultVisibilityStringRef = React.useRef<string>('');
-
-  // Serialize defaultVisibility to string for comparison
-  const defaultVisibilityString = React.useMemo(
-    () => JSON.stringify(defaultVisibility),
-    [defaultVisibility]
-  );
-
-  React.useEffect(() => {
-    // Skip if defaultVisibility hasn't actually changed (by value, not reference)
-    if (defaultVisibilityString === defaultVisibilityStringRef.current && lastEntityTypeRef.current === config.entityType) {
-      return;
-    }
-
-    defaultVisibilityStringRef.current = defaultVisibilityString;
-
-    if (!enableColumnVisibility) {
-      // Only set if it's different from current state
-      setColumnVisibility((prev) => {
-        const defaultKeys = Object.keys(defaultVisibility);
-        const prevKeys = Object.keys(prev);
-
-        // Check if they're different
-        if (defaultKeys.length !== prevKeys.length) {
-          return defaultVisibility;
-        }
-
-        for (const key of defaultKeys) {
-          if (prev[key] !== defaultVisibility[key]) {
-            return defaultVisibility;
-          }
-        }
-
-        return prev; // No change needed
-      });
-      return;
-    }
-
-    // Only load preferences when entityType changes or on first mount
-    if (lastEntityTypeRef.current === config.entityType && lastEntityTypeRef.current !== null) {
-      return;
-    }
-
-    lastEntityTypeRef.current = config.entityType;
-
-    const loadPreferences = async () => {
-      try {
-        const response = await fetch(
-          apiUrl(`/api/user-preferences/column-visibility?entityType=${config.entityType}`)
-        );
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            const preferences = result.data as UserColumnPreferences;
-            setUserPreferences(preferences);
-
-            // Merge user preferences with defaults
-            const defaultPrefs: UserColumnPreferences = {};
-            Object.keys(defaultVisibility).forEach((key) => {
-              defaultPrefs[key] = {
-                visible: defaultVisibility[key] ?? true,
-              };
-            });
-            const merged = mergePreferences(
-              defaultPrefs,
-              preferences
-            );
-            const visibility = preferencesToVisibilityState(merged);
-            setColumnVisibility(visibility);
-
-            const order = preferencesToColumnOrder(merged);
-            if (order.length > 0) {
-              setColumnOrder(order);
-            }
-          } else {
-            setColumnVisibility(defaultVisibility);
-          }
-        } else {
-          setColumnVisibility(defaultVisibility);
-        }
-      } catch (error) {
-        console.error('Error loading column preferences:', error);
-        setColumnVisibility(defaultVisibility);
-      }
-    };
-
-    loadPreferences();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.entityType, enableColumnVisibility, defaultVisibilityString]); // Use stringified version for comparison
-
-  // Initialize column order from visible columns if not yet set (e.g. no saved preferences)
-  React.useEffect(() => {
-    if (enableColumnReorder && columnOrder.length === 0 && visibleColumns.length > 0) {
-      const ids = visibleColumns.map(
-        (col) => col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : '')
-      ).filter(Boolean);
-      if (ids.length > 0) {
-        setColumnOrder(ids);
-      }
-    }
-  }, [enableColumnReorder, columnOrder.length, visibleColumns]);
+  // Column preferences (visibility + order)
+  const {
+    columnVisibility,
+    columnOrder,
+    defaultVisibility,
+    handleColumnVisibilityChange,
+    handleColumnOrderChange,
+  } = useColumnPreferences({
+    entityType: config.entityType,
+    columns: visibleColumns,
+    defaultVisibleColumns: config.defaultVisibleColumns,
+    enableColumnVisibility,
+    enableColumnReorder,
+  });
 
   // Apply column visibility to columns
   const filteredColumns = React.useMemo(() => {
@@ -329,6 +140,44 @@ export function DataTableWrapper<TData extends Record<string, any>>({
       return columnVisibility[columnId] !== false;
     });
   }, [visibleColumns, columnVisibility]);
+
+  // Data fetching, search, select-all, export
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    searchFilter,
+    isSelectingAll,
+    handleSearchChange,
+    handleSelectAll,
+    handleExport,
+  } = useTableData({
+    entityType: config.entityType,
+    fetchData,
+    queryParams,
+    pagination,
+    sorting,
+    columnFilters,
+    isAdmin,
+    includeDeleted,
+    enableRowSelection,
+    filteredColumns,
+    columnVisibility,
+  });
+
+  // Use ref to avoid dependency issues
+  const onRowSelectionChangeRef = React.useRef(onRowSelectionChange);
+  React.useEffect(() => { onRowSelectionChangeRef.current = onRowSelectionChange; }, [onRowSelectionChange]);
+
+  const handleRowSelectionChange = React.useCallback((selection: RowSelectionState) => {
+    setRowSelection(selection);
+    onRowSelectionChangeRef.current?.(selection);
+  }, []);
+
+  const selectedRowIds = React.useMemo(() => {
+    return Object.keys(rowSelection).filter((key) => rowSelection[key]);
+  }, [rowSelection]);
 
   // Reset to page 1 when filters change
   React.useEffect(() => {
@@ -340,272 +189,25 @@ export function DataTableWrapper<TData extends Record<string, any>>({
     onFiltersChange?.(columnFilters);
   }, [columnFilters, onFiltersChange]);
 
-  // Extract search from column filters
-  const searchFilter = React.useMemo(() => {
-    const searchFilterItem = columnFilters.find((f) => f.id === 'search');
-    return searchFilterItem?.value ? String(searchFilterItem.value) : '';
-  }, [columnFilters]);
-
-  // Non-search filters (for column-specific filtering)
-  const nonSearchFilters = React.useMemo(() => {
-    return columnFilters.filter((f) => f.id !== 'search');
-  }, [columnFilters]);
-
-  // Data fetching
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: [
-      config.entityType,
-      pagination.pageIndex,
-      pagination.pageSize,
-      sorting,
-      columnFilters,
-      includeDeleted, // Include in cache key
-      queryParams,
-    ],
-    queryFn: async () => {
-      return fetchData({
-        page: pagination.pageIndex + 1,
-        pageSize: pagination.pageSize,
-        sorting,
-        filters: nonSearchFilters,
-        search: searchFilter || undefined,
-        ...queryParams,
-        ...(isAdmin && includeDeleted && { includeDeleted: 'true' }),
-      });
-    },
-  });
-
-  // Use ref to avoid dependency issues and prevent infinite loops
-  const onRowSelectionChangeRef = React.useRef(onRowSelectionChange);
-  React.useEffect(() => {
-    onRowSelectionChangeRef.current = onRowSelectionChange;
-  }, [onRowSelectionChange]);
-
-  const handleRowSelectionChange = React.useCallback((selection: RowSelectionState) => {
-    console.log('DataTableWrapper handleRowSelectionChange:', { selection, keys: Object.keys(selection), selectedCount: Object.keys(selection).filter(k => selection[k]).length });
-    setRowSelection(selection);
-    onRowSelectionChangeRef.current?.(selection);
-  }, []); // No dependencies - use refs instead
-
-  const handleColumnVisibilityChange = (visibility: VisibilityState) => {
-    setColumnVisibility(visibility);
-
-    // Save to server
-    if (config.entityType) {
-      try {
-        const currentPrefs = visibilityStateToPreferences(visibility, userPreferences || {});
-
-        const mergedToSave = {
-          ...currentPrefs,
-        };
-
-        // Optimistic update
-        setUserPreferences(mergedToSave);
-
-        fetch(apiUrl('/api/user-preferences/column-visibility'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entityType: config.entityType,
-            preferences: mergedToSave,
-          }),
-        }).catch(console.error);
-      } catch (err) {
-        console.error('Error saving column visibility:', err);
-      }
-    }
-  };
-
-  const handleColumnOrderChange = (newOrder: string[]) => {
-    setColumnOrder(newOrder);
-
-    // Save to server
-    if (config.entityType) {
-      try {
-        const currentPrefs = visibilityStateToPreferences(columnVisibility, userPreferences || {});
-        const newPrefs = columnOrderToPreferences(newOrder, userPreferences || {});
-
-        const mergedToSave = {
-          ...currentPrefs, // contains visibility
-          ...newPrefs,     // contains new orders
-        };
-
-        // Optimistic update
-        setUserPreferences(mergedToSave);
-
-        fetch(apiUrl('/api/user-preferences/column-visibility'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entityType: config.entityType,
-            preferences: mergedToSave,
-          }),
-        }).catch(console.error);
-      } catch (err) {
-        console.error('Error saving column order:', err);
-      }
-    }
-  };
-
-  const selectedRowIds = React.useMemo(() => {
-    return Object.keys(rowSelection).filter((key) => rowSelection[key]);
-  }, [rowSelection]);
-
-  // Expose search state (derived from columnFilters)
-  const searchValue = searchFilter;
-
-  // Handle search change - add/update search filter
-  const handleSearchChange = React.useCallback((value: string) => {
+  // Search change handler wraps setColumnFilters
+  const onSearchChange = React.useCallback((value: string) => {
     setColumnFilters((prev) => {
       const withoutSearch = prev.filter((f) => f.id !== 'search');
-      if (value) {
-        return [...withoutSearch, { id: 'search', value }];
-      }
+      if (value) return [...withoutSearch, { id: 'search', value }];
       return withoutSearch;
     });
   }, []);
 
-  // Handle select all - fetch all IDs matching current filters
-  const handleSelectAll = React.useCallback(async () => {
-    if (!enableRowSelection) return;
-
-    setIsSelectingAll(true);
-    try {
-      // Fetch all IDs by paginating through all pages
-      const allIds: string[] = [];
-      let page = 1;
-      const pageSize = 100; // Use larger page size for efficiency
-      let hasMore = true;
-
-      while (hasMore && page <= 100) {
-        const result = await fetchData({
-          page,
-          pageSize,
-          sorting,
-          filters: nonSearchFilters,
-          search: searchFilter || undefined,
-          ...queryParams,
-        });
-
-        const pageIds = (result.data || []).map((row: TData) => row.id).filter(Boolean);
-        if (pageIds.length === 0) break;
-        allIds.push(...pageIds);
-
-        // Check if there are more pages
-        if (result.meta) {
-          if (result.meta.totalPages !== undefined && (page >= result.meta.totalPages || pageIds.length < pageSize)) {
-            hasMore = false;
-          } else {
-            page++;
-          }
-        } else {
-          // No pagination info, stop if we got fewer results than page size
-          if (pageIds.length < pageSize) {
-            hasMore = false;
-          } else {
-            page++;
-          }
-        }
-      }
-
-      // Select all fetched IDs
-      const newSelection: RowSelectionState = {};
-      allIds.forEach((id) => {
-        newSelection[id] = true;
-      });
-
-      setRowSelection(newSelection);
-      handleRowSelectionChange(newSelection);
-
-      if (allIds.length > 0) {
-        toast.success(`Selected all ${allIds.length} record(s) matching current filters`);
-      } else {
-        toast.warning('No records found matching current filters');
-      }
-    } catch (error: any) {
-      console.error('Error selecting all:', error);
-      toast.error(error.message || 'Failed to select all records');
-    } finally {
-      setIsSelectingAll(false);
-    }
-  }, [enableRowSelection, fetchData, sorting, nonSearchFilters, searchFilter, queryParams, handleRowSelectionChange]);
-
-  // Export handler - exports current filtered data
-  const handleExport = React.useCallback(() => {
-    const currentData = data?.data || [];
-    if (currentData.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-
-    // Get visible columns (those that are not hidden)
-    const visibleCols = filteredColumns.filter(
-      (col) => columnVisibility[col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : '')] !== false
-    );
-
-    // Extract headers and accessor keys
-    const headers: string[] = [];
-    const accessorKeys: string[] = [];
-
-    visibleCols.forEach((col) => {
-      const header = typeof col.header === 'string'
-        ? col.header
-        : (col.header as any)?.toString?.() || col.id || String(col.accessorKey || '');
-      const accessorKey = typeof col.accessorKey === 'string'
-        ? col.accessorKey
-        : col.id || '';
-
-      headers.push(header);
-      accessorKeys.push(accessorKey);
-    });
-
-    // Prepare data for export - use headers as keys
-    const exportData = currentData.map((row) => {
-      const exportRow: Record<string, any> = {};
-      headers.forEach((header, index) => {
-        const accessorKey = accessorKeys[index];
-        // Get value using accessorKey, or try column id
-        let value: any = '';
-        if (accessorKey) {
-          // Handle nested accessors (e.g., 'user.firstName')
-          if (accessorKey.includes('.')) {
-            const keys = accessorKey.split('.');
-            value = keys.reduce((obj: any, key) => obj?.[key], row) ?? '';
-          } else {
-            value = row[accessorKey] ?? '';
-          }
-        }
-        exportRow[header] = value;
-      });
-      return exportRow;
-    });
-
-    // Generate filename
-    const filename = `${config.entityType}-export-${new Date().toISOString().split('T')[0]}.csv`;
-
-    // Export to CSV
-    exportToCSV(exportData, headers, filename);
-    toast.success(`Exported ${exportData.length} row(s) to ${filename}`);
-  }, [data, filteredColumns, columnVisibility, config.entityType]);
-
-  // Import handler - opens import modal
-  const handleImport = React.useCallback(() => {
-    setIsImportModalOpen(true);
-  }, []);
-
-  // Handle import completion
+  // Import handlers
+  const handleImport = React.useCallback(() => setIsImportModalOpen(true), []);
   const handleImportComplete = React.useCallback(
-    (mappedData: Array<Record<string, any>>, columnMapping: Record<string, string>) => {
-      // This will be connected to backend later
-      console.log('Import data:', mappedData);
-      console.log('Column mapping:', columnMapping);
+    (_mappedData: Array<Record<string, any>>, _columnMapping: Record<string, string>) => {
       toast.info('Import functionality will be connected to backend logic later');
-      refetch(); // Refresh data after import
+      refetch();
     },
     [refetch]
   );
 
-  // Get database fields from columns for import mapping
   const databaseFields = React.useMemo(() => {
     return visibleColumns.map((col) => ({
       key: col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : ''),
@@ -621,14 +223,14 @@ export function DataTableWrapper<TData extends Record<string, any>>({
       {/* Search and Filter Toolbar */}
       {enableSearch && (
         <TableToolbar
-          searchValue={searchValue}
-          onSearchChange={handleSearchChange}
-          columnFilters={nonSearchFilters}
+          searchValue={searchFilter}
+          onSearchChange={onSearchChange}
+          columnFilters={columnFilters.filter((f) => f.id !== 'search')}
           onColumnFiltersChange={setColumnFilters}
           filterDefinitions={config.filterDefinitions}
           entityType={config.entityType}
           searchPlaceholder={searchPlaceholder}
-          onSelectAll={enableRowSelection ? handleSelectAll : undefined}
+          onSelectAll={enableRowSelection ? () => handleSelectAll(setRowSelection, onRowSelectionChangeRef.current) : undefined}
           isSelectingAll={isSelectingAll}
           totalCount={data?.meta?.totalCount}
           enableExport={config.enableExport !== false}
@@ -665,9 +267,7 @@ export function DataTableWrapper<TData extends Record<string, any>>({
               defaultVisibility={defaultVisibility}
             />
           )}
-          {isAdmin && (
-            <ShowDeletedToggle className="ml-2" />
-          )}
+          {isAdmin && <ShowDeletedToggle className="ml-2" />}
         </div>
         {selectedRowIds.length > 0 && (
           <div className="text-sm text-muted-foreground">
@@ -707,15 +307,10 @@ export function DataTableWrapper<TData extends Record<string, any>>({
         onRowClick={onRowClick}
         emptyMessage={emptyMessage || 'No data available'}
         inlineEditComponent={inlineEditComponent}
-        onInlineEditSave={() => {
-          refetch();
-        }}
+        onInlineEditSave={() => refetch()}
         getRowClassName={getRowClassName}
         entityType={config.entityType}
-        onColumnFilterChange={() => {
-          // Trigger refetch when column filter changes
-          refetch();
-        }}
+        onColumnFilterChange={() => refetch()}
         onDeleteSelected={onDeleteSelected}
         onExportSelected={onExportSelected}
         enableInlineFilters={enableInlineFilters}

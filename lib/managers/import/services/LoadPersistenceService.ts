@@ -30,7 +30,7 @@ export class LoadPersistenceService {
         }
         const finalLoads = Array.from(uniqueLoads.values());
 
-        // 2. Fetch existing loads for update/skip logic
+        // 2. Fetch existing active loads for update/skip logic
         const loadNumbers = finalLoads.map(l => String(l.data.loadNumber).trim());
         const existingLoads = await this.prisma.load.findMany({
             where: { loadNumber: { in: loadNumbers }, companyId: this.companyId, deletedAt: null },
@@ -38,16 +38,27 @@ export class LoadPersistenceService {
         });
         const existingMap = new Map(existingLoads.map(l => [l.loadNumber.trim().toLowerCase(), l]));
 
+        // 2b. Fetch soft-deleted loads so we can restore them instead of hitting unique constraint
+        const softDeletedLoads = await this.prisma.load.findMany({
+            where: { loadNumber: { in: loadNumbers }, companyId: this.companyId, deletedAt: { not: null } },
+            select: { id: true, loadNumber: true }
+        });
+        const softDeletedMap = new Map(softDeletedLoads.map(l => [l.loadNumber.trim().toLowerCase(), l]));
+
         const toCreate: any[] = [];
         const toUpdate: any[] = [];
 
         for (const load of finalLoads) {
             const normalizedNum = String(load.data.loadNumber).trim().toLowerCase();
             const existing = existingMap.get(normalizedNum);
+            const softDeleted = softDeletedMap.get(normalizedNum);
 
             if (existing) {
                 if (updateExisting) toUpdate.push({ ...load.data, id: existing.id });
                 else skippedCount++;
+            } else if (softDeleted) {
+                // Restore soft-deleted record with new import data (avoids unique constraint violation)
+                toUpdate.push({ ...load.data, id: softDeleted.id });
             } else {
                 toCreate.push(load.data);
             }

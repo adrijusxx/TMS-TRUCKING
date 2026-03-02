@@ -70,6 +70,19 @@ export interface ExtendedColumnDef<TData extends TableData> extends Omit<ColumnD
    * Custom class name to apply to both header and cell
    */
   className?: string;
+  /**
+   * Pin column to left or right side of the table
+   */
+  pinned?: 'left' | 'right';
+  /**
+   * Aggregation to show in footer row (e.g., sum, avg, count)
+   */
+  aggregation?: {
+    type: 'sum' | 'avg' | 'count' | 'min' | 'max' | 'custom';
+    label?: string;
+    formatter?: (value: number) => string;
+    fn?: (values: number[]) => number;
+  };
 }
 
 /**
@@ -428,6 +441,26 @@ export interface DataTableProps<TData extends TableData = TableData> {
    * Custom placeholder text for the global search input
    */
   searchPlaceholder?: string;
+  /**
+   * Enable column pinning (sticky left/right columns)
+   */
+  enableColumnPinning?: boolean;
+  /**
+   * Enable column resizing by dragging column borders
+   */
+  enableColumnResizing?: boolean;
+  /**
+   * Enable footer aggregation row
+   */
+  enableFooterAggregation?: boolean;
+  /**
+   * Server-side aggregate values for footer (used with server-side pagination)
+   */
+  serverAggregates?: Record<string, number>;
+  /**
+   * Enable row virtualization for large datasets (only renders visible rows)
+   */
+  enableVirtualization?: boolean;
 }
 
 /**

@@ -195,30 +195,6 @@ export function BulkActionBar({
     (action) => !action.permission || can(action.permission as any)
   );
 
-  // Debug logging
-  React.useEffect(() => {
-    if (selectedIds.length > 0) {
-      console.log('BulkActionBar Debug:', {
-        selectedIds: selectedIds.length,
-        entityType,
-        enableBulkEdit,
-        enableBulkDelete,
-        enableBulkExport,
-        bulkEditFieldsCount: bulkEditFields.length,
-        entityBulkEdit,
-        dataBulkEdit,
-        entityBulkDelete,
-        dataBulkDelete,
-        dataExport,
-        exportExecute,
-        canBulkEdit,
-        canBulkDelete,
-        canBulkExport,
-        hasCustomActions: visibleCustomActions.length,
-      });
-    }
-  }, [selectedIds.length, entityType, enableBulkEdit, enableBulkDelete, enableBulkExport, bulkEditFields.length, entityBulkEdit, dataBulkEdit, entityBulkDelete, dataBulkDelete, dataExport, exportExecute, canBulkEdit, canBulkDelete, canBulkExport, visibleCustomActions.length]);
-
   if (selectedIds.length === 0) {
     return null;
   }

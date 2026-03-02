@@ -7,13 +7,8 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  flexRender,
   type ColumnDef,
-  type RowSelectionState,
-  type SortingState,
-  type ColumnFiltersState,
-  type VisibilityState,
-  type PaginationState,
+  type ColumnPinningState,
 } from '@tanstack/react-table';
 import {
   DndContext,
@@ -24,48 +19,29 @@ import {
   useSensors,
   DragEndEvent,
 } from '@dnd-kit/core';
-import {
-  arrayMove,
-  sortableKeyboardCoordinates,
-} from '@dnd-kit/sortable';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ChevronDown, ChevronUp, Info, AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { DataTableProps, ExtendedColumnDef } from './types';
-import { ColumnFilter } from './ColumnFilter';
 import { DataTableBulkActions } from '@/components/ui/data-table-bulk-actions';
 import { DataTableToolbar } from '@/components/ui/data-table-toolbar';
 import { InlineFilterRow } from './InlineFilterRow';
 import { DraggableTableHeader } from './DraggableTableHeader';
 import { DataTableSkeleton } from '@/components/ui/data-table-skeleton';
-import { EmptyState } from '@/components/ui/empty-state';
+import { DataTablePagination } from './DataTablePagination';
+import { DataTableBody } from './DataTableBody';
+import { DataTableFooter } from './DataTableFooter';
+import { TableHeaderCell } from './TableHeaderCell';
+import { useDataTableState } from './hooks/useDataTableState';
+import { useTableKeyboard } from './hooks/useTableKeyboard';
 
 /**
- * Core DataTable component built on TanStack Table
- * Provides sorting, filtering, pagination, row selection, and column visibility
+ * Core DataTable component built on TanStack Table.
+ * Provides sorting, filtering, pagination, row selection, column visibility,
+ * column pinning, column resizing, footer aggregation, and keyboard navigation.
  */
 export function DataTable<TData extends Record<string, any>>({
   columns,
@@ -105,134 +81,59 @@ export function DataTable<TData extends Record<string, any>>({
   savePreferences = true,
   isCompact = false,
   searchPlaceholder,
+  enableColumnPinning = false,
+  enableColumnResizing = false,
+  enableFooterAggregation = false,
+  serverAggregates,
+  enableVirtualization = false,
 }: DataTableProps<TData>) {
-  const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
 
   const toggleRow = React.useCallback((rowId: string) => {
     setExpandedRows((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(rowId)) {
-        newSet.delete(rowId);
-      } else {
-        newSet.add(rowId);
-      }
+      if (newSet.has(rowId)) newSet.delete(rowId);
+      else newSet.add(rowId);
       return newSet;
     });
   }, []);
-  const [internalSorting, setInternalSorting] = React.useState<SortingState>([]);
-  const [internalColumnFilters, setInternalColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [internalColumnVisibility, setInternalColumnVisibility] = React.useState<VisibilityState>({});
-  const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
+
+  // Delegated state management
+  const {
+    rowSelection, handleRowSelectionChange, setRowSelectionStable,
+    sorting, setSorting,
+    columnFilters, setColumnFilters,
+    columnVisibility, setColumnVisibility,
+    columnOrder, setColumnOrder,
+    pagination, setPagination,
+    globalFilter, setGlobalFilter,
+  } = useDataTableState({
+    rowSelection: controlledRowSelection, onRowSelectionChange,
+    sorting: controlledSorting, onSortingChange,
+    columnFilters: controlledColumnFilters, onColumnFiltersChange,
+    columnVisibility: controlledColumnVisibility, onColumnVisibilityChange,
+    pagination: controlledPagination, onPaginationChange,
+    columnOrder: controlledColumnOrder, onColumnOrderChange,
   });
-  const [globalFilter, setGlobalFilter] = React.useState('');
 
-  const [internalColumnOrder, setInternalColumnOrder] = React.useState<string[]>([]);
-
-  // Use controlled or internal state
-  const rowSelection = controlledRowSelection ?? internalRowSelection;
-
-  // Use refs to avoid dependency issues
-  const onRowSelectionChangeRef = React.useRef(onRowSelectionChange);
-  React.useEffect(() => {
-    onRowSelectionChangeRef.current = onRowSelectionChange;
-  }, [onRowSelectionChange]);
-
-  const rowSelectionRef = React.useRef(rowSelection);
-  React.useEffect(() => {
-    rowSelectionRef.current = rowSelection;
-  }, [rowSelection]);
-
-  const handleRowSelectionChangeInternal = React.useCallback((updater: any) => {
-    const currentSelection = rowSelectionRef.current;
-    const newSelection = typeof updater === 'function' ? updater(currentSelection) : updater;
-    console.log('DataTable handleRowSelectionChangeInternal:', { updater, newSelection, selectedCount: Object.keys(newSelection).filter(k => newSelection[k]).length });
-    if (onRowSelectionChangeRef.current) {
-      onRowSelectionChangeRef.current(newSelection);
-    } else {
-      setInternalRowSelection(newSelection);
-    }
-  }, []); // No dependencies - use refs instead
-
-  // Create a stable setter for useEffect
-  const setRowSelectionStable = React.useCallback((selection: RowSelectionState) => {
-    if (onRowSelectionChangeRef.current) {
-      onRowSelectionChangeRef.current(selection);
-    } else {
-      setInternalRowSelection(selection);
-    }
-  }, []); // No dependencies - use refs instead
-  const sorting = controlledSorting ?? internalSorting;
-  const setSorting = onSortingChange
-    ? (updater: any) => {
-      const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
-      onSortingChange(newSorting);
-    }
-    : (updater: any) => {
-      const newSorting = typeof updater === 'function' ? updater(internalSorting) : updater;
-      setInternalSorting(newSorting);
-    };
-  const columnFilters = controlledColumnFilters ?? internalColumnFilters;
-  const setColumnFilters = onColumnFiltersChange
-    ? (updater: any) => {
-      const newFilters = typeof updater === 'function' ? updater(columnFilters) : updater;
-      onColumnFiltersChange(newFilters);
-    }
-    : (updater: any) => {
-      const newFilters = typeof updater === 'function' ? updater(internalColumnFilters) : updater;
-      setInternalColumnFilters(newFilters);
-    };
-  const columnVisibility = controlledColumnVisibility ?? internalColumnVisibility;
-  const setColumnVisibility = onColumnVisibilityChange
-    ? (updater: any) => {
-      const newVisibility = typeof updater === 'function' ? updater(columnVisibility) : updater;
-      onColumnVisibilityChange(newVisibility);
-    }
-    : (updater: any) => {
-      const newVisibility = typeof updater === 'function' ? updater(internalColumnVisibility) : updater;
-      setInternalColumnVisibility(newVisibility);
-    };
-
-  const columnOrder = controlledColumnOrder ?? internalColumnOrder;
-  const setColumnOrder = onColumnOrderChange
-    ? (updater: string[] | ((old: string[]) => string[])) => {
-      const newOrder = typeof updater === 'function' ? updater(columnOrder) : updater;
-      onColumnOrderChange(newOrder);
-    }
-    : (updater: string[] | ((old: string[]) => string[])) => {
-      const newOrder = typeof updater === 'function' ? updater(internalColumnOrder) : updater;
-      setInternalColumnOrder(newOrder);
-    };
-
-  const pagination = controlledPagination
-    ? {
-      pageIndex: controlledPagination.pageIndex,
-      pageSize: controlledPagination.pageSize,
-    }
-    : internalPagination;
-  const setPagination = onPaginationChange
-    ? (updater: any) => {
-      const newPagination =
-        typeof updater === 'function' ? updater(pagination) : updater;
-      onPaginationChange(newPagination);
-    }
-    : setInternalPagination;
+  // Column pinning state (derived from column definitions)
+  const [columnPinning, setColumnPinning] = React.useState<ColumnPinningState>(() => {
+    if (!enableColumnPinning) return { left: [], right: [] };
+    const left: string[] = [];
+    const right: string[] = [];
+    (columns as ExtendedColumnDef<TData>[]).forEach((col) => {
+      if (col.pinned === 'left') left.push(col.id);
+      if (col.pinned === 'right') right.push(col.id);
+    });
+    return { left, right };
+  });
 
   // DnD Sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // DnD Handle Drag End
   const handleDragEnd = React.useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -247,7 +148,6 @@ export function DataTable<TData extends Record<string, any>>({
   // Add selection column if enabled
   const tableColumns = React.useMemo<ColumnDef<TData>[]>(() => {
     if (!enableRowSelection) return columns as ColumnDef<TData>[];
-
     const selectionColumn: ColumnDef<TData> = {
       id: 'select',
       header: ({ table }) => (
@@ -268,9 +168,9 @@ export function DataTable<TData extends Record<string, any>>({
       ),
       enableSorting: false,
       enableHiding: false,
+      enableResizing: false,
       size: 32,
     };
-
     return [selectionColumn, ...(columns as ColumnDef<TData>[])];
   }, [columns, enableRowSelection]);
 
@@ -281,12 +181,8 @@ export function DataTable<TData extends Record<string, any>>({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getRowId: (row) => {
-      // Try to get ID from row object, then from original data, fallback to index
-      const id = row.id || row.original?.id || String(row.index);
-      return id;
-    }, // Use actual row ID for selection
-    onRowSelectionChange: handleRowSelectionChangeInternal,
+    getRowId: (row) => row.id || row.original?.id || String(row.index),
+    onRowSelectionChange: handleRowSelectionChange,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -294,76 +190,85 @@ export function DataTable<TData extends Record<string, any>>({
     onGlobalFilterChange: setGlobalFilter,
     onColumnOrderChange: setColumnOrder,
     enableRowSelection,
+    enableColumnResizing,
+    columnResizeMode: enableColumnResizing ? 'onChange' : undefined,
     enableGlobalFilter: !!filterKey,
     globalFilterFn: filterKey
-      ? (row, columnId, filterValue) => {
-        // Search in the row's original data, not through column definitions
-        const rowData = row.original as any;
-        const searchValue = String(filterValue).toLowerCase();
-
-        // Support multiple filter keys (comma-separated)
-        const filterKeys = filterKey.split(',').map(k => k.trim());
-
-        return filterKeys.some(key => {
-          let value: any;
-
-          // Guard against non-string key
-          if (typeof key === 'string' && key.includes('.')) {
-            // Handle nested paths like 'user.lastName' or 'currentTruck.truckNumber'
-            const keys = key.split('.');
-            value = keys.reduce((obj: any, k) => obj?.[k], rowData);
-          } else {
-            // Direct property access
-            value = rowData[key];
-          }
-
-          // If value is found, check if it matches
-          if (value !== undefined && value !== null) {
-            if (typeof value === 'string') {
-              return value.toLowerCase().includes(searchValue);
+      ? (row, _columnId, filterValue) => {
+          const rowData = row.original as any;
+          const searchValue = String(filterValue).toLowerCase();
+          const filterKeys = filterKey.split(',').map(k => k.trim());
+          return filterKeys.some(key => {
+            let value: any;
+            if (typeof key === 'string' && key.includes('.')) {
+              value = key.split('.').reduce((obj: any, k) => obj?.[k], rowData);
+            } else {
+              value = rowData[key];
             }
-            if (typeof value === 'number') {
-              return String(value).includes(searchValue);
+            if (value !== undefined && value !== null) {
+              if (typeof value === 'string') return value.toLowerCase().includes(searchValue);
+              if (typeof value === 'number') return String(value).includes(searchValue);
             }
-          }
-          return false;
-        });
-      }
+            return false;
+          });
+        }
       : undefined,
     state: {
-      rowSelection,
-      sorting,
-      columnFilters,
-      columnVisibility,
-      pagination,
-      globalFilter,
-      columnOrder,
+      rowSelection, sorting, columnFilters, columnVisibility, pagination, globalFilter, columnOrder,
+      ...(enableColumnPinning && { columnPinning }),
     },
+    ...(enableColumnPinning && { onColumnPinningChange: setColumnPinning }),
     manualPagination: !!controlledPagination,
     manualSorting: !!controlledSorting,
     manualFiltering: !!controlledColumnFilters,
     pageCount: controlledPagination?.totalPages,
   });
 
-  // Update row selection when data changes
+  // Keyboard navigation
+  const { containerRef, handleKeyDown, focusedCell } = useTableKeyboard({
+    table, onRowClick, enableRowSelection,
+  });
+
+  // Clear selection when data is empty
   React.useEffect(() => {
     if (data.length === 0 && Object.keys(rowSelection).length > 0) {
       setRowSelectionStable({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.length]); // Clear selection when data is empty - only clear if there's actually a selection
+  }, [data.length]);
 
-  // Get selected row IDs - MUST be called before any conditional returns
   const selectedRowIds = React.useMemo(() => {
     if (!enableRowSelection) return [];
     return table.getFilteredSelectedRowModel().rows.map((row) => row.id);
   }, [table, enableRowSelection, rowSelection]);
 
-  // Clear selection handler - MUST be called before any conditional returns
   const handleClearSelection = React.useCallback(() => {
     table.resetRowSelection();
   }, [table]);
 
+  const hasActions = !!(rowActions || InlineEditComponent);
+
+  // Compute pin styles for sticky columns
+  const getPinStyle = React.useCallback((columnId: string, isHeader = false): React.CSSProperties => {
+    if (!enableColumnPinning) return {};
+    const column = table.getColumn(columnId);
+    if (!column) return {};
+    const pinned = column.getIsPinned();
+    if (!pinned) return {};
+
+    const offset = pinned === 'left'
+      ? column.getStart('left')
+      : column.getAfter('right');
+
+    return {
+      position: 'sticky',
+      [pinned]: offset,
+      zIndex: isHeader ? 11 : 10,
+      backgroundColor: 'inherit',
+    };
+  }, [enableColumnPinning, table]);
+
+  // Error state
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4">
@@ -393,8 +298,14 @@ export function DataTable<TData extends Record<string, any>>({
       onDragEnd={handleDragEnd}
       id={`dnd-context-${entityType || 'table'}`}
     >
-      <div className="space-y-2">
-        {/* Toolbar: Search, Filters, Columns, Import, Export */}
+      <div
+        className="space-y-2"
+        ref={containerRef}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="grid"
+        aria-label={entityType ? `${entityType} data table` : 'Data table'}
+      >
         {(filterKey || onImport || onExport) && (
           <DataTableToolbar
             table={table}
@@ -415,9 +326,10 @@ export function DataTable<TData extends Record<string, any>>({
           onExport={onExportSelected}
           onClearSelection={handleClearSelection}
         />
+
         <div className="border rounded-md overflow-hidden">
           <div className="overflow-x-auto">
-            <Table>
+            <Table style={enableColumnResizing ? { width: table.getCenterTotalSize() } : undefined}>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id} className={cn(isCompact && 'h-7')}>
@@ -432,325 +344,95 @@ export function DataTable<TData extends Record<string, any>>({
                         isCompact={isCompact}
                       />
                     ) : (
-                      headerGroup.headers.map((header) => {
-                        const canSort = header.column.getCanSort();
-                        const isSorted = header.column.getIsSorted();
-
-                        return (
-                          <TableHead
-                            key={header.id}
-                            className={cn(
-                              'relative group',
-                              isCompact ? 'py-0 px-2 h-7 text-[10px]' : 'h-10',
-                              header.column.getCanResize() && 'resizable',
-                              (header.column.columnDef as ExtendedColumnDef<TData>).className
-                            )}
-                            aria-sort={
-                              header.column.getIsSorted() === 'asc' ? 'ascending' :
-                              header.column.getIsSorted() === 'desc' ? 'descending' :
-                              header.column.getCanSort() ? 'none' : undefined
-                            }
-                          >
-                            {header.isPlaceholder ? null : (
-                              <div className="flex items-center justify-between w-full">
-                                <div
-                                  className={cn(
-                                    'flex items-center gap-1 flex-1',
-                                    canSort && 'cursor-pointer select-none hover:text-foreground'
-                                  )}
-                                  onClick={header.column.getToggleSortingHandler()}
-                                >
-                                  {flexRender(header.column.columnDef.header, header.getContext())}
-                                  {canSort && (
-                                    <span className="text-muted-foreground">
-                                      {isSorted === 'asc' ? '↑' : isSorted === 'desc' ? '↓' : '⇅'}
-                                    </span>
-                                  )}
-                                  {/* Column tooltip/help icon */}
-                                  {(header.column.columnDef as ExtendedColumnDef<TData>).tooltip && (
-                                    <TooltipProvider delayDuration={200}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Info className="h-3 w-3 text-muted-foreground/60 hover:text-muted-foreground cursor-help" />
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top" className="max-w-xs text-xs">
-                                          {(header.column.columnDef as ExtendedColumnDef<TData>).tooltip}
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                </div>
-                                {/* Classic column filter popup - only show if inline filters disabled */}
-                                {!enableInlineFilters && (header.column.columnDef as ExtendedColumnDef<TData>).enableColumnFilter && entityType && onColumnFilterChange && (
-                                  <div className="ml-2" onClick={(e) => e.stopPropagation()}>
-                                    <ColumnFilter
-                                      columnId={header.column.id}
-                                      filterKey={(header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id}
-                                      entityType={entityType}
-                                      value={
-                                        columnFilters
-                                          .filter((f) => f.id === ((header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id))
-                                          .map((f) => {
-                                            try {
-                                              const strVal = String(f.value);
-                                              const parsed = JSON.parse(strVal);
-                                              return Array.isArray(parsed) ? parsed : [strVal];
-                                            } catch {
-                                              return [String(f.value)];
-                                            }
-                                          })
-                                          .flat() || []
-                                      }
-                                      onChange={(values) => {
-                                        const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
-                                        const newFilters = columnFilters.filter((f) => f.id !== filterKey);
-                                        if (values.length > 0) {
-                                          newFilters.push({ id: filterKey, value: JSON.stringify(values) });
-                                        }
-                                        setColumnFilters(newFilters);
-                                        onColumnFilterChange(header.column.id, values);
-                                      }}
-                                      onClear={() => {
-                                        const filterKey = (header.column.columnDef as ExtendedColumnDef<TData>).filterKey || header.column.id;
-                                        const newFilters = columnFilters.filter((f) => f.id !== filterKey);
-                                        setColumnFilters(newFilters);
-                                        onColumnFilterChange(header.column.id, []);
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </TableHead>
-                        );
-                      })
+                      headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          className={cn(
+                            'relative group',
+                            isCompact ? 'py-0 px-2 h-7 text-[10px]' : 'h-10',
+                            (header.column.columnDef as ExtendedColumnDef<TData>).className
+                          )}
+                          style={{
+                            ...getPinStyle(header.column.id, true),
+                            ...(enableColumnResizing ? { width: header.getSize() } : {}),
+                          }}
+                          aria-sort={
+                            header.column.getIsSorted() === 'asc' ? 'ascending' :
+                            header.column.getIsSorted() === 'desc' ? 'descending' :
+                            header.column.getCanSort() ? 'none' : undefined
+                          }
+                        >
+                          <TableHeaderCell
+                            header={header}
+                            isCompact={isCompact}
+                            enableInlineFilters={enableInlineFilters}
+                            entityType={entityType}
+                            columnFilters={columnFilters}
+                            onColumnFilterChange={onColumnFilterChange}
+                            setColumnFilters={setColumnFilters}
+                          />
+                          {/* Column resize handle */}
+                          {enableColumnResizing && header.column.getCanResize() && (
+                            <div
+                              onMouseDown={header.getResizeHandler()}
+                              onTouchStart={header.getResizeHandler()}
+                              className={cn(
+                                'absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none',
+                                'hover:bg-primary/50 active:bg-primary',
+                                header.column.getIsResizing() && 'bg-primary'
+                              )}
+                            />
+                          )}
+                        </TableHead>
+                      ))
                     )}
-                    {(rowActions || InlineEditComponent) && <TableHead className="w-[70px] text-right">Actions</TableHead>}
+                    {hasActions && <TableHead className="w-[70px] text-right">Actions</TableHead>}
                   </TableRow>
                 ))}
-                {/* Inline Filter Row */}
                 {enableInlineFilters && (
-                  <InlineFilterRow table={table} entityType={entityType} hasRowActions={!!(rowActions || InlineEditComponent)} />
+                  <InlineFilterRow table={table} entityType={entityType} hasRowActions={hasActions} />
                 )}
               </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows?.length ? (
-                  table.getRowModel().rows.map((row) => {
-                    const isExpanded = expandedRows.has(row.id);
-                    const hasInlineEdit = InlineEditComponent !== undefined;
-                    return (
-                      <React.Fragment key={row.id}>
-                        <TableRow
-                          data-state={row.getIsSelected() && 'selected'}
-                          data-compact={isCompact}
-                          className={cn(
-                            isCompact ? 'h-7 border-b' : 'h-10 border-b',
-                            row.getIsSelected() && 'bg-muted/50',
-                            onRowClick && 'cursor-pointer hover:bg-muted/50',
-                            // Visual distinction for soft-deleted records
-                            row.original?.deletedAt && 'opacity-60 bg-muted/30',
-                            // Custom row className from prop
-                            getRowClassName?.(row.original)
-                          )}
-                          onClick={(e) => {
-                            // Don't trigger row click if clicking on checkbox, button, or link
-                            const target = e.target as HTMLElement;
-                            if (
-                              target.closest('button') ||
-                              target.closest('a') ||
-                              target.closest('input[type="checkbox"]') ||
-                              target.closest('[role="button"]')
-                            ) {
-                              return;
-                            }
-                            onRowClick?.(row.original);
-                          }}
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell
-                              key={cell.id}
-                              className={cn(
-                                (cell.column.columnDef as ExtendedColumnDef<TData>).className,
-                                isCompact && 'py-0 px-2 text-[10px]'
-                              )}
-                            >
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </TableCell>
-                          ))}
-                          {(rowActions || hasInlineEdit) && (
-                            <TableCell className="text-right w-[70px]">
-                              <div className="flex items-center justify-end gap-1">
-                                {rowActions && rowActions(row.original)}
-                                {hasInlineEdit && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleRow(row.id);
-                                    }}
-                                    type="button"
-                                    aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
-                                    aria-expanded={isExpanded}
-                                  >
-                                    {isExpanded ? (
-                                      <ChevronUp className="h-3 w-3" />
-                                    ) : (
-                                      <ChevronDown className="h-3 w-3" />
-                                    )}
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                        {hasInlineEdit && isExpanded && InlineEditComponent && (
-                          <TableRow>
-                            <TableCell
-                              colSpan={row.getVisibleCells().length + (rowActions ? 1 : 1)}
-                              className="p-0 bg-muted/30"
-                            >
-                              <div className="animate-in slide-in-from-top-1 duration-200">
-                                <InlineEditComponent
-                                  row={row.original}
-                                  onSave={() => {
-                                    toggleRow(row.id);
-                                    onInlineEditSave?.();
-                                  }}
-                                  onCancel={() => toggleRow(row.id)}
-                                />
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </React.Fragment>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={tableColumns.length + (rowActions ? 1 : 0)}
-                      className="p-0"
-                    >
-                      {isLoading ? (
-                        <div className="flex items-center justify-center gap-1 py-8">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          <span className="text-muted-foreground text-[11px]">Loading...</span>
-                        </div>
-                      ) : (
-                        <EmptyState
-                          title={emptyMessage}
-                          description="Try adjusting your filters or search criteria."
-                          className="py-12"
-                        />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
+              <DataTableBody
+                table={table}
+                expandedRows={expandedRows}
+                toggleRow={toggleRow}
+                inlineEditComponent={InlineEditComponent}
+                onInlineEditSave={onInlineEditSave}
+                rowActions={rowActions}
+                onRowClick={onRowClick}
+                getRowClassName={getRowClassName}
+                isCompact={isCompact}
+                isLoading={isLoading}
+                emptyMessage={emptyMessage}
+                totalColumns={tableColumns.length}
+                focusedCell={focusedCell}
+                enableColumnPinning={enableColumnPinning}
+                getPinStyle={getPinStyle}
+                enableColumnResizing={enableColumnResizing}
+                enableVirtualization={enableVirtualization}
+              />
+              {enableFooterAggregation && (
+                <DataTableFooter
+                  table={table}
+                  hasActions={hasActions}
+                  isCompact={isCompact}
+                  serverAggregates={serverAggregates}
+                  enableColumnPinning={enableColumnPinning}
+                />
+              )}
             </Table>
           </div>
         </div>
 
-        {/* Pagination */}
-        {!controlledPagination || controlledPagination.totalCount !== undefined ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
-            <div className="flex items-center gap-1">
-              <p className="text-[11px] text-muted-foreground">
-                {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
-                {Math.min(
-                  (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                  controlledPagination?.totalCount ?? data.length
-                )}{' '}
-                of {controlledPagination?.totalCount ?? data.length}
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              {/* First page - hidden on mobile */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:flex h-6 w-6 p-0"
-                onClick={() => table.setPageIndex(0)}
-                disabled={!table.getCanPreviousPage()}
-                aria-label="Go to first page"
-              >
-                <ChevronsLeft className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-                aria-label="Go to previous page"
-              >
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-              {/* Page number input - hidden on very small screens */}
-              <div className="hidden sm:flex items-center gap-1">
-                <span className="text-[11px]">Page</span>
-                <Input
-                  type="number"
-                  min={1}
-                  max={table.getPageCount()}
-                  value={table.getState().pagination.pageIndex + 1}
-                  onChange={(e) => {
-                    const page = e.target.value ? Number(e.target.value) - 1 : 0;
-                    table.setPageIndex(page);
-                  }}
-                  className="w-12 h-6 text-[11px] px-1"
-                />
-                <span className="text-[11px]">of {table.getPageCount()}</span>
-              </div>
-              {/* Mobile-only simple page indicator */}
-              <span className="sm:hidden text-[11px] text-muted-foreground px-1">
-                {table.getState().pagination.pageIndex + 1}/{table.getPageCount()}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-                aria-label="Go to next page"
-              >
-                <ChevronRight className="h-3 w-3" />
-              </Button>
-              {/* Last page - hidden on mobile */}
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:flex h-6 w-6 p-0"
-                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                disabled={!table.getCanNextPage()}
-                aria-label="Go to last page"
-              >
-                <ChevronsRight className="h-3 w-3" />
-              </Button>
-              <Select
-                value={String(table.getState().pagination.pageSize)}
-                onValueChange={(value) => {
-                  table.setPageSize(Number(value));
-                }}
-              >
-                <SelectTrigger className="h-6 w-[55px] text-[11px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[10, 20, 30, 50, 100].map((size) => (
-                    <SelectItem key={size} value={String(size)} className="text-[11px]">
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        ) : null}
+        {(!controlledPagination || controlledPagination.totalCount !== undefined) && (
+          <DataTablePagination
+            table={table}
+            totalCount={controlledPagination?.totalCount}
+            dataLength={data.length}
+          />
+        )}
       </div>
     </DndContext>
   );
 }
-
