@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TollCalculationService } from '@/lib/services/fuel/TollCalculationService';
 import { geocodeAddress } from '@/lib/maps/google-maps';

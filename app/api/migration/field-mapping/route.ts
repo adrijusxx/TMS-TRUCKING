@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { fieldMappingConfigSchema } from '@/lib/validations/migration';
 import type { FieldMappingConfig, EntityType } from '@/lib/types/migration';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { LiveMapService } from '@/lib/maps/live-map-service';
 
 export async function GET(request: NextRequest) {

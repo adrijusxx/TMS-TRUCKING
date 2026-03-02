@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { iftaCalculatorService } from '@/lib/services/IFTACalculatorService';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { hasPermissionAsync } from '@/lib/server-permissions';

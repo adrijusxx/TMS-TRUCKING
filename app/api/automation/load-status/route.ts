@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LoadStatus } from '@prisma/client';
 
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { autoUpdateLoadStatuses } from '@/lib/automation/load-status';
 
 /**

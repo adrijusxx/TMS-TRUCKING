@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { runWeeklySettlementGeneration, triggerManualSettlementGeneration } from '@/lib/automation/settlement-generation';
 import { z } from 'zod';
 

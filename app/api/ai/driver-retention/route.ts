@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { AIDriverRetentionPredictor } from '@/lib/services/AIDriverRetentionPredictor';
 
 export async function GET(request: NextRequest) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { PermissionResolutionEngine } from '@/lib/managers/PermissionResolutionEngine';
 import type { Permission } from '@/lib/permissions';

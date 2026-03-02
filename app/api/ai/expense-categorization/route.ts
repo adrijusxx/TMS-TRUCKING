@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { AIExpenseCategorizer } from '@/lib/services/AIExpenseCategorizer';
 import { AIVerificationService } from '@/lib/services/AIVerificationService';
 import { z } from 'zod';

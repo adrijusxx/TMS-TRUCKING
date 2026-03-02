@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { SamsaraDeviceSyncService } from '@/lib/services/SamsaraDeviceSyncService';
 import { FleetMaintenanceService } from '@/lib/services/FleetMaintenanceService';
 // import { hasPermission } from '@/lib/permissions'; // Temporarily disabled

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { AIInvoiceMatcher } from '@/lib/services/AIInvoiceMatcher';
 import { z } from 'zod';
 

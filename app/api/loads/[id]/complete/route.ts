@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
 import { emitLoadDelivered, emitLoadStatusChanged, emitDispatchUpdated } from '@/lib/realtime/emitEvent';

@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { EmailService } from '@/lib/services/EmailService';
 import { prisma } from '@/lib/prisma';
 

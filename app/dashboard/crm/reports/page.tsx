@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import RecruitingReports from '@/components/crm/reports/RecruitingReports';
 import { Skeleton } from '@/components/ui/skeleton';

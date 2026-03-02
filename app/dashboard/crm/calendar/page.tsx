@@ -1,4 +1,4 @@
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import FollowUpCalendar from '@/components/crm/FollowUpCalendar';
 

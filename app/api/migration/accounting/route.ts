@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/app/api/auth/[...nextauth]/route';
+import { auth } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
 import { AccountingMigrationService } from '@/lib/services/AccountingMigrationService';
 import { getCurrentMcNumber } from '@/lib/mc-number-filter';
