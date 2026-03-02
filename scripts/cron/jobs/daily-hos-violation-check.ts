@@ -1,17 +1,13 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { AlertService } from '@/lib/services/safety/AlertService';
-
-const prisma = new PrismaClient();
 
 /**
  * Daily job to check for HOS violations and create alerts
- * Runs every day at 5:00 AM
+ * Called by Inngest daily-automation cron function
  */
 export async function dailyHOSViolationCheck() {
   try {
     console.log('Starting daily HOS violation check...');
-
-    const alertService = new AlertService(prisma, '', undefined);
 
     // Get all active companies
     const companies = await prisma.company.findMany({
@@ -66,18 +62,18 @@ export async function dailyHOSViolationCheck() {
   } catch (error) {
     console.error('Error in daily HOS violation check:', error);
     throw error;
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
-// Run if called directly
+// Run if called directly (standalone script mode)
 if (require.main === module) {
+  const { PrismaClient } = require('@prisma/client');
+  const standalone = new PrismaClient();
   dailyHOSViolationCheck()
+    .then(() => standalone.$disconnect())
     .then(() => process.exit(0))
-    .catch((error) => {
+    .catch((error: Error) => {
       console.error(error);
-      process.exit(1);
+      standalone.$disconnect().then(() => process.exit(1));
     });
 }
-

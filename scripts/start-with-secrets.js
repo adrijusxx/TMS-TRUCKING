@@ -50,6 +50,10 @@ const SECRETS_MAPPING = {
     // NetSapiens PBX
     "tms/integrations/netsapiens/api-key": "NS_API_KEY",
     "tms/integrations/netsapiens/server": "NS_API_SERVER",
+
+    // Inngest (background job scheduling)
+    "tms/integrations/inngest/event-key": "INNGEST_EVENT_KEY",
+    "tms/integrations/inngest/signing-key": "INNGEST_SIGNING_KEY",
 };
 
 

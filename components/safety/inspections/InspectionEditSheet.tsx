@@ -3,14 +3,12 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
-} from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Loader2 } from 'lucide-react';
@@ -20,72 +18,72 @@ import DriverCombobox from '@/components/drivers/DriverCombobox';
 import TruckCombobox from '@/components/trucks/TruckCombobox';
 import TrailerCombobox from '@/components/trailers/TrailerCombobox';
 import DocumentUpload from '@/components/documents/DocumentUpload';
-import type { ClaimData } from './ClaimsColumns';
+import type { InspectionData } from './InspectionsColumns';
 
-interface CreateClaimDialogProps {
+interface InspectionEditSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
-  editClaim?: ClaimData | null;
+  editInspection?: InspectionData | null;
 }
 
-const defaultValues = {
-  claimType: 'ACCIDENT',
-  status: 'OPEN',
-  dateOfLoss: new Date().toISOString().split('T')[0],
-  insuranceCompany: '',
-  adjusterName: '',
-  coverageType: 'LIABILITY',
-  hasPoliceReport: false,
-  hasTowing: false,
+const defaults = {
+  inspectionLevel: 'LEVEL_1',
+  inspectionDate: new Date().toISOString().split('T')[0],
+  inspectionLocation: '',
+  inspectionState: '',
+  inspectorName: '',
+  inspectorBadgeNumber: '',
+  violationsFound: false,
+  outOfService: false,
   recordable: false,
-  driverAmount: 0,
-  vendorAmount: 0,
+  oosReason: '',
   totalCharge: 0,
   totalFee: 0,
+  note: '',
   driverId: '',
   truckId: '',
   trailerId: '',
-  notes: '',
 };
 
-export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editClaim }: CreateClaimDialogProps) {
-  const isEdit = !!editClaim;
-  const form = useForm<any>({ defaultValues });
+export default function InspectionEditSheet({
+  open, onOpenChange, onSuccess, editInspection,
+}: InspectionEditSheetProps) {
+  const isEdit = !!editInspection;
+  const form = useForm<any>({ defaultValues: defaults });
 
   useEffect(() => {
-    if (editClaim && open) {
+    if (editInspection && open) {
       form.reset({
-        claimType: editClaim.claimType || 'ACCIDENT',
-        status: editClaim.status || 'OPEN',
-        dateOfLoss: editClaim.dateOfLoss
-          ? new Date(editClaim.dateOfLoss).toISOString().split('T')[0]
+        inspectionLevel: editInspection.inspectionLevel || 'LEVEL_1',
+        inspectionDate: editInspection.inspectionDate
+          ? new Date(editInspection.inspectionDate).toISOString().split('T')[0]
           : '',
-        insuranceCompany: editClaim.insuranceCompany || '',
-        adjusterName: editClaim.adjusterName || '',
-        coverageType: editClaim.coverageType || '',
-        hasPoliceReport: editClaim.hasPoliceReport ?? false,
-        hasTowing: editClaim.hasTowing ?? false,
-        recordable: editClaim.recordable ?? false,
-        driverCompStatus: editClaim.driverCompStatus || '',
-        driverAmount: editClaim.driverAmount ?? 0,
-        vendorCompStatus: editClaim.vendorCompStatus || '',
-        vendorAmount: editClaim.vendorAmount ?? 0,
-        totalCharge: editClaim.totalCharge ?? 0,
-        totalFee: editClaim.totalFee ?? 0,
-        driverId: (editClaim as any).driverId || '',
-        truckId: (editClaim as any).truckId || '',
-        trailerId: (editClaim as any).trailerId || '',
-        notes: (editClaim as any).notes || '',
+        inspectionLocation: (editInspection as any).inspectionLocation || '',
+        inspectionState: (editInspection as any).inspectionState || '',
+        inspectorName: (editInspection as any).inspectorName || '',
+        inspectorBadgeNumber: (editInspection as any).inspectorBadgeNumber || '',
+        violationsFound: editInspection.violationsFound ?? false,
+        outOfService: editInspection.outOfService ?? false,
+        recordable: editInspection.recordable ?? false,
+        oosReason: (editInspection as any).oosReason || '',
+        totalCharge: editInspection.totalCharge ?? 0,
+        totalFee: editInspection.totalFee ?? 0,
+        note: editInspection.note || '',
+        driverId: (editInspection as any).driverId || '',
+        truckId: (editInspection as any).truckId || '',
+        trailerId: (editInspection as any).trailerId || '',
       });
-    } else if (!editClaim && open) {
-      form.reset(defaultValues);
+    } else if (!editInspection && open) {
+      form.reset(defaults);
     }
-  }, [editClaim, open, form]);
+  }, [editInspection, open, form]);
 
   const mutation = useMutation({
     mutationFn: async (data: any) => {
-      const url = isEdit ? apiUrl(`/api/safety/claims/${editClaim!.id}`) : apiUrl('/api/safety/claims');
+      const url = isEdit
+        ? apiUrl(`/api/safety/inspections/${editInspection!.id}`)
+        : apiUrl('/api/safety/inspections');
       const res = await fetch(url, {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,12 +91,12 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || `Failed to ${isEdit ? 'update' : 'create'} claim`);
+        throw new Error(err.error || `Failed to ${isEdit ? 'update' : 'create'} inspection`);
       }
       return res.json();
     },
     onSuccess: () => {
-      toast.success(`Claim ${isEdit ? 'updated' : 'created'} successfully`);
+      toast.success(`Inspection ${isEdit ? 'updated' : 'created'} successfully`);
       form.reset();
       onOpenChange(false);
       onSuccess?.();
@@ -111,15 +109,16 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
     if (!payload.driverId) delete payload.driverId;
     if (!payload.truckId) delete payload.truckId;
     if (!payload.trailerId) delete payload.trailerId;
-    if (!payload.notes) delete payload.notes;
     mutation.mutate(payload);
   };
+
+  const watchOOS = form.watch('outOfService');
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{isEdit ? 'Edit Claim' : 'Create Insurance Claim'}</SheetTitle>
+          <SheetTitle>{isEdit ? 'Edit Inspection' : 'Create DOT Inspection'}</SheetTitle>
         </SheetHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
@@ -153,78 +152,63 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
 
           <Separator />
 
-          {/* Claim details */}
+          {/* Inspection details */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Claim Type</Label>
-              <Select value={form.watch('claimType')} onValueChange={(v) => form.setValue('claimType', v)}>
+              <Label>Inspection Level</Label>
+              <Select value={form.watch('inspectionLevel')} onValueChange={(v) => form.setValue('inspectionLevel', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ACCIDENT">Accident</SelectItem>
-                  <SelectItem value="CARGO">Cargo</SelectItem>
-                  <SelectItem value="PROPERTY_DAMAGE">Property Damage</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
+                  <SelectItem value="LEVEL_1">Level 1</SelectItem>
+                  <SelectItem value="LEVEL_2">Level 2</SelectItem>
+                  <SelectItem value="LEVEL_3">Level 3</SelectItem>
+                  <SelectItem value="LEVEL_5">Level 5</SelectItem>
+                  <SelectItem value="LEVEL_6">Level 6</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Date of Loss</Label>
-              <Input type="date" {...form.register('dateOfLoss')} />
+              <Label>Inspection Date</Label>
+              <Input type="date" {...form.register('inspectionDate')} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Insurance Company</Label>
-              <Input {...form.register('insuranceCompany')} placeholder="Insurance company" />
+              <Label>Location</Label>
+              <Input {...form.register('inspectionLocation')} placeholder="Location" />
             </div>
             <div className="space-y-2">
-              <Label>Claim Adjuster</Label>
-              <Input {...form.register('adjusterName')} placeholder="Adjuster name" />
+              <Label>State</Label>
+              <Input {...form.register('inspectionState')} placeholder="State" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Coverage Type</Label>
-              <Select value={form.watch('coverageType')} onValueChange={(v) => form.setValue('coverageType', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LIABILITY">Liability</SelectItem>
-                  <SelectItem value="PHYSICAL_DAMAGE">Physical Damage</SelectItem>
-                  <SelectItem value="CARGO">Cargo</SelectItem>
-                  <SelectItem value="GENERAL">General</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Inspector Name</Label>
+              <Input {...form.register('inspectorName')} placeholder="Inspector name" />
             </div>
             <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="OPEN">Open</SelectItem>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="CLOSED">Closed</SelectItem>
-                  <SelectItem value="DENIED">Denied</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Badge Number</Label>
+              <Input {...form.register('inspectorBadgeNumber')} placeholder="Badge number" />
             </div>
           </div>
 
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={form.watch('hasPoliceReport')}
-                onCheckedChange={(v) => form.setValue('hasPoliceReport', !!v)}
+                checked={form.watch('violationsFound')}
+                onCheckedChange={(v) => form.setValue('violationsFound', !!v)}
               />
-              <Label className="font-normal">Police Report</Label>
+              <Label className="font-normal">Violations Found</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={form.watch('hasTowing')}
-                onCheckedChange={(v) => form.setValue('hasTowing', !!v)}
+                checked={watchOOS}
+                onCheckedChange={(v) => form.setValue('outOfService', !!v)}
               />
-              <Label className="font-normal">Towing</Label>
+              <Label className="font-normal">Out of Service</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
@@ -235,16 +219,12 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {watchOOS && (
             <div className="space-y-2">
-              <Label>Driver Amount</Label>
-              <Input type="number" step="0.01" {...form.register('driverAmount', { valueAsNumber: true })} />
+              <Label>OOS Reason</Label>
+              <Input {...form.register('oosReason')} placeholder="Reason for out of service" />
             </div>
-            <div className="space-y-2">
-              <Label>Vendor Amount</Label>
-              <Input type="number" step="0.01" {...form.register('vendorAmount', { valueAsNumber: true })} />
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -257,14 +237,13 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
             </div>
           </div>
 
-          {/* Notes */}
           <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea {...form.register('notes')} placeholder="Additional notes..." rows={3} />
+            <Label>Note</Label>
+            <Textarea {...form.register('note')} placeholder="Additional notes..." rows={3} />
           </div>
 
           {/* Documents */}
-          {isEdit && editClaim?.id && (
+          {isEdit && editInspection?.id && (
             <>
               <Separator />
               <div className="space-y-2">
@@ -283,7 +262,7 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isEdit ? 'Save Changes' : 'Create Claim'}
+              {isEdit ? 'Save Changes' : 'Create Inspection'}
             </Button>
           </div>
         </form>

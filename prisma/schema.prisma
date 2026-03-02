@@ -449,6 +449,9 @@ model Company {
   // Custom Roles & Permissions
   roles            Role[]
   permissionGroups PermissionGroup[]
+
+  // DQF Custom Document Types
+  customDQFTypes CompanyCustomDQFType[]
 }
 
 // ============================================
@@ -4753,6 +4756,17 @@ model DriverQualificationFile {
   @@index([status])
 }
 
+model CompanyCustomDQFType {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
 enum DQFStatus {
   COMPLETE
   INCOMPLETE
@@ -4764,18 +4778,19 @@ model DQFDocument {
   id         String                  @id @default(cuid())
   dqfId      String
   dqf        DriverQualificationFile @relation(fields: [dqfId], references: [id], onDelete: Cascade)
-  documentId String
-  document   Document                @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   Document?               @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   documentType   DQFDocumentType
   status         DQFDocumentStatus @default(MISSING)
   expirationDate DateTime?
   issueDate      DateTime?
+  customName     String            @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([dqfId, documentType])
+  @@unique([dqfId, documentType, customName])
   @@index([dqfId])
   @@index([documentType])
   @@index([status])
@@ -4789,7 +4804,9 @@ enum DQFDocumentType {
   ANNUAL_REVIEW
   MEDICAL_EXAMINERS_CERTIFICATE
   CDL_COPY
+  SSN_COPY
   MVR_RECORD
+  PSP_RECORD
   DRUG_TEST_RESULT
   ALCOHOL_TEST_RESULT
   TRAINING_CERTIFICATE

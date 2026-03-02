@@ -20,6 +20,8 @@ import { apiUrl, formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
+import DocumentUpload from '@/components/documents/DocumentUpload';
+import DocumentListNew from '@/components/documents/DocumentListNew';
 import { TruckStatus, EquipmentType } from '@prisma/client';
 
 interface EditTruckFormProps {
@@ -122,7 +124,7 @@ export default function EditTruckForm({ truck, onSuccess, onCancel }: EditTruckF
             </div>
 
             <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="overview">
                         <Truck className="h-4 w-4 mr-2" />
                         Overview
@@ -134,6 +136,10 @@ export default function EditTruckForm({ truck, onSuccess, onCancel }: EditTruckF
                     <TabsTrigger value="maintenance">
                         <Wrench className="h-4 w-4 mr-2" />
                         Maintenance
+                    </TabsTrigger>
+                    <TabsTrigger value="documents">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Documents
                     </TabsTrigger>
                 </TabsList>
 
@@ -309,6 +315,19 @@ export default function EditTruckForm({ truck, onSuccess, onCancel }: EditTruckF
                                     No maintenance records found
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="documents" className="pt-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Documents</CardTitle>
+                            <CardDescription>Upload and manage truck documents</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <DocumentUpload truckId={truck.id} />
+                            <DocumentListNew truckId={truck.id} />
                         </CardContent>
                     </Card>
                 </TabsContent>

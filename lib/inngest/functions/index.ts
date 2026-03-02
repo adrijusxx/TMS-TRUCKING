@@ -62,6 +62,10 @@ import { autoArchiveLeads } from './auto-archive-leads';
 import { databaseKeepAlive } from './keep-alive';
 import { processRecurringExpenses } from './recurring-expenses';
 import { sendMissingReceiptAlerts } from './missing-receipt-alerts';
+import { hourlyAutomation } from './hourly-automation';
+import { dailyAutomation } from './daily-automation';
+import { weeklyAutomation } from './weekly-automation';
+import { samsaraFaultSync } from './samsara-faults';
 
 export { syncCrmLeads } from './sync-crm-leads';
 export { checkLeadFollowUps } from './check-lead-follow-ups';
@@ -76,6 +80,10 @@ export { autoArchiveLeads } from './auto-archive-leads';
 export { databaseKeepAlive } from './keep-alive';
 export { processRecurringExpenses } from './recurring-expenses';
 export { sendMissingReceiptAlerts } from './missing-receipt-alerts';
+export { hourlyAutomation } from './hourly-automation';
+export { dailyAutomation } from './daily-automation';
+export { weeklyAutomation } from './weekly-automation';
+export { samsaraFaultSync } from './samsara-faults';
 
 export const allFunctions = [
   // Settlements
@@ -113,5 +121,10 @@ export const allFunctions = [
   // Company Expenses Automation
   processRecurringExpenses,
   sendMissingReceiptAlerts,
+  // Scheduled Automation (migrated from node-cron)
+  hourlyAutomation,
+  dailyAutomation,
+  weeklyAutomation,
+  samsaraFaultSync,
 ];
 

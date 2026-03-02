@@ -34,9 +34,10 @@ export async function PATCH(
     if (body.documentType && body.documentId) {
       const dqfDocument = await prisma.dQFDocument.upsert({
         where: {
-          dqfId_documentType: {
+          dqfId_documentType_customName: {
             dqfId: dqf.id,
             documentType: body.documentType,
+            customName: body.customName || '',
           },
         },
         update: {

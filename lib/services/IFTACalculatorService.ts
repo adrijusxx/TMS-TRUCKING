@@ -101,9 +101,21 @@ export class IFTACalculatorService {
   }
 
   /**
-   * Calculate and store IFTA entry for a load in database
+   * Calculate and store IFTA entry for a load in database.
+   * Skips recalculation if a valid entry already exists (saves Directions API cost).
    */
-  async calculateAndStoreForLoad(loadId: string, companyId: string, quarter: number, year: number): Promise<string> {
+  async calculateAndStoreForLoad(loadId: string, companyId: string, quarter: number, year: number, forceRecalculate = false): Promise<string> {
+    // Idempotency guard: skip if already calculated (avoids expensive Directions API call)
+    if (!forceRecalculate) {
+      const existing = await prisma.iFTAEntry.findUnique({
+        where: { loadId },
+        include: { stateMileages: true },
+      });
+      if (existing?.isCalculated && existing.stateMileages.length > 0) {
+        return existing.id;
+      }
+    }
+
     const load = await prisma.load.findUnique({
       where: { id: loadId }, include: { stops: { orderBy: { sequence: 'asc' } } },
     });

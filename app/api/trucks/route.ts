@@ -161,6 +161,17 @@ export async function GET(request: NextRequest) {
               },
             },
           },
+          inspections: {
+            where: { inspectionType: 'DOT_ANNUAL', deletedAt: null },
+            orderBy: { nextInspectionDue: 'desc' },
+            take: 1,
+            select: { nextInspectionDue: true },
+          },
+          _count: {
+            select: {
+              documents: { where: { deletedAt: null } },
+            },
+          },
         },
         orderBy: { truckNumber: 'asc' },
         skip,
@@ -169,8 +180,14 @@ export async function GET(request: NextRequest) {
       prisma.truck.count({ where }),
     ]);
 
+    // Map inspection data and document count onto truck records
+    const trucksWithExtras = trucks.map((truck) => ({
+      ...truck,
+      nextInspectionDue: truck.inspections?.[0]?.nextInspectionDue ?? null,
+    }));
+
     // Filter sensitive fields based on role
-    const filteredTrucks = trucks.map((truck) =>
+    const filteredTrucks = trucksWithExtras.map((truck) =>
       filterSensitiveFields(truck, session.user.role as any)
     );
 

@@ -288,13 +288,14 @@ export async function GET(request: NextRequest) {
             status: driver.dqf.status,
             lastReviewDate: driver.dqf.lastReviewDate,
             nextReviewDate: driver.dqf.nextReviewDate,
-            documents: driver.dqf.documents.map((doc) => ({
+            documents: driver.dqf.documents.map((doc: any) => ({
               id: doc.id,
               documentId: doc.documentId,
               documentType: doc.documentType,
               status: doc.status,
               expirationDate: doc.expirationDate,
               issueDate: doc.issueDate,
+              customName: doc.customName || '',
               document: doc.document
                 ? {
                   id: doc.document.id,

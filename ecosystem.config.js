@@ -66,6 +66,8 @@ module.exports = {
       autorestart: true,
       max_restarts: 10,
       min_uptime: '10s',
+      max_memory_restart: '512M',
+      kill_timeout: 10000,
       watch: false,
       ignore_watch: ['node_modules', '.next', 'logs'],
     },

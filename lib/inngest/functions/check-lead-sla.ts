@@ -11,8 +11,8 @@ import { prisma } from '@/lib/prisma';
 import { notifyLeadSLABreach } from '@/lib/notifications/crm-triggers';
 
 export const checkLeadSLA = inngest.createFunction(
-    { id: 'check-lead-sla', name: 'CRM Pipeline SLA Check' },
-    { event: 'crm/sla.check' }, // Scheduling handled by node-cron (CronScheduler.ts)
+    { id: 'check-lead-sla', name: 'CRM Pipeline SLA Check', retries: 2 },
+    { cron: '0 7 * * *' },
     async ({ step }) => {
         // Get all companies with SLA configs
         const slaConfigs = await step.run('load-sla-configs', async () => {

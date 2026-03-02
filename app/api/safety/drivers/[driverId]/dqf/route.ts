@@ -96,33 +96,37 @@ export async function POST(
 
     // Add document to DQF
     if (body.documentId && body.documentType) {
+      const customName = body.customName || '';
       const dqfDocument = await prisma.dQFDocument.upsert({
         where: {
-          dqfId_documentType: {
+          dqfId_documentType_customName: {
             dqfId: dqf.id,
-            documentType: body.documentType
+            documentType: body.documentType,
+            customName,
           }
         },
         update: {
           documentId: body.documentId,
           status: body.status || 'COMPLETE',
-          expirationDate: body.expirationDate && body.expirationDate.trim() !== '' 
-            ? new Date(body.expirationDate) 
+          customName,
+          expirationDate: body.expirationDate && body.expirationDate.trim() !== ''
+            ? new Date(body.expirationDate)
             : null,
-          issueDate: body.issueDate && body.issueDate.trim() !== '' 
-            ? new Date(body.issueDate) 
+          issueDate: body.issueDate && body.issueDate.trim() !== ''
+            ? new Date(body.issueDate)
             : null
         },
         create: {
           dqfId: dqf.id,
           documentId: body.documentId,
           documentType: body.documentType,
+          customName,
           status: body.status || 'COMPLETE',
-          expirationDate: body.expirationDate && body.expirationDate.trim() !== '' 
-            ? new Date(body.expirationDate) 
+          expirationDate: body.expirationDate && body.expirationDate.trim() !== ''
+            ? new Date(body.expirationDate)
             : null,
-          issueDate: body.issueDate && body.issueDate.trim() !== '' 
-            ? new Date(body.issueDate) 
+          issueDate: body.issueDate && body.issueDate.trim() !== ''
+            ? new Date(body.issueDate)
             : null
         }
       });
@@ -146,6 +150,42 @@ export async function POST(
         data: { status: newStatus as any }
       });
 
+      return NextResponse.json({ dqfDocument }, { status: 201 });
+    }
+
+    // Create/update entry without file — used for custom documents & date-only updates
+    if (body.documentType) {
+      const customName = body.customName || '';
+      const dqfDocument = await prisma.dQFDocument.upsert({
+        where: {
+          dqfId_documentType_customName: {
+            dqfId: dqf.id,
+            documentType: body.documentType,
+            customName,
+          }
+        },
+        update: {
+          status: body.status || 'MISSING',
+          expirationDate: body.expirationDate && body.expirationDate.trim?.() !== ''
+            ? new Date(body.expirationDate)
+            : null,
+          issueDate: body.issueDate && body.issueDate.trim?.() !== ''
+            ? new Date(body.issueDate)
+            : null,
+        },
+        create: {
+          dqfId: dqf.id,
+          documentType: body.documentType,
+          customName,
+          status: body.status || 'MISSING',
+          expirationDate: body.expirationDate && body.expirationDate.trim?.() !== ''
+            ? new Date(body.expirationDate)
+            : null,
+          issueDate: body.issueDate && body.issueDate.trim?.() !== ''
+            ? new Date(body.issueDate)
+            : null,
+        }
+      });
       return NextResponse.json({ dqfDocument }, { status: 201 });
     }
 

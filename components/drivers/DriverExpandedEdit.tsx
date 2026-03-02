@@ -12,6 +12,7 @@ import DriverComplianceTab from './DriverEditTabs/DriverComplianceTab';
 import DriverWorkDetailsTab from './DriverEditTabs/DriverWorkDetailsTab';
 import DriverFinancialPayrollTab from './DriverEditTabs/DriverFinancialPayrollTab';
 import DriverDeductionRulesTab from './DriverEditTabs/DriverDeductionRulesTab';
+import DriverSafetyHistoryTab from './DriverEditTabs/DriverSafetyHistoryTab';
 import { useMutation } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -223,6 +224,12 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
           >
             Compliance
           </TabsTrigger>
+          <TabsTrigger
+            value="safety"
+            className="flex-1 text-xs px-3 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm"
+          >
+            Safety
+          </TabsTrigger>
           {hasFinancialAccess && (
             <TabsTrigger
               value="payroll"
@@ -265,6 +272,10 @@ export default function DriverExpandedEdit({ driverId, onSave, onCancel }: Drive
             driver={driver}
             onSave={handleSave}
           />
+        </TabsContent>
+
+        <TabsContent value="safety" className="mt-3">
+          <DriverSafetyHistoryTab driverId={driverId} />
         </TabsContent>
 
         {hasFinancialAccess && (

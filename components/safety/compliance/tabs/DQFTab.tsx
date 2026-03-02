@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,16 +20,11 @@ import { toast } from 'sonner';
 import { Upload, Download, Trash2 } from 'lucide-react';
 
 export const REQUIRED_DOCUMENTS = [
-  { type: 'APPLICATION', label: 'Application for Employment' },
-  { type: 'ROAD_TEST', label: 'Road Test Certificate' },
-  { type: 'PREVIOUS_EMPLOYMENT_VERIFICATION', label: 'Previous Employment Verification' },
-  { type: 'ANNUAL_REVIEW', label: 'Annual Review' },
-  { type: 'MEDICAL_EXAMINERS_CERTIFICATE', label: "Medical Examiner's Certificate" },
   { type: 'CDL_COPY', label: 'CDL Copy' },
+  { type: 'SSN_COPY', label: 'SSN Copy' },
   { type: 'MVR_RECORD', label: 'MVR Record' },
-  { type: 'DRUG_TEST_RESULT', label: 'Drug Test Result' },
-  { type: 'ALCOHOL_TEST_RESULT', label: 'Alcohol Test Result' },
-  { type: 'TRAINING_CERTIFICATE', label: 'Training Certificate' },
+  { type: 'PSP_RECORD', label: 'PSP Record' },
+  { type: 'APPLICATION', label: 'Application / Contract' },
 ];
 
 interface DQFTabProps {
@@ -39,10 +34,64 @@ interface DQFTabProps {
 
 export default function DQFTab({ driver, onSave }: DQFTabProps) {
   const queryClient = useQueryClient();
+  const [showNewCustom, setShowNewCustom] = useState(false);
+  const [customDocName, setCustomDocName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Fetch company-level custom DQF types
+  const { data: companyCustomTypes = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['custom-dqf-types'],
+    queryFn: async () => {
+      const res = await fetch(apiUrl('/api/safety/custom-dqf-types'));
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.types || [];
+    },
+  });
+
   const documentsByType = driver.dqf?.documents.reduce((acc: any, doc) => {
     acc[doc.documentType] = doc;
     return acc;
   }, {}) || {};
+
+  // Map custom documents by customName for easy lookup
+  const customDocsByName = (driver.dqf?.documents || [])
+    .filter((doc: any) => doc.documentType === 'OTHER' && doc.customName)
+    .reduce((acc: any, doc: any) => {
+      acc[doc.customName] = doc;
+      return acc;
+    }, {});
+
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['driver-compliance'] });
+    await queryClient.refetchQueries({ queryKey: ['driver-compliance'] });
+    await onSave();
+  };
+
+  const handleCreateCustom = async () => {
+    const name = customDocName.trim();
+    if (!name) return;
+    setIsCreating(true);
+    try {
+      const res = await fetch(apiUrl('/api/safety/custom-dqf-types'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to create custom document type');
+      }
+      toast.success(`Custom document type "${name}" created for company`);
+      setShowNewCustom(false);
+      setCustomDocName('');
+      await queryClient.invalidateQueries({ queryKey: ['custom-dqf-types'] });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create custom document type');
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <Card>
@@ -61,14 +110,51 @@ export default function DQFTab({ driver, onSave }: DQFTabProps) {
                 documentType={required.type}
                 label={required.label}
                 dqfDocument={dqfDocument}
-                onUpdate={async () => {
-                  await queryClient.invalidateQueries({ queryKey: ['driver-compliance'] });
-                  await queryClient.refetchQueries({ queryKey: ['driver-compliance'] });
-                  await onSave();
-                }}
+                onUpdate={handleRefresh}
               />
             );
           })}
+
+          {/* Company-Level Custom Documents Section */}
+          <div className="border-t pt-4 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold">Custom Documents</h4>
+              <Button size="sm" variant="outline" onClick={() => setShowNewCustom(!showNewCustom)}>
+                {showNewCustom ? 'Cancel' : '+ Add Custom Type'}
+              </Button>
+            </div>
+            {showNewCustom && (
+              <div className="flex items-center gap-2 mb-3">
+                <Input
+                  placeholder="Document type name (e.g. Background Check)"
+                  value={customDocName}
+                  onChange={(e) => setCustomDocName(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  size="sm"
+                  disabled={!customDocName.trim() || isCreating}
+                  onClick={handleCreateCustom}
+                >
+                  {isCreating ? 'Creating...' : 'Create'}
+                </Button>
+              </div>
+            )}
+            {companyCustomTypes.map((customType) => (
+              <DQFDocumentItem
+                key={`custom-${customType.id}`}
+                driverId={driver.driverId}
+                documentType="OTHER"
+                customName={customType.name}
+                label={customType.name}
+                dqfDocument={customDocsByName[customType.name]}
+                onUpdate={handleRefresh}
+              />
+            ))}
+            {companyCustomTypes.length === 0 && !showNewCustom && (
+              <p className="text-sm text-muted-foreground">No custom document types defined. Add one to apply it to all drivers.</p>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -79,12 +165,14 @@ function DQFDocumentItem({
   driverId,
   documentType,
   label,
+  customName,
   dqfDocument,
   onUpdate,
 }: {
   driverId: string;
   documentType: string;
   label: string;
+  customName?: string;
   dqfDocument?: any;
   onUpdate: () => void;
 }) {
@@ -125,15 +213,17 @@ function DQFDocumentItem({
   useEffect(() => {
     if (dqfDocument) {
       const expDate = dqfDocument.expirationDate ? new Date(dqfDocument.expirationDate).toISOString().split('T')[0] : '';
-      setIssueDate(dqfDocument.issueDate ? new Date(dqfDocument.issueDate).toISOString().split('T')[0] : '');
-      setExpirationDate(expDate);
+      if (!showUploadForm) {
+        setIssueDate(dqfDocument.issueDate ? new Date(dqfDocument.issueDate).toISOString().split('T')[0] : '');
+        setExpirationDate(expDate);
+      }
       setStatus(calculateStatus(expDate, !!dqfDocument.document));
-    } else {
+    } else if (!showUploadForm) {
       setIssueDate('');
       setExpirationDate('');
       setStatus('MISSING');
     }
-    setSelectedFile(null);
+    if (!showUploadForm) setSelectedFile(null);
   }, [dqfDocument]);
 
   useEffect(() => {
@@ -173,6 +263,7 @@ function DQFDocumentItem({
         body: JSON.stringify({
           documentId: document.id,
           documentType,
+          customName: customName || '',
           issueDate: issueDate || null,
           expirationDate: expirationDate || null,
           status,
@@ -198,22 +289,21 @@ function DQFDocumentItem({
 
   const handleUpdateDates = async () => {
     const documentId = dqfDocument?.documentId || dqfDocument?.document?.id;
-    if (!documentId) {
-      toast.error('Please upload a document first');
-      return;
-    }
-    const calculatedStatus = calculateStatus(expirationDate, !!dqfDocument?.document || true);
+    const hasDoc = !!documentId || !!dqfDocument;
+    const calculatedStatus = calculateStatus(expirationDate, !!documentId);
+    const payload: any = {
+      documentType,
+      customName: customName || '',
+      issueDate: issueDate || null,
+      expirationDate: expirationDate || null,
+      status: calculatedStatus,
+    };
+    if (documentId) payload.documentId = documentId;
     try {
       const response = await fetch(apiUrl(`/api/safety/drivers/${driverId}/dqf`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          documentId,
-          documentType,
-          issueDate: issueDate || null,
-          expirationDate: expirationDate || null,
-          status: calculatedStatus,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -252,6 +342,7 @@ function DQFDocumentItem({
           body: JSON.stringify({
             documentId,
             documentType,
+            customName: customName || '',
             status: 'MISSING',
             issueDate: issueDate || null,
             expirationDate: expirationDate || null,
@@ -339,17 +430,13 @@ function DQFDocumentItem({
             </div>
           </div>
           <div className="flex gap-2">
-            {selectedFile && (
-              <Button size="sm" onClick={() => handleFileUpload(selectedFile)} disabled={isUploading}>
-                <Upload className="h-4 w-4 mr-2" />
-                {isUploading ? 'Uploading...' : hasDocument ? 'Replace File' : 'Upload File'}
-              </Button>
-            )}
-            {hasDocument && (
-              <Button size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleUpdateDates(); }} disabled={isUploading || !!selectedFile} type="button">
-                Update Dates & Status
-              </Button>
-            )}
+            <Button size="sm" onClick={() => selectedFile && handleFileUpload(selectedFile)} disabled={isUploading || !selectedFile}>
+              <Upload className="h-4 w-4 mr-2" />
+              {isUploading ? 'Uploading...' : hasDocument ? 'Replace File' : 'Upload File'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleUpdateDates(); }} disabled={isUploading} type="button">
+              Save Dates
+            </Button>
             <Button size="sm" variant="outline" onClick={() => { setShowUploadForm(false); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} disabled={isUploading}>
               Cancel
             </Button>

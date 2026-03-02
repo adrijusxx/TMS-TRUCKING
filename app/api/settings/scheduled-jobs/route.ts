@@ -2,7 +2,7 @@
  * Scheduled Jobs Settings API
  *
  * GET  — Returns all job definitions with current overrides
- * PATCH — Updates a specific job's schedule/enabled state
+ * PATCH — Updates a specific job's enabled state (schedules managed by Inngest)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,18 +13,22 @@ import {
   JOB_REGISTRY,
   type JobKey,
   type CronJobsConfig,
-  reloadScheduler,
 } from '@/lib/cron/CronScheduler';
-import cron from 'node-cron';
 
 const validJobKeys = Object.keys(JOB_REGISTRY) as JobKey[];
+
+/** Basic cron expression validation (5-field format) */
+function isValidCronExpression(expr: string): boolean {
+  const parts = expr.trim().split(/\s+/);
+  return parts.length === 5;
+}
 
 const updateSchema = z.object({
   jobKey: z.enum(validJobKeys as [string, ...string[]]),
   enabled: z.boolean().optional(),
   schedule: z.string().optional(),
 }).refine((data) => {
-  if (data.schedule && !cron.validate(data.schedule)) {
+  if (data.schedule && !isValidCronExpression(data.schedule)) {
     return false;
   }
   return true;
@@ -130,12 +134,8 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    // Reload the scheduler with new config
-    try {
-      await reloadScheduler();
-    } catch (reloadError) {
-      console.warn('[API:scheduled-jobs] Scheduler reload failed:', reloadError);
-    }
+    // Note: Schedules are now managed by Inngest (code-defined cron triggers).
+    // DB overrides are stored for reference but Inngest schedules require code deployment to change.
 
     return NextResponse.json({ success: true, data: { jobKey, enabled, schedule } });
   } catch (error) {

@@ -10,8 +10,8 @@ import { prisma } from '@/lib/prisma';
 import { CampaignManager } from '@/lib/managers/CampaignManager';
 
 export const processDripSteps = inngest.createFunction(
-    { id: 'process-drip-steps', name: 'Process Campaign Drip Steps' },
-    { event: 'campaigns/drip-steps.process' }, // Scheduling handled by node-cron (CronScheduler.ts)
+    { id: 'process-drip-steps', name: 'Process Campaign Drip Steps', retries: 2 },
+    { cron: '14,29,44,59 * * * *' },
     async ({ step }) => {
         const dueRecipients = await step.run('find-due-recipients', async () => {
             return prisma.campaignRecipient.findMany({

@@ -254,6 +254,7 @@ export type Permission =
   | 'safety.audit.view'
   | 'safety.oos.view'
   | 'safety.oos.manage'
+  | 'safety.cdl.view'
   // Department Access
   | 'departments.accounting.view'
   | 'departments.fleet.view'
@@ -352,6 +353,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.insurance.view', 'safety.insurance.manage',
     'safety.reports.view', 'safety.audit.view',
     'safety.oos.view', 'safety.oos.manage',
+    'safety.cdl.view',
     'departments.accounting.view',
     'departments.fleet.view',
     'departments.safety.view',
@@ -437,6 +439,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.insurance.view', 'safety.insurance.manage',
     'safety.reports.view', 'safety.audit.view',
     'safety.oos.view', 'safety.oos.manage',
+    'safety.cdl.view',
     // Department Access - All departments enabled by default for admin
     'departments.accounting.view',
     'departments.fleet.view',
@@ -474,6 +477,8 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     // 'departments.fleet.view', // REMOVED: No full fleet dashboard
     // 'departments.reports.view', // REMOVED: No reports access
     'departments.settings.view', // Allow access to settings (profile)
+    // Safety - CDL view only (needed for booking loads)
+    'safety.cdl.view',
     // Company Payments Module (dispatchers can log expenses)
     'company_expenses.view', 'company_expenses.create',
     'payment_instruments.view',
@@ -571,6 +576,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.insurance.view', 'safety.insurance.manage',
     'safety.reports.view', 'safety.audit.view',
     'safety.oos.view', 'safety.oos.manage',
+    'safety.cdl.view',
     // Company Payments Module (safety can log drug tests, MVR costs etc.)
     'company_expenses.view', 'company_expenses.create',
     'payment_instruments.view',
@@ -747,6 +753,7 @@ export function getAllPermissions(): Permission[] {
     'safety.insurance.view', 'safety.insurance.manage',
     'safety.reports.view', 'safety.audit.view',
     'safety.oos.view', 'safety.oos.manage',
+    'safety.cdl.view',
     // Department Access
     'departments.accounting.view',
     'departments.fleet.view',

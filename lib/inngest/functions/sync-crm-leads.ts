@@ -10,8 +10,8 @@ import { prisma } from '@/lib/prisma';
 import { processCrmIntegration } from '@/lib/services/crm-import';
 
 export const syncCrmLeads = inngest.createFunction(
-    { id: 'sync-crm-leads', name: 'CRM Lead Auto-Sync' },
-    { event: 'crm/sync-leads.requested' }, // Scheduling handled by node-cron (CronScheduler.ts)
+    { id: 'sync-crm-leads', name: 'CRM Lead Auto-Sync', retries: 2 },
+    { cron: '4,19,34,49 * * * *' },
     async ({ step }) => {
         // Find all enabled integrations that are due for sync
         const integrations = await step.run('find-due-integrations', async () => {

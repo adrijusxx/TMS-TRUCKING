@@ -8,6 +8,7 @@
  */
 
 import { calculateRoute, geocodeAddress } from '@/lib/maps/google-maps';
+import { getStateFromCoordinates } from '@/lib/utils/state-lookup';
 
 // US State boundaries (approximate center lat/lng and abbreviations)
 // Used for reverse geocoding to determine state from coordinates
@@ -93,11 +94,6 @@ export interface RouteResult {
 }
 
 export class RoutingService {
-  private apiKey: string | undefined;
-
-  constructor() {
-    this.apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  }
 
   /**
    * Calculate route with state-by-state mileage breakdown
@@ -129,7 +125,7 @@ export class RoutingService {
     }
 
     // Parse state mileages from route steps
-    const stateMileages = await this.parseStateMileagesFromRoute(route);
+    const stateMileages = this.parseStateMileagesFromRoute(route);
 
     const totalMiles = route.distance / 1609.34; // meters to miles
     const durationMinutes = route.duration / 60;
@@ -147,12 +143,13 @@ export class RoutingService {
   }
 
   /**
-   * Parse state mileages from route steps
+   * Parse state mileages from route steps.
+   * Uses offline point-in-polygon lookup instead of Google reverse geocoding.
    */
-  private async parseStateMileagesFromRoute(route: {
+  private parseStateMileagesFromRoute(route: {
     steps: unknown[];
     distance: number;
-  }): Promise<StateMileage[]> {
+  }): StateMileage[] {
     const stateMileages: Record<string, number> = {};
     const steps = route.steps as Array<{
       html_instructions?: string;
@@ -170,9 +167,9 @@ export class RoutingService {
       // Try to extract state from step instructions
       let state = this.extractStateFromInstructions(step.html_instructions || '');
 
-      // If no state found in instructions, try geocoding the step location
+      // If no state found in instructions, use offline polygon lookup (free)
       if (!state && step.end_location) {
-        state = await this.getStateFromCoordinates(
+        state = getStateFromCoordinates(
           step.end_location.lat,
           step.end_location.lng
         );
@@ -218,38 +215,6 @@ export class RoutingService {
           return abbr;
         }
       }
-    }
-
-    return null;
-  }
-
-  /**
-   * Get state from coordinates using reverse geocoding
-   */
-  private async getStateFromCoordinates(
-    lat: number,
-    lng: number
-  ): Promise<string | null> {
-    if (!this.apiKey) return null;
-
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${this.apiKey}&result_type=administrative_area_level_1`
-      );
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-      if (data.status !== 'OK' || !data.results?.[0]) return null;
-
-      // Extract state from address components
-      for (const component of data.results[0].address_components) {
-        if (component.types?.includes('administrative_area_level_1')) {
-          return component.short_name;
-        }
-      }
-    } catch (error) {
-      console.error('Reverse geocoding error:', error);
     }
 
     return null;

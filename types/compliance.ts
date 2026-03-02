@@ -19,6 +19,7 @@ interface DQFCompliance {
     status: 'COMPLETE' | 'MISSING' | 'EXPIRING' | 'EXPIRED';
     expirationDate: Date | null;
     issueDate: Date | null;
+    customName?: string;
     document?: {
       id: string;
       title: string;

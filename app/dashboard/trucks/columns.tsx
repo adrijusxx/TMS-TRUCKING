@@ -78,18 +78,6 @@ export function createTruckColumns(
       required: true,
     },
     {
-      id: 'vehicle',
-      header: 'Vehicle',
-      cell: ({ row }) => (
-        <div>
-          <div className="font-medium">
-            {row.original.year} {row.original.make} {row.original.model}
-          </div>
-        </div>
-      ),
-      defaultVisible: true,
-    },
-    {
       id: 'licensePlate',
       accessorKey: 'licensePlate',
       header: 'License Plate',
@@ -163,6 +151,47 @@ export function createTruckColumns(
           {formatStatus(row.original.status)}
         </Badge>
       ),
+      defaultVisible: true,
+    },
+    {
+      id: 'annualInspectionExpiry',
+      header: 'Annual Inspection',
+      cell: ({ row }) => {
+        const date = (row.original as any).nextInspectionDue;
+        if (!date) {
+          return <span className="text-muted-foreground">-</span>;
+        }
+        const d = new Date(date);
+        const now = new Date();
+        const diffMs = d.getTime() - now.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        const formatted = d.toLocaleDateString();
+
+        if (diffDays < 0) {
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-red-600 font-medium">{formatted}</span>
+              <Badge variant="destructive" className="text-xs">EXPIRED</Badge>
+            </div>
+          );
+        }
+        if (diffDays <= 30) {
+          return <span className="text-yellow-600 font-medium">{formatted}</span>;
+        }
+        return <span>{formatted}</span>;
+      },
+      defaultVisible: true,
+    },
+    {
+      id: 'hasDocuments',
+      header: 'Docs',
+      cell: ({ row }) => {
+        const count = (row.original as any)._count?.documents ?? 0;
+        if (count > 0) {
+          return <Badge variant="secondary">{count} doc{count !== 1 ? 's' : ''}</Badge>;
+        }
+        return <span className="text-muted-foreground">-</span>;
+      },
       defaultVisible: true,
     },
     {

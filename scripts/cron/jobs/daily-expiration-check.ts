@@ -1,17 +1,13 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { ExpirationTrackingService } from '@/lib/services/safety/ExpirationTrackingService';
-
-const prisma = new PrismaClient();
 
 /**
  * Daily job to check for expiring documents and create alerts
- * Runs every day at 6:00 AM
+ * Called by Inngest daily-automation cron function
  */
 export async function dailyExpirationCheck() {
   try {
     console.log('Starting daily expiration check...');
-
-    const expirationService = new ExpirationTrackingService(prisma);
 
     // Get all active companies
     const companies = await prisma.company.findMany({
@@ -36,18 +32,18 @@ export async function dailyExpirationCheck() {
   } catch (error) {
     console.error('Error in daily expiration check:', error);
     throw error;
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
-// Run if called directly
+// Run if called directly (standalone script mode)
 if (require.main === module) {
+  const { PrismaClient } = require('@prisma/client');
+  const standalone = new PrismaClient();
   dailyExpirationCheck()
+    .then(() => standalone.$disconnect())
     .then(() => process.exit(0))
-    .catch((error) => {
+    .catch((error: Error) => {
       console.error(error);
-      process.exit(1);
+      standalone.$disconnect().then(() => process.exit(1));
     });
 }
-

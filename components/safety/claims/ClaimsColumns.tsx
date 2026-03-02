@@ -68,10 +68,18 @@ export function createClaimsColumns(actions?: ClaimActions): ExtendedColumnDef<C
       required: true,
     },
     {
-      id: 'mcNumber',
-      header: 'MC Number',
-      cell: () => <span className="text-muted-foreground">-</span>,
+      id: 'claimType',
+      accessorKey: 'claimType',
+      header: 'Claim Type',
+      cell: ({ row }) => formatLabel(row.original.claimType),
       defaultVisible: true,
+      filterType: 'select',
+      filterOptions: [
+        { value: 'ACCIDENT', label: 'Accident' },
+        { value: 'CARGO', label: 'Cargo' },
+        { value: 'PROPERTY_DAMAGE', label: 'Property Damage' },
+        { value: 'OTHER', label: 'Other' },
+      ],
     },
     {
       id: 'driver',

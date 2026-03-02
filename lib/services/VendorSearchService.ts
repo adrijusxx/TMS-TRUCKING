@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { Vendor } from '@prisma/client';
+import { GeocodingCacheManager, ApiCacheType } from '@/lib/managers/GeocodingCacheManager';
 
 interface GooglePlaceResult {
     id: string;
@@ -60,6 +61,11 @@ export class VendorSearchService {
             // Convert miles to meters (Google uses meters)
             const radiusMeters = Math.min(radiusMiles * 1609.34, 50000); // Max 50km
 
+            // Check cache first (rounded coords for better hit rate)
+            const cacheKey = `vendor:${Math.round(latitude * 100) / 100},${Math.round(longitude * 100) / 100}:r${Math.round(radiusMeters)}`;
+            const cached = await GeocodingCacheManager.get<GooglePlaceResult[]>(cacheKey, ApiCacheType.GEOCODE);
+            if (cached) return cached;
+
             // Search for truck repair, auto repair, and towing services
             const types = ['car_repair', 'gas_station'];
             const keyword = 'truck repair towing service';
@@ -94,7 +100,12 @@ export class VendorSearchService {
                 isGooglePlace: true as const
             }));
 
-            return results.filter(r => r.latitude && r.longitude);
+            const filtered = results.filter(r => r.latitude && r.longitude);
+
+            // Cache for 1 day to avoid repeated API calls
+            await GeocodingCacheManager.set(cacheKey, ApiCacheType.GEOCODE, filtered, { ttlDays: 1 });
+
+            return filtered;
         } catch (error) {
             console.error('[VendorSearch] Google Places error:', error);
             return [];

@@ -1,17 +1,15 @@
 /**
  * Next.js Instrumentation Hook
  *
- * Runs once on server startup. Initializes the in-process
- * cron scheduler for background tasks (CRM sync, follow-ups, etc.).
+ * Runs once on server startup. Initializes background services.
+ * Note: Cron jobs are now handled by Inngest (external scheduler),
+ * so no in-process scheduler is needed.
  *
  * @see https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { startCronScheduler } = await import('./lib/cron/CronScheduler');
-    await startCronScheduler();
-
     // Auto-reconnect Telegram and start AI message processing
     // Runs after a short delay to avoid blocking startup
     setTimeout(async () => {

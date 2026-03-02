@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { usePermissions } from '@/hooks/usePermissions';
-import SafetyTasksTab from './tasks/SafetyTasksTab';
+import AccidentsTab from './accidents/AccidentsTab';
 import ClaimsTab from './claims/ClaimsTab';
 import InspectionsTab from './inspections/InspectionsTab';
 import SafetyOverviewTab from './overview/SafetyOverviewTab';
@@ -13,16 +13,16 @@ import SafetyArchiveTab from './archive/SafetyArchiveTab';
 export default function SafetyDepartmentDashboard() {
   const { can } = usePermissions();
   const searchParams = useSearchParams();
-  const tab = searchParams.get('tab') || 'tasks';
+  const tab = searchParams.get('tab') || 'accidents';
 
   return (
     <div className="space-y-4">
-      {tab === 'tasks' && <SafetyTasksTab />}
+      {tab === 'accidents' && <AccidentsTab />}
+      {tab === 'claims' && <ClaimsTab />}
+      {tab === 'inspections' && <InspectionsTab />}
       {tab === 'board' && <SafetyBoardTab />}
       {tab === 'calendar' && <SafetyCalendarTab />}
       {tab === 'archive' && <SafetyArchiveTab />}
-      {tab === 'inspections' && <InspectionsTab />}
-      {tab === 'claims' && <ClaimsTab />}
       {tab === 'overview' && can('safety.overview.view') && <SafetyOverviewTab />}
     </div>
   );

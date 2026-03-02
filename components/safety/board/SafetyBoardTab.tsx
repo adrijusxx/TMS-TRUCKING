@@ -2,39 +2,40 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { usePermissions } from '@/hooks/usePermissions';
 import DriverComplianceTable from '@/components/safety/compliance/DriverComplianceTable';
-import TruckComplianceBoard from './TruckComplianceBoard';
-import TrailerComplianceBoard from './TrailerComplianceBoard';
+import VehicleComplianceBoard from './VehicleComplianceBoard';
 
-type BoardView = 'driver' | 'truck' | 'trailer';
+type BoardView = 'driver' | 'vehicles';
 
 export default function SafetyBoardTab() {
+  const { can } = usePermissions();
+  const isDispatcher = can('safety.cdl.view') && !can('safety.view');
   const [activeView, setActiveView] = useState<BoardView>('driver');
-
-  const views: { key: BoardView; label: string }[] = [
-    { key: 'driver', label: 'Driver' },
-    { key: 'truck', label: 'Truck' },
-    { key: 'trailer', label: 'Trailer' },
-  ];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        {views.map((v) => (
+      {!isDispatcher && (
+        <div className="flex items-center gap-2">
           <Button
-            key={v.key}
-            variant={activeView === v.key ? 'default' : 'outline'}
+            variant={activeView === 'driver' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setActiveView(v.key)}
+            onClick={() => setActiveView('driver')}
           >
-            {v.label}
+            Driver
           </Button>
-        ))}
-      </div>
+          <Button
+            variant={activeView === 'vehicles' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveView('vehicles')}
+          >
+            Vehicles
+          </Button>
+        </div>
+      )}
 
-      {activeView === 'driver' && <DriverComplianceTable />}
-      {activeView === 'truck' && <TruckComplianceBoard />}
-      {activeView === 'trailer' && <TrailerComplianceBoard />}
+      {activeView === 'driver' && <DriverComplianceTable dispatcherMode={isDispatcher} />}
+      {activeView === 'vehicles' && !isDispatcher && <VehicleComplianceBoard />}
     </div>
   );
 }

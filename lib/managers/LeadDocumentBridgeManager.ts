@@ -64,7 +64,7 @@ export class LeadDocumentBridgeManager {
             try {
                 // Check if this DQF document type already exists
                 const existing = await this.prisma.dQFDocument.findUnique({
-                    where: { dqfId_documentType: { dqfId: dqf.id, documentType: mapping.dqfType as any } },
+                    where: { dqfId_documentType_customName: { dqfId: dqf.id, documentType: mapping.dqfType as any, customName: '' } },
                 });
 
                 if (existing) {

@@ -59,14 +59,23 @@ export default function MedicalTab({ driver, onSave }: MedicalTabProps) {
     onError: () => toast.error('Failed to update medical card'),
   });
 
+  // Use UTC-safe date formatting to prevent timezone shift
+  const formatDateForInput = (dateValue: string | Date | null | undefined): string => {
+    if (!dateValue) return '';
+    const d = new Date(dateValue);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const { register, handleSubmit } = useForm({
     defaultValues: driver.medicalCard
       ? {
           cardNumber: driver.medicalCard.cardNumber,
-          expirationDate: new Date(driver.medicalCard.expirationDate).toISOString().split('T')[0],
-          issueDate: driver.medicalCard.issueDate
-            ? new Date(driver.medicalCard.issueDate).toISOString().split('T')[0]
-            : '',
+          expirationDate: formatDateForInput(driver.medicalCard.expirationDate),
+          issueDate: formatDateForInput(driver.medicalCard.issueDate),
           medicalExaminerName: driver.medicalCard.medicalExaminerName || '',
           medicalExaminerCertificateNumber: driver.medicalCard.medicalExaminerCertificateNumber || '',
           waiverInformation: driver.medicalCard.waiverInformation || '',

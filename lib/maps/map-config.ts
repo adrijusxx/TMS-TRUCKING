@@ -49,7 +49,7 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   defaultCenter: { lat: 39.8283, lng: -98.5795 },
   minZoom: 3,
   maxZoom: 18,
-  refreshInterval: 30000, // 30 seconds
+  refreshInterval: 60000, // 60 seconds (reduced from 30s to cut API costs)
 };
 
 interface RouteStyle {

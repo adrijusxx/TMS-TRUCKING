@@ -72,11 +72,11 @@ export const fleetNavItems: DepartmentNavItem[] = [
 
 // Safety Department
 export const safetyNavItems: DepartmentNavItem[] = [
-  { name: 'Safety Tasks', href: '/dashboard/safety', icon: ClipboardCheck },
+  { name: 'Accidents', href: '/dashboard/safety', icon: AlertTriangle },
+  { name: 'Claims', href: '/dashboard/safety/claims', icon: AlertCircle },
+  { name: 'DOT Inspections', href: '/dashboard/safety/inspections', icon: FileCheck },
   { name: 'Safety Board', href: '/dashboard/safety/board', icon: LayoutGrid },
   { name: 'Calendar', href: '/dashboard/safety/calendar', icon: Calendar },
-  { name: 'Inspections', href: '/dashboard/safety/inspections', icon: FileCheck },
-  { name: 'Claims', href: '/dashboard/safety/claims', icon: AlertCircle },
   { name: 'Overview', href: '/dashboard/safety/overview', icon: LayoutDashboard },
   { name: 'Audit Prep', href: '/dashboard/safety/audit-prep', icon: FileCheck },
   { name: 'Analytics', href: '/dashboard/safety/analytics', icon: BarChart3 },

@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
     const session = await auth();
@@ -92,5 +92,47 @@ export async function GET(request: Request) {
     } catch (error) {
         console.error('[INSPECTIONS_GET]', error);
         return new NextResponse('Internal Server Error', { status: 500 });
+    }
+}
+
+export async function POST(request: NextRequest) {
+    const session = await auth();
+    if (!session?.user?.companyId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    try {
+        const body = await request.json();
+
+        const inspection = await prisma.roadsideInspection.create({
+            data: {
+                companyId: session.user.companyId,
+                inspectionLevel: body.inspectionLevel || 'LEVEL_1',
+                inspectionDate: new Date(body.inspectionDate),
+                inspectionLocation: body.inspectionLocation || '',
+                inspectionState: body.inspectionState || '',
+                inspectorName: body.inspectorName || null,
+                inspectorBadgeNumber: body.inspectorBadgeNumber || null,
+                violationsFound: body.violationsFound ?? false,
+                outOfService: body.outOfService ?? false,
+                oosReason: body.oosReason || null,
+                recordable: body.recordable ?? false,
+                totalCharge: body.totalCharge ? parseFloat(body.totalCharge) : null,
+                totalFee: body.totalFee ? parseFloat(body.totalFee) : null,
+                note: body.note || null,
+                driverId: body.driverId || null,
+                truckId: body.truckId || null,
+                trailerId: body.trailerId || null,
+            },
+            include: {
+                driver: { include: { user: { select: { firstName: true, lastName: true } } } },
+                truck: { select: { truckNumber: true } },
+            },
+        });
+
+        return NextResponse.json({ data: inspection }, { status: 201 });
+    } catch (error) {
+        console.error('[INSPECTIONS_POST]', error);
+        return NextResponse.json({ error: 'Failed to create inspection' }, { status: 500 });
     }
 }

@@ -2,8 +2,12 @@
 
 import type { ExtendedColumnDef } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatDate, formatCurrency } from '@/lib/utils';
-import { Check, X } from 'lucide-react';
+import { Check, X, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 
 export interface InspectionData {
   id: string;
@@ -30,11 +34,16 @@ const statusColors: Record<string, string> = {
   COMPLETED: 'bg-green-100 text-green-800 border-green-200',
 };
 
+export interface InspectionActions {
+  onEdit?: (inspection: InspectionData) => void;
+  onDelete?: (inspection: InspectionData) => void;
+}
+
 function formatLabel(str: string): string {
   return str.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
-export function createInspectionsColumns(): ExtendedColumnDef<InspectionData>[] {
+export function createInspectionsColumns(actions?: InspectionActions): ExtendedColumnDef<InspectionData>[] {
   return [
     {
       id: 'driverName',
@@ -47,12 +56,6 @@ export function createInspectionsColumns(): ExtendedColumnDef<InspectionData>[] 
       id: 'inspectionReport',
       header: 'Inspection report',
       cell: ({ row }) => row.original.inspectionReport ?? <span className="text-muted-foreground">-</span>,
-      defaultVisible: true,
-    },
-    {
-      id: 'mcNumber',
-      header: 'MC Number',
-      cell: ({ row }) => row.original.mcNumber ?? <span className="text-muted-foreground">-</span>,
       defaultVisible: true,
     },
     {
@@ -146,5 +149,34 @@ export function createInspectionsColumns(): ExtendedColumnDef<InspectionData>[] 
       },
       defaultVisible: true,
     },
+    ...(actions ? [{
+      id: 'actions',
+      header: '',
+      cell: ({ row }: { row: { original: InspectionData } }) => {
+        const inspection = row.original;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {actions.onEdit && (
+                <DropdownMenuItem onClick={() => actions.onEdit!(inspection)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Edit
+                </DropdownMenuItem>
+              )}
+              {actions.onDelete && (
+                <DropdownMenuItem onClick={() => actions.onDelete!(inspection)} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
+      defaultVisible: true,
+    } as ExtendedColumnDef<InspectionData>] : []),
   ];
 }

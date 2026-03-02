@@ -1,13 +1,13 @@
 import { DepartmentDashboard } from '@/components/layout/DepartmentDashboard';
-import SafetyTasksTab from '@/components/safety/tasks/SafetyTasksTab';
+import AccidentsTab from '@/components/safety/accidents/AccidentsTab';
 
 export default function SafetyPageRoute() {
   return (
     <DepartmentDashboard
       title="Safety Department"
-      description="Safety tasks, inspections, claims, and compliance"
+      description="Accidents, claims, inspections, and compliance"
     >
-      <SafetyTasksTab />
+      <AccidentsTab />
     </DepartmentDashboard>
   );
 }

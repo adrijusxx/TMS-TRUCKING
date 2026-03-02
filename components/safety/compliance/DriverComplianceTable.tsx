@@ -39,6 +39,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 interface DriverComplianceTableProps {
   onRefresh?: () => void;
+  dispatcherMode?: boolean;
 }
 
 async function fetchDriverCompliance(params: {
@@ -60,24 +61,40 @@ async function fetchDriverCompliance(params: {
   return response.json();
 }
 
-export default function DriverComplianceTable({ onRefresh }: DriverComplianceTableProps) {
+export default function DriverComplianceTable({ onRefresh, dispatcherMode }: DriverComplianceTableProps) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [complianceStatusFilter, setComplianceStatusFilter] = useState<string>('all');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const mcContext = getMcContext();
-  
-  // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState({
+
+  // Column visibility state — dispatcher mode only shows CDL columns
+  const [visibleColumns, setVisibleColumns] = useState(dispatcherMode ? {
+    expand: false,
+    driver: true,
+    mcNumber: false,
+    dqf: false,
+    dqfStatus: false,
+    medicalCard: false,
+    cdl: true,
+    cdlExp: true,
+    cdlStatus: true,
+    mvr: false,
+    mvrDate: false,
+    mvrStatus: false,
+    drugTests: false,
+    drugTestDate: false,
+    hos: false,
+    hosStatus: false,
+    compliance: false,
+  } : {
     expand: true,
     driver: true,
     mcNumber: true,
     dqf: true,
     dqfStatus: true,
     medicalCard: true,
-    medicalCardExp: true,
-    medicalCardStatus: true,
     cdl: true,
     cdlExp: true,
     cdlStatus: true,
@@ -226,22 +243,6 @@ export default function DriverComplianceTable({ onRefresh }: DriverComplianceTab
             >
               Medical Card
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleColumns.medicalCardExp}
-              onCheckedChange={(checked) =>
-                setVisibleColumns({ ...visibleColumns, medicalCardExp: checked })
-              }
-            >
-              Medical Card Expiration
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleColumns.medicalCardStatus}
-              onCheckedChange={(checked) =>
-                setVisibleColumns({ ...visibleColumns, medicalCardStatus: checked })
-              }
-            >
-              Medical Card Status
-            </DropdownMenuCheckboxItem>
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem
               checked={visibleColumns.cdl}
@@ -349,8 +350,6 @@ export default function DriverComplianceTable({ onRefresh }: DriverComplianceTab
               {visibleColumns.mcNumber && <TableHead>MC Number</TableHead>}
               {visibleColumns.dqf && <TableHead>DQF Status</TableHead>}
               {visibleColumns.medicalCard && <TableHead>Medical Card</TableHead>}
-              {visibleColumns.medicalCardExp && <TableHead>Medical Card Exp</TableHead>}
-              {visibleColumns.medicalCardStatus && <TableHead>Medical Status</TableHead>}
               {visibleColumns.cdl && <TableHead>CDL</TableHead>}
               {visibleColumns.cdlExp && <TableHead>CDL Expiration</TableHead>}
               {visibleColumns.cdlStatus && <TableHead>CDL Status</TableHead>}
@@ -422,28 +421,15 @@ export default function DriverComplianceTable({ onRefresh }: DriverComplianceTab
                       {visibleColumns.medicalCard && (
                         <TableCell>
                           {driver.medicalCard ? (
-                            <Badge className={getStatusBadgeColor(driver.statusSummary.medicalCard.status)}>
-                              {formatDaysUntilExpiration(driver.statusSummary.medicalCard.daysUntilExpiration)}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge className={getStatusBadgeColor(driver.statusSummary.medicalCard.status)}>
+                                {driver.statusSummary.medicalCard.status}
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">{formatDate(driver.medicalCard.expirationDate)}</span>
+                            </div>
                           ) : (
                             <Badge className={getStatusBadgeColor('MISSING')}>Missing</Badge>
                           )}
-                        </TableCell>
-                      )}
-                      {visibleColumns.medicalCardExp && (
-                        <TableCell>
-                          {driver.medicalCard ? (
-                            <div className="text-sm">{formatDate(driver.medicalCard.expirationDate)}</div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      )}
-                      {visibleColumns.medicalCardStatus && (
-                        <TableCell>
-                          <Badge className={getStatusBadgeColor(driver.statusSummary.medicalCard.status)}>
-                            {driver.statusSummary.medicalCard.status}
-                          </Badge>
                         </TableCell>
                       )}
                       {visibleColumns.cdl && (

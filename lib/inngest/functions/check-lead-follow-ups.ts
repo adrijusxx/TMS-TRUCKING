@@ -10,8 +10,8 @@ import { prisma } from '@/lib/prisma';
 import { notifyFollowUpDue } from '@/lib/notifications/crm-triggers';
 
 export const checkLeadFollowUps = inngest.createFunction(
-    { id: 'check-lead-follow-ups', name: 'CRM Follow-Up Reminder Check' },
-    { event: 'crm/follow-ups.check' }, // Scheduling handled by node-cron (CronScheduler.ts)
+    { id: 'check-lead-follow-ups', name: 'CRM Follow-Up Reminder Check', retries: 2 },
+    { cron: '8 * * * *' },
     async ({ step }) => {
         // Load per-company reminder settings
         const companySettings = await step.run('load-reminder-settings', async () => {
