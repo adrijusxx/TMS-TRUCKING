@@ -1,28 +1,56 @@
 import { SubscriptionModule } from '@prisma/client';
 
+// ============================================
+// PLAN IDENTIFIERS
+// ============================================
+
 export const SUBSCRIPTION_PLANS = {
     FREE: 'starter-free',
     PRO: 'pro-monthly',
     ENTERPRISE: 'enterprise',
 } as const;
 
-// Plans that include access to ALL modules automatically
+/** Plans that include access to ALL modules with unlimited usage */
 export const ALL_ACCESS_PLANS = [
     SUBSCRIPTION_PLANS.ENTERPRISE,
-    SUBSCRIPTION_PLANS.PRO, // Pro Monthly now grants full access
-    'pro-bundle', // Legacy or bundle identifier
-    'premium',    // Potential alias
-    'pro-trial-14day', // 14-day Pro Trial
+    SUBSCRIPTION_PLANS.PRO,
+    'pro-bundle',
+    'premium',
+    'pro-trial-14day',
 ];
 
+// ============================================
+// PRICING (amounts in cents for Stripe)
+// ============================================
+
+/** $15 per truck per month */
+export const PRO_PRICE_PER_TRUCK = 1500;
+
+/** Core modules included in all plans (free + pro) */
+export const CORE_MODULES: SubscriptionModule[] = [
+    'FLEET', 'ACCOUNTING', 'SAFETY', 'HR', 'INTEGRATIONS',
+];
+
+/** Premium add-ons with separate pricing */
+export const PREMIUM_MODULES: SubscriptionModule[] = [
+    'AI_DISPATCH', 'ANALYTICS',
+];
+
+/** Premium add-on prices in cents */
+export const PREMIUM_ADDON_PRICES: Partial<Record<SubscriptionModule, number>> = {
+    AI_DISPATCH: 5000,  // $50/mo
+    ANALYTICS: 5000,    // $50/mo
+};
+
+/** Display prices for all modules */
 export const MODULE_PRICES: Record<SubscriptionModule, string> = {
-    FLEET: '$200/mo',
-    ACCOUNTING: '$300/mo',
-    SAFETY: '$200/mo',
-    INTEGRATIONS: '$100/mo',
-    AI_DISPATCH: '$150/mo',
-    ANALYTICS: '$100/mo',
-    HR: '$100/mo',
+    FLEET: 'Included',
+    ACCOUNTING: 'Included',
+    SAFETY: 'Included',
+    INTEGRATIONS: 'Included',
+    HR: 'Included',
+    AI_DISPATCH: '$50/mo',
+    ANALYTICS: '$50/mo',
 };
 
 export const MODULE_NAMES: Record<SubscriptionModule, string> = {
@@ -46,35 +74,29 @@ export const MODULE_DESCRIPTIONS: Record<SubscriptionModule, string> = {
 };
 
 // ============================================
-// USAGE-BASED FREE TIER LIMITS
+// USAGE-BASED TIER LIMITS
 // ============================================
 
 export interface UsageLimits {
-    loadsLimit: number | null;       // Monthly loads
-    invoicesLimit: number | null;    // Monthly invoices
-    settlementsLimit: number | null; // Monthly settlements
-    documentsLimit: number | null;   // Monthly document AI scans
-    trucksLimit: number | null;      // Max trucks
-    driversLimit: number | null;     // Max drivers
+    loadsLimit: number | null;
+    invoicesLimit: number | null;
+    settlementsLimit: number | null;
+    documentsLimit: number | null;
+    trucksLimit: number | null;
+    driversLimit: number | null;
 }
 
-/**
- * Free Tier: Usage-based limits
- * Users get X actions per month, then must upgrade
- */
+/** Free Tier: generous limits to hook small fleets */
 export const FREE_TIER_LIMITS: UsageLimits = {
-    loadsLimit: 10,           // 10 loads per month
-    invoicesLimit: 5,         // 5 invoices per month
-    settlementsLimit: 3,      // 3 settlements per month
-    documentsLimit: 5,        // 5 document AI scans per month
-    trucksLimit: 1,           // 1 truck max
-    driversLimit: 2,          // 2 drivers max
+    loadsLimit: 25,
+    invoicesLimit: 10,
+    settlementsLimit: 5,
+    documentsLimit: 10,
+    trucksLimit: 3,
+    driversLimit: 5,
 };
 
-/**
- * Pro Tier: Unlimited usage
- * null = unlimited
- */
+/** Pro Tier: unlimited (null = no limit) */
 export const PRO_TIER_LIMITS: UsageLimits = {
     loadsLimit: null,
     invoicesLimit: null,
@@ -84,9 +106,7 @@ export const PRO_TIER_LIMITS: UsageLimits = {
     driversLimit: null,
 };
 
-/**
- * Get limits based on plan ID
- */
+/** Get limits based on plan ID */
 export function getLimitsForPlan(planId: string): UsageLimits {
     if (ALL_ACCESS_PLANS.includes(planId)) {
         return PRO_TIER_LIMITS;
@@ -94,9 +114,7 @@ export function getLimitsForPlan(planId: string): UsageLimits {
     return FREE_TIER_LIMITS;
 }
 
-/**
- * Human-readable limit descriptions for UI
- */
+/** Human-readable limit descriptions for UI */
 export const LIMIT_DESCRIPTIONS = {
     loadsLimit: 'Loads per month',
     invoicesLimit: 'Invoices per month',

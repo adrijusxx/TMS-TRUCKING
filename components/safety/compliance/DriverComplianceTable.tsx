@@ -23,7 +23,7 @@ import {
 import { ChevronDown, ChevronUp, Search, Filter, Settings2, Columns } from 'lucide-react';
 import { apiUrl, formatDate } from '@/lib/utils';
 import { DriverComplianceData } from '@/types/compliance';
-import { getStatusBadgeColor, formatDaysUntilExpiration } from '@/lib/utils/compliance-status';
+import { getStatusBadgeColor } from '@/lib/utils/compliance-status';
 import McBadge from '@/components/mc-numbers/McBadge';
 import DriverComplianceEditor from './DriverComplianceEditor';
 import { getMcContext } from '@/lib/utils/query-keys';
@@ -75,16 +75,10 @@ export default function DriverComplianceTable({ onRefresh, dispatcherMode }: Dri
     driver: true,
     mcNumber: false,
     dqf: false,
-    dqfStatus: false,
     medicalCard: false,
     cdl: true,
-    cdlExp: true,
-    cdlStatus: true,
     mvr: false,
-    mvrDate: false,
-    mvrStatus: false,
     drugTests: false,
-    drugTestDate: false,
     hos: false,
     hosStatus: false,
     compliance: false,
@@ -93,16 +87,10 @@ export default function DriverComplianceTable({ onRefresh, dispatcherMode }: Dri
     driver: true,
     mcNumber: true,
     dqf: true,
-    dqfStatus: true,
     medicalCard: true,
     cdl: true,
-    cdlExp: true,
-    cdlStatus: true,
     mvr: true,
-    mvrDate: true,
-    mvrStatus: true,
     drugTests: true,
-    drugTestDate: true,
     hos: true,
     hosStatus: true,
     compliance: true,
@@ -253,23 +241,6 @@ export default function DriverComplianceTable({ onRefresh, dispatcherMode }: Dri
               CDL
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={visibleColumns.cdlExp}
-              onCheckedChange={(checked) =>
-                setVisibleColumns({ ...visibleColumns, cdlExp: checked })
-              }
-            >
-              CDL Expiration
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleColumns.cdlStatus}
-              onCheckedChange={(checked) =>
-                setVisibleColumns({ ...visibleColumns, cdlStatus: checked })
-              }
-            >
-              CDL Status
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
               checked={visibleColumns.mvr}
               onCheckedChange={(checked) =>
                 setVisibleColumns({ ...visibleColumns, mvr: checked })
@@ -278,37 +249,12 @@ export default function DriverComplianceTable({ onRefresh, dispatcherMode }: Dri
               MVR
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={visibleColumns.mvrDate}
-              onCheckedChange={(checked) =>
-                setVisibleColumns({ ...visibleColumns, mvrDate: checked })
-              }
-            >
-              MVR Pull Date
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleColumns.mvrStatus}
-              onCheckedChange={(checked) =>
-                setVisibleColumns({ ...visibleColumns, mvrStatus: checked })
-              }
-            >
-              MVR Status
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
               checked={visibleColumns.drugTests}
               onCheckedChange={(checked) =>
                 setVisibleColumns({ ...visibleColumns, drugTests: checked })
               }
             >
               Drug Tests
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={visibleColumns.drugTestDate}
-              onCheckedChange={(checked) =>
-                setVisibleColumns({ ...visibleColumns, drugTestDate: checked })
-              }
-            >
-              Last Drug Test Date
             </DropdownMenuCheckboxItem>
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem
@@ -351,13 +297,8 @@ export default function DriverComplianceTable({ onRefresh, dispatcherMode }: Dri
               {visibleColumns.dqf && <TableHead>DQF Status</TableHead>}
               {visibleColumns.medicalCard && <TableHead>Medical Card</TableHead>}
               {visibleColumns.cdl && <TableHead>CDL</TableHead>}
-              {visibleColumns.cdlExp && <TableHead>CDL Expiration</TableHead>}
-              {visibleColumns.cdlStatus && <TableHead>CDL Status</TableHead>}
               {visibleColumns.mvr && <TableHead>MVR</TableHead>}
-              {visibleColumns.mvrDate && <TableHead>MVR Pull Date</TableHead>}
-              {visibleColumns.mvrStatus && <TableHead>MVR Status</TableHead>}
               {visibleColumns.drugTests && <TableHead>Drug Tests</TableHead>}
-              {visibleColumns.drugTestDate && <TableHead>Last Drug Test</TableHead>}
               {visibleColumns.hos && <TableHead>HOS</TableHead>}
               {visibleColumns.hosStatus && <TableHead>HOS Status</TableHead>}
               {visibleColumns.compliance && <TableHead>Compliance</TableHead>}
@@ -435,81 +376,42 @@ export default function DriverComplianceTable({ onRefresh, dispatcherMode }: Dri
                       {visibleColumns.cdl && (
                         <TableCell>
                           {driver.cdl ? (
-                            <Badge className={getStatusBadgeColor(driver.statusSummary.cdl.status)}>
-                              {formatDaysUntilExpiration(driver.statusSummary.cdl.daysUntilExpiration)}
-                            </Badge>
-                          ) : (
-                            <Badge className={getStatusBadgeColor('MISSING')}>Missing</Badge>
-                          )}
-                        </TableCell>
-                      )}
-                      {visibleColumns.cdlExp && (
-                        <TableCell>
-                          {driver.cdl ? (
-                            <div className="text-sm">{formatDate(driver.cdl.expirationDate)}</div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      )}
-                      {visibleColumns.cdlStatus && (
-                        <TableCell>
-                          <Badge className={getStatusBadgeColor(driver.statusSummary.cdl.status)}>
-                            {driver.statusSummary.cdl.status}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {visibleColumns.mvr && (
-                        <TableCell>
-                          {driver.mvr ? (
-                            <div>
-                              {driver.mvr.violations.length > 0 && (
-                                <div className="text-xs text-destructive mb-1">
-                                  {driver.mvr.violations.length} violation(s)
-                                </div>
-                              )}
-                              <Badge className={getStatusBadgeColor(driver.statusSummary.mvr.status)}>
-                                {driver.statusSummary.mvr.status}
+                            <div className="flex items-center gap-2">
+                              <Badge className={getStatusBadgeColor(driver.statusSummary.cdl.status)}>
+                                {driver.statusSummary.cdl.status}
                               </Badge>
+                              <span className="text-sm text-muted-foreground">{formatDate(driver.cdl.expirationDate)}</span>
                             </div>
                           ) : (
                             <Badge className={getStatusBadgeColor('MISSING')}>Missing</Badge>
                           )}
                         </TableCell>
                       )}
-                      {visibleColumns.mvrDate && (
+                      {visibleColumns.mvr && (
                         <TableCell>
                           {driver.mvr ? (
-                            <div className="text-sm">{formatDate(driver.mvr.pullDate)}</div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      )}
-                      {visibleColumns.mvrStatus && (
-                        <TableCell>
-                          <Badge className={getStatusBadgeColor(driver.statusSummary.mvr.status)}>
-                            {driver.statusSummary.mvr.status}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {visibleColumns.drugTests && (
-                        <TableCell>
-                          {driver.recentDrugTests.length > 0 ? (
-                            <Badge className="bg-green-100 text-green-800">
-                              {driver.recentDrugTests.length} test(s)
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge className={getStatusBadgeColor(driver.statusSummary.mvr.status)}>
+                                {driver.statusSummary.mvr.status}
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">{formatDate(driver.mvr.pullDate)}</span>
+                            </div>
                           ) : (
                             <Badge className={getStatusBadgeColor('MISSING')}>Missing</Badge>
                           )}
                         </TableCell>
                       )}
-                      {visibleColumns.drugTestDate && (
+                      {visibleColumns.drugTests && (
                         <TableCell>
                           {driver.recentDrugTests.length > 0 ? (
-                            <div className="text-sm">{formatDate(driver.recentDrugTests[0].testDate)}</div>
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-green-100 text-green-800">
+                                {driver.recentDrugTests.length} test(s)
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">{formatDate(driver.recentDrugTests[0].testDate)}</span>
+                            </div>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <Badge className={getStatusBadgeColor('MISSING')}>Missing</Badge>
                           )}
                         </TableCell>
                       )}

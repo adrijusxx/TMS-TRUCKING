@@ -186,10 +186,12 @@ jobs:
             echo "Switching to new release..."
             ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 
-            # Graceful reload: reuse PM2 process entry if it exists, start fresh if not
-            # Avoids pm2 delete all which causes brief port 3001 downtime → ALB queues requests
+            # Full restart: delete old processes (clears cached cwd) and start fresh
+            # Ensures PM2 picks up the new release directory via the updated symlink
             cd "${CURRENT_LINK}"
-            pm2 startOrReload ecosystem.config.js --update-env
+            pm2 delete tms tms-keepalive 2>/dev/null || true
+            pm2 start ecosystem.config.js
+            pm2 save
 
             # Cleanup: keep only the last N releases
             echo "Cleaning up old releases..."

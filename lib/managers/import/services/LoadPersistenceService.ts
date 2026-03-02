@@ -33,7 +33,7 @@ export class LoadPersistenceService {
         // 2. Fetch existing loads for update/skip logic
         const loadNumbers = finalLoads.map(l => String(l.data.loadNumber).trim());
         const existingLoads = await this.prisma.load.findMany({
-            where: { loadNumber: { in: loadNumbers }, companyId: this.companyId },
+            where: { loadNumber: { in: loadNumbers }, companyId: this.companyId, deletedAt: null },
             select: { id: true, loadNumber: true }
         });
         const existingMap = new Map(existingLoads.map(l => [l.loadNumber.trim().toLowerCase(), l]));

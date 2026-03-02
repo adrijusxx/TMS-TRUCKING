@@ -8,14 +8,16 @@ import { Button } from '@/components/ui/button';
 export default function PricingPage() {
     const plans = [
         {
-            name: "Starter",
+            name: "Free",
             description: "Perfect for owner-operators and small fleets getting started.",
             price: "Free",
             billing: "forever",
             features: [
-                "Up to 3 active trucks",
-                "Basic Dispatch & Load Management",
-                "Standard Document Storage (5GB)",
+                "Up to 3 trucks & 5 drivers",
+                "25 loads per month",
+                "10 invoices & 5 settlements per month",
+                "All core modules included",
+                "Fleet, Accounting, Safety, HR & Integrations",
                 "Email Support",
                 "Mobile App Access"
             ],
@@ -25,17 +27,17 @@ export default function PricingPage() {
         },
         {
             name: "Pro",
-            description: "Everything you need to scale your growing operations.",
-            price: "$99",
-            billing: "per month / truck",
+            description: "Unlimited access for growing fleets. Scales with your business.",
+            price: "$15",
+            billing: "per truck / month",
             features: [
                 "Unlimited trucks & drivers",
-                "Advanced AI Dispatch Routing",
-                "Full Accounting & Settlements",
-                "Safety & DOT Compliance Hub",
+                "Unlimited loads, invoices & settlements",
+                "All core modules included",
                 "Real-Time GPS Tracking",
-                "Premium 24/7 Phone Support",
-                "Unlimited Document Storage"
+                "Unlimited Document Storage",
+                "Priority Support",
+                "14-day free trial included"
             ],
             cta: "Start 14-Day Free Trial",
             popular: true,
@@ -59,6 +61,11 @@ export default function PricingPage() {
             popular: false,
             href: "/contact"
         }
+    ];
+
+    const addOns = [
+        { name: "AI Dispatch", price: "$50/mo", description: "AI-powered load optimization and automated dispatching." },
+        { name: "Analytics", price: "$50/mo", description: "Comprehensive reporting and business intelligence dashboards." },
     ];
 
     return (
@@ -98,10 +105,10 @@ export default function PricingPage() {
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="text-center mb-16 text-balance">
                         <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6 tracking-tight">
-                            Simple, <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">transparent pricing</span>
+                            Simple, <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">per-truck pricing</span>
                         </h1>
                         <p className="text-lg text-slate-400 font-light max-w-2xl mx-auto">
-                            No hidden fees, no long-term contracts. Just the tools you need to build and scale your operations efficiently.
+                            Start free with 3 trucks. Only pay as your fleet grows. No hidden fees, no long-term contracts.
                         </p>
                     </motion.div>
 
@@ -130,7 +137,8 @@ export default function PricingPage() {
                                 <p className="text-slate-400 text-sm h-10 mb-6">{plan.description}</p>
                                 <div className="mb-8">
                                     <span className="text-5xl font-extrabold text-white tracking-tight">{plan.price}</span>
-                                    {plan.price !== "Custom" && <span className="text-slate-400 ml-2">/ {plan.billing}</span>}
+                                    {plan.price !== "Custom" && plan.price !== "Free" && <span className="text-slate-400 ml-2">/ {plan.billing}</span>}
+                                    {plan.price === "Free" && <span className="text-slate-400 ml-2">/ {plan.billing}</span>}
                                 </div>
 
                                 <Link href={plan.href} className="w-full">
@@ -145,7 +153,7 @@ export default function PricingPage() {
                                 </Link>
 
                                 <div className="space-y-4">
-                                    <p className="text-sm font-semibold text-white uppercase tracking-wider mb-4">What's included</p>
+                                    <p className="text-sm font-semibold text-white uppercase tracking-wider mb-4">What&apos;s included</p>
                                     {plan.features.map((feature, i) => (
                                         <div key={i} className="flex items-start gap-3">
                                             <div className={`mt-0.5 rounded-full p-0.5 ${plan.popular ? 'bg-purple-500/20' : 'bg-white/5'}`}>
@@ -159,6 +167,27 @@ export default function PricingPage() {
                         ))}
                     </div>
 
+                    {/* Premium Add-ons */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.4 }}
+                        className="mt-20 max-w-3xl mx-auto"
+                    >
+                        <h2 className="text-2xl font-bold text-white text-center mb-2">Premium Add-ons</h2>
+                        <p className="text-slate-400 text-center mb-8">Supercharge your operations with AI-powered tools.</p>
+                        <div className="grid sm:grid-cols-2 gap-6">
+                            {addOns.map((addon, idx) => (
+                                <div key={idx} className="rounded-2xl p-6 border border-white/5 bg-white/[0.02] hover:border-purple-500/30 transition-colors">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-lg font-semibold text-white">{addon.name}</h3>
+                                        <span className="text-purple-400 font-bold">{addon.price}</span>
+                                    </div>
+                                    <p className="text-sm text-slate-400">{addon.description}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
                 </div>
             </main>
         </div>

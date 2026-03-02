@@ -54,6 +54,14 @@ const SECRETS_MAPPING = {
     // Inngest (background job scheduling)
     "tms/integrations/inngest/event-key": "INNGEST_EVENT_KEY",
     "tms/integrations/inngest/signing-key": "INNGEST_SIGNING_KEY",
+
+    // Resend (email)
+    "tms/integrations/resend/api-key": "RESEND_API_KEY",
+    "tms/integrations/resend/from-email": "RESEND_FROM_EMAIL",
+
+    // Stripe (payments & subscriptions)
+    "tms/integrations/stripe/secret-key": "STRIPE_SECRET_KEY",
+    "tms/integrations/stripe/webhook-secret": "STRIPE_WEBHOOK_SECRET",
 };
 
 
