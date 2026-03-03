@@ -111,16 +111,25 @@ Look for:
 - Unusual patterns or trends
 - Statistical outliers`;
 
-    const result = await this.callAI<AnomalyDetectionResult>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in detecting anomalies in operational data. Analyze data and return ONLY valid JSON with anomalies.',
-      }
-    );
+    try {
+      const result = await this.callAI<AnomalyDetectionResult>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in detecting anomalies in operational data. Analyze data and return ONLY valid JSON with anomalies.',
+        }
+      );
 
-    return result.data;
+      if (!result.data) {
+        return { anomalies: [], summary: { totalAnomalies: 0, criticalCount: 0, highCount: 0, mediumCount: 0, lowCount: 0 } };
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIAnomalyDetector] Failed to detect anomalies:', error instanceof Error ? error.message : String(error));
+      return { anomalies: [], summary: { totalAnomalies: 0, criticalCount: 0, highCount: 0, mediumCount: 0, lowCount: 0 } };
+    }
   }
 
   private async getFuelCostContext(input: AnomalyDetectionInput, startDate: Date, endDate: Date): Promise<string> {

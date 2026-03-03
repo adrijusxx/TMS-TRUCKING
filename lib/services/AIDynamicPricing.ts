@@ -100,32 +100,52 @@ Return JSON with:
 - reasoning: string
 - suggestedTotalRate: number`;
 
-    const result = await this.callAI<DynamicPricingRecommendation>(
-      prompt,
-      {
-        temperature: 0.5,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in dynamic freight pricing. Return ONLY valid JSON.',
+    try {
+      const result = await this.callAI<DynamicPricingRecommendation>(
+        prompt,
+        {
+          temperature: 0.5,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in dynamic freight pricing. Return ONLY valid JSON.',
+        }
+      );
+
+      if (!result.data) {
+        throw new Error('AI returned no pricing data');
       }
-    );
 
-    // Create suggestion if loadId provided (requires approval)
-    if (loadId) {
-      await verificationService.createSuggestion({
-        companyId,
-        suggestionType: 'DYNAMIC_PRICING',
-        entityType: 'LOAD',
-        entityId: loadId,
-        aiConfidence: result.data.confidence,
-        aiReasoning: result.data.reasoning,
-        suggestedValue: {
-          revenue: result.data.suggestedTotalRate,
-          ratePerMile: result.data.recommendedRatePerMile,
-        },
-      });
+      // Create suggestion if loadId provided (requires approval)
+      if (loadId) {
+        await verificationService.createSuggestion({
+          companyId,
+          suggestionType: 'DYNAMIC_PRICING',
+          entityType: 'LOAD',
+          entityId: loadId,
+          aiConfidence: result.data.confidence,
+          aiReasoning: result.data.reasoning,
+          suggestedValue: {
+            revenue: result.data.suggestedTotalRate,
+            ratePerMile: result.data.recommendedRatePerMile,
+          },
+        });
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIDynamicPricing] Failed to get dynamic pricing:', error instanceof Error ? error.message : String(error));
+      const avgRate = historicalRates.length > 0
+        ? historicalRates.reduce((a, b) => a + b, 0) / historicalRates.length
+        : 2.50;
+      return {
+        lane,
+        recommendedRatePerMile: avgRate,
+        marketRateRange: { min: avgRate * 0.8, max: avgRate * 1.2, average: avgRate },
+        confidence: 10,
+        factors: { seasonality: 1.0, marketDemand: 'MEDIUM' as const, competition: 'MEDIUM' as const, fuelCosts: 0.55 },
+        reasoning: 'AI pricing unavailable. Using historical average or default rate.',
+        suggestedTotalRate: avgRate * totalMiles,
+      };
     }
-
-    return result.data;
   }
 }
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { NotFoundError } from '@/lib/errors';
 import { z } from 'zod';
 import { ReportFormat } from '@prisma/client';
 
@@ -16,56 +17,36 @@ const updateReportTemplateSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
-    const { id } = await params;
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const template = await prisma.reportTemplate.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const template = await prisma.reportTemplate.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!template) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Report template not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, data: template });
-  } catch (error) {
-    console.error('Report template fetch error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!template) {
+    throw new NotFoundError('Report template');
   }
-}
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return successResponse(template);
+});
+
+export const PATCH = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
-
     const body = await request.json();
     const validatedData = updateReportTemplateSchema.parse(body);
 
@@ -79,10 +60,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Report template not found' } },
-        { status: 404 }
-      );
+      throw new NotFoundError('Report template');
     }
 
     if (validatedData.isDefault === true) {
@@ -100,8 +78,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const updateData: any = { ...validatedData };
     if (validatedData.template !== undefined) {
-      updateData.template = typeof validatedData.template === 'string' 
-        ? validatedData.template 
+      updateData.template = typeof validatedData.template === 'string'
+        ? validatedData.template
         : JSON.stringify(validatedData.template);
     }
     if (validatedData.fields !== undefined) {
@@ -116,61 +94,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: template });
+    return successResponse(template);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
-        { status: 400 }
-      );
-    }
-    console.error('Report template update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const DELETE = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const existing = await prisma.reportTemplate.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
-    const existing = await prisma.reportTemplate.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Report template not found' } },
-        { status: 404 }
-      );
-    }
-
-    await prisma.reportTemplate.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false, isDefault: false },
-    });
-
-    return NextResponse.json({ success: true, message: 'Report template deleted successfully' });
-  } catch (error) {
-    console.error('Report template delete error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!existing) {
+    throw new NotFoundError('Report template');
   }
-}
+
+  await prisma.reportTemplate.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false, isDefault: false },
+  });
+
+  return successResponse({ message: 'Report template deleted successfully' });
+});

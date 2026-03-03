@@ -39,37 +39,11 @@ export function DriverSettlementHistory({ driverId }: { driverId: string }) {
 
   const fetchSettlements = async () => {
     try {
-      // TODO: Create API endpoint for driver settlements
-      // For now, using mock data
-      const mockData: Settlement[] = [
-        {
-          id: '1',
-          settlementNumber: 'SET-2025-001',
-          periodStart: '2025-11-11',
-          periodEnd: '2025-11-17',
-          grossPay: 3500,
-          totalDeductions: 850,
-          netPay: 2650,
-          status: 'PAID',
-          approvalStatus: 'APPROVED',
-          paidAt: '2025-11-20',
-          createdAt: '2025-11-18',
-        },
-        {
-          id: '2',
-          settlementNumber: 'SET-2025-002',
-          periodStart: '2025-11-18',
-          periodEnd: '2025-11-24',
-          grossPay: 4200,
-          totalDeductions: 920,
-          netPay: 3280,
-          status: 'APPROVED',
-          approvalStatus: 'APPROVED',
-          paidAt: null,
-          createdAt: '2025-11-25',
-        },
-      ];
-      setSettlements(mockData);
+      const response = await fetch(`/api/settlements?driverId=${driverId}&limit=20`);
+      const result = await response.json();
+      if (result.success && result.data) {
+        setSettlements(result.data);
+      }
     } catch (error) {
       console.error('Error fetching settlements:', error);
     } finally {

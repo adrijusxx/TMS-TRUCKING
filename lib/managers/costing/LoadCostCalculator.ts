@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 export interface LoadCost {
     loadId: string;
@@ -73,7 +74,7 @@ export class LoadCostCalculator {
         });
 
         if (!load) {
-            throw new Error('Load not found');
+            throw new NotFoundError('Load');
         }
 
         // Calculate expenses
@@ -156,7 +157,7 @@ export class LoadCostCalculator {
         });
 
         if (!load) {
-            throw new Error('Load not found');
+            throw new NotFoundError('Load');
         }
 
         // Categorize expenses

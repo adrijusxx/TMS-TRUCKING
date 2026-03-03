@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
       orderBy: { pickupDate: 'asc' },
     });
 
-    // Get available drivers
+    // Get available drivers with latest HOS records
     const availableDrivers = await prisma.driver.findMany({
       where: {
         ...driverTruckFilter,
@@ -110,8 +110,48 @@ export async function GET(request: NextRequest) {
             truckNumber: true,
           },
         },
+        hosRecords: {
+          orderBy: { date: 'desc' },
+          take: 1,
+          select: {
+            driveTime: true,
+            onDutyTime: true,
+            weeklyDriveTime: true,
+            weeklyOnDuty: true,
+            violations: true,
+          },
+        },
+        hosViolations: {
+          where: {
+            violationDate: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            },
+          },
+          take: 1,
+          select: { id: true },
+        },
       },
       orderBy: { driverNumber: 'asc' },
+    });
+
+    // Map drivers to include flattened HOS data
+    const driversWithHOS = availableDrivers.map((driver) => {
+      const latestHOS = driver.hosRecords[0] || null;
+      const hasViolation = (driver.hosViolations?.length || 0) > 0;
+      return {
+        ...driver,
+        hosRecords: undefined,
+        hosViolations: undefined,
+        hosData: latestHOS
+          ? {
+              driveTime: latestHOS.driveTime,
+              onDutyTime: latestHOS.onDutyTime,
+              weeklyDriveTime: latestHOS.weeklyDriveTime,
+              weeklyOnDuty: latestHOS.weeklyOnDuty,
+              hasViolation,
+            }
+          : null,
+      };
     });
 
     // Get available trucks
@@ -137,7 +177,7 @@ export async function GET(request: NextRequest) {
         date: targetDate.toISOString().split('T')[0],
         unassignedLoads,
         assignedLoads,
-        availableDrivers,
+        availableDrivers: driversWithHOS,
         availableTrucks,
       },
     });

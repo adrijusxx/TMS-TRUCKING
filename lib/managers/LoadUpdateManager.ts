@@ -12,6 +12,7 @@ import { inngest } from '@/lib/inngest/client';
 import { logger } from '@/lib/utils/logger';
 import { Session } from 'next-auth';
 import { LoadSyncManager } from './LoadSyncManager';
+import { UnauthorizedError, NotFoundError, ForbiddenError, ValidationError } from '@/lib/errors';
 
 /**
  * LoadUpdateManager
@@ -22,7 +23,7 @@ import { LoadSyncManager } from './LoadSyncManager';
 export class LoadUpdateManager {
     static async updateLoad(loadId: string, body: any, session: Session) {
         if (!session.user?.companyId) {
-            throw new Error('Unauthorized');
+            throw new UnauthorizedError();
         }
 
         const companyId = session.user.companyId;
@@ -36,13 +37,13 @@ export class LoadUpdateManager {
         });
 
         if (!existingLoad) {
-            throw new Error('Load not found');
+            throw new NotFoundError('Load', loadId);
         }
 
         // 2. Permission Check
         const role = session.user.role as any;
         if (!hasPermission(role, 'loads.edit')) {
-            throw new Error('Forbidden: No permission to edit loads');
+            throw new ForbiddenError('No permission to edit loads');
         }
 
         // 3. Validation
@@ -57,24 +58,46 @@ export class LoadUpdateManager {
         // 6. Recalculate Finance
         await this.handleFinancials(existingLoad, validated, updateData);
 
-        // 7. Track History
-        await this.trackStatusHistory(loadId, existingLoad, validated, session.user.id);
+        // 7 + 8. Track History & Execute Update atomically
+        const updatedLoad = await prisma.$transaction(async (tx) => {
+            // Track status history
+            if (validated.status && validated.status !== existingLoad.status) {
+                await tx.loadStatusHistory.create({
+                    data: {
+                        loadId,
+                        status: validated.status as any,
+                        createdBy: session.user.id,
+                        notes: `Status changed from ${existingLoad.status} to ${validated.status}`,
+                    },
+                });
+            }
+            if (validated.dispatchStatus && validated.dispatchStatus !== existingLoad.dispatchStatus) {
+                await tx.loadStatusHistory.create({
+                    data: {
+                        loadId,
+                        status: existingLoad.status,
+                        createdBy: session.user.id,
+                        notes: `Dispatch status changed from ${existingLoad.dispatchStatus || 'none'} to ${validated.dispatchStatus}`,
+                    },
+                });
+            }
 
-        // 8. Execute Update
-        const updatedLoad = await prisma.load.update({
-            where: { id: loadId },
-            data: updateData,
-            include: {
-                customer: { select: { id: true, name: true, customerNumber: true } },
-                driver: {
-                    select: {
-                        id: true,
-                        driverNumber: true,
-                        user: { select: { firstName: true, lastName: true } }
-                    }
+            // Execute update
+            return tx.load.update({
+                where: { id: loadId },
+                data: updateData,
+                include: {
+                    customer: { select: { id: true, name: true, customerNumber: true } },
+                    driver: {
+                        select: {
+                            id: true,
+                            driverNumber: true,
+                            user: { select: { firstName: true, lastName: true } }
+                        }
+                    },
+                    truck: { select: { id: true, truckNumber: true } },
                 },
-                truck: { select: { id: true, truckNumber: true } },
-            },
+            });
         });
 
         // 9. Side Effects (Notifications, Sync, Completion)
@@ -103,7 +126,7 @@ export class LoadUpdateManager {
             if (!hasPOD) missingDocs.push('Proof of Delivery (POD)');
 
             if (missingDocs.length > 0) {
-                throw new Error(`Cannot mark as Delivered. Missing documents: ${missingDocs.join(', ')}`);
+                throw new ValidationError(`Cannot mark as Delivered. Missing documents: ${missingDocs.join(', ')}`);
             }
         }
 
@@ -112,7 +135,7 @@ export class LoadUpdateManager {
         if (lockViolation) {
             const canOverride = userRole && hasPermission(userRole as any, 'loads.override_financial_lock');
             if (!canOverride) {
-                throw new Error(`Forbidden: ${lockViolation}`);
+                throw new ForbiddenError(lockViolation);
             }
         }
     }
@@ -123,19 +146,19 @@ export class LoadUpdateManager {
         // Entity Validations
         if (validated.trailerId) {
             const trailer = await prisma.trailer.findFirst({ where: { id: validated.trailerId, companyId, deletedAt: null } });
-            if (!trailer) throw new Error('Trailer not found or access denied');
+            if (!trailer) throw new NotFoundError('Trailer', validated.trailerId);
         }
         if (validated.truckId) {
             const truck = await prisma.truck.findFirst({ where: { id: validated.truckId, companyId, deletedAt: null } });
-            if (!truck) throw new Error('Truck not found or access denied');
+            if (!truck) throw new NotFoundError('Truck', validated.truckId);
         }
         if (validated.driverId) {
             const driver = await prisma.driver.findFirst({ where: { id: validated.driverId, companyId, deletedAt: null } });
-            if (!driver) throw new Error('Driver not found or access denied');
+            if (!driver) throw new NotFoundError('Driver', validated.driverId);
         }
         if (validated.dispatcherId) {
             const dispatcher = await prisma.user.findFirst({ where: { id: validated.dispatcherId, companyId } });
-            if (!dispatcher) throw new Error('Dispatcher not found or access denied');
+            if (!dispatcher) throw new NotFoundError('Dispatcher', validated.dispatcherId);
         }
 
         // Clean nulls
@@ -229,29 +252,6 @@ export class LoadUpdateManager {
                 updateData.estimatedFixedCost = opCosts.estimatedFixedCost;
                 updateData.estimatedOpCost = opCosts.estimatedOpCost;
             }
-        }
-    }
-
-    private static async trackStatusHistory(loadId: string, existingLoad: any, validated: any, userId: string) {
-        if (validated.status && validated.status !== existingLoad.status) {
-            await prisma.loadStatusHistory.create({
-                data: {
-                    loadId,
-                    status: validated.status as any,
-                    createdBy: userId,
-                    notes: `Status changed from ${existingLoad.status} to ${validated.status}`,
-                },
-            });
-        }
-        if (validated.dispatchStatus && validated.dispatchStatus !== existingLoad.dispatchStatus) {
-            await prisma.loadStatusHistory.create({
-                data: {
-                    loadId,
-                    status: existingLoad.status,
-                    createdBy: userId,
-                    notes: `Dispatch status changed from ${existingLoad.dispatchStatus || 'none'} to ${validated.dispatchStatus}`,
-                },
-            });
         }
     }
 

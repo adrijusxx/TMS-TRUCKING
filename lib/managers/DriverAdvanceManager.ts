@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { NotFoundError, ValidationError, ConflictError } from '@/lib/errors';
 
 interface AdvanceRequest {
   driverId: string;
@@ -40,7 +41,7 @@ export class DriverAdvanceManager {
     });
 
     if (!driver) {
-      throw new Error('Driver not found');
+      throw new NotFoundError('Driver', request.driverId);
     }
 
     // Get outstanding advances
@@ -49,7 +50,7 @@ export class DriverAdvanceManager {
     );
 
     if (outstandingBalance + request.amount > driver.advanceLimit) {
-      throw new Error(
+      throw new ValidationError(
         `Advance request exceeds limit. Outstanding: $${outstandingBalance}, Limit: $${driver.advanceLimit}`
       );
     }
@@ -59,7 +60,7 @@ export class DriverAdvanceManager {
       const load = await prisma.load.findUnique({
         where: { id: request.loadId, deletedAt: null },
       });
-      if (!load) throw new Error('Load not found');
+      if (!load) throw new NotFoundError('Load', request.loadId);
     }
 
     // Create advance request
@@ -103,11 +104,11 @@ export class DriverAdvanceManager {
     });
 
     if (!advance) {
-      throw new Error('Advance request not found');
+      throw new NotFoundError('Advance request', approval.advanceId);
     }
 
     if (advance.approvalStatus !== 'PENDING') {
-      throw new Error('Advance has already been processed');
+      throw new ConflictError('Advance has already been processed');
     }
 
     const updateData: any = {

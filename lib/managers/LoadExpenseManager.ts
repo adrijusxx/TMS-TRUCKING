@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { LoadExpenseType } from '@prisma/client';
+import { NotFoundError, ConflictError, BadRequestError } from '@/lib/errors';
 
 interface ExpenseData {
   loadId: string;
@@ -38,7 +39,7 @@ export class LoadExpenseManager {
     });
 
     if (!load) {
-      throw new Error('Load not found');
+      throw new NotFoundError('Load', expenseData.loadId);
     }
 
     const expense = await prisma.loadExpense.create({
@@ -135,11 +136,11 @@ export class LoadExpenseManager {
     });
 
     if (!expense) {
-      throw new Error('Expense not found');
+      throw new NotFoundError('Expense', approval.expenseId);
     }
 
     if (expense.approvalStatus !== 'PENDING') {
-      throw new Error('Expense has already been processed');
+      throw new ConflictError('Expense has already been processed');
     }
 
     const updatedExpense = await prisma.loadExpense.update({
@@ -347,11 +348,11 @@ export class LoadExpenseManager {
     });
 
     if (!expense) {
-      throw new Error('Expense not found');
+      throw new NotFoundError('Expense', expenseId);
     }
 
     if (expense.approvalStatus !== 'PENDING') {
-      throw new Error('Cannot update approved or rejected expenses');
+      throw new BadRequestError('Cannot update approved or rejected expenses');
     }
 
     return await prisma.loadExpense.update({
@@ -376,11 +377,11 @@ export class LoadExpenseManager {
     });
 
     if (!expense) {
-      throw new Error('Expense not found');
+      throw new NotFoundError('Expense', expenseId);
     }
 
     if (expense.approvalStatus === 'APPROVED') {
-      throw new Error('Cannot delete approved expenses');
+      throw new BadRequestError('Cannot delete approved expenses');
     }
 
     await prisma.loadExpense.delete({

@@ -8,6 +8,7 @@
 import { prisma } from '@/lib/prisma';
 import { ApprovalStatus, ExpenseDepartment, RecurringFrequency } from '@prisma/client';
 import { paymentInstrumentManager } from './PaymentInstrumentManager';
+import { NotFoundError, ValidationError, BadRequestError } from '@/lib/errors';
 
 interface CreateExpenseData {
   companyId: string;
@@ -60,14 +61,14 @@ export class CompanyExpenseManager {
         isActive: true,
       },
     });
-    if (!expenseType) throw new Error('Invalid expense type');
+    if (!expenseType) throw new NotFoundError('Expense type', data.expenseTypeId);
 
     // Validate payment instrument belongs to company (if provided)
     if (data.paymentInstrumentId) {
       const instrument = await prisma.paymentInstrument.findFirst({
         where: { id: data.paymentInstrumentId, companyId: data.companyId, deletedAt: null },
       });
-      if (!instrument) throw new Error('Invalid payment instrument');
+      if (!instrument) throw new NotFoundError('Payment instrument', data.paymentInstrumentId);
     }
 
     const expenseNumber = await this.generateExpenseNumber(data.companyId);
@@ -125,9 +126,9 @@ export class CompanyExpenseManager {
     const expense = await prisma.companyExpense.findFirst({
       where: { id: expenseId, companyId, deletedAt: null },
     });
-    if (!expense) throw new Error('Expense not found');
+    if (!expense) throw new NotFoundError('Expense', expenseId);
     if (expense.approvalStatus !== 'PENDING' && expense.approvalStatus !== 'UNDER_REVIEW') {
-      throw new Error('Expense is not pending approval');
+      throw new BadRequestError('Expense is not pending approval');
     }
 
     return prisma.companyExpense.update({

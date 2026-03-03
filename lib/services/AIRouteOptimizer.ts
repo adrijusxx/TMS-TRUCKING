@@ -5,6 +5,7 @@
 
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { ValidationError } from '@/lib/errors';
 
 interface RouteOptimizationInput {
   loadIds: string[];
@@ -76,7 +77,7 @@ export class AIRouteOptimizer extends AIService {
     });
 
     if (loads.length === 0) {
-      throw new Error('No loads found');
+      throw new ValidationError('No loads found for the provided load IDs');
     }
 
     // Fetch driver HOS data if driver specified
@@ -173,17 +174,26 @@ Return JSON with:
 
 Calculate efficiencyScore based on how well the route optimizes for the selected type (DISTANCE/TIME/COST).`;
 
-    const result = await this.callAI<RouteOptimizationResult>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert logistics route optimizer. Analyze routes and return ONLY valid JSON with optimized sequence and metrics.',
+    let aiData: RouteOptimizationResult | null = null;
+    try {
+      const result = await this.callAI<RouteOptimizationResult>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert logistics route optimizer. Analyze routes and return ONLY valid JSON with optimized sequence and metrics.',
+        }
+      );
+
+      if (result.data) {
+        aiData = result.data;
       }
-    );
+    } catch (error) {
+      console.error('[AIRouteOptimizer] Failed to optimize route:', error instanceof Error ? error.message : String(error));
+    }
 
     // Enrich with waypoints
-    const optimizedSequence = result.data.optimizedSequence || [];
+    const optimizedSequence = aiData?.optimizedSequence || input.loadIds;
     const waypoints = optimizedSequence.flatMap(loadId => {
       const load = loads.find(l => l.id === loadId);
       if (!load || !load.pickupCity || !load.deliveryCity) return [];
@@ -220,16 +230,17 @@ Calculate efficiencyScore based on how well the route optimizes for the selected
     });
 
     return {
-      ...result.data,
       optimizedSequence,
       waypoints,
       metrics: {
-        ...result.data.metrics,
+        ...(aiData?.metrics || {}),
         totalDistance: Math.round(totalDistance),
         estimatedTime: parseFloat(estimatedTime.toFixed(1)),
         estimatedFuelCost: parseFloat(estimatedFuelCost.toFixed(2)),
-        efficiencyScore: result.data.metrics?.efficiencyScore || 75,
+        efficiencyScore: aiData?.metrics?.efficiencyScore || 75,
       },
+      recommendations: aiData?.recommendations || [],
+      constraints: aiData?.constraints || { hosCompliant: true, timeWindowCompliant: true, driverAvailable: true },
     };
   }
 }

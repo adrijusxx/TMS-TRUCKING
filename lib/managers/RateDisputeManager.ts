@@ -8,6 +8,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/utils/logger';
+import { NotFoundError, ValidationError } from '@/lib/errors';
 
 export class RateDisputeManager {
   /**
@@ -20,7 +21,7 @@ export class RateDisputeManager {
       select: { companyId: true, loadNumber: true },
     });
 
-    if (!load) throw new Error('Load not found');
+    if (!load) throw new NotFoundError('Load', loadId);
 
     const [updated] = await prisma.$transaction([
       prisma.load.update({
@@ -61,7 +62,7 @@ export class RateDisputeManager {
       select: { companyId: true, loadNumber: true, revenue: true },
     });
 
-    if (!load) throw new Error('Load not found');
+    if (!load) throw new NotFoundError('Load', loadId);
 
     const updateData: Record<string, unknown> = {
       isBillingHold: false,
@@ -113,8 +114,8 @@ export class RateDisputeManager {
       select: { companyId: true, invoiceNumber: true, balance: true, total: true },
     });
 
-    if (!invoice) throw new Error('Invoice not found');
-    if (amount > (invoice.balance || 0)) throw new Error('Credit memo amount exceeds balance');
+    if (!invoice) throw new NotFoundError('Invoice', invoiceId);
+    if (amount > (invoice.balance || 0)) throw new ValidationError('Credit memo amount exceeds balance');
 
     const newBalance = (invoice.balance || 0) - amount;
 

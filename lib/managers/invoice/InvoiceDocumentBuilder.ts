@@ -8,6 +8,7 @@
 import React from 'react';
 import path from 'path';
 import fs from 'fs/promises';
+import { NotFoundError } from '@/lib/errors';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { prisma } from '@/lib/prisma';
 import { InvoicePDF } from '@/lib/pdf/templates/InvoicePDF';
@@ -99,7 +100,7 @@ export class InvoiceDocumentBuilder {
       where: { id: invoiceId },
       select: { loadIds: true, invoiceNumber: true },
     });
-    if (!invoice) throw new Error(`Invoice ${invoiceId} not found`);
+    if (!invoice) throw new NotFoundError('Invoice', invoiceId);
 
     // 3. For each load, collect Rate Con, POD, BOL per selected options
     for (const loadId of invoice.loadIds) {
@@ -152,7 +153,7 @@ export class InvoiceDocumentBuilder {
         },
       },
     });
-    if (!invoice) throw new Error(`Invoice ${invoiceId} not found`);
+    if (!invoice) throw new NotFoundError('Invoice', invoiceId);
 
     const company = await prisma.company.findUnique({ where: { id: companyId } });
 

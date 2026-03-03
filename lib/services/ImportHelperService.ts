@@ -38,13 +38,18 @@ Example Response:
 Return ONLY valid JSON.
 `;
 
-        const result = await this.callAI<Record<string, string>>(prompt, {
-            temperature: 0.1,
-            maxTokens: 1000,
-            systemPrompt: 'You are an expert data analyst specializing in logistics data mapping. Return ONLY valid JSON.',
-        });
+        try {
+            const result = await this.callAI<Record<string, string>>(prompt, {
+                temperature: 0.1,
+                maxTokens: 1000,
+                systemPrompt: 'You are an expert data analyst specializing in logistics data mapping. Return ONLY valid JSON.',
+            });
 
-        return result.data || {};
+            return result.data || {};
+        } catch (error) {
+            console.error('[ImportHelperService] Failed to suggest column mapping:', error instanceof Error ? error.message : String(error));
+            return {};
+        }
     }
 
     private getTargetFieldsForEntity(entityType: string): Record<string, string> {

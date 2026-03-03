@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 import { z } from 'zod';
 import { ProjectStatus, ProjectPriority } from '@prisma/client';
 
@@ -15,66 +16,46 @@ const updateProjectSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
-
-    const project = await prisma.project.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
+  const project = await prisma.project.findFirst({
+    where: {
+      id,
+      companyId: session.user.companyId,
+      deletedAt: null,
+    },
+    include: {
+      assignedTo: {
+        select: { id: true, firstName: true, lastName: true, email: true },
       },
-      include: {
-        assignedTo: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-        createdBy: {
-          select: { id: true, firstName: true, lastName: true, email: true },
-        },
-        tasks: {
-          orderBy: { dueDate: 'asc' },
-        },
+      createdBy: {
+        select: { id: true, firstName: true, lastName: true, email: true },
       },
-    });
+      tasks: {
+        orderBy: { dueDate: 'asc' },
+      },
+    },
+  });
 
-    if (!project) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Project not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, data: project });
-  } catch (error) {
-    console.error('Project fetch error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!project) {
+    throw new NotFoundError('Project');
   }
-}
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return successResponse(project);
+});
+
+export const PATCH = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
-
     const body = await request.json();
     const validatedData = updateProjectSchema.parse(body);
 
@@ -87,10 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Project not found' } },
-        { status: 404 }
-      );
+      throw new NotFoundError('Project');
     }
 
     const updateData: any = { ...validatedData };
@@ -114,60 +92,35 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       },
     });
 
-    return NextResponse.json({ success: true, data: project });
+    return successResponse(project);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
-        { status: 400 }
-      );
-    }
-    console.error('Project update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const DELETE = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
+  const existing = await prisma.project.findFirst({
+    where: {
+      id,
+      companyId: session.user.companyId,
+      deletedAt: null,
+    },
+  });
 
-    const existing = await prisma.project.findFirst({
-      where: {
-        id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Project not found' } },
-        { status: 404 }
-      );
-    }
-
-    await prisma.project.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false },
-    });
-
-    return NextResponse.json({ success: true, message: 'Project deleted successfully' });
-  } catch (error) {
-    console.error('Project delete error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!existing) {
+    throw new NotFoundError('Project');
   }
-}
+
+  await prisma.project.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false },
+  });
+
+  return successResponse({ message: 'Project deleted successfully' });
+});

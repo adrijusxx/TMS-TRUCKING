@@ -183,17 +183,30 @@ Rank by matchScore (higher = better match). Consider:
 4. Rate per mile (higher is better)
 5. Historical success of this lane`;
 
-    const result = await this.callAI<BackhaulRecommendationResult>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in backhaul load matching. Analyze opportunities and return ONLY valid JSON with recommendations.',
+    let aiResult: BackhaulRecommendationResult = {
+      recommendations: [],
+      summary: { totalOpportunities: 0, avgRatePerMile: 0, totalPotentialRevenue: 0 },
+    };
+
+    try {
+      const result = await this.callAI<BackhaulRecommendationResult>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in backhaul load matching. Analyze opportunities and return ONLY valid JSON with recommendations.',
+        }
+      );
+
+      if (result.data) {
+        aiResult = result.data;
       }
-    );
+    } catch (error) {
+      console.error('[AIBackhaulRecommender] Failed to get backhaul recommendations:', error instanceof Error ? error.message : String(error));
+    }
 
     // Enrich with actual load data
-    const enrichedRecommendations = result.data.recommendations.map(rec => {
+    const enrichedRecommendations = (aiResult.recommendations || []).map(rec => {
       const load = [...availableLoads, ...nearbyLoads].find(l => l.id === rec.loadId);
       if (load) {
         return {
@@ -212,7 +225,7 @@ Rank by matchScore (higher = better match). Consider:
     }).filter(rec => rec.loadId);
 
     return {
-      ...result.data,
+      ...aiResult,
       recommendations: enrichedRecommendations.slice(0, 10),
     };
   }

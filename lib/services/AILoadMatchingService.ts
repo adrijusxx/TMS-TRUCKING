@@ -5,6 +5,7 @@
 
 import { AIService, AICallResult } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 interface LoadMatchInput {
   loadId: string;
@@ -64,7 +65,7 @@ export class AILoadMatchingService extends AIService {
     });
 
     if (!load) {
-      throw new Error('Load not found');
+      throw new NotFoundError('Load', input.loadId);
     }
 
     // Fetch available drivers
@@ -252,17 +253,26 @@ Return JSON array of recommendations with:
 
 Sort by matchScore descending. Include top 5 matches.`;
 
-    const result = await this.callAI<{ recommendations: LoadMatchRecommendation[] }>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert logistics AI. Analyze load-to-driver matching and return ONLY valid JSON with recommendations.',
+    let aiRecommendations: LoadMatchRecommendation[] = [];
+    try {
+      const result = await this.callAI<{ recommendations: LoadMatchRecommendation[] }>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert logistics AI. Analyze load-to-driver matching and return ONLY valid JSON with recommendations.',
+        }
+      );
+
+      if (result.data?.recommendations) {
+        aiRecommendations = result.data.recommendations;
       }
-    );
+    } catch (error) {
+      console.error('[AILoadMatchingService] Failed to get load matches:', error instanceof Error ? error.message : String(error));
+    }
 
     // Enrich recommendations with driver details
-    const enrichedRecommendations: LoadMatchRecommendation[] = result.data.recommendations
+    const enrichedRecommendations: LoadMatchRecommendation[] = aiRecommendations
       .map((rec: any) => {
         const driver = driversData.find(d => d.id === rec.driverId);
         if (!driver) return null as any;

@@ -2,19 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createDriverSchema } from '@/lib/validations/driver';
-import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { hasPermission } from '@/lib/permissions';
-
-import { buildMcNumberWhereClause, getCurrentMcNumber } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { getDriverFilter, createFilterContext } from '@/lib/filters/role-data-filter';
 import { filterSensitiveFields } from '@/lib/filters/sensitive-field-filter';
 import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
 import { handleApiError } from '@/lib/api/route-helpers';
+import { DriverQueryManager } from '@/lib/managers/DriverQueryManager';
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Authentication Check
     const session = await auth();
     if (!session?.user?.companyId) {
       return NextResponse.json(
@@ -23,7 +21,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Permission Check
     if (!hasPermission(session.user.role as any, 'drivers.view')) {
       return NextResponse.json(
         { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
@@ -31,10 +28,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
     const mcWhere = await buildMcNumberWhereClause(session, request);
-
-    // 4. Query with Company + MC filtering
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 500);
@@ -45,43 +39,29 @@ export async function GET(request: NextRequest) {
     const licenseState = searchParams.get('licenseState');
     const homeTerminal = searchParams.get('homeTerminal');
     const minRating = searchParams.get('minRating');
-    const mcViewMode = searchParams.get('mc'); // 'all' or specific MC ID
-    const mcNumber = searchParams.get('mcNumber'); // Filter by MC number value
+    const mcViewMode = searchParams.get('mc');
+    const mcNumber = searchParams.get('mcNumber');
     const mcNumberIdFilter = searchParams.get('mcNumberId');
-    const isActiveParam = searchParams.get('isActive'); // Filter by isActive
+    const isActiveParam = searchParams.get('isActive');
 
-    // Apply role-based filtering (separate from MC filtering)
     const roleFilter = await getDriverFilter(
-      createFilterContext(
-        session.user.id,
-        session.user.role as any,
-        session.user.companyId
-      )
+      createFilterContext(session.user.id, session.user.role as any, session.user.companyId)
     );
-
-    // Parse includeDeleted parameter (admins only)
     const includeDeleted = parseIncludeDeleted(request);
-
-    // Build deleted records filter (admins can include deleted records if requested)
     const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
 
-    // Merge MC filter with role filter and deleted filter
     const where: any = {
       ...mcWhere,
       ...roleFilter,
-      ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
-    }
+      ...(deletedFilter && { ...deletedFilter }),
+    };
 
-    // Handle explicit MC number filter from table filter (overrides default MC view)
+    // MC number filter overrides
     if (mcNumberIdFilter) {
-      if (mcNumberIdFilter === 'null' || mcNumberIdFilter === 'unassigned') {
-        where.mcNumberId = null;
-      } else {
-        where.mcNumberId = mcNumberIdFilter;
-      }
+      where.mcNumberId = mcNumberIdFilter === 'null' || mcNumberIdFilter === 'unassigned' ? null : mcNumberIdFilter;
     }
 
-    // Handle isActive parameter filter (used by settlement form)
+    // isActive filter
     if (isActiveParam === 'true') {
       where.isActive = true;
       where.employeeStatus = 'ACTIVE';
@@ -89,238 +69,55 @@ export async function GET(request: NextRequest) {
       where.isActive = false;
     }
 
-    // Filter drivers by MC number if provided
-    // Drivers can be filtered by:
-    // 1. Driver's mcNumber field (if set)
-    // 2. Driver's user's mcNumberId (if user is assigned to an MC number)
+    // MC number value filter
     if (mcNumber && mcViewMode !== 'all') {
-      // Get the MC number record to find its ID
-      const mcNumberRecord = await prisma.mcNumber.findFirst({
-        where: {
-          number: mcNumber.trim(),
-          companyId: session.user.companyId,
-        },
+      const mcRecord = await prisma.mcNumber.findFirst({
+        where: { number: mcNumber.trim(), companyId: session.user.companyId },
         select: { id: true },
       });
-
-      if (mcNumberRecord) {
-        // Filter by driver's mcNumberId OR user's mcNumberId
-        // mcNumber is a relation field, so we use mcNumberId (the foreign key)
+      if (mcRecord) {
         const existingOR = where.OR || [];
-        where.OR = [
-          ...existingOR,
-          { mcNumberId: mcNumberRecord.id },
-          { user: { mcNumberId: mcNumberRecord.id } },
-        ];
+        where.OR = [...existingOR, { mcNumberId: mcRecord.id }, { user: { mcNumberId: mcRecord.id } }];
       } else {
-        // If MC number record not found, try to find by number in relation
-        // mcNumber is a relation, so we need to filter by the relation's number field
         const existingOR = where.OR || [];
-        where.OR = [
-          ...existingOR,
-          { mcNumber: { number: mcNumber.trim() } },
-        ];
+        where.OR = [...existingOR, { mcNumber: { number: mcNumber.trim() } }];
       }
     }
 
-    // Tab-based filtering
-    // When showing deleted records (includeDeleted=true), don't filter by employeeStatus
-    // as deleted drivers may have any employee status
-    if (!includeDeleted) {
-      switch (tab) {
-        case 'active':
-          where.isActive = true;
-          where.employeeStatus = 'ACTIVE';
-          break;
-        case 'unassigned':
-          where.isActive = true;
-          where.employeeStatus = 'ACTIVE';
-          where.currentTruckId = null;
-          break;
-        case 'terminated':
-          where.employeeStatus = 'TERMINATED';
-          break;
-        case 'vacation':
-          where.isActive = true;
-          where.status = 'ON_LEAVE';
-          break;
-        case 'all':
-        default:
-          // Show all drivers (active and terminated) - no employeeStatus filter
-          break;
-      }
-    } else {
-      // When showing deleted records, only apply basic filters that make sense
-      switch (tab) {
-        case 'unassigned':
-          // Even for deleted, we can filter by truck assignment
-          where.currentTruckId = null;
-          break;
-        case 'vacation':
-          // Status-based filter still applies
-          where.status = 'ON_LEAVE';
-          break;
-        case 'active':
-        case 'terminated':
-        case 'all':
-        default:
-          // Don't filter by employeeStatus when showing deleted records
-          break;
-      }
-    }
-
-    if (status) {
-      // Validate status is a valid DriverStatus enum value
-      const validStatuses = ['AVAILABLE', 'ON_DUTY', 'DRIVING', 'OFF_DUTY', 'SLEEPER_BERTH', 'ON_LEAVE', 'INACTIVE', 'IN_TRANSIT', 'DISPATCHED'];
-      if (validStatuses.includes(status)) {
-        where.status = status as any;
-      } else if (status === 'ACTIVE') {
-        // ACTIVE is not a DriverStatus, use employeeStatus instead
-        // Only filter by employeeStatus if not showing deleted records
-        if (!includeDeleted) {
-          where.employeeStatus = 'ACTIVE';
-          where.isActive = true;
-        }
-        // Explicitly do NOT set where.status to prevent Prisma errors
-        delete where.status;
-      }
-    }
-
-    // Final safeguard: ensure status is never 'ACTIVE' in the where clause
-    // Only apply employeeStatus filter if not showing deleted records
-    if (where.status === 'ACTIVE' && !includeDeleted) {
-      delete where.status;
-      where.employeeStatus = 'ACTIVE';
-      where.isActive = true;
-    }
-
-    if (licenseState) {
-      where.licenseState = { contains: licenseState, mode: 'insensitive' };
-    }
-
-    if (homeTerminal) {
-      where.homeTerminal = { contains: homeTerminal, mode: 'insensitive' };
-    }
-
-    if (minRating) {
-      where.rating = { gte: parseFloat(minRating) };
-    }
-
-    // Handle search - merge with MC number OR conditions if they exist
-    if (search) {
-      const searchConditions = [
-        { driverNumber: { contains: search, mode: 'insensitive' } },
-        { user: { firstName: { contains: search, mode: 'insensitive' } } },
-        { user: { lastName: { contains: search, mode: 'insensitive' } } },
-        { user: { email: { contains: search, mode: 'insensitive' } } },
-        { user: { phone: { contains: search, mode: 'insensitive' } } },
-        { currentTruck: { truckNumber: { contains: search, mode: 'insensitive' } } },
-        { currentTrailer: { trailerNumber: { contains: search, mode: 'insensitive' } } },
-        { homeTerminal: { contains: search, mode: 'insensitive' } },
-      ];
-
-      if (where.OR && Array.isArray(where.OR)) {
-        // If OR already exists (from MC number filtering), combine conditions
-        // We need both MC number match AND search match, so use AND with OR groups
-        const existingOR = [...where.OR];
-        where.AND = [
-          { OR: existingOR },
-          { OR: searchConditions },
-        ];
-        delete where.OR;
-      } else {
-        where.OR = searchConditions;
-      }
-    }
+    // Apply tab, status, search, and additional filters
+    DriverQueryManager.applyTabFilter(where, tab, includeDeleted);
+    if (status) DriverQueryManager.applyStatusFilter(where, status, includeDeleted);
+    if (licenseState) where.licenseState = { contains: licenseState, mode: 'insensitive' };
+    if (homeTerminal) where.homeTerminal = { contains: homeTerminal, mode: 'insensitive' };
+    if (minRating) where.rating = { gte: parseFloat(minRating) };
+    if (search) DriverQueryManager.applySearchFilter(where, search);
 
     const [drivers, total] = await Promise.all([
       prisma.driver.findMany({
         where,
         select: {
-          id: true,
-          driverNumber: true,
-          licenseNumber: true,
-          licenseState: true,
-          licenseExpiry: true,
-          medicalCardExpiry: true,
-          drugTestDate: true,
-          backgroundCheck: true,
-          status: true,
-          employeeStatus: true,
-          assignmentStatus: true,
-          dispatchStatus: true,
-          driverType: true,
-          deletedAt: true, // Include deletedAt for UI indicators
-          isActive: true,
-          mcNumberId: true,
-          mcNumber: {
-            select: {
-              id: true,
-              number: true,
-              companyName: true,
-            },
-          },
-          teamDriver: true,
-          payTo: true,
-
-          warnings: true,
-          notes: true,
-          hireDate: true,
-          terminationDate: true,
-          driverTags: true,
-          homeTerminal: true,
-          emergencyContact: true,
-          emergencyPhone: true,
-          payType: true,
-          payRate: true,
-          escrowTargetAmount: true,
-          escrowDeductionPerWeek: true,
-          escrowBalance: true,
-          rating: true,
-          totalLoads: true,
-          totalMiles: true,
-          onTimePercentage: true,
+          id: true, driverNumber: true, licenseNumber: true, licenseState: true,
+          licenseExpiry: true, medicalCardExpiry: true, drugTestDate: true,
+          backgroundCheck: true, status: true, employeeStatus: true,
+          assignmentStatus: true, dispatchStatus: true, driverType: true,
+          deletedAt: true, isActive: true, mcNumberId: true,
+          mcNumber: { select: { id: true, number: true, companyName: true } },
+          teamDriver: true, payTo: true, warnings: true, notes: true,
+          hireDate: true, terminationDate: true, driverTags: true,
+          homeTerminal: true, emergencyContact: true, emergencyPhone: true,
+          payType: true, payRate: true, escrowTargetAmount: true,
+          escrowDeductionPerWeek: true, escrowBalance: true, rating: true,
+          totalLoads: true, totalMiles: true, onTimePercentage: true,
           currentTruckId: true,
-          currentTruck: {
-            select: {
-              id: true,
-              truckNumber: true,
-            },
-          },
+          currentTruck: { select: { id: true, truckNumber: true } },
           currentTrailerId: true,
-          currentTrailer: {
-            select: {
-              id: true,
-              trailerNumber: true,
-            },
-          },
-          _count: {
-            select: {
-              loads: {
-                where: { deletedAt: null },
-              },
-            },
-          },
+          currentTrailer: { select: { id: true, trailerNumber: true } },
+          _count: { select: { loads: { where: { deletedAt: null } } } },
           loads: {
-            select: {
-              status: true,
-              revenue: true,
-              driverPay: true,
-              totalMiles: true,
-              loadedMiles: true,
-              emptyMiles: true,
-            },
-            take: 100, // Get recent loads for tariff calculation
+            select: { status: true, revenue: true, driverPay: true, totalMiles: true, loadedMiles: true, emptyMiles: true },
+            take: 100,
           },
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              phone: true,
-            },
-          },
+          user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -329,44 +126,13 @@ export async function GET(request: NextRequest) {
       prisma.driver.count({ where }),
     ]);
 
-    const activeStatuses = new Set(['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY']);
-
-    const driversWithTariff = drivers.map((driver) => {
-      const liveLoadCount = (driver as any)._count?.loads ?? driver.totalLoads;
-      const activeLoadCount = driver.loads.filter((l: any) => activeStatuses.has(l.status)).length;
-      return {
-        ...driver,
-        firstName: driver.user?.firstName ?? '',
-        lastName: driver.user?.lastName ?? '',
-        email: driver.user?.email ?? '',
-        phone: driver.user?.phone ?? null,
-
-        truck: driver.currentTruck,
-        trailer: driver.currentTrailer,
-        tags: driver.driverTags || [],
-        userId: driver.user?.id ?? null,
-        currentTruckId: driver.currentTruckId,
-        currentTrailerId: driver.currentTrailerId,
-        mcNumberId: driver.mcNumberId || null,
-        liveLoadCount,
-        activeLoadCount,
-      };
-    });
-
-    // Filter sensitive fields based on role
-    const filteredDrivers = driversWithTariff.map((driver) =>
-      filterSensitiveFields(driver, session.user.role as any)
-    );
+    const driversWithTariff = drivers.map(d => DriverQueryManager.transformListItem(d));
+    const filteredDrivers = driversWithTariff.map(d => filterSensitiveFields(d, session.user.role as any));
 
     return NextResponse.json({
       success: true,
       data: filteredDrivers,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     return handleApiError(error);
@@ -384,17 +150,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check permission to create drivers
     const role = session.user.role as 'ADMIN' | 'DISPATCHER' | 'ACCOUNTANT' | 'DRIVER' | 'CUSTOMER';
     if (!hasPermission(role, 'drivers.create')) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'You do not have permission to create drivers',
-          },
-        },
+        { success: false, error: { code: 'FORBIDDEN', message: 'You do not have permission to create drivers' } },
         { status: 403 }
       );
     }
@@ -402,177 +161,105 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createDriverSchema.parse(body);
 
-    // Check if dispatcher is trying to set financial fields during creation
-    // Dispatchers can create drivers but cannot set pay rates
     if (role === 'DISPATCHER' && (validated.payType || validated.payRate)) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Dispatchers cannot set pay rates when creating drivers. Pay rates must be set by administrators or accountants.',
-          },
-        },
+        { success: false, error: { code: 'FORBIDDEN', message: 'Dispatchers cannot set pay rates when creating drivers.' } },
         { status: 403 }
       );
     }
 
-    // Check if email already exists in this company
     const existingUser = await prisma.user.findFirst({
       where: { email: validated.email.toLowerCase().trim(), companyId: session.user.companyId, deletedAt: null },
     });
-
     if (existingUser) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'CONFLICT',
-            message: 'User with this email already exists in this company',
-          },
-        },
+        { success: false, error: { code: 'CONFLICT', message: 'User with this email already exists in this company' } },
         { status: 409 }
       );
     }
 
-    // Check if driver number already exists within this company
     const existingDriver = await prisma.driver.findFirst({
-      where: {
-        companyId: session.user.companyId,
-        driverNumber: validated.driverNumber
-      },
+      where: { companyId: session.user.companyId, driverNumber: validated.driverNumber },
     });
-
     if (existingDriver) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'CONFLICT',
-            message: 'Driver number already exists',
-          },
-        },
+        { success: false, error: { code: 'CONFLICT', message: 'Driver number already exists' } },
         { status: 409 }
       );
     }
 
-    // Determine MC number assignment
-    // Rule: Explicit -> Context -> User Default -> Company Default
+    // Determine MC number
     const { McStateManager } = await import('@/lib/managers/McStateManager');
     let assignedMcNumberId: string | null = null;
 
     if (validated.mcNumberId) {
       if (await McStateManager.canAccessMc(session, validated.mcNumberId)) {
-        // Also validate MC number exists and belongs to company
         const isValid = await prisma.mcNumber.count({
-          where: { id: validated.mcNumberId, companyId: session.user.companyId, deletedAt: null }
+          where: { id: validated.mcNumberId, companyId: session.user.companyId, deletedAt: null },
         });
-
         if (!isValid) {
-          return NextResponse.json({
-            success: false,
-            error: { code: 'INVALID_MC_NUMBER', message: 'MC number not found or does not belong to your company' }
-          }, { status: 400 });
+          return NextResponse.json(
+            { success: false, error: { code: 'INVALID_MC_NUMBER', message: 'MC number not found or does not belong to your company' } },
+            { status: 400 }
+          );
         }
         assignedMcNumberId = validated.mcNumberId;
       } else {
-        return NextResponse.json({
-          success: false,
-          error: { code: 'FORBIDDEN', message: 'You do not have access to the selected MC number' }
-        }, { status: 403 });
+        return NextResponse.json(
+          { success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to the selected MC number' } },
+          { status: 403 }
+        );
       }
     } else {
-      // Fallback Logic
       assignedMcNumberId = await McStateManager.determineActiveCreationMc(session, request);
-
       if (!assignedMcNumberId) {
-        return NextResponse.json({
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'MC number is required and no default (Company or User) could be determined. Please assign an MC number explicitly.',
-          },
-        }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: { code: 'VALIDATION_ERROR', message: 'MC number is required and no default could be determined.' } },
+          { status: 400 }
+        );
       }
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(validated.password, 10);
+    const licenseExpiry = validated.licenseExpiry instanceof Date ? validated.licenseExpiry : new Date(validated.licenseExpiry);
+    const medicalCardExpiry = validated.medicalCardExpiry instanceof Date ? validated.medicalCardExpiry : new Date(validated.medicalCardExpiry);
 
-    // Convert date strings to Date objects
-    const licenseExpiry = validated.licenseExpiry instanceof Date
-      ? validated.licenseExpiry
-      : new Date(validated.licenseExpiry);
-    const medicalCardExpiry = validated.medicalCardExpiry instanceof Date
-      ? validated.medicalCardExpiry
-      : new Date(validated.medicalCardExpiry);
-
-    // Create user first (with MC number for DRIVER role - synced from Driver record)
     const user = await prisma.user.create({
       data: {
-        email: validated.email,
-        password: hashedPassword,
-        tempPassword: validated.password, // Store plaintext for admin viewing (cleared on first login)
-        firstName: validated.firstName,
-        lastName: validated.lastName,
-        phone: validated.phone,
-        role: 'DRIVER',
-        companyId: session.user.companyId,
-        mcNumberId: assignedMcNumberId, // Admin can choose, employee uses their default
-        mcAccess: [assignedMcNumberId], // Driver has access to their assigned MC
+        email: validated.email, password: hashedPassword,
+        tempPassword: validated.password,
+        firstName: validated.firstName, lastName: validated.lastName, phone: validated.phone,
+        role: 'DRIVER', companyId: session.user.companyId,
+        mcNumberId: assignedMcNumberId, mcAccess: [assignedMcNumberId],
       },
     });
 
-    // Apply default pay profile when not explicitly provided
     const finalPayType = validated.payType ?? 'PER_MILE';
     const finalPayRate = (!validated.payRate || validated.payRate === 0) ? 0.65 : validated.payRate;
 
-    // Create driver
     const driver = await prisma.driver.create({
       data: {
-        userId: user.id,
-        companyId: session.user.companyId,
-        driverNumber: validated.driverNumber,
-        licenseNumber: validated.licenseNumber,
-        licenseState: validated.licenseState,
-        licenseExpiry,
-        medicalCardExpiry,
+        userId: user.id, companyId: session.user.companyId,
+        driverNumber: validated.driverNumber, licenseNumber: validated.licenseNumber,
+        licenseState: validated.licenseState, licenseExpiry, medicalCardExpiry,
         drugTestDate: validated.drugTestDate
           ? (validated.drugTestDate instanceof Date ? validated.drugTestDate : new Date(validated.drugTestDate))
           : null,
         backgroundCheck: validated.backgroundCheck
           ? (validated.backgroundCheck instanceof Date ? validated.backgroundCheck : new Date(validated.backgroundCheck))
           : null,
-        payType: finalPayType as any,
-        payRate: finalPayRate,
+        payType: finalPayType as any, payRate: finalPayRate,
         homeTerminal: validated.homeTerminal,
-        emergencyContact: validated.emergencyContact,
-        emergencyPhone: validated.emergencyPhone,
-        mcNumberId: assignedMcNumberId, // Admin can choose, employee uses their default
-        status: 'AVAILABLE',
+        emergencyContact: validated.emergencyContact, emergencyPhone: validated.emergencyPhone,
+        mcNumberId: assignedMcNumberId, status: 'AVAILABLE',
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          },
-        },
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
       },
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: driver,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ success: true, data: driver }, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }
 }
-

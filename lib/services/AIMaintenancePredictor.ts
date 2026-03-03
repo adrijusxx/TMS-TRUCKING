@@ -5,6 +5,7 @@
 
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 interface MaintenancePredictionInput {
   truckId: string;
@@ -63,7 +64,7 @@ export class AIMaintenancePredictor extends AIService {
     });
 
     if (!truck) {
-      throw new Error('Truck not found');
+      throw new NotFoundError('Truck', input.truckId);
     }
 
     // Calculate usage patterns
@@ -166,22 +167,33 @@ Consider:
 4. Breakdown history (if frequent breakdowns, suggest more frequent maintenance)
 5. Usage patterns (high mileage = more frequent maintenance)`;
 
-    const result = await this.callAI<{ predictions: MaintenancePrediction[]; recommendations: string[] }>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in truck maintenance prediction. Analyze maintenance history and return ONLY valid JSON with predictions.',
-      }
-    );
+    try {
+      const result = await this.callAI<{ predictions: MaintenancePrediction[]; recommendations: string[] }>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in truck maintenance prediction. Analyze maintenance history and return ONLY valid JSON with predictions.',
+        }
+      );
 
-    return {
-      truckId: truck.id,
-      truckNumber: truck.truckNumber,
-      currentMileage,
-      predictions: result.data.predictions || [],
-      recommendations: result.data.recommendations || [],
-    };
+      return {
+        truckId: truck.id,
+        truckNumber: truck.truckNumber,
+        currentMileage,
+        predictions: result.data?.predictions || [],
+        recommendations: result.data?.recommendations || [],
+      };
+    } catch (error) {
+      console.error('[AIMaintenancePredictor] Failed to predict maintenance:', error instanceof Error ? error.message : String(error));
+      return {
+        truckId: truck.id,
+        truckNumber: truck.truckNumber,
+        currentMileage,
+        predictions: [],
+        recommendations: ['AI analysis unavailable. Manual inspection recommended.'],
+      };
+    }
   }
 }
 

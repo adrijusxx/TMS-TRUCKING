@@ -185,24 +185,47 @@ Return JSON with:
 
 If historical data is limited, use market rates and adjust based on equipment/hazmat factors.`;
 
-    const result = await this.callAI<RateRecommendation>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in freight rate pricing. Analyze load details and historical data to recommend rates. Return ONLY valid JSON.',
-      }
-    );
+    try {
+      const result = await this.callAI<RateRecommendation>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in freight rate pricing. Analyze load details and historical data to recommend rates. Return ONLY valid JSON.',
+        }
+      );
 
-    return {
-      ...result.data,
-      comparison: {
-        ...result.data.comparison,
-        minHistoricalRate: minHistoricalRate > 0 ? minHistoricalRate : undefined,
-        maxHistoricalRate: maxHistoricalRate > 0 ? maxHistoricalRate : undefined,
-        avgHistoricalRate: avgHistoricalRate > 0 ? avgHistoricalRate : undefined,
-      },
-    };
+      if (!result.data) {
+        throw new Error('AI returned no rate recommendation data');
+      }
+
+      return {
+        ...result.data,
+        comparison: {
+          ...result.data.comparison,
+          minHistoricalRate: minHistoricalRate > 0 ? minHistoricalRate : undefined,
+          maxHistoricalRate: maxHistoricalRate > 0 ? maxHistoricalRate : undefined,
+          avgHistoricalRate: avgHistoricalRate > 0 ? avgHistoricalRate : undefined,
+        },
+      };
+    } catch (error) {
+      console.error('[AIRateRecommender] Failed to get rate recommendation:', error instanceof Error ? error.message : String(error));
+      // Return a basic fallback based on historical data
+      const fallbackRate = avgHistoricalRate > 0 ? avgHistoricalRate : 2.50;
+      const totalMiles = input.totalMiles || 500;
+      return {
+        recommendedRate: fallbackRate * totalMiles,
+        ratePerMile: fallbackRate,
+        confidence: 10,
+        reasoning: 'AI rate recommendation unavailable. Using historical average or default rate.',
+        factors: {},
+        comparison: {
+          minHistoricalRate: minHistoricalRate > 0 ? minHistoricalRate : undefined,
+          maxHistoricalRate: maxHistoricalRate > 0 ? maxHistoricalRate : undefined,
+          avgHistoricalRate: avgHistoricalRate > 0 ? avgHistoricalRate : undefined,
+        },
+      };
+    }
   }
 }
 

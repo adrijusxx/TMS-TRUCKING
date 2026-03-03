@@ -5,6 +5,7 @@
 
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 interface DriverRetentionPrediction {
   driverId: string;
@@ -67,7 +68,7 @@ export class AIDriverRetentionPredictor extends AIService {
     });
 
     if (!driver) {
-      throw new Error('Driver not found');
+      throw new NotFoundError('Driver', driverId);
     }
 
     const prompt = `Predict driver retention risk based on historical data.
@@ -106,20 +107,36 @@ Return JSON with:
 - retentionRecommendations: string[]
 - predictedRetentionProbability: number (0-100, probability of staying)`;
 
-    const result = await this.callAI<DriverRetentionPrediction>(
-      prompt,
-      {
-        temperature: 0.4,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in driver retention and workforce management. Return ONLY valid JSON.',
-      }
-    );
+    try {
+      const result = await this.callAI<DriverRetentionPrediction>(
+        prompt,
+        {
+          temperature: 0.4,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in driver retention and workforce management. Return ONLY valid JSON.',
+        }
+      );
 
-    return {
-      ...result.data,
-      driverId,
-      driverName: driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown',
-    };
+      if (!result.data) {
+        throw new Error('AI returned no retention prediction data');
+      }
+
+      return {
+        ...result.data,
+        driverId,
+        driverName: driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown',
+      };
+    } catch (error) {
+      console.error('[AIDriverRetentionPredictor] Failed to predict retention:', error instanceof Error ? error.message : String(error));
+      return {
+        driverId,
+        driverName: driver.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown',
+        turnoverRisk: { riskLevel: 'MEDIUM' as const, riskScore: 50, riskFactors: ['AI analysis unavailable'] },
+        satisfactionScore: 50,
+        retentionRecommendations: ['AI analysis unavailable. Manual review recommended.'],
+        predictedRetentionProbability: 50,
+      };
+    }
   }
 }
 

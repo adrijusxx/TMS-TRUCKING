@@ -6,6 +6,7 @@
 import { prisma } from '@/lib/prisma';
 import { AISuggestionStatus } from '@prisma/client';
 import { createActivityLog } from '@/lib/activity-log';
+import { NotFoundError, BadRequestError } from '@/lib/errors';
 
 interface CreateSuggestionInput {
   companyId: string;
@@ -79,11 +80,11 @@ export class AIVerificationService {
     });
 
     if (!suggestion) {
-      throw new Error('AI suggestion not found');
+      throw new NotFoundError('AI suggestion', input.suggestionId);
     }
 
     if (suggestion.status !== AISuggestionStatus.PENDING) {
-      throw new Error(`Cannot approve/reject suggestion with status: ${suggestion.status}`);
+      throw new BadRequestError(`Cannot approve/reject suggestion with status: ${suggestion.status}`);
     }
 
     const updated = await prisma.aISuggestion.update({
@@ -127,15 +128,15 @@ export class AIVerificationService {
     });
 
     if (!suggestion) {
-      throw new Error('AI suggestion not found');
+      throw new NotFoundError('AI suggestion', input.suggestionId);
     }
 
     if (suggestion.status !== AISuggestionStatus.APPROVED) {
-      throw new Error(`Cannot apply suggestion with status: ${suggestion.status}. Must be APPROVED.`);
+      throw new BadRequestError(`Cannot apply suggestion with status: ${suggestion.status}. Must be APPROVED.`);
     }
 
     if (!suggestion.approved) {
-      throw new Error('Suggestion must be approved before applying');
+      throw new BadRequestError('Suggestion must be approved before applying');
     }
 
     // Apply the suggestion based on entity type

@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/prisma';
 import { InvoiceStatus } from '@prisma/client';
 import { logger } from '@/lib/utils/logger';
+import { NotFoundError } from '@/lib/errors';
 
 type CollectionStage = 'CURRENT' | 'PAST_DUE_30' | 'PAST_DUE_60' | 'PAST_DUE_90' | 'COLLECTIONS' | 'WRITTEN_OFF';
 
@@ -75,7 +76,7 @@ export class CollectionsManager {
       select: { companyId: true, invoiceNumber: true },
     });
 
-    if (!invoice) throw new Error('Invoice not found');
+    if (!invoice) throw new NotFoundError('Invoice', invoiceId);
 
     const [updatedInvoice] = await prisma.$transaction([
       prisma.invoice.update({
@@ -118,7 +119,7 @@ export class CollectionsManager {
       select: { companyId: true, invoiceNumber: true, balance: true },
     });
 
-    if (!invoice) throw new Error('Invoice not found');
+    if (!invoice) throw new NotFoundError('Invoice', invoiceId);
 
     const [updatedInvoice] = await prisma.$transaction([
       prisma.invoice.update({

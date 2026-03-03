@@ -8,6 +8,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 import { EmailService } from '@/lib/services/EmailService';
 import { InvoiceDocumentBuilder } from './InvoiceDocumentBuilder';
 
@@ -65,7 +66,7 @@ export class BatchEmailManager {
       },
     });
 
-    if (!batch) throw new Error('Batch not found');
+    if (!batch) throw new NotFoundError('Batch', batchId);
 
     const errors: BatchValidationResult['errors'] = [];
 
@@ -145,7 +146,7 @@ export class BatchEmailManager {
       },
     });
 
-    if (!batch) throw new Error('Batch not found');
+    if (!batch) throw new NotFoundError('Batch', batchId);
 
     const results: BatchSendResult['results'] = [];
     let totalSent = 0;

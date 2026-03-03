@@ -90,16 +90,31 @@ Return JSON with:
   }
 - overallRisk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'`;
 
-    const result = await this.callAI<RouteRiskAssessment>(
-      prompt,
-      {
-        temperature: 0.4,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in route planning and weather risk assessment for trucking. Return ONLY valid JSON.',
-      }
-    );
+    try {
+      const result = await this.callAI<RouteRiskAssessment>(
+        prompt,
+        {
+          temperature: 0.4,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in route planning and weather risk assessment for trucking. Return ONLY valid JSON.',
+        }
+      );
 
-    return result.data;
+      if (!result.data) {
+        throw new Error('AI returned no route risk assessment data');
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIRouteRiskAssessor] Failed to assess route risk:', error instanceof Error ? error.message : String(error));
+      return {
+        route: { pickupCity: route.pickupCity, pickupState: route.pickupState, deliveryCity: route.deliveryCity, deliveryState: route.deliveryState, totalMiles: route.totalMiles },
+        weatherImpact: { riskLevel: 'MEDIUM' as const, weatherConditions: [], impactDescription: 'AI assessment unavailable', delayProbability: 0, estimatedDelayHours: 0 },
+        alternativeRoutes: [],
+        safetyRisk: { riskLevel: 'MEDIUM' as const, riskFactors: ['AI assessment unavailable'], recommendations: [] },
+        overallRisk: 'MEDIUM' as const,
+      };
+    }
   }
 }
 

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { PermissionResolutionEngine } from './PermissionResolutionEngine';
+import { NotFoundError, ForbiddenError } from '@/lib/errors';
 
 interface CreateGroupInput {
   name: string;
@@ -44,27 +45,34 @@ export class PermissionGroupManager {
    * Update an existing permission group
    */
   static async updateGroup(groupId: string, data: UpdateGroupInput) {
-    const group = await prisma.permissionGroup.update({
-      where: { id: groupId },
-      data: {
-        name: data.name,
-        description: data.description,
-      },
-    });
+    const group = await prisma.$transaction(async (tx) => {
+      const updated = await tx.permissionGroup.update({
+        where: { id: groupId },
+        data: {
+          name: data.name,
+          description: data.description,
+        },
+      });
 
-    // Replace permissions if provided
-    if (data.permissions !== undefined) {
-      await prisma.permissionGroupItem.deleteMany({ where: { groupId } });
+      // Replace permissions if provided
+      if (data.permissions !== undefined) {
+        await tx.permissionGroupItem.deleteMany({ where: { groupId } });
 
-      if (data.permissions.length > 0) {
-        await prisma.permissionGroupItem.createMany({
-          data: data.permissions.map((permission) => ({
-            groupId,
-            permission,
-          })),
-        });
+        if (data.permissions.length > 0) {
+          await tx.permissionGroupItem.createMany({
+            data: data.permissions.map((permission) => ({
+              groupId,
+              permission,
+            })),
+          });
+        }
       }
 
+      return updated;
+    });
+
+    // Invalidate cache outside transaction (non-critical side effect)
+    if (data.permissions !== undefined) {
       await PermissionResolutionEngine.invalidateGroup(groupId);
     }
 
@@ -80,8 +88,8 @@ export class PermissionGroupManager {
       select: { isSystem: true },
     });
 
-    if (!group) throw new Error('Permission group not found');
-    if (group.isSystem) throw new Error('System permission groups cannot be deleted');
+    if (!group) throw new NotFoundError('Permission group', groupId);
+    if (group.isSystem) throw new ForbiddenError('System permission groups cannot be deleted');
 
     // Invalidate cache before deletion
     await PermissionResolutionEngine.invalidateGroup(groupId);

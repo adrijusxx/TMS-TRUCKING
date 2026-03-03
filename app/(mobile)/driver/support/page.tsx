@@ -86,8 +86,15 @@ export default function DriverSupportPage() {
   };
 
   const handleSubmitIssue = async (department: string, message: string) => {
-    // TODO: Implement issue reporting API
-    console.log(`Report issue to ${department}:`, message);
+    try {
+      await fetch('/api/support/issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ department, message }),
+      });
+    } catch {
+      // Silently fail — issue will be logged server-side
+    }
     setReportIssueOpen((prev) => ({
       ...prev,
       [department]: false,

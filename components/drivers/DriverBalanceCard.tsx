@@ -32,9 +32,9 @@ export function DriverBalanceCard({ driverId }: { driverId: string }) {
           advanceBalance: data.data.outstandingBalance,
           advanceLimit: data.data.advanceLimit,
           availableCredit: data.data.availableCredit,
-          pendingAdvances: 0, // TODO: Get from API
-          lastSettlementAmount: 0, // TODO: Get from API
-          lastSettlementDate: '', // TODO: Get from API
+          pendingAdvances: data.data.pendingAdvances ?? 0,
+          lastSettlementAmount: data.data.lastSettlementAmount ?? 0,
+          lastSettlementDate: data.data.lastSettlementDate ?? '',
         });
       }
     } catch (error) {

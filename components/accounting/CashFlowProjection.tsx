@@ -29,21 +29,11 @@ export function CashFlowProjection() {
 
   const fetchCashFlow = async () => {
     try {
-      // TODO: Implement cash flow projection API
-      // For now, using mock data
-      setCashFlow({
-        upcomingPayments: {
-          settlements: 45000,
-          advances: 8500,
-          total: 53500,
-        },
-        expectedRevenue: {
-          invoiced: 75000,
-          delivered: 32000,
-          total: 107000,
-        },
-        netCashFlow: 53500,
-      });
+      const response = await fetch('/api/analytics/cash-flow');
+      const result = await response.json();
+      if (result.success && result.data) {
+        setCashFlow(result.data);
+      }
     } catch (error) {
       console.error('Error fetching cash flow:', error);
     } finally {

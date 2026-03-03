@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { PermissionResolutionEngine } from './PermissionResolutionEngine';
 import type { Permission } from '@/lib/permissions';
 import { systemRoleDefaults } from '@/lib/permissions';
+import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from '@/lib/errors';
 
 const MAX_HIERARCHY_DEPTH = 5;
 
@@ -43,55 +44,64 @@ export class RoleManager {
       await this.validateHierarchy(data.parentRoleId, null);
     }
 
-    const role = await prisma.role.create({
-      data: {
-        name: data.name,
-        slug: data.slug,
-        description: data.description,
-        parentRoleId: data.parentRoleId,
-        companyId: data.companyId,
-        isSystem: false,
-      },
-    });
-
-    // Assign permissions if provided
-    if (data.permissions && data.permissions.length > 0) {
-      await prisma.rolePermissionEntry.createMany({
-        data: data.permissions.map((permission) => ({
-          roleId: role.id,
-          permission,
-        })),
+    return await prisma.$transaction(async (tx) => {
+      const role = await tx.role.create({
+        data: {
+          name: data.name,
+          slug: data.slug,
+          description: data.description,
+          parentRoleId: data.parentRoleId,
+          companyId: data.companyId,
+          isSystem: false,
+        },
       });
-    }
 
-    return role;
+      // Assign permissions if provided
+      if (data.permissions && data.permissions.length > 0) {
+        await tx.rolePermissionEntry.createMany({
+          data: data.permissions.map((permission) => ({
+            roleId: role.id,
+            permission,
+          })),
+        });
+      }
+
+      return role;
+    });
   }
 
   /**
    * Update an existing role
    */
   static async updateRole(roleId: string, data: UpdateRoleInput) {
-    const role = await prisma.role.update({
-      where: { id: roleId },
-      data: {
-        name: data.name,
-        description: data.description,
-      },
-    });
+    const role = await prisma.$transaction(async (tx) => {
+      const updated = await tx.role.update({
+        where: { id: roleId },
+        data: {
+          name: data.name,
+          description: data.description,
+        },
+      });
 
-    // Replace permissions if provided
-    if (data.permissions !== undefined) {
-      await prisma.rolePermissionEntry.deleteMany({ where: { roleId } });
+      // Replace permissions if provided
+      if (data.permissions !== undefined) {
+        await tx.rolePermissionEntry.deleteMany({ where: { roleId } });
 
-      if (data.permissions.length > 0) {
-        await prisma.rolePermissionEntry.createMany({
-          data: data.permissions.map((permission) => ({
-            roleId,
-            permission,
-          })),
-        });
+        if (data.permissions.length > 0) {
+          await tx.rolePermissionEntry.createMany({
+            data: data.permissions.map((permission) => ({
+              roleId,
+              permission,
+            })),
+          });
+        }
       }
 
+      return updated;
+    });
+
+    // Invalidate cache outside transaction (non-critical side effect)
+    if (data.permissions !== undefined) {
       await PermissionResolutionEngine.invalidateRole(roleId);
     }
 
@@ -111,16 +121,16 @@ export class RoleManager {
       },
     });
 
-    if (!role) throw new Error('Role not found');
-    if (role.isSystem) throw new Error('System roles cannot be deleted');
+    if (!role) throw new NotFoundError('Role', roleId);
+    if (role.isSystem) throw new ForbiddenError('System roles cannot be deleted');
     if (role._count.users > 0) {
-      throw new Error('Cannot delete role: users are still assigned. Reassign them first.');
+      throw new ConflictError('Cannot delete role: users are still assigned. Reassign them first.');
     }
     if (role._count.userCompanies > 0) {
-      throw new Error('Cannot delete role: company users are still assigned. Reassign them first.');
+      throw new ConflictError('Cannot delete role: company users are still assigned. Reassign them first.');
     }
     if (role._count.childRoles > 0) {
-      throw new Error('Cannot delete role: child roles exist. Remove or reassign them first.');
+      throw new ConflictError('Cannot delete role: child roles exist. Remove or reassign them first.');
     }
 
     // Cascade deletes handle rolePermissions and roleGroups
@@ -133,7 +143,7 @@ export class RoleManager {
   static async setParentRole(roleId: string, parentRoleId: string | null) {
     if (parentRoleId) {
       if (parentRoleId === roleId) {
-        throw new Error('A role cannot be its own parent');
+        throw new ValidationError('A role cannot be its own parent');
       }
       await this.validateHierarchy(parentRoleId, roleId);
     }
@@ -304,10 +314,10 @@ export class RoleManager {
 
     while (currentId && depth < MAX_HIERARCHY_DEPTH + 1) {
       if (childRoleId && currentId === childRoleId) {
-        throw new Error('Circular role hierarchy detected');
+        throw new ConflictError('Circular role hierarchy detected');
       }
       if (visited.has(currentId)) {
-        throw new Error('Circular role hierarchy detected');
+        throw new ConflictError('Circular role hierarchy detected');
       }
       visited.add(currentId);
 
@@ -321,7 +331,7 @@ export class RoleManager {
 
     // Check total depth if child is set: depth from top to parent + depth of child subtree
     if (depth >= MAX_HIERARCHY_DEPTH) {
-      throw new Error(`Role hierarchy cannot exceed ${MAX_HIERARCHY_DEPTH} levels`);
+      throw new ValidationError(`Role hierarchy cannot exceed ${MAX_HIERARCHY_DEPTH} levels`);
     }
   }
 }

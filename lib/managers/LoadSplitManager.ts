@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { LoadStatus } from '@prisma/client';
+import { NotFoundError } from '@/lib/errors';
 
 interface LoadSplitData {
   loadId: string;
@@ -36,7 +37,7 @@ export class LoadSplitManager {
     });
 
     if (!load) {
-      throw new Error('Load not found');
+      throw new NotFoundError('Load', data.loadId);
     }
 
     // Get the highest sequence number

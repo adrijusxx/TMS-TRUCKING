@@ -23,10 +23,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertTriangle, FileText, Upload, CheckCircle, Loader2, FileX } from 'lucide-react';
+import { AlertTriangle, FileText, Upload, CheckCircle, Loader2, FileX, PauseCircle } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import DocumentUpload from '@/components/documents/DocumentUpload';
+import { HoldReasonSelect } from '@/components/accounting/HoldReasonSelect';
+import { getHoldReasonLabel } from '@/lib/config/billing-hold-reasons';
 
 interface BillingExceptionLoad {
   id: string;
@@ -50,6 +52,9 @@ export function BillingExceptionsQueue() {
   const [selectedLoad, setSelectedLoad] = useState<BillingExceptionLoad | null>(null);
   const [releaseComment, setReleaseComment] = useState('');
   const [uploadPODModalOpen, setUploadPODModalOpen] = useState(false);
+  const [placeOnHoldModalOpen, setPlaceOnHoldModalOpen] = useState(false);
+  const [holdReasonValue, setHoldReasonValue] = useState('');
+  const [holdNotes, setHoldNotes] = useState('');
   const [invoiceEligibility, setInvoiceEligibility] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -111,6 +116,46 @@ export function BillingExceptionsQueue() {
     if (load) {
       setSelectedLoad(load);
       setUploadPODModalOpen(true);
+    }
+  };
+
+  const handlePlaceOnHold = async () => {
+    if (!selectedLoad || !holdReasonValue) {
+      toast.error('Please select a hold reason');
+      return;
+    }
+
+    setProcessingId(selectedLoad.id);
+    try {
+      const reason = holdNotes
+        ? `${holdReasonValue}: ${holdNotes}`
+        : holdReasonValue;
+
+      const response = await fetch(`/api/loads/${selectedLoad.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isBillingHold: true,
+          billingHoldReason: reason,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Billing hold applied');
+        setPlaceOnHoldModalOpen(false);
+        setHoldReasonValue('');
+        setHoldNotes('');
+        setSelectedLoad(null);
+        fetchLoads();
+      } else {
+        throw new Error(data.error?.message || 'Failed to place on hold');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to place on hold');
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -235,8 +280,8 @@ export function BillingExceptionsQueue() {
                       {load.isBillingHold && load.billingHoldReason ? (
                         <div className="flex items-center gap-2">
                           <AlertTriangle className="h-4 w-4 text-red-500" />
-                          <span className="text-red-600 text-sm max-w-xs truncate">
-                            {load.billingHoldReason}
+                          <span className="text-red-600 text-sm max-w-xs truncate" title={load.billingHoldReason}>
+                            {getHoldReasonLabel(load.billingHoldReason.split(':')[0])}
                           </span>
                         </div>
                       ) : load.status === 'READY_TO_BILL' ? (
@@ -272,6 +317,20 @@ export function BillingExceptionsQueue() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {!load.isBillingHold && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedLoad(load);
+                              setPlaceOnHoldModalOpen(true);
+                            }}
+                            disabled={processingId === load.id}
+                          >
+                            <PauseCircle className="h-4 w-4 mr-1" />
+                            Hold
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -379,6 +438,64 @@ export function BillingExceptionsQueue() {
                 </>
               ) : (
                 'Force Release'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Place on Hold Modal */}
+      <Dialog open={placeOnHoldModalOpen} onOpenChange={setPlaceOnHoldModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Place on Billing Hold</DialogTitle>
+            <DialogDescription>
+              Place load {selectedLoad?.loadNumber} on billing hold. Select a reason category.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Hold Reason <span className="text-destructive">*</span></Label>
+              <HoldReasonSelect
+                value={holdReasonValue}
+                onValueChange={setHoldReasonValue}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="hold-notes">Additional Notes (Optional)</Label>
+              <Textarea
+                id="hold-notes"
+                value={holdNotes}
+                onChange={(e) => setHoldNotes(e.target.value)}
+                placeholder="Additional context for this billing hold..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPlaceOnHoldModalOpen(false);
+                setHoldReasonValue('');
+                setHoldNotes('');
+                setSelectedLoad(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handlePlaceOnHold}
+              disabled={!holdReasonValue || processingId === selectedLoad?.id}
+            >
+              {processingId === selectedLoad?.id ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Applying...
+                </>
+              ) : (
+                'Place on Hold'
               )}
             </Button>
           </DialogFooter>

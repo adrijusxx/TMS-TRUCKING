@@ -5,6 +5,7 @@
 
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 interface CustomerIntelligence {
   customerId: string;
@@ -65,7 +66,7 @@ export class AICustomerIntelligence extends AIService {
     });
 
     if (!customer) {
-      throw new Error('Customer not found');
+      throw new NotFoundError('Customer', customerId);
     }
 
     const prompt = `Analyze customer relationship data and provide intelligence insights.
@@ -104,16 +105,32 @@ Return JSON with:
   }
 - recommendations: string[]`;
 
-    const result = await this.callAI<CustomerIntelligence>(
-      prompt,
-      {
-        temperature: 0.3,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in customer relationship management for trucking companies. Return ONLY valid JSON.',
-      }
-    );
+    try {
+      const result = await this.callAI<CustomerIntelligence>(
+        prompt,
+        {
+          temperature: 0.3,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in customer relationship management for trucking companies. Return ONLY valid JSON.',
+        }
+      );
 
-    return { ...result.data, customerId, customerName: customer.name };
+      if (!result.data) {
+        throw new Error('AI returned no customer intelligence data');
+      }
+
+      return { ...result.data, customerId, customerName: customer.name };
+    } catch (error) {
+      console.error('[AICustomerIntelligence] Failed to get customer intelligence:', error instanceof Error ? error.message : String(error));
+      return {
+        customerId,
+        customerName: customer.name,
+        paymentBehavior: { averageDaysToPay: 0, onTimePaymentRate: 0, latePaymentRate: 0, prediction: 'FAIR' as const },
+        churnRisk: { riskLevel: 'MEDIUM' as const, riskScore: 50, riskFactors: ['AI analysis unavailable'] },
+        lifetimeValue: { estimated: 0, confidence: 0 },
+        recommendations: ['AI analysis unavailable. Manual review recommended.'],
+      };
+    }
   }
 }
 

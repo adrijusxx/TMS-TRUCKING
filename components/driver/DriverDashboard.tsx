@@ -142,8 +142,24 @@ export function DriverDashboard() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file && stats?.currentLoad) {
         toast.info('Uploading POD...');
-        // TODO: Implement actual upload
-        console.log('Upload POD:', file, stats.currentLoad.id);
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('entityType', 'POD');
+          formData.append('entityId', stats.currentLoad.id);
+          const res = await fetch(apiUrl('/api/documents/upload'), {
+            method: 'POST',
+            body: formData,
+          });
+          if (res.ok) {
+            toast.success('POD uploaded successfully');
+            queryClient.invalidateQueries({ queryKey: ['driver-stats'] });
+          } else {
+            toast.error('Failed to upload POD');
+          }
+        } catch {
+          toast.error('Failed to upload POD');
+        }
       }
     };
     input.click();

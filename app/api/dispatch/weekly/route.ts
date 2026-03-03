@@ -204,6 +204,7 @@ export async function GET(request: NextRequest) {
             deliveryState: load.deliveryState,
             revenue: load.revenue || 0,
             driverPay: calculatedDriverPay,
+            totalExpenses: load.totalExpenses || 0,
             loadedMiles: load.loadedMiles || 0,
             emptyMiles: load.emptyMiles || 0,
             totalMiles: load.totalMiles || 0,

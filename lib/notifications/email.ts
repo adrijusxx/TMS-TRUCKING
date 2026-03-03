@@ -5,6 +5,8 @@
  */
 
 import { prisma } from '../prisma';
+import { EmailService } from '../services/EmailService';
+import { logger } from '../utils/logger';
 
 interface EmailOptions {
   to: string;
@@ -14,52 +16,17 @@ interface EmailOptions {
 }
 
 /**
- * Send an email notification
- * This is a placeholder - integrate with your email service (SendGrid, AWS SES, etc.)
+ * Send an email notification via Resend (EmailService).
  */
 async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    // TODO: Integrate with email service provider
-    // Example providers:
-    // - SendGrid: https://sendgrid.com
-    // - AWS SES: https://aws.amazon.com/ses/
-    // - Resend: https://resend.com
-    // - Nodemailer with SMTP
-
-    console.log('Email notification:', {
+    return await EmailService.sendEmail({
       to: options.to,
       subject: options.subject,
-      // Don't log full HTML in production
+      html: options.html,
     });
-
-    // Placeholder implementation
-    // In production, replace with actual email service:
-    /*
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        personalizations: [{
-          to: [{ email: options.to }],
-        }],
-        from: { email: process.env.FROM_EMAIL },
-        subject: options.subject,
-        content: [
-          { type: 'text/plain', value: options.text || '' },
-          { type: 'text/html', value: options.html },
-        ],
-      }),
-    });
-
-    return response.ok;
-    */
-
-    return true; // Placeholder - always return true
   } catch (error) {
-    console.error('Email sending error:', error);
+    logger.error('Email sending error', { error: error instanceof Error ? error.message : String(error) });
     return false;
   }
 }

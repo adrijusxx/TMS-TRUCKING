@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import ProfitabilityBadge from './ProfitabilityBadge';
 
 async function fetchWeeklySchedule(date: string) {
   const response = await fetch(apiUrl(`/api/dispatch/weekly?date=${date}`));
@@ -39,6 +40,7 @@ interface LoadBlock {
   deliveryState: string | null;
   revenue: number;
   driverPay: number;
+  totalExpenses: number;
   serviceFee: number;
   loadedMiles: number;
   emptyMiles: number;
@@ -365,8 +367,15 @@ export default function WeeklyScheduleView() {
                               <div className="text-muted-foreground">
                                 {load.loadNumber}
                               </div>
-                              <div className="font-semibold text-green-700">
-                                {formatCurrency(load.revenue)}
+                              <div className="flex items-center gap-1">
+                                <span className="font-semibold text-green-700">
+                                  {formatCurrency(load.revenue)}
+                                </span>
+                                <ProfitabilityBadge
+                                  revenue={load.revenue}
+                                  driverPay={load.driverPay}
+                                  totalExpenses={load.totalExpenses || 0}
+                                />
                               </div>
                             </div>
                           ))}

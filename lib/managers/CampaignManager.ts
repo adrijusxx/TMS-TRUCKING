@@ -12,6 +12,7 @@
 import { prisma } from '@/lib/prisma';
 import { sendSMS } from '@/lib/integrations/netsapiens/sms';
 import { EmailService } from '@/lib/services/EmailService';
+import { ConflictError } from '@/lib/errors';
 import type { CampaignChannel, CampaignRecipientStatus, Prisma } from '@prisma/client';
 
 // Supported placeholders in message templates
@@ -171,7 +172,7 @@ export class CampaignManager {
     });
 
     if (campaign.status !== 'DRAFT' && campaign.status !== 'PAUSED') {
-      throw new Error(`Cannot activate campaign in ${campaign.status} status`);
+      throw new ConflictError(`Cannot activate campaign in ${campaign.status} status`);
     }
 
     // Enroll from audience filter if not already done

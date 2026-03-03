@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { NotFoundError } from '@/lib/errors';
 import { z } from 'zod';
 
 const updateSafetyConfigSchema = z.object({
@@ -10,56 +11,36 @@ const updateSafetyConfigSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
-    const { id } = await params;
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const config = await prisma.safetyConfiguration.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const config = await prisma.safetyConfiguration.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Safety configuration not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, data: config });
-  } catch (error) {
-    console.error('Safety configuration fetch error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!config) {
+    throw new NotFoundError('Safety configuration');
   }
-}
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return successResponse(config);
+});
+
+export const PATCH = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
-
     const body = await request.json();
     const validatedData = updateSafetyConfigSchema.parse(body);
 
@@ -73,16 +54,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Safety configuration not found' } },
-        { status: 404 }
-      );
+      throw new NotFoundError('Safety configuration');
     }
 
     const updateData: any = { ...validatedData };
     if (validatedData.value !== undefined) {
-      updateData.value = typeof validatedData.value === 'string' 
-        ? validatedData.value 
+      updateData.value = typeof validatedData.value === 'string'
+        ? validatedData.value
         : JSON.stringify(validatedData.value);
     }
 
@@ -91,61 +69,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: config });
+    return successResponse(config);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
-        { status: 400 }
-      );
-    }
-    console.error('Safety configuration update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const DELETE = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const existing = await prisma.safetyConfiguration.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
-    const existing = await prisma.safetyConfiguration.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Safety configuration not found' } },
-        { status: 404 }
-      );
-    }
-
-    await prisma.safetyConfiguration.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false },
-    });
-
-    return NextResponse.json({ success: true, message: 'Safety configuration deleted successfully' });
-  } catch (error) {
-    console.error('Safety configuration delete error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!existing) {
+    throw new NotFoundError('Safety configuration');
   }
-}
+
+  await prisma.safetyConfiguration.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false },
+  });
+
+  return successResponse({ message: 'Safety configuration deleted successfully' });
+});

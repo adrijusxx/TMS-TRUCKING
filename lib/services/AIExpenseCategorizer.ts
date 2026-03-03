@@ -107,16 +107,25 @@ Return JSON with:
 
 If no good match exists, set categoryId and expenseTypeId to null but still provide reasoning.`;
 
-    const result = await this.callAI<ExpenseCategorizationResult>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in trucking company expense categorization. Return ONLY valid JSON with category recommendations.',
-      }
-    );
+    try {
+      const result = await this.callAI<ExpenseCategorizationResult>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in trucking company expense categorization. Return ONLY valid JSON with category recommendations.',
+        }
+      );
 
-    return result.data;
+      if (!result.data) {
+        return { confidence: 0, reasoning: 'AI returned no data' };
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIExpenseCategorizer] Failed to categorize expense:', error instanceof Error ? error.message : String(error));
+      return { confidence: 0, reasoning: 'AI categorization failed' };
+    }
   }
 
   /**

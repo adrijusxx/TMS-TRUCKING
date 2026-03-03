@@ -104,16 +104,25 @@ Return JSON array of matches, each with:
 
 The sum of matchAmount should not exceed depositAmount.`;
 
-    const result = await this.callAI<InvoiceMatch[]>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in invoice matching and payment reconciliation. Return ONLY valid JSON array.',
-      }
-    );
+    try {
+      const result = await this.callAI<InvoiceMatch[]>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in invoice matching and payment reconciliation. Return ONLY valid JSON array.',
+        }
+      );
 
-    return result.data;
+      if (!result.data || !Array.isArray(result.data)) {
+        return [];
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIInvoiceMatcher] Failed to match deposit to invoices:', error instanceof Error ? error.message : String(error));
+      return [];
+    }
   }
 
   /**

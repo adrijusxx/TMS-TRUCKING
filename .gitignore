@@ -185,8 +185,8 @@ scripts/security/
 # ============================================
 # TEST FILES (Development Only)
 # ============================================
-# Keep test structure but exclude integration tests that may have sensitive data
-tests/integration/
+# Exclude all test files from git — run locally only
+/tests/
 *.test.md
 
 # ============================================

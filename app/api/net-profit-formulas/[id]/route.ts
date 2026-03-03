@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { NotFoundError } from '@/lib/errors';
 import { z } from 'zod';
 
 const updateFormulaSchema = z.object({
@@ -13,56 +14,36 @@ const updateFormulaSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
-    const { id } = await params;
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const formula = await prisma.netProfitFormula.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const formula = await prisma.netProfitFormula.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!formula) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Formula not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, data: formula });
-  } catch (error) {
-    console.error('Net profit formula fetch error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!formula) {
+    throw new NotFoundError('Formula');
   }
-}
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return successResponse(formula);
+});
+
+export const PATCH = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
-
     const body = await request.json();
     const validatedData = updateFormulaSchema.parse(body);
 
@@ -76,10 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Formula not found' } },
-        { status: 404 }
-      );
+      throw new NotFoundError('Formula');
     }
 
     if (validatedData.isDefault === true) {
@@ -104,61 +82,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, data: formula });
+    return successResponse(formula);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
-        { status: 400 }
-      );
-    }
-    console.error('Net profit formula update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const DELETE = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const existing = await prisma.netProfitFormula.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
-    const existing = await prisma.netProfitFormula.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Formula not found' } },
-        { status: 404 }
-      );
-    }
-
-    await prisma.netProfitFormula.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false, isDefault: false },
-    });
-
-    return NextResponse.json({ success: true, message: 'Formula deleted successfully' });
-  } catch (error) {
-    console.error('Net profit formula delete error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!existing) {
+    throw new NotFoundError('Formula');
   }
-}
+
+  await prisma.netProfitFormula.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false, isDefault: false },
+  });
+
+  return successResponse({ message: 'Formula deleted successfully' });
+});

@@ -452,6 +452,10 @@ model Company {
 
   // DQF Custom Document Types
   customDQFTypes CompanyCustomDQFType[]
+
+  // Geofencing
+  geofences      Geofence[]
+  geofenceAlerts GeofenceAlert[]
 }
 
 // ============================================
@@ -8628,4 +8632,81 @@ model AutomationRule {
   @@index([companyId])
   @@index([enabled])
   @@index([triggerType])
+}
+
+// ============================================
+// GEOFENCING
+// ============================================
+
+enum GeofenceType {
+  PICKUP
+  DELIVERY
+  YARD
+  CUSTOMER
+  FUEL_STOP
+  REST_AREA
+}
+
+model Geofence {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  // Geofence Details
+  name         String
+  type         GeofenceType @default(CUSTOMER)
+  latitude     Float
+  longitude    Float
+  radiusMiles  Float        @default(0.5) // Radius in miles
+
+  // Optional association
+  locationId String?
+
+  // Status
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  alerts GeofenceAlert[]
+
+  @@index([companyId])
+  @@index([type])
+  @@index([isActive])
+  @@index([companyId, isActive])
+}
+
+model GeofenceAlert {
+  id          String  @id @default(cuid())
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+  geofenceId  String
+  geofence    Geofence @relation(fields: [geofenceId], references: [id], onDelete: Cascade)
+
+  // Vehicle / Load context
+  truckId     String?
+  loadId      String?
+  driverId    String?
+
+  // Event details
+  eventType   String // ENTRY | EXIT
+  latitude    Float
+  longitude   Float
+  distanceMiles Float // Distance from geofence center at time of event
+
+  // Status suggestion
+  suggestedStatus String? // e.g. AT_PICKUP, AT_DELIVERY
+  statusApplied   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([geofenceId])
+  @@index([truckId])
+  @@index([loadId])
+  @@index([createdAt])
+  @@index([companyId, createdAt])
 }

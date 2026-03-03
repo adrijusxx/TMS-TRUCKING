@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { BreakdownType, BreakdownPriority } from '@prisma/client';
 import { getSamsaraVehicleLocations } from '@/lib/integrations/samsara/fleet';
 import { getSamsaraVehicleDiagnostics } from '@/lib/integrations/samsara/telematics';
+import { ValidationError } from '@/lib/errors';
 
 /**
  * Creates breakdown, safety, and maintenance cases from AI analysis.
@@ -19,7 +20,7 @@ export class TelegramCaseCreator {
     ) {
         // Validate truckId — required FK, empty string would cause constraint error
         if (!truckId) {
-            throw new Error('Truck ID is required for breakdown cases. Driver must have an assigned truck.');
+            throw new ValidationError('Truck ID is required for breakdown cases. Driver must have an assigned truck.');
         }
 
         const breakdownNumber = await this.generateCaseNumber('BD', 'breakdown', 'breakdownNumber');
@@ -117,7 +118,7 @@ export class TelegramCaseCreator {
         analysis: any,
         originalMessage: string
     ) {
-        if (!truckId) throw new Error('Truck ID is required for maintenance requests');
+        if (!truckId) throw new ValidationError('Truck ID is required for maintenance requests');
         const recordNumber = await this.generateCaseNumber('MAINT', 'maintenanceRecord', 'maintenanceNumber');
         return prisma.maintenanceRecord.create({
             data: {

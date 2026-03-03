@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@/lib/auth';
 import { z } from 'zod';
+import { logger } from '@/lib/utils/logger';
 
 const searchLoadBoardSchema = z.object({
   originCity: z.string().optional(),
@@ -28,79 +28,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = searchLoadBoardSchema.parse(body);
+    searchLoadBoardSchema.parse(body);
 
-    // Placeholder implementation
-    // In production, this would call DAT API or Truckstop.com API
-    // For now, return mock data structure
-    
-    // Example: This would be replaced with actual API calls:
-    // const datResults = await fetchDATLoads(validated);
-    // const truckstopResults = await fetchTruckstopLoads(validated);
-
-    const mockLoads = [
-      {
-        id: 'lb-1',
-        loadNumber: 'LB-001',
-        origin: {
-          city: validated.originCity || 'Dallas',
-          state: validated.originState || 'TX',
-          zip: '75001',
-        },
-        destination: {
-          city: validated.destinationCity || 'Houston',
-          state: validated.destinationState || 'TX',
-          zip: '77001',
-        },
-        equipmentType: validated.equipmentType || 'DRY_VAN',
-        rate: 1500,
-        distance: 240,
-        pickupDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        deliveryDate: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
-        broker: {
-          name: 'ABC Freight Brokerage',
-          mcNumber: 'MC-123456',
-          rating: 4.5,
-        },
-        source: 'DAT',
-      },
-    ];
-
+    // External loadboard integration (DAT, Truckstop.com) is not yet configured.
+    // When API keys are available, this will query real loadboard data.
     return NextResponse.json({
       success: true,
-      data: mockLoads,
+      data: [],
       meta: {
-        total: mockLoads.length,
-        page: validated.page,
-        limit: validated.limit,
-        totalPages: 1,
-        sources: ['DAT', 'Truckstop.com'],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+        configured: false,
+        message: 'External loadboard integration not configured. Add DAT or Truckstop.com API credentials in Settings > Integrations.',
       },
-      message: 'Load board integration placeholder - Connect DAT/Truckstop.com API for real results',
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid search parameters',
-            details: error.issues,
-          },
-        },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid search parameters', details: error.issues } },
         { status: 400 }
       );
     }
 
-    console.error('Load board search error:', error);
+    logger.error('Load board search error', { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
       { status: 500 }
     );
   }
 }
-

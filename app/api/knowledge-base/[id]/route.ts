@@ -1,57 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 /**
  * GET /api/knowledge-base/[id]
  * Fetches the full content of a KB document (concatenating its chunks)
  */
-export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const session = await auth();
-        if (!session?.user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-        const { id } = await params;
+  const doc = await prisma.knowledgeBaseDocument.findUnique({
+    where: { id },
+    include: {
+      chunks: {
+        orderBy: { chunkIndex: 'asc' },
+        select: { content: true },
+      },
+    },
+  });
 
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { companyId: true },
-        });
+  if (!doc || doc.companyId !== session.user.companyId) {
+    throw new NotFoundError('Document');
+  }
 
-        const doc = await prisma.knowledgeBaseDocument.findUnique({
-            where: { id },
-            include: {
-                chunks: {
-                    orderBy: { chunkIndex: 'asc' },
-                    select: { content: true }
-                }
-            }
-        });
+  const fullContent = doc.chunks.map((c) => c.content).join('\n\n');
 
-        if (!doc || doc.companyId !== user?.companyId) {
-            return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-        }
-
-        const fullContent = doc.chunks.map(c => c.content).join('\n\n');
-
-        return NextResponse.json({
-            success: true,
-            data: {
-                ...doc,
-                fullContent
-            }
-        });
-
-    } catch (error: any) {
-        console.error('[API] Error fetching document content:', error);
-        return NextResponse.json(
-            { error: error.message || 'Failed to fetch document' },
-            { status: 500 }
-        );
-    }
-}
+  return successResponse({
+    ...doc,
+    fullContent,
+  });
+});

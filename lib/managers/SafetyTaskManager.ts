@@ -7,6 +7,7 @@
 
 import { prisma } from '@/lib/prisma';
 import type { CreateSafetyTaskInput, UpdateSafetyTaskInput } from '@/lib/validations/safety-task';
+import { NotFoundError, BadRequestError } from '@/lib/errors';
 
 export class SafetyTaskManager {
   /**
@@ -71,8 +72,8 @@ export class SafetyTaskManager {
     const task = await prisma.safetyTask.findFirst({
       where: { id: taskId, companyId, deletedAt: null },
     });
-    if (!task) throw new Error('Safety task not found');
-    if (task.isLocked) throw new Error('Cannot edit a locked safety task');
+    if (!task) throw new NotFoundError('Safety task', taskId);
+    if (task.isLocked) throw new BadRequestError('Cannot edit a locked safety task');
 
     return prisma.safetyTask.update({
       where: { id: taskId },
@@ -106,7 +107,7 @@ export class SafetyTaskManager {
     const task = await prisma.safetyTask.findFirst({
       where: { id: taskId, companyId, deletedAt: null },
     });
-    if (!task) throw new Error('Safety task not found');
+    if (!task) throw new NotFoundError('Safety task', taskId);
 
     return prisma.safetyTask.update({
       where: { id: taskId },
@@ -121,7 +122,7 @@ export class SafetyTaskManager {
     const task = await prisma.safetyTask.findFirst({
       where: { id: taskId, companyId, deletedAt: null },
     });
-    if (!task) throw new Error('Safety task not found');
+    if (!task) throw new NotFoundError('Safety task', taskId);
 
     return prisma.safetyTask.update({
       where: { id: taskId },
@@ -136,8 +137,8 @@ export class SafetyTaskManager {
     const task = await prisma.safetyTask.findFirst({
       where: { id: taskId, companyId, deletedAt: null },
     });
-    if (!task) throw new Error('Safety task not found');
-    if (task.isLocked) throw new Error('Cannot delete a locked safety task');
+    if (!task) throw new NotFoundError('Safety task', taskId);
+    if (task.isLocked) throw new BadRequestError('Cannot delete a locked safety task');
 
     return prisma.safetyTask.update({
       where: { id: taskId },
@@ -156,7 +157,7 @@ export class SafetyTaskManager {
     const task = await prisma.safetyTask.findFirst({
       where: { id: taskId, companyId, deletedAt: null },
     });
-    if (!task) throw new Error('Safety task not found');
+    if (!task) throw new NotFoundError('Safety task', taskId);
 
     return prisma.safetyTask.update({
       where: { id: taskId },

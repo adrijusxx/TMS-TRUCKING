@@ -5,6 +5,7 @@
 
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { ValidationError, NotFoundError } from '@/lib/errors';
 
 interface SafetyPredictionInput {
   driverId?: string;
@@ -41,7 +42,7 @@ export class AISafetyPredictor extends AIService {
    */
   async predictSafetyRisk(input: SafetyPredictionInput): Promise<SafetyPredictionResult> {
     if (!input.driverId && !input.truckId) {
-      throw new Error('Either driverId or truckId must be provided');
+      throw new ValidationError('Either driverId or truckId must be provided');
     }
 
     let driver = null;
@@ -140,7 +141,7 @@ export class AISafetyPredictor extends AIService {
     }
 
     if (!driver && !truck) {
-      throw new Error('Driver or truck not found');
+      throw new NotFoundError('Driver or Truck', input.driverId || input.truckId);
     }
 
     // Build AI prompt
@@ -242,21 +243,36 @@ Risk factors to consider:
 6. Compliance status
 7. ACTIVE TELEMATICS FAULTS (Critical faults should heavily weigh toward HIGH or CRITICAL risk)`;
 
-    const result = await this.callAI<{ prediction: SafetyRiskPrediction }>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in trucking safety risk assessment. Analyze safety data and return ONLY valid JSON with risk predictions.',
+    let prediction: SafetyRiskPrediction = {
+      riskLevel: 'MEDIUM',
+      score: 50,
+      factors: ['AI analysis unavailable'],
+      recommendations: ['Manual safety review recommended.'],
+    };
+
+    try {
+      const result = await this.callAI<{ prediction: SafetyRiskPrediction }>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in trucking safety risk assessment. Analyze safety data and return ONLY valid JSON with risk predictions.',
+        }
+      );
+
+      if (result.data?.prediction) {
+        prediction = result.data.prediction;
       }
-    );
+    } catch (error) {
+      console.error('[AISafetyPredictor] Failed to predict safety risk:', error instanceof Error ? error.message : String(error));
+    }
 
     return {
       driverId: driver?.id,
       driverName: driver ? `${(driver as any).user?.firstName || ''} ${(driver as any).user?.lastName || ''}`.trim() : undefined,
       truckId: truck?.id,
       truckNumber: truck?.truckNumber,
-      prediction: result.data.prediction,
+      prediction,
       historicalData,
     };
   }

@@ -332,7 +332,7 @@ export const baseLoadSchema = z.object({
         'RESERVE_RELEASED'
     ]).optional().nullable(),
     quickPayFee: z.number().nonnegative().optional().nullable(),
-    specialHandling: z.any().optional().nullable(),
+    specialHandling: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().nullable(),
 });
 
 // Create schema with superRefine validation

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { NotFoundError, ConflictError } from '@/lib/errors';
 import { z } from 'zod';
 import { EntityType } from '@prisma/client';
 
@@ -17,56 +18,36 @@ const updateStatusSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
-    const { id } = await params;
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const status = await prisma.dynamicStatus.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const status = await prisma.dynamicStatus.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!status) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Status not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, data: status });
-  } catch (error) {
-    console.error('Dynamic status fetch error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!status) {
+    throw new NotFoundError('Status');
   }
-}
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return successResponse(status);
+});
+
+export const PATCH = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
-
     const body = await request.json();
     const validatedData = updateStatusSchema.parse(body);
 
@@ -80,10 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Status not found' } },
-        { status: 404 }
-      );
+      throw new NotFoundError('Status');
     }
 
     if (validatedData.name && validatedData.name !== existing.name) {
@@ -98,10 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
 
       if (duplicate) {
-        return NextResponse.json(
-          { success: false, error: { code: 'DUPLICATE', message: 'Status name already exists for this entity type' } },
-          { status: 400 }
-        );
+        throw new ConflictError('Status name already exists for this entity type');
       }
     }
 
@@ -123,61 +98,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data: validatedData,
     });
 
-    return NextResponse.json({ success: true, data: status });
+    return successResponse(status);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
-        { status: 400 }
-      );
-    }
-    console.error('Dynamic status update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const DELETE = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const existing = await prisma.dynamicStatus.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
-    const existing = await prisma.dynamicStatus.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Status not found' } },
-        { status: 404 }
-      );
-    }
-
-    await prisma.dynamicStatus.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false, isDefault: false },
-    });
-
-    return NextResponse.json({ success: true, message: 'Status deleted successfully' });
-  } catch (error) {
-    console.error('Dynamic status delete error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!existing) {
+    throw new NotFoundError('Status');
   }
-}
+
+  await prisma.dynamicStatus.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false, isDefault: false },
+  });
+
+  return successResponse({ message: 'Status deleted successfully' });
+});

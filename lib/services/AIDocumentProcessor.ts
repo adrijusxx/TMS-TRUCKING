@@ -175,16 +175,25 @@ export class AIDocumentProcessor extends AIService {
         systemPrompt = 'Extract structured data from this document. Return ONLY valid JSON.';
     }
 
-    const result = await this.callAI<DocumentExtractionResult>(
-      prompt,
-      {
-        temperature: 0.1,
-        maxTokens: 4000,
-        systemPrompt,
-      }
-    );
+    try {
+      const result = await this.callAI<DocumentExtractionResult>(
+        prompt,
+        {
+          temperature: 0.1,
+          maxTokens: 4000,
+          systemPrompt,
+        }
+      );
 
-    return result.data;
+      if (!result.data) {
+        return {} as DocumentExtractionResult;
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIDocumentProcessor] Failed to process document:', error instanceof Error ? error.message : String(error));
+      return {} as DocumentExtractionResult;
+    }
   }
 
   private buildInvoicePrompt(text: string, fileName?: string): string {
@@ -391,26 +400,35 @@ Return JSON with:
     loadNumber?: string
   }`;
 
-    const result = await this.callAI<{
-      category: string;
-      suggestedEntityType: string;
-      suggestedEntityId?: string;
-      confidence: number;
-      extractedFinancialData?: {
-        amount?: number;
-        date?: string;
-        vendor?: string;
-      };
-    }>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in document categorization and entity linking. Return ONLY valid JSON.',
-      }
-    );
+    try {
+      const result = await this.callAI<{
+        category: string;
+        suggestedEntityType: string;
+        suggestedEntityId?: string;
+        confidence: number;
+        extractedFinancialData?: {
+          amount?: number;
+          date?: string;
+          vendor?: string;
+        };
+      }>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in document categorization and entity linking. Return ONLY valid JSON.',
+        }
+      );
 
-    return result.data;
+      if (!result.data) {
+        return { category: 'OTHER', suggestedEntityType: 'NONE', confidence: 0 };
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIDocumentProcessor] Failed to categorize document:', error instanceof Error ? error.message : String(error));
+      return { category: 'OTHER', suggestedEntityType: 'NONE', confidence: 0 };
+    }
   }
 }
 

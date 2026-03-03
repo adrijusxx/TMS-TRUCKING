@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { ValidationError } from '@/lib/errors';
 
 interface McState {
   mcNumberId: string | null; // Single MC ID (legacy, for backward compatibility)
@@ -258,7 +259,7 @@ export class McStateManager {
   ): Promise<{ companyId: string; mcNumberId?: string | { in: string[] } }> {
     const companyId = session?.user?.companyId || session?.user?.currentCompanyId;
     if (!companyId) {
-      throw new Error('Company ID is required');
+      throw new ValidationError('Company ID is required');
     }
 
     const mcState = await this.getMcState(session, request);

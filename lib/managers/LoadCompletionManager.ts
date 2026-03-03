@@ -11,7 +11,8 @@ import { LoadCostingManager } from './LoadCostingManager';
 import { InvoiceManager } from './InvoiceManager';
 import { BillingHoldManager } from './BillingHoldManager';
 import { logger } from '@/lib/utils/logger';
-// import { notifyLoadCompleted } from '@/lib/notifications/triggers'; // TODO: Implement notification trigger
+import { NotificationManager } from './NotificationManager';
+import { NotFoundError } from '@/lib/errors';
 
 interface LoadCompletionResult {
   success: boolean;
@@ -77,39 +78,32 @@ export class LoadCompletionManager {
       });
 
       if (!load) {
-        return {
-          success: false,
-          loadId,
-          syncedToAccounting: false,
-          metricsUpdated: false,
-          notificationsSent: false,
-          errors: ['Load not found'],
-        };
+        throw new NotFoundError('Load', loadId);
       }
 
-      // 1b. Mark load as ready for settlement FIRST (before other steps that might fail)
-      if (load.driverId) {
-        await prisma.load.update({
-          where: { id: loadId },
-          data: {
-            readyForSettlement: true,
-            deliveredAt: load.deliveredAt || new Date(),
-          },
-        });
-      }
-
-      // 2. Validate load data completeness
+      // 1b + 2: Atomically mark load as ready for settlement and validate
       const validation = await this.validateLoadData(load);
-      if (!validation.isValid) {
-        errors.push(`Validation failed: ${validation.missingFields.join(', ')}`);
-        // Continue but mark as requiring review
-        await prisma.load.update({
-          where: { id: loadId },
-          data: {
-            accountingSyncStatus: 'REQUIRES_REVIEW',
-          },
-        });
-      }
+      await prisma.$transaction(async (tx) => {
+        if (load.driverId) {
+          await tx.load.update({
+            where: { id: loadId },
+            data: {
+              readyForSettlement: true,
+              deliveredAt: load.deliveredAt || new Date(),
+            },
+          });
+        }
+
+        if (!validation.isValid) {
+          errors.push(`Validation failed: ${validation.missingFields.join(', ')}`);
+          await tx.load.update({
+            where: { id: loadId },
+            data: {
+              accountingSyncStatus: 'REQUIRES_REVIEW',
+            },
+          });
+        }
+      });
 
       // 3. Calculate final load costs and profitability
       try {
@@ -241,52 +235,54 @@ export class LoadCompletionManager {
    * Update operations metrics after load completion
    */
   private async updateOperationsMetrics(load: any): Promise<void> {
-    // Update driver statistics
-    if (load.driverId) {
-      const driver = await prisma.driver.findUnique({
-        where: { id: load.driverId },
-      });
-
-      if (driver) {
-        await prisma.driver.update({
+    await prisma.$transaction(async (tx) => {
+      // Update driver statistics
+      if (load.driverId) {
+        const driver = await tx.driver.findUnique({
           where: { id: load.driverId },
-          data: {
-            totalLoads: { increment: 1 },
-            totalMiles: {
-              increment: load.totalMiles || 0,
+        });
+
+        if (driver) {
+          await tx.driver.update({
+            where: { id: load.driverId },
+            data: {
+              totalLoads: { increment: 1 },
+              totalMiles: {
+                increment: load.totalMiles || 0,
+              },
+              // Update on-time percentage if applicable
+              onTimePercentage: load.onTimeDelivery
+                ? ((driver.totalLoads * driver.onTimePercentage + 100) /
+                  (driver.totalLoads + 1))
+                : ((driver.totalLoads * driver.onTimePercentage) /
+                  (driver.totalLoads + 1)),
             },
-            // Update on-time percentage if applicable
-            onTimePercentage: load.onTimeDelivery
-              ? ((driver.totalLoads * driver.onTimePercentage + 100) /
-                (driver.totalLoads + 1))
-              : ((driver.totalLoads * driver.onTimePercentage) /
-                (driver.totalLoads + 1)),
+          });
+        }
+      }
+
+      // Update truck mileage for maintenance tracking
+      if (load.truckId && load.totalMiles) {
+        await tx.truck.update({
+          where: { id: load.truckId },
+          data: {
+            odometerReading: {
+              increment: load.totalMiles,
+            },
           },
         });
       }
-    }
 
-    // Update truck mileage for maintenance tracking
-    if (load.truckId && load.totalMiles) {
-      await prisma.truck.update({
-        where: { id: load.truckId },
+      // Update customer statistics
+      await tx.customer.update({
+        where: { id: load.customerId },
         data: {
-          odometerReading: {
-            increment: load.totalMiles,
+          totalLoads: { increment: 1 },
+          totalRevenue: {
+            increment: load.revenue || 0,
           },
         },
       });
-    }
-
-    // Update customer statistics
-    await prisma.customer.update({
-      where: { id: load.customerId },
-      data: {
-        totalLoads: { increment: 1 },
-        totalRevenue: {
-          increment: load.revenue || 0,
-        },
-      },
     });
   }
 
@@ -294,21 +290,33 @@ export class LoadCompletionManager {
    * Send notifications to relevant departments
    */
   private async notifyDepartments(load: any): Promise<void> {
-    // Create activity log
-    await prisma.activityLog.create({
-      data: {
-        companyId: load.companyId,
-        action: 'LOAD_COMPLETED',
-        entityType: 'Load',
-        entityId: load.id,
-        description: `Load ${load.loadNumber} completed and synced to accounting`,
-        metadata: {
-          revenue: load.revenue,
-          driverPay: load.driverPay,
-          totalExpenses: load.totalExpenses,
-          netProfit: load.netProfit,
+    await prisma.$transaction(async (tx) => {
+      // Create activity log
+      await tx.activityLog.create({
+        data: {
+          companyId: load.companyId,
+          action: 'LOAD_COMPLETED',
+          entityType: 'Load',
+          entityId: load.id,
+          description: `Load ${load.loadNumber} completed and synced to accounting`,
+          metadata: {
+            revenue: load.revenue,
+            driverPay: load.driverPay,
+            totalExpenses: load.totalExpenses,
+            netProfit: load.netProfit,
+          },
         },
-      },
+      });
+    });
+
+    // Notify accounting and dispatch via NotificationManager (outside tx — non-critical side effect)
+    await NotificationManager.sendToRole(load.companyId, 'ACCOUNTANT', {
+      category: 'load_status',
+      title: 'Load Completed',
+      message: `Load ${load.loadNumber} delivered — revenue: $${(load.revenue ?? 0).toFixed(2)}`,
+      link: `/dashboard/loads/${load.id}`,
+      entityType: 'Load',
+      entityId: load.id,
     });
   }
 

@@ -1,21 +1,20 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from './prisma';
+import { logger } from './utils/logger';
 
 import bcrypt from 'bcryptjs';
 
-// Validate and set NEXTAUTH_SECRET
+// Validate NEXTAUTH_SECRET
 // In production on AWS, this is loaded from AWS Secrets Manager via initialization
 // @see lib/secrets/initialize.ts
-// If not set, generate a default one (for development only - NOT recommended for production)
-let nextAuthSecret = process.env.NEXTAUTH_SECRET;
+const nextAuthSecret = process.env.NEXTAUTH_SECRET;
 
 if (!nextAuthSecret) {
-  console.warn('⚠️  NEXTAUTH_SECRET is not set. Using a default secret (NOT SECURE FOR PRODUCTION!)');
-  // Generate a simple default secret for development
-  // In production, this should ALWAYS be set in environment variables
-  nextAuthSecret = 'dev-secret-key-change-in-production-min-32-chars';
-  console.warn('⚠️  Please set NEXTAUTH_SECRET in your .env.local file for production use.');
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('NEXTAUTH_SECRET is required in production. Set it in environment variables.');
+  }
+  logger.warn('NEXTAUTH_SECRET is not set. Auth will fail. Set it in .env.local');
 }
 
 export const authOptions: NextAuthConfig = {
@@ -23,7 +22,7 @@ export const authOptions: NextAuthConfig = {
   trustHost: true, // Required for proxy/ALB deployments
   // basePath is derived from AUTH_URL/NEXTAUTH_URL automatically
   // Setting it explicitly while NEXTAUTH_URL has a pathname causes env-url-basepath-mismatch warning
-  logger: { warn: (code) => { if (code !== 'env-url-basepath-mismatch') console.warn(`[auth][warn] ${code}`); } },
+  logger: { warn: (code) => { if (code !== 'env-url-basepath-mismatch') logger.warn(`[auth] ${code}`); } },
   basePath: '/api/auth',
   // Use non-secure cookies when behind ALB proxy (ALB terminates SSL)
   // The __Secure- and __Host- prefixes don't work when app receives HTTP from ALB
@@ -140,7 +139,7 @@ export const authOptions: NextAuthConfig = {
             mcAccess: user.mcAccess || []
           };
         } catch (error) {
-          console.error('[Auth] Error during authorization:', error);
+          logger.error('Error during authorization', { error: error instanceof Error ? error.message : String(error) });
           return null;
         }
       }

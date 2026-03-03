@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberIdWhereClause } from '@/lib/mc-number-filter';
+import { NotFoundError, ConflictError } from '@/lib/errors';
 import { z } from 'zod';
 
 const updateExpenseTypeSchema = z.object({
@@ -15,57 +16,37 @@ const updateExpenseTypeSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
 
-    const { id } = await params;
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const expenseType = await prisma.expenseType.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+    include: { category: true },
+  });
 
-    const expenseType = await prisma.expenseType.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-      include: { category: true },
-    });
-
-    if (!expenseType) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Expense type not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, data: expenseType });
-  } catch (error) {
-    console.error('Expense type fetch error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!expenseType) {
+    throw new NotFoundError('Expense type');
   }
-}
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return successResponse(expenseType);
+});
+
+export const PATCH = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     const { id } = await params;
-
     const body = await request.json();
     const validatedData = updateExpenseTypeSchema.parse(body);
 
@@ -79,10 +60,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Expense type not found' } },
-        { status: 404 }
-      );
+      throw new NotFoundError('Expense type');
     }
 
     if (validatedData.name && validatedData.name !== existing.name) {
@@ -96,10 +74,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
 
       if (duplicate) {
-        return NextResponse.json(
-          { success: false, error: { code: 'DUPLICATE', message: 'Expense type name already exists' } },
-          { status: 400 }
-        );
+        throw new ConflictError('Expense type name already exists');
       }
     }
 
@@ -109,61 +84,36 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       include: { category: true },
     });
 
-    return NextResponse.json({ success: true, data: expenseType });
+    return successResponse(expenseType);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
-        { status: 400 }
-      );
-    }
-    console.error('Expense type update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+export const DELETE = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
+  const mcWhere = await buildMcNumberIdWhereClause(session, request);
+  const existing = await prisma.expenseType.findFirst({
+    where: {
+      id,
+      ...mcWhere,
+      deletedAt: null,
+    },
+  });
 
-    const mcWhere = await buildMcNumberIdWhereClause(session, request);
-    const existing = await prisma.expenseType.findFirst({
-      where: {
-        id,
-        ...mcWhere,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Expense type not found' } },
-        { status: 404 }
-      );
-    }
-
-    await prisma.expenseType.update({
-      where: { id },
-      data: { deletedAt: new Date(), isActive: false },
-    });
-
-    return NextResponse.json({ success: true, message: 'Expense type deleted successfully' });
-  } catch (error) {
-    console.error('Expense type delete error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!existing) {
+    throw new NotFoundError('Expense type');
   }
-}
+
+  await prisma.expenseType.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false },
+  });
+
+  return successResponse({ message: 'Expense type deleted successfully' });
+});

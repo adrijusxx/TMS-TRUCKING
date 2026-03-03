@@ -19,6 +19,7 @@ import { ArrowLeft, Save, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import PermissionCheckboxGrid from './PermissionCheckboxGrid';
+import RoleTemplateSelector from '@/components/settings/RoleTemplateSelector';
 import type { Permission } from '@/lib/permissions';
 
 interface RoleDetail {
@@ -248,6 +249,12 @@ export default function RoleEditor({ roleId, onBack }: RoleEditorProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Quick-apply from template */}
+      <RoleTemplateSelector
+        onApply={setPermissions}
+        currentPermissions={permissions}
+      />
 
       {/* Permissions */}
       <div>

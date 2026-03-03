@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
-        console.error('Error testing connection:', error);
+        const { logger } = await import('@/lib/utils/logger');
+        logger.error('Error testing connection', { error: error instanceof Error ? error.message : String(error) });
         return NextResponse.json(
             { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to test connection' } },
             { status: 500 }
@@ -233,17 +234,44 @@ async function testQuickBooksConnection(companyId: string) {
             });
         }
 
-        // TODO: Make actual API call to verify tokens work
-        return NextResponse.json({
-            success: true,
-            connected: true,
-            message: 'QuickBooks tokens present and not expired',
-            details: {
-                environment: settings.qboEnvironment,
-                realmId: settings.realmId,
-                tokenExpiry: settings.tokenExpiry,
+        // Verify tokens by calling QuickBooks CompanyInfo endpoint
+        try {
+            const baseUrl = settings.qboEnvironment === 'SANDBOX'
+                ? 'https://sandbox-quickbooks.api.intuit.com'
+                : 'https://quickbooks.api.intuit.com';
+            const qbRes = await fetch(
+                `${baseUrl}/v3/company/${settings.realmId}/companyinfo/${settings.realmId}`,
+                { headers: { 'Authorization': `Bearer ${settings.accessToken}`, 'Accept': 'application/json' } }
+            );
+            if (qbRes.ok) {
+                const qbData = await qbRes.json();
+                return NextResponse.json({
+                    success: true,
+                    connected: true,
+                    message: 'QuickBooks connection verified',
+                    details: {
+                        environment: settings.qboEnvironment,
+                        realmId: settings.realmId,
+                        companyName: qbData?.CompanyInfo?.CompanyName,
+                        tokenExpiry: settings.tokenExpiry,
+                        testedAt: new Date().toISOString(),
+                    }
+                });
             }
-        });
+            return NextResponse.json({
+                success: false,
+                connected: false,
+                message: `QuickBooks API returned ${qbRes.status} — tokens may need re-authorization`,
+                details: { status: qbRes.status, environment: settings.qboEnvironment }
+            });
+        } catch (qbErr: any) {
+            return NextResponse.json({
+                success: false,
+                connected: false,
+                message: `QuickBooks API unreachable: ${qbErr.message}`,
+                details: { environment: settings.qboEnvironment }
+            });
+        }
     } catch (error: any) {
         return NextResponse.json({
             success: false,

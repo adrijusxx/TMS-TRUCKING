@@ -62,8 +62,8 @@ export const migrationMetadataSchema = z.object({
   sourceId: z.string().optional(),
   migratedAt: z.string().datetime(),
   migrationVersion: z.string(),
-  unmappedFields: z.record(z.string(), z.any()).optional(),
-  financialFields: z.record(z.string(), z.any()).optional(),
+  unmappedFields: z.record(z.string(), z.unknown()).optional(),
+  financialFields: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const fieldMappingConfigSchema = z.object({
@@ -88,7 +88,7 @@ export const promotionRequestSchema = z.object({
 
 export const importRequestSchema = z.object({
   entityType: entityTypeSchema,
-  data: z.array(z.record(z.string(), z.any())),
+  data: z.array(z.record(z.string(), z.unknown())),
   mappingConfig: fieldMappingConfigSchema.nullable().optional(),
   sourceSystem: z.string().optional(),
 });

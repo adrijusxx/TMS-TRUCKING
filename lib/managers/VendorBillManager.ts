@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma, VendorBillStatus, PaymentMethod, BatchPostStatus } from '@prisma/client';
+import { ValidationError } from '@/lib/errors';
 
 interface CreateBillInput {
   companyId: string;
@@ -80,7 +81,7 @@ export class VendorBillManager {
       });
 
       if (bills.length === 0) {
-        throw new Error('No unbatched bills found for this period');
+        throw new ValidationError('No unbatched bills found for this period');
       }
 
       const totalAmount = bills.reduce((sum, b) => sum + b.amount, 0);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError, ConflictError } from '@/lib/errors';
 import { z } from 'zod';
 
 const updateTagSchema = z.object({
@@ -11,71 +12,48 @@ const updateTagSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+  const tag = await prisma.tag.findFirst({
+    where: {
+      id,
+      companyId: session.user.companyId,
+      deletedAt: null,
+    },
+  });
 
-    const tag = await prisma.tag.findFirst({
-      where: {
-        id: id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
-
-    if (!tag) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Tag not found' } },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ success: true, data: tag });
-  } catch (error) {
-    console.error('Tag fetch error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!tag) {
+    throw new NotFoundError('Tag');
   }
-}
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return successResponse(tag);
+});
 
-    const { id } = await params;
+export const PATCH = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
+    const { id } = await params;
     const body = await request.json();
     const validatedData = updateTagSchema.parse(body);
 
     const existing = await prisma.tag.findFirst({
       where: {
-        id: id,
+        id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Tag not found' } },
-        { status: 404 }
-      );
+      throw new NotFoundError('Tag');
     }
 
     if (validatedData.name && validatedData.name !== existing.name) {
@@ -89,72 +67,44 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
 
       if (duplicate) {
-        return NextResponse.json(
-          { success: false, error: { code: 'DUPLICATE', message: 'Tag name already exists' } },
-          { status: 400 }
-        );
+        throw new ConflictError('Tag name already exists');
       }
     }
 
     const tag = await prisma.tag.update({
-      where: { id: id },
+      where: { id },
       data: validatedData,
     });
 
-    return NextResponse.json({ success: true, data: tag });
+    return successResponse(tag);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid input', details: error.issues } },
-        { status: 400 }
-      );
-    }
-    console.error('Tag update error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = withAuth(async (
+  request: NextRequest,
+  session,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
 
-    const { id } = await params;
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
+  const existing = await prisma.tag.findFirst({
+    where: {
+      id,
+      companyId: session.user.companyId,
+      deletedAt: null,
+    },
+  });
 
-    const existing = await prisma.tag.findFirst({
-      where: {
-        id: id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Tag not found' } },
-        { status: 404 }
-      );
-    }
-
-    await prisma.tag.update({
-      where: { id: id },
-      data: { deletedAt: new Date(), isActive: false },
-    });
-
-    return NextResponse.json({ success: true, message: 'Tag deleted successfully' });
-  } catch (error) {
-    console.error('Tag delete error:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
-      { status: 500 }
-    );
+  if (!existing) {
+    throw new NotFoundError('Tag');
   }
-}
+
+  await prisma.tag.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false },
+  });
+
+  return successResponse({ message: 'Tag deleted successfully' });
+});

@@ -7,6 +7,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { LoadCostCalculator, CostBreakdown } from './LoadCostCalculator';
+import { NotFoundError } from '@/lib/errors';
 
 export class LoadProfitabilityAnalyzer {
     private calculator: LoadCostCalculator;
@@ -194,7 +195,7 @@ export class LoadProfitabilityAnalyzer {
         });
 
         if (!load || !load.company.systemConfig) {
-            throw new Error('Load or system configuration not found');
+            throw new NotFoundError('Load or system configuration');
         }
 
         const config = load.company.systemConfig;

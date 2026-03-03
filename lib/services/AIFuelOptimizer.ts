@@ -126,16 +126,31 @@ Return JSON with:
   }
 - totalPotentialSavings: number`;
 
-    const result = await this.callAI<FuelOptimization>(
-      prompt,
-      {
-        temperature: 0.3,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in fuel optimization for trucking. Return ONLY valid JSON.',
-      }
-    );
+    try {
+      const result = await this.callAI<FuelOptimization>(
+        prompt,
+        {
+          temperature: 0.3,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in fuel optimization for trucking. Return ONLY valid JSON.',
+        }
+      );
 
-    return result.data;
+      if (!result.data) {
+        throw new Error('AI returned no fuel optimization data');
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIFuelOptimizer] Failed to optimize fuel:', error instanceof Error ? error.message : String(error));
+      return {
+        optimalFuelStops: [],
+        fuelCardRecommendations: [],
+        idleTimeReduction: { currentEstimatedIdleHours: 0, recommendedReduction: 0, potentialSavings: 0, recommendations: [] },
+        routeBasedFuelCost: { estimatedTotalCost: route.totalMiles * 0.55, estimatedGallons: route.totalMiles / 6, estimatedMPG: 6, confidence: 10 },
+        totalPotentialSavings: 0,
+      };
+    }
   }
 }
 

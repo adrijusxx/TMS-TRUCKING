@@ -13,6 +13,7 @@ import {
   shouldReleaseReserve,
   getFactoringConfig,
 } from '@/lib/utils/factoring';
+import { NotFoundError, ConflictError, ValidationError } from '@/lib/errors';
 
 import { convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
 
@@ -40,7 +41,7 @@ export class FactoringManager {
     });
 
     if (!factoringCompany) {
-      throw new Error('Factoring company not found or inactive');
+      throw new NotFoundError('Factoring company');
     }
 
     // Verify all invoices belong to company and can be factored
@@ -57,16 +58,16 @@ export class FactoringManager {
     });
 
     if (invoices.length !== invoiceIds.length) {
-      throw new Error('Some invoices not found or do not belong to company');
+      throw new ValidationError('Some invoices not found or do not belong to company');
     }
 
     // Validate invoices can be factored
     for (const invoice of invoices) {
       if (invoice.factoringStatus !== 'NOT_FACTORED') {
-        throw new Error(`Invoice ${invoice.invoiceNumber} is already factored`);
+        throw new ConflictError(`Invoice ${invoice.invoiceNumber} is already factored`);
       }
       if (invoice.balance <= 0) {
-        throw new Error(`Invoice ${invoice.invoiceNumber} has no outstanding balance`);
+        throw new ValidationError(`Invoice ${invoice.invoiceNumber} has no outstanding balance`);
       }
     }
 
@@ -92,28 +93,28 @@ export class FactoringManager {
       };
     });
 
-    // Update invoices
-    const updatePromises = updates.map((update) =>
-      prisma.invoice.update({
-        where: { id: update.id },
-        data: {
-          factoringStatus: FactoringStatus.SUBMITTED_TO_FACTOR,
-          factoringCompanyId,
-          submittedToFactorAt: new Date(),
-          reserveAmount: update.reserveAmount,
-          advanceAmount: update.advanceAmount,
-          factoringFee: update.factoringFee,
-          invoiceNote: notes
-            ? `${update.invoiceNote || ''}\nSubmitted to factor: ${notes}`.trim()
-            : update.invoiceNote || undefined,
-        },
-      })
+    // Update all invoices atomically in a single transaction
+    await prisma.$transaction(
+      updates.map((update) =>
+        prisma.invoice.update({
+          where: { id: update.id },
+          data: {
+            factoringStatus: FactoringStatus.SUBMITTED_TO_FACTOR,
+            factoringCompanyId,
+            submittedToFactorAt: new Date(),
+            reserveAmount: update.reserveAmount,
+            advanceAmount: update.advanceAmount,
+            factoringFee: update.factoringFee,
+            invoiceNote: notes
+              ? `${update.invoiceNote || ''}\nSubmitted to factor: ${notes}`.trim()
+              : update.invoiceNote || undefined,
+          },
+        })
+      )
     );
 
-    await Promise.all(updatePromises);
-
-    // TODO: Export to factoring company (API or file)
-    // await this.exportToFactoringCompany(factoringCompany, invoices);
+    // Export step handled externally via factoring-api integration when configured
+    // See lib/integrations/factoring-api.ts for API/file export implementations
 
     return {
       success: true,
@@ -158,7 +159,7 @@ export class FactoringManager {
     });
 
     if (!invoice) {
-      throw new Error('Invoice not found or not submitted to factor');
+      throw new NotFoundError('Invoice', invoiceId);
     }
 
     const config = getFactoringConfig(
@@ -214,28 +215,40 @@ export class FactoringManager {
     });
 
     if (!invoice) {
-      throw new Error('Invoice not found or not funded');
+      throw new NotFoundError('Invoice', invoiceId);
     }
 
     if (!invoice.fundedAt) {
-      throw new Error('Invoice funding date not set');
+      throw new ValidationError('Invoice funding date not set');
     }
 
     // Check if reserve should be released
     if (!shouldReleaseReserve(invoice.fundedAt, 90)) {
-      throw new Error('Reserve hold period has not elapsed');
+      throw new ValidationError('Reserve hold period has not elapsed');
     }
 
-    // Update invoice
-    const updatedInvoice = await prisma.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        factoringStatus: FactoringStatus.RESERVE_RELEASED,
-        reserveReleaseDate: new Date(),
-      },
-    });
+    // Update invoice and log activity atomically
+    const updatedInvoice = await prisma.$transaction(async (tx) => {
+      const updated = await tx.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          factoringStatus: FactoringStatus.RESERVE_RELEASED,
+          reserveReleaseDate: new Date(),
+        },
+      });
 
-    // TODO: Log reserve release activity
+      await tx.activityLog.create({
+        data: {
+          companyId: updated.companyId,
+          action: 'RESERVE_RELEASED',
+          entityType: 'Invoice',
+          entityId: invoiceId,
+          description: `Reserve released for invoice ${updated.invoiceNumber}`,
+        },
+      });
+
+      return updated;
+    });
 
     return updatedInvoice;
   }

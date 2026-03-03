@@ -197,16 +197,25 @@ Return JSON array of recommendations, each with:
 - estimatedDeliveryTime: string (ISO date)
 - recommendations: string[] (action items)`;
 
-    const result = await this.callAI<DispatchRecommendation[]>(
-      prompt,
-      {
-        temperature: 0.3,
-        maxTokens: 4000,
-        systemPrompt: 'You are an expert dispatch assistant. Analyze loads and provide prioritization and conflict detection. Return ONLY valid JSON array.',
-      }
-    );
+    try {
+      const result = await this.callAI<DispatchRecommendation[]>(
+        prompt,
+        {
+          temperature: 0.3,
+          maxTokens: 4000,
+          systemPrompt: 'You are an expert dispatch assistant. Analyze loads and provide prioritization and conflict detection. Return ONLY valid JSON array.',
+        }
+      );
 
-    return result.data;
+      if (!result.data || !Array.isArray(result.data)) {
+        return [];
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AIDispatchAssistant] Failed to get dispatch recommendations:', error instanceof Error ? error.message : String(error));
+      return [];
+    }
   }
 
   /**

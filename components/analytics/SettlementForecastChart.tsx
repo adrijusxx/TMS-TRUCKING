@@ -22,7 +22,7 @@ export function SettlementForecastChart() {
 
   const fetchSettlementForecast = async () => {
     try {
-      // TODO: Implement API endpoint with ML-based forecasting
+      // Sample data — replace with /api/analytics/settlement-forecast when available
       const mockData: SettlementForecast[] = [
         {
           week: 'Week 1 (Nov 25-Dec 1)',

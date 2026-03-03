@@ -3,6 +3,7 @@ import { UsageManager } from '@/lib/managers/UsageManager';
 import { InvoiceValidationManager } from './invoice/InvoiceValidationManager';
 import { InvoiceSnapshotService, LoadDataSnapshot } from './invoice/InvoiceSnapshotService';
 import { InvoiceAuditService } from './invoice/InvoiceAuditService';
+import { NotFoundError, ValidationError } from '@/lib/errors';
 
 /**
  * InvoiceManager - Split from original file to comply with 500-line limit.
@@ -29,7 +30,7 @@ export class InvoiceManager {
         include: { customer: { include: { factoringCompany: true } } },
       });
 
-      if (!invoice) return { success: false, error: 'Invoice not found' };
+      if (!invoice) throw new NotFoundError('Invoice', invoiceId);
 
       const isFactored = invoice.customer.factoringCompanyId !== null;
       if (isFactored && invoice.customer.factoringCompany) {
@@ -49,7 +50,7 @@ export class InvoiceManager {
       }
 
       const company = await prisma.company.findUnique({ where: { id: invoice.customer.companyId } });
-      if (!company) return { success: false, error: 'Company not found' };
+      if (!company) throw new NotFoundError('Company', invoice.customer.companyId);
 
       return {
         success: true,
@@ -71,34 +72,41 @@ export class InvoiceManager {
         include: { customer: true, dispatcher: true, driver: { include: { user: true } }, truck: true, mcNumber: true },
       });
 
-      if (loads.length === 0) return { success: false, error: 'No loads found' };
+      if (loads.length === 0) throw new ValidationError('No loads found for invoice generation', { loadIds });
 
-      // Create one invoice per load (strict 1:1)
-      const invoices = [];
+      // Create all invoices atomically in a single transaction
+      const invoices = await prisma.$transaction(async (tx) => {
+        const created = [];
+        for (const load of loads) {
+          const subtotal = load.revenue || 0;
+          const tax = (load.customer as any).isTaxExempt ? 0 : (subtotal * ((load.customer as any).taxRate || 0) / 100);
+          const total = subtotal + tax;
+
+          const invoiceNumber: string = loads.length > 1 && options?.invoiceNumber
+            ? `${options.invoiceNumber}-${created.length + 1}`
+            : (options?.invoiceNumber || `INV-${Date.now().toString().slice(-8)}`);
+
+          const invoice = await tx.invoice.create({
+            data: {
+              companyId: load.companyId, customerId: load.customerId,
+              invoiceNumber,
+              invoiceDate: new Date(),
+              dueDate: options?.dueDate || new Date(Date.now() + ((load.customer as any).paymentTerms || 30) * 86400000),
+              subtotal, tax, total, balance: total, status: 'DRAFT',
+              loadIds: [load.id], loadId: load.id,
+              mcNumber: load.mcNumber?.number, mcNumberId: load.mcNumberId,
+            },
+          });
+
+          await tx.load.update({ where: { id: load.id }, data: { status: 'INVOICED', readyForSettlement: true } });
+          created.push(invoice);
+        }
+        return created;
+      });
+
+      // Non-critical usage tracking (outside transaction)
       for (const load of loads) {
-        const subtotal = load.revenue || 0;
-        const tax = (load.customer as any).isTaxExempt ? 0 : (subtotal * ((load.customer as any).taxRate || 0) / 100);
-        const total = subtotal + tax;
-
-        const invoiceNumber: string = loads.length > 1 && options?.invoiceNumber
-          ? `${options.invoiceNumber}-${invoices.length + 1}`
-          : (options?.invoiceNumber || `INV-${Date.now().toString().slice(-8)}`);
-
-        const invoice = await prisma.invoice.create({
-          data: {
-            companyId: load.companyId, customerId: load.customerId,
-            invoiceNumber,
-            invoiceDate: new Date(),
-            dueDate: options?.dueDate || new Date(Date.now() + ((load.customer as any).paymentTerms || 30) * 86400000),
-            subtotal, tax, total, balance: total, status: 'DRAFT',
-            loadIds: [load.id], loadId: load.id,
-            mcNumber: load.mcNumber?.number, mcNumberId: load.mcNumberId,
-          },
-        });
-
-        await prisma.load.update({ where: { id: load.id }, data: { status: 'INVOICED', readyForSettlement: true } });
-        await UsageManager.trackUsage(load.companyId, 'INVOICES_GENERATED');
-        invoices.push(invoice);
+        try { await UsageManager.trackUsage(load.companyId, 'INVOICES_GENERATED'); } catch { /* non-critical */ }
       }
 
       // Return first invoice for backward compatibility (single load case)

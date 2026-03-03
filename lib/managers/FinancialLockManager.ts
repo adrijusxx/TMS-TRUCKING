@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/utils/logger';
+import { NotFoundError } from '@/lib/errors';
 
 /** Fields that are locked after READY_TO_BILL */
 const LOCKED_FIELDS = ['revenue', 'driverPay', 'fuelAdvance'] as const;
@@ -47,7 +48,7 @@ export class FinancialLockManager {
       select: { companyId: true, financialLockedAt: true },
     });
 
-    if (!load) throw new Error('Load not found');
+    if (!load) throw new NotFoundError('Load', loadId);
     if (!load.financialLockedAt) return; // Already unlocked
 
     await prisma.$transaction([

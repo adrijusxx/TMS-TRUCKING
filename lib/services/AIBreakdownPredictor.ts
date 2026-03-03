@@ -5,6 +5,7 @@
 
 import { AIService } from './AIService';
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 interface BreakdownPrediction {
   truckId: string;
@@ -71,7 +72,7 @@ export class AIBreakdownPredictor extends AIService {
     });
 
     if (!truck) {
-      throw new Error('Truck not found');
+      throw new NotFoundError('Truck', truckId);
     }
 
     const prompt = `Predict breakdown risks and recommend preventive maintenance for this truck.
@@ -118,16 +119,31 @@ Return JSON with:
   }
 - overallRiskScore: number (0-100)`;
 
-    const result = await this.callAI<BreakdownPrediction>(
-      prompt,
-      {
-        temperature: 0.4,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in truck maintenance and breakdown prevention. Return ONLY valid JSON.',
-      }
-    );
+    try {
+      const result = await this.callAI<BreakdownPrediction>(
+        prompt,
+        {
+          temperature: 0.4,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in truck maintenance and breakdown prevention. Return ONLY valid JSON.',
+        }
+      );
 
-    return { ...result.data, truckId, truckNumber: truck.truckNumber };
+      if (!result.data) {
+        throw new Error('AI returned no breakdown prediction data');
+      }
+
+      return { ...result.data, truckId, truckNumber: truck.truckNumber };
+    } catch (error) {
+      console.error('[AIBreakdownPredictor] Failed to predict breakdowns:', error instanceof Error ? error.message : String(error));
+      return {
+        truckId,
+        truckNumber: truck.truckNumber,
+        predictedBreakdowns: [],
+        preventiveMaintenanceRecommendations: [],
+        overallRiskScore: 0,
+      };
+    }
   }
 }
 

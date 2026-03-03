@@ -15,6 +15,9 @@ import RouteOptimizer from '@/components/routes/RouteOptimizer';
 import { useRealtimeDispatch } from '@/hooks/useRealtime';
 import { LoadingState } from '@/components/ui/loading-state';
 import { SelfFetchingTrackingBadge } from '@/components/loads/LoadTrackingBadge';
+import DriverHOSBadge from './DriverHOSBadge';
+import ProfitabilityBadge from './ProfitabilityBadge';
+import DispatchMap from './DispatchMap';
 
 async function fetchDispatchBoard(date: string) {
   const response = await fetch(apiUrl(`/api/dispatch/board?date=${date}`));
@@ -123,6 +126,29 @@ export default function DispatchBoard() {
             />
           )}
 
+          <DispatchMap
+            loads={[
+              ...(boardData?.unassignedLoads || []),
+              ...(boardData?.assignedLoads || []),
+            ].map((l: any) => ({
+              id: l.id,
+              loadNumber: l.loadNumber,
+              pickupCity: l.pickupCity,
+              pickupState: l.pickupState,
+              deliveryCity: l.deliveryCity,
+              deliveryState: l.deliveryState,
+              status: l.status,
+              revenue: l.revenue,
+            }))}
+            drivers={(boardData?.availableDrivers || []).map((d: any) => ({
+              id: d.id,
+              name: `${d.user?.firstName || ''} ${d.user?.lastName || ''}`.trim(),
+              truckNumber: d.currentTruck?.truckNumber,
+              lat: d.currentTruck?.latitude,
+              lng: d.currentTruck?.longitude,
+            }))}
+          />
+
           <div className="grid gap-2 lg:grid-cols-2">
             {/* Unassigned Loads */}
             <Card>
@@ -216,8 +242,15 @@ export default function DispatchBoard() {
                                 {load.driver.user.firstName} {load.driver.user.lastName}
                               </p>
                             )}
-                            <Badge variant="outline" className="text-[10px] h-4 mt-1">{load.status}</Badge>
-                            <SelfFetchingTrackingBadge loadId={load.id} loadStatus={load.status} compact />
+                            <div className="flex items-center gap-1 mt-1">
+                              <Badge variant="outline" className="text-[10px] h-4">{load.status}</Badge>
+                              <SelfFetchingTrackingBadge loadId={load.id} loadStatus={load.status} compact />
+                              <ProfitabilityBadge
+                                revenue={load.revenue || 0}
+                                driverPay={load.driverPay || 0}
+                                totalExpenses={load.totalExpenses || 0}
+                              />
+                            </div>
                           </div>
                           <p className="font-medium text-green-600">{formatCurrency(load.revenue)}</p>
                         </div>
@@ -243,9 +276,12 @@ export default function DispatchBoard() {
                   <div className="space-y-1">
                     {boardData?.availableDrivers?.map((driver: any) => (
                       <div key={driver.id} className="p-2 border rounded flex justify-between items-center text-xs">
-                        <div>
-                          <p className="font-medium">{driver.user.firstName} {driver.user.lastName}</p>
-                          {driver.currentTruck && <p className="text-muted-foreground">Truck: {driver.currentTruck.truckNumber}</p>}
+                        <div className="flex items-center gap-1.5">
+                          <DriverHOSBadge hosData={driver.hosData} />
+                          <div>
+                            <p className="font-medium">{driver.user.firstName} {driver.user.lastName}</p>
+                            {driver.currentTruck && <p className="text-muted-foreground">Truck: {driver.currentTruck.truckNumber}</p>}
+                          </div>
                         </div>
                         <Badge variant="outline" className="text-[10px] h-4 bg-green-50 text-green-700">Available</Badge>
                       </div>

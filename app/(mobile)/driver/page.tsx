@@ -17,6 +17,7 @@ import {
 import { formatCurrency, formatDate, apiUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { LoadStatus } from '@prisma/client';
+import { toast } from 'sonner';
 
 interface DriverStats {
   weeklyMiles: number;
@@ -73,9 +74,21 @@ export default function DriverMobileDashboard() {
     input.capture = 'environment';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        // TODO: Implement POD upload
-        console.log('Upload POD:', file);
+      if (file && stats?.currentLoad?.id) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('loadId', stats.currentLoad.id);
+        formData.append('documentType', 'POD');
+        try {
+          const res = await fetch('/api/documents/upload', { method: 'POST', body: formData });
+          if (res.ok) {
+            toast.success('POD uploaded successfully');
+          } else {
+            toast.error('Failed to upload POD');
+          }
+        } catch {
+          toast.error('Upload error — check your connection');
+        }
       }
     };
     input.click();
@@ -176,7 +189,6 @@ export default function DriverMobileDashboard() {
                 variant="outline"
                 className="flex-1"
                 onClick={() => {
-                  // TODO: Navigate to update status page
                   window.location.href = `/mobile/driver/loads/${stats.currentLoad?.id}`;
                 }}
               >

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow, format } from 'date-fns';
+import CampaignAnalyticsDashboard from '@/components/crm/CampaignAnalyticsDashboard';
 
 interface Props {
     campaignId: string;
@@ -244,6 +245,9 @@ export default function CampaignDetail({ campaignId, onBack }: Props) {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Campaign Analytics */}
+            <CampaignAnalyticsDashboard campaignId={campaignId} />
         </div>
     );
 }

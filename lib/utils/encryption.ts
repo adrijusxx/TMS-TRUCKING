@@ -1,33 +1,81 @@
 /**
  * Encryption utilities for sensitive data
- * 
- * In production, use a proper encryption library like crypto-js or @noble/cipher
- * This is a placeholder that should be replaced with actual encryption
+ *
+ * Uses AES-256-GCM for authenticated encryption.
+ * Requires ENCRYPTION_KEY env var (64-char hex string = 32 bytes).
+ * Falls back to base64 encoding in development if key is not set.
  */
 
+import crypto from 'crypto';
+import { logger } from '@/lib/utils/logger';
+
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 16;
+const AUTH_TAG_LENGTH = 16;
+
+function getKey(): Buffer | null {
+  const keyHex = process.env.ENCRYPTION_KEY;
+  if (!keyHex) {
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('ENCRYPTION_KEY is required in production');
+    }
+    return null;
+  }
+  if (keyHex.length !== 64) {
+    logger.error('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
+    return null;
+  }
+  return Buffer.from(keyHex, 'hex');
+}
+
 /**
- * Encrypt sensitive data
- * TODO: Replace with actual encryption using environment secret
+ * Encrypt sensitive data using AES-256-GCM.
+ * Returns base64-encoded string containing iv + authTag + ciphertext.
  */
 export function encrypt(data: string): string {
-  // In production, use proper encryption:
-  // import crypto from 'crypto';
-  // const algorithm = 'aes-256-gcm';
-  // const key = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex');
-  // ... actual encryption logic
-  
-  // For now, return base64 encoded (NOT secure - just for placeholder)
-  // In production, you MUST implement proper encryption!
-  return Buffer.from(data).toString('base64');
+  const key = getKey();
+  if (!key) {
+    // Dev fallback — NOT secure
+    return Buffer.from(data).toString('base64');
+  }
+
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+
+  const encrypted = Buffer.concat([
+    cipher.update(data, 'utf-8'),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+
+  // Pack: iv (16) + authTag (16) + ciphertext
+  const packed = Buffer.concat([iv, authTag, encrypted]);
+  return packed.toString('base64');
 }
 
 /**
- * Decrypt sensitive data
- * TODO: Replace with actual decryption using environment secret
+ * Decrypt data encrypted with encrypt().
  */
 export function decrypt(encryptedData: string): string {
-  // In production, use proper decryption matching the encryption above
-  // For now, decode from base64 (NOT secure - just for placeholder)
-  return Buffer.from(encryptedData, 'base64').toString('utf-8');
-}
+  const key = getKey();
+  if (!key) {
+    // Dev fallback
+    return Buffer.from(encryptedData, 'base64').toString('utf-8');
+  }
 
+  const packed = Buffer.from(encryptedData, 'base64');
+
+  const iv = packed.subarray(0, IV_LENGTH);
+  const authTag = packed.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+  const ciphertext = packed.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
+
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  const decrypted = Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString('utf-8');
+}

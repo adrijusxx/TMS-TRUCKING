@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { NotFoundError, ConflictError } from '@/lib/errors';
 
 export class SettlementWorkflowManager {
     /**
@@ -67,26 +68,28 @@ export class SettlementWorkflowManager {
         approverId: string,
         reason: string
     ): Promise<any> {
-        const settlement = await prisma.settlement.update({
-            where: { id: settlementId },
-            data: {
-                approvalStatus: 'REJECTED',
-                approvedById: approverId,
-                approvedAt: new Date(),
-                rejectionReason: reason,
-            },
-        });
+        return await prisma.$transaction(async (tx) => {
+            const settlement = await tx.settlement.update({
+                where: { id: settlementId },
+                data: {
+                    approvalStatus: 'REJECTED',
+                    approvedById: approverId,
+                    approvedAt: new Date(),
+                    rejectionReason: reason,
+                },
+            });
 
-        await prisma.settlementApproval.create({
-            data: {
-                settlementId,
-                status: 'REJECTED',
-                approvedById: approverId,
-                notes: reason,
-            },
-        });
+            await tx.settlementApproval.create({
+                data: {
+                    settlementId,
+                    status: 'REJECTED',
+                    approvedById: approverId,
+                    notes: reason,
+                },
+            });
 
-        return settlement;
+            return settlement;
+        });
     }
 
     /**

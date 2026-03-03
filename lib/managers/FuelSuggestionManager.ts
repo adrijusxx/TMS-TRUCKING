@@ -10,6 +10,7 @@
 import { prisma } from '@/lib/prisma';
 import { haversineDistanceMiles } from '@/lib/utils/geo';
 import { calculateRoute } from '@/lib/maps/google-maps';
+import { NotFoundError } from '@/lib/errors';
 import {
   createFuelStationProvider,
   TollCalculationService,
@@ -53,7 +54,7 @@ export class FuelSuggestionManager {
       },
     });
 
-    if (!load) throw new Error('Load not found');
+    if (!load) throw new NotFoundError('Load', loadId);
 
     const stations = await this.findStationsAlongRoute(load);
     const stationsWithPrice = stations.filter((s) => s.dieselPrice != null);

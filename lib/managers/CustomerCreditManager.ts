@@ -8,6 +8,7 @@
 import { prisma } from '@/lib/prisma';
 import { InvoiceStatus } from '@prisma/client';
 import { logger } from '@/lib/utils/logger';
+import { NotFoundError } from '@/lib/errors';
 
 interface CreditCheckResult {
   withinLimit: boolean;
@@ -33,7 +34,7 @@ export class CustomerCreditManager {
       },
     });
 
-    if (!customer) throw new Error('Customer not found');
+    if (!customer) throw new NotFoundError('Customer', customerId);
 
     // Sum all unpaid invoice balances
     const agg = await prisma.invoice.aggregate({
@@ -102,7 +103,7 @@ export class CustomerCreditManager {
       select: { companyId: true, name: true },
     });
 
-    if (!customer) throw new Error('Customer not found');
+    if (!customer) throw new NotFoundError('Customer', customerId);
 
     const [updated] = await prisma.$transaction([
       prisma.customer.update({
@@ -139,7 +140,7 @@ export class CustomerCreditManager {
       select: { companyId: true, name: true },
     });
 
-    if (!customer) throw new Error('Customer not found');
+    if (!customer) throw new NotFoundError('Customer', customerId);
 
     const [updated] = await prisma.$transaction([
       prisma.customer.update({

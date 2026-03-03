@@ -28,6 +28,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Loader2, FileSpreadsheet, UserCheck } from 'lucide-react';
 import { useClickToCall } from '@/lib/hooks/useClickToCall';
+import BackgroundCheckStatus from './BackgroundCheckStatus';
+import DocumentProgressTracker from './DocumentProgressTracker';
 
 const leadFormSchema = z.object({
     firstName: z.string().min(1, 'First name is required'),
@@ -205,16 +207,22 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                                 />
                             )}
                             <Tabs defaultValue={isEditing ? 'overview' : 'personal'} className="w-full">
-                                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-8' : 'grid-cols-3'}`}>
+                                <TabsList className={`grid w-full ${isEditing ? 'grid-cols-5' : 'grid-cols-3'}`}>
                                     {isEditing && <TabsTrigger value="overview">Overview</TabsTrigger>}
                                     <TabsTrigger value="personal">Personal</TabsTrigger>
                                     <TabsTrigger value="cdl">CDL</TabsTrigger>
                                     <TabsTrigger value="status">Status</TabsTrigger>
                                     {isEditing && <TabsTrigger value="notes">Notes</TabsTrigger>}
-                                    {isEditing && <TabsTrigger value="activity">Activity</TabsTrigger>}
-                                    {isEditing && <TabsTrigger value="documents">Docs</TabsTrigger>}
-                                    {isEditing && <TabsTrigger value="import">Import</TabsTrigger>}
                                 </TabsList>
+                                {isEditing && (
+                                <TabsList className="grid w-full grid-cols-5 mt-1">
+                                    <TabsTrigger value="activity">Activity</TabsTrigger>
+                                    <TabsTrigger value="documents">Docs</TabsTrigger>
+                                    <TabsTrigger value="checks">Checks</TabsTrigger>
+                                    <TabsTrigger value="progress">Progress</TabsTrigger>
+                                    <TabsTrigger value="import">Import</TabsTrigger>
+                                </TabsList>
+                                )}
 
                                 {isEditing && leadData && (
                                     <TabsContent value="overview" className="mt-4">
@@ -259,6 +267,16 @@ export default function LeadSheet({ open, onOpenChange, leadId, onSuccess }: Lea
                                         <TabsContent value="documents" className="mt-4">
                                             <div className="bg-muted/10 p-1 rounded-lg">
                                                 <LeadDocuments leadId={leadId!} />
+                                            </div>
+                                        </TabsContent>
+                                        <TabsContent value="checks" className="mt-4">
+                                            <div className="bg-muted/10 p-1 rounded-lg">
+                                                <BackgroundCheckStatus leadId={leadId!} />
+                                            </div>
+                                        </TabsContent>
+                                        <TabsContent value="progress" className="mt-4">
+                                            <div className="bg-muted/10 p-1 rounded-lg">
+                                                <DocumentProgressTracker leadId={leadId!} />
                                             </div>
                                         </TabsContent>
                                         <TabsContent value="import" className="mt-4">

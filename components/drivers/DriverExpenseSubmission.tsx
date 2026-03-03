@@ -58,11 +58,20 @@ export function DriverExpenseSubmission({ driverId }: { driverId: string }) {
     setSubmitting(true);
 
     try {
-      // TODO: Upload receipt first if provided
+      // Upload receipt if provided
       let receiptUrl = '';
       if (receipt) {
-        // Upload logic here
-        console.log('Uploading receipt:', receipt);
+        const formData = new FormData();
+        formData.append('file', receipt);
+        formData.append('entityType', 'EXPENSE_RECEIPT');
+        const uploadRes = await fetch(apiUrl('/api/documents/upload'), {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.success) {
+          receiptUrl = uploadData.data?.url || uploadData.data?.filePath || '';
+        }
       }
 
       const response = await fetch(apiUrl(`/api/loads/${loadId}/expenses`), {

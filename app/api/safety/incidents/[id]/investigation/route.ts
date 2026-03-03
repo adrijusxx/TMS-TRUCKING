@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { IncidentInvestigationManager } from '@/lib/managers/IncidentInvestigationManager';
+import { AppError } from '@/lib/errors/AppError';
 
 export async function GET(
   request: NextRequest,
@@ -13,26 +14,12 @@ export async function GET(
     }
 
     const { id } = await params;
-
-    const investigation = await prisma.investigation.findUnique({
-      where: { incidentId: id },
-      include: {
-        incident: {
-          include: {
-            driver: {
-              include: {
-                user: true
-              }
-            },
-            truck: true
-          }
-        },
-        documents: true
-      }
-    });
-
+    const investigation = await IncidentInvestigationManager.getByIncidentId(id);
     return NextResponse.json({ investigation });
   } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json(error.toJSON(), { status: error.statusCode });
+    }
     console.error('Error fetching investigation:', error);
     return NextResponse.json(
       { error: 'Failed to fetch investigation' },
@@ -53,89 +40,56 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
+    const { action } = body;
 
-    // Check if incident exists and belongs to company
-    const incident = await prisma.safetyIncident.findUnique({
-      where: { id },
-      select: { companyId: true }
-    });
+    let investigation;
 
-    if (!incident || incident.companyId !== session.user.companyId) {
-      return NextResponse.json({ error: 'Incident not found' }, { status: 404 });
-    }
-
-    const investigation = await prisma.investigation.upsert({
-      where: { incidentId: id },
-      update: {
-        investigatorId: body.investigatorId || session.user.id,
-        assignedDate: body.assignedDate ? new Date(body.assignedDate) : new Date(),
-        dueDate: body.dueDate ? new Date(body.dueDate) : null,
-        driverInterviewed: body.driverInterviewed || false,
-        eldDataReviewed: body.eldDataReviewed || false,
-        vehicleExamined: body.vehicleExamined || false,
-        photosReviewed: body.photosReviewed || false,
-        witnessStatementsReviewed: body.witnessStatementsReviewed || false,
-        policeReportReviewed: body.policeReportReviewed || false,
-        contributingFactors: body.contributingFactors,
-        rootCause: body.rootCause,
-        findings: body.findings,
-        correctiveActions: body.correctiveActions,
-        recommendations: body.recommendations,
-        trainingScheduled: body.trainingScheduled || false,
-        trainingId: body.trainingId,
-        status: body.status || 'PENDING'
-      },
-      create: {
-        companyId: session.user.companyId,
+    if (action === 'start') {
+      investigation = await IncidentInvestigationManager.startInvestigation({
         incidentId: id,
         investigatorId: body.investigatorId || session.user.id,
-        assignedDate: body.assignedDate ? new Date(body.assignedDate) : new Date(),
-        dueDate: body.dueDate ? new Date(body.dueDate) : null,
-        driverInterviewed: body.driverInterviewed || false,
-        eldDataReviewed: body.eldDataReviewed || false,
-        vehicleExamined: body.vehicleExamined || false,
-        photosReviewed: body.photosReviewed || false,
-        witnessStatementsReviewed: body.witnessStatementsReviewed || false,
-        policeReportReviewed: body.policeReportReviewed || false,
+        companyId: session.user.companyId,
+        dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+      });
+    } else if (action === 'complete') {
+      investigation = await IncidentInvestigationManager.completeInvestigation({
+        incidentId: id,
+        rootCause: body.rootCause,
+        correctiveActions: body.correctiveActions,
+        followUpDate: body.followUpDate ? new Date(body.followUpDate) : undefined,
+        findings: body.findings,
+        recommendations: body.recommendations,
+        contributingFactors: body.contributingFactors,
+      });
+    } else if (action === 'hold') {
+      investigation = await IncidentInvestigationManager.putOnHold(id, body.reason);
+    } else {
+      // Default: update progress (legacy compat with existing InvestigationWorkflow component)
+      investigation = await IncidentInvestigationManager.updateProgress({
+        incidentId: id,
+        driverInterviewed: body.driverInterviewed,
+        eldDataReviewed: body.eldDataReviewed,
+        vehicleExamined: body.vehicleExamined,
+        photosReviewed: body.photosReviewed,
+        witnessStatementsReviewed: body.witnessStatementsReviewed,
+        policeReportReviewed: body.policeReportReviewed,
         contributingFactors: body.contributingFactors,
         rootCause: body.rootCause,
         findings: body.findings,
         correctiveActions: body.correctiveActions,
         recommendations: body.recommendations,
-        trainingScheduled: body.trainingScheduled || false,
-        trainingId: body.trainingId,
-        status: 'PENDING'
-      },
-      include: {
-        incident: {
-          include: {
-            driver: {
-              include: {
-                user: true
-              }
-            },
-            truck: true
-          }
-        },
-        documents: true
-      }
-    });
-
-    // Update incident investigation status
-    await prisma.safetyIncident.update({
-      where: { id },
-      data: {
-        investigationStatus: investigation.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS'
-      }
-    });
+      });
+    }
 
     return NextResponse.json({ investigation }, { status: 201 });
   } catch (error) {
-    console.error('Error creating/updating investigation:', error);
+    if (error instanceof AppError) {
+      return NextResponse.json(error.toJSON(), { status: error.statusCode });
+    }
+    console.error('Error updating investigation:', error);
     return NextResponse.json(
-      { error: 'Failed to create/update investigation' },
+      { error: 'Failed to update investigation' },
       { status: 500 }
     );
   }
 }
-

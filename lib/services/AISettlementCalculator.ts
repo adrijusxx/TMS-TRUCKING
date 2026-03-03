@@ -118,32 +118,47 @@ Return JSON with:
 - confidence: number (0-100)
 - recommendations: string[]`;
 
-    const verification = await this.callAI<{
-      verified: boolean;
-      discrepancies: string[];
-      confidence: number;
-      recommendations: string[];
-    }>(
-      prompt,
-      {
-        temperature: 0.1,
-        maxTokens: 2000,
-        systemPrompt: 'You are an expert in settlement calculations. Verify the math and logic. Return ONLY valid JSON.',
-      }
-    );
+    let aiVerification = {
+      verified: true,
+      discrepancies: [] as string[],
+      confidence: 0,
+      recommendations: ['AI verification unavailable'],
+    };
 
-    // Create suggestion if discrepancies found
-    if (verification.data.discrepancies.length > 0 || !verification.data.verified) {
-      await verificationService.createSuggestion({
-        companyId,
-        suggestionType: 'SETTLEMENT_CALCULATION',
-        entityType: 'SETTLEMENT',
-        entityId: undefined, // Will be set when settlement is created
-        aiConfidence: verification.data.confidence,
-        aiReasoning: verification.data.recommendations.join('; '),
-        suggestedValue: calculatedSettlement,
-        originalValue: calculatedSettlement, // Same for now, will be compared to manual calculation
-      });
+    try {
+      const verification = await this.callAI<{
+        verified: boolean;
+        discrepancies: string[];
+        confidence: number;
+        recommendations: string[];
+      }>(
+        prompt,
+        {
+          temperature: 0.1,
+          maxTokens: 2000,
+          systemPrompt: 'You are an expert in settlement calculations. Verify the math and logic. Return ONLY valid JSON.',
+        }
+      );
+
+      if (verification.data) {
+        aiVerification = verification.data;
+
+        // Create suggestion if discrepancies found
+        if (verification.data.discrepancies.length > 0 || !verification.data.verified) {
+          await verificationService.createSuggestion({
+            companyId,
+            suggestionType: 'SETTLEMENT_CALCULATION',
+            entityType: 'SETTLEMENT',
+            entityId: undefined, // Will be set when settlement is created
+            aiConfidence: verification.data.confidence,
+            aiReasoning: verification.data.recommendations.join('; '),
+            suggestedValue: calculatedSettlement,
+            originalValue: calculatedSettlement, // Same for now, will be compared to manual calculation
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[AISettlementCalculator] AI verification failed:', error instanceof Error ? error.message : String(error));
     }
 
     return {
@@ -158,7 +173,7 @@ Return JSON with:
         deductions: (load.totalExpenses || 0) + (load.fuelAdvance || 0),
       })),
       calculatedSettlement,
-      aiVerification: verification.data,
+      aiVerification,
     };
   }
 }

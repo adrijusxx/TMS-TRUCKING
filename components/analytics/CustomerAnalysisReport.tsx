@@ -27,40 +27,11 @@ export function CustomerAnalysisReport() {
 
   const fetchCustomerAnalysis = async () => {
     try {
-      // TODO: Implement API endpoint
-      const mockData: CustomerAnalysis[] = [
-        {
-          customerName: 'ABC Logistics',
-          totalLoads: 125,
-          totalRevenue: 425000,
-          avgRevenuePerLoad: 3400,
-          profitMargin: 22,
-          paymentTerms: 'Net 30',
-          avgPaymentDays: 28,
-          rating: 'A',
-        },
-        {
-          customerName: 'XYZ Freight',
-          totalLoads: 98,
-          totalRevenue: 385000,
-          avgRevenuePerLoad: 3929,
-          profitMargin: 18,
-          paymentTerms: 'Net 45',
-          avgPaymentDays: 42,
-          rating: 'B',
-        },
-        {
-          customerName: 'Global Shipping',
-          totalLoads: 76,
-          totalRevenue: 298000,
-          avgRevenuePerLoad: 3921,
-          profitMargin: 20,
-          paymentTerms: 'Net 30',
-          avgPaymentDays: 30,
-          rating: 'A',
-        },
-      ];
-      setCustomers(mockData);
+      const response = await fetch('/api/analytics/customer-profitability');
+      const result = await response.json();
+      if (result.success && result.data) {
+        setCustomers(result.data);
+      }
     } catch (error) {
       console.error('Error fetching customer analysis:', error);
     } finally {

@@ -5,7 +5,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/utils/logger';
-import { NotFoundError } from '@/lib/errors';
+import { NotFoundError, BadRequestError } from '@/lib/errors';
 
 interface ReserveReleaseCalculation {
   invoiceId: string;
@@ -55,7 +55,7 @@ export class ReserveReleaseManager {
 
     return invoices.map((invoice) => {
       if (!invoice.factoringSubmittedAt || !invoice.factoringCompany) {
-        throw new Error('Invalid invoice data for reserve calculation');
+        throw new BadRequestError('Invalid invoice data for reserve calculation');
       }
 
       const releaseDate = this.calculateReleaseDate(invoice.factoringSubmittedAt);

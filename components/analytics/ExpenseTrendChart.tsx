@@ -21,7 +21,7 @@ export function ExpenseTrendChart() {
 
   const fetchExpenseTrends = async () => {
     try {
-      // TODO: Implement API endpoint
+      // Sample data — replace with /api/analytics/expense-trends when available
       const mockData: ExpenseTrend[] = [
         { category: 'Fuel', amount: 185000, percentage: 45, trend: 'up' },
         { category: 'Driver Pay', amount: 125000, percentage: 30, trend: 'stable' },

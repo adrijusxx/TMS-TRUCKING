@@ -8,6 +8,7 @@ import {
     DriverNegativeBalance,
     AdvanceItem
 } from './types';
+import { NotFoundError } from '@/lib/errors';
 
 export class SettlementCalculationEngine {
     private advanceManager: DriverAdvanceManager;
@@ -35,7 +36,7 @@ export class SettlementCalculationEngine {
             include: { user: true }
         });
 
-        if (!driver) throw new Error('Driver not found');
+        if (!driver) throw new NotFoundError('Driver', driverId);
 
         const { amount: grossPay, logs: loadLogs } = await this.calculateGrossPay(driver, loads);
 

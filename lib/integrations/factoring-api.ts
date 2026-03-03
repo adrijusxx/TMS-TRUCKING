@@ -36,47 +36,26 @@ export async function submitInvoicesToFactor(
   invoices: InvoiceWithRelations[]
 ): Promise<FactoringSubmissionResult> {
   try {
-    // TODO: Implement actual API integration based on factoringCompany.apiProvider
-    // 
-    // Example with RTS API:
-    // if (factoringCompany.apiProvider === 'RTS') {
-    //   const rtsApi = new RTSApiClient(factoringCompany.apiEndpoint, factoringCompany.apiKey);
-    //   const result = await rtsApi.submitInvoices(invoices);
-    //   return {
-    //     success: true,
-    //     submissionId: result.submissionId,
-    //     status: result.status,
-    //   };
-    // }
-    //
-    // Example with TAFS API:
-    // if (factoringCompany.apiProvider === 'TAFS') {
-    //   const tafsApi = new TAFSApiClient(factoringCompany.apiEndpoint, factoringCompany.apiKey);
-    //   const result = await tafsApi.submitInvoices(invoices);
-    //   return result;
-    // }
-
     logger.info('Submitting invoices to factoring company', {
       factoringCompany: factoringCompany.name,
       invoiceCount: invoices.length,
       apiProvider: factoringCompany.apiProvider,
     });
 
-    // If API provider is configured, use API integration
+    // Direct API integration requires provider-specific client libraries (RTS, TAFS, etc.)
+    // which are not yet integrated. Use file export (CSV/JSON) as the primary submission method.
     if (factoringCompany.apiProvider && factoringCompany.apiEndpoint && factoringCompany.apiKey) {
-      const client = getFactoringApiClient(factoringCompany);
-      if (client) {
-        // TODO: Implement actual API call when client is available
-        // const result = await client.submitInvoices(invoices);
-        // return result;
-      }
+      logger.warn('Direct API submission not available — use file export instead', {
+        provider: factoringCompany.apiProvider,
+      });
     }
 
-    // Fallback: Return placeholder (in production, this would generate export file)
+    // Generate CSV export as the default submission method
+    const exportResult = generateCSVExport(invoices, factoringCompany);
     return {
-      success: true,
-      submissionId: `placeholder-${Date.now()}`,
-      status: 'SUBMITTED',
+      success: exportResult.success,
+      submissionId: `export-${Date.now()}`,
+      status: 'EXPORTED',
     };
   } catch (error) {
     logger.error('Error submitting invoices to factoring company', {
@@ -190,9 +169,8 @@ function generateExcelExport(
   invoices: InvoiceWithRelations[],
   factoringCompany: FactoringCompany
 ): { success: boolean; filePath?: string; content?: string; error?: string } {
-  // TODO: Implement Excel generation using xlsx library
-  // For now, fall back to CSV
-  logger.warn('Excel export not yet implemented, falling back to CSV');
+  // Excel generation requires xlsx library — falls back to CSV
+  logger.warn('Excel export falls back to CSV (xlsx library not installed)');
   return generateCSVExport(invoices, factoringCompany);
 }
 
@@ -203,9 +181,8 @@ function generateEDIExport(
   invoices: InvoiceWithRelations[],
   factoringCompany: FactoringCompany
 ): { success: boolean; filePath?: string; content?: string; error?: string } {
-  // TODO: Implement EDI generation
-  // EDI format depends on factoring company requirements
-  logger.warn('EDI export not yet implemented');
+  // EDI format is provider-specific — requires factoring company spec sheet
+  logger.warn('EDI export not available (provider spec not configured)');
   return {
     success: false,
     error: 'EDI export not yet implemented',
@@ -264,14 +241,8 @@ async function checkFactoringStatus(
   error?: string;
 }> {
   try {
-    // TODO: Implement status checking API call
-    // 
-    // Example:
-    // const api = getFactoringApiClient(factoringCompany);
-    // const statuses = await api.checkStatus(invoiceIds);
-    // return { success: true, statuses };
-
-    logger.info('Checking factoring status', {
+    // Status checking requires direct API integration with factoring provider
+    logger.info('Checking factoring status (file-based — manual verification needed)', {
       factoringCompany: factoringCompany.name,
       invoiceCount: invoiceIds.length,
     });
@@ -297,16 +268,12 @@ async function checkFactoringStatus(
 /**
  * Get factoring API client based on provider
  */
-function getFactoringApiClient(factoringCompany: FactoringCompany) {
-  // TODO: Return appropriate API client based on apiProvider
-  // switch (factoringCompany.apiProvider) {
-  //   case 'RTS':
-  //     return new RTSApiClient(factoringCompany.apiEndpoint, factoringCompany.apiKey);
-  //   case 'TAFS':
-  //     return new TAFSApiClient(factoringCompany.apiEndpoint, factoringCompany.apiKey);
-  //   default:
-  //     throw new Error(`Unsupported factoring provider: ${factoringCompany.apiProvider}`);
-  // }
+/**
+ * Factoring provider API clients are not yet integrated.
+ * Currently supports file-based export (CSV, JSON) for all providers.
+ * Direct API integration (RTS, TAFS) requires provider SDK installation.
+ */
+function getFactoringApiClient(_factoringCompany: FactoringCompany) {
   return null;
 }
 

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
+import { PaymentQueryManager } from '@/lib/managers/PaymentQueryManager';
 
 const createPaymentSchema = z.object({
   invoiceId: z.string().cuid().optional(),
@@ -16,7 +17,7 @@ const createPaymentSchema = z.object({
   paymentInstrumentId: z.string().optional().nullable(),
   referenceNumber: z.string().optional(),
   receiptNumber: z.string().optional(),
-  invoiceNumber: z.string().optional(), // Vendor invoice number
+  invoiceNumber: z.string().optional(),
   hasReceipt: z.boolean().default(false),
   hasInvoice: z.boolean().default(false),
   documentIds: z.array(z.string()).optional(),
@@ -40,88 +41,40 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
     const invoiceId = searchParams.get('invoiceId');
     const search = searchParams.get('search');
-
     const fuelEntryId = searchParams.get('fuelEntryId');
     const breakdownId = searchParams.get('breakdownId');
     const type = searchParams.get('type');
     const mcNumberIdParam = searchParams.get('mcNumberId');
 
-    // Build MC filter from dropdown selection
     const mcWhere = await buildMcNumberWhereClause(session, request);
 
     const where: any = {
       OR: [
-        // Invoice payments
-        {
-          invoice: {
-            customer: {
-              companyId: session.user.companyId,
-            },
-          },
-        },
-        // Fuel entry payments
-        {
-          fuelEntry: {
-            truck: {
-              companyId: session.user.companyId,
-            },
-          },
-        },
-        // Breakdown payments
-        {
-          breakdown: {
-            companyId: session.user.companyId,
-            deletedAt: null,
-          },
-        },
+        { invoice: { customer: { companyId: session.user.companyId } } },
+        { fuelEntry: { truck: { companyId: session.user.companyId } } },
+        { breakdown: { companyId: session.user.companyId, deletedAt: null } },
       ],
     };
 
-    // Add MC number filter if applicable (not in "all" mode)
-    // Filter payments by their mcNumberId field
-    if (mcWhere.mcNumberId) {
-      where.mcNumberId = mcWhere.mcNumberId;
-    }
+    if (mcWhere.mcNumberId) where.mcNumberId = mcWhere.mcNumberId;
 
     if (invoiceId) {
       where.invoiceId = invoiceId;
-      // Simplify query when filtering by invoice
       where.OR = undefined;
-      where.invoice = {
-        customer: {
-          companyId: session.user.companyId,
-        },
-      };
+      where.invoice = { customer: { companyId: session.user.companyId } };
     }
-
     if (fuelEntryId) {
       where.fuelEntryId = fuelEntryId;
-      // Simplify query when filtering by fuel entry
       where.OR = undefined;
-      where.fuelEntry = {
-        truck: {
-          companyId: session.user.companyId,
-        },
-      };
+      where.fuelEntry = { truck: { companyId: session.user.companyId } };
     }
-
     if (breakdownId) {
       where.breakdownId = breakdownId;
-      // Simplify query when filtering by breakdown
       where.OR = undefined;
-      where.breakdown = {
-        companyId: session.user.companyId,
-        deletedAt: null,
-      };
+      where.breakdown = { companyId: session.user.companyId, deletedAt: null };
     }
-
-    if (type) {
-      where.type = type;
-    }
-
-    if (mcNumberIdParam) {
-      where.mcNumberId = mcNumberIdParam;
-    }
+    if (type) where.type = type;
+    if (mcNumberIdParam) where.mcNumberId = mcNumberIdParam;
 
     if (search) {
       const searchConditions: any[] = [
@@ -131,12 +84,8 @@ export async function GET(request: NextRequest) {
         { invoiceNumber: { contains: search, mode: 'insensitive' } },
         { notes: { contains: search, mode: 'insensitive' } },
       ];
-
       if (where.OR) {
-        where.AND = [
-          { OR: where.OR },
-          { OR: searchConditions },
-        ];
+        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
         delete where.OR;
       } else {
         where.OR = searchConditions;
@@ -146,52 +95,7 @@ export async function GET(request: NextRequest) {
     const [payments, total] = await Promise.all([
       prisma.payment.findMany({
         where,
-        include: {
-          invoice: {
-            include: {
-              customer: {
-                select: {
-                  id: true,
-                  name: true,
-                  customerNumber: true,
-                },
-              },
-            },
-          },
-          fuelEntry: {
-            select: {
-              id: true,
-              date: true,
-              totalCost: true,
-              truck: {
-                select: {
-                  truckNumber: true,
-                },
-              },
-            },
-          },
-          breakdown: {
-            select: {
-              id: true,
-              breakdownNumber: true,
-              totalCost: true,
-            },
-          },
-          mcNumber: {
-            select: {
-              id: true,
-              number: true,
-              companyName: true,
-            },
-          },
-          createdBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
+        include: PaymentQueryManager.paymentInclude,
         orderBy: { paymentDate: 'desc' },
         skip,
         take: limit,
@@ -202,20 +106,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: payments,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     console.error('Payment list error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
       { status: 500 }
     );
   }
@@ -235,154 +131,32 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createPaymentSchema.parse(body);
 
-    // Validate that at least one entity ID is provided based on type
-    if (validated.type === 'INVOICE' && !validated.invoiceId) {
+    // Verify referenced entities
+    const verification = await PaymentQueryManager.verifyEntities(validated, session.user.companyId);
+    if (!verification.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'invoiceId is required for INVOICE type payments' },
-        },
-        { status: 400 }
+        { success: false, error: verification.error },
+        { status: verification.statusCode || 400 }
       );
     }
 
-    if (validated.type === 'FUEL' && !validated.fuelEntryId) {
+    const invoice = verification.data?.invoice;
+
+    // Resolve MC number
+    const assignedMcNumberId = await PaymentQueryManager.resolveMcNumberId(
+      validated, session.user.companyId, session, request
+    );
+
+    if (validated.mcNumberId && !assignedMcNumberId) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'fuelEntryId is required for FUEL type payments' },
-        },
-        { status: 400 }
+        { success: false, error: { code: 'NOT_FOUND', message: 'MC Number not found' } },
+        { status: 404 }
       );
     }
 
-    if (validated.type === 'BREAKDOWN' && !validated.breakdownId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: 'breakdownId is required for BREAKDOWN type payments' },
-        },
-        { status: 400 }
-      );
-    }
-
-    // Verify invoice belongs to the company if provided
-    let invoice = null;
-    if (validated.invoiceId) {
-      invoice = await prisma.invoice.findFirst({
-        where: {
-          id: validated.invoiceId,
-          customer: {
-            companyId: session.user.companyId,
-          },
-        },
-      });
-
-      if (!invoice) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'Invoice not found' },
-          },
-          { status: 404 }
-        );
-      }
-    }
-
-    // Verify fuel entry belongs to the company if provided
-    if (validated.fuelEntryId) {
-      const fuelEntry = await prisma.fuelEntry.findFirst({
-        where: {
-          id: validated.fuelEntryId,
-          truck: {
-            companyId: session.user.companyId,
-          },
-        },
-      });
-
-      if (!fuelEntry) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'Fuel entry not found' },
-          },
-          { status: 404 }
-        );
-      }
-    }
-
-    // Verify breakdown belongs to the company if provided
-    if (validated.breakdownId) {
-      const breakdown = await prisma.breakdown.findFirst({
-        where: {
-          id: validated.breakdownId,
-          companyId: session.user.companyId,
-          deletedAt: null,
-        },
-      });
-
-      if (!breakdown) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'Breakdown not found' },
-          },
-          { status: 404 }
-        );
-      }
-    }
-
-
-
-    // Determine MC number assignment
-    // 1. If explicitly provided, use it (and validate)
-    // 2. If not provided, try to inherit from linked entities (Breakdown)
-    // 3. Fallback to active session/context
-
-    let assignedMcNumberId: string | null | undefined = validated.mcNumberId;
-
-    if (assignedMcNumberId) {
-      // Validate provided ID
-      const mcNumber = await prisma.mcNumber.findFirst({
-        where: {
-          id: assignedMcNumberId,
-          companyId: session.user.companyId,
-          deletedAt: null,
-        },
-      });
-
-      if (!mcNumber) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'MC Number not found' },
-          },
-          { status: 404 }
-        );
-      }
-    } else {
-      // Logic to inherit from linked entities
-      if (validated.breakdownId) {
-        const breakdown = await prisma.breakdown.findUnique({
-          where: { id: validated.breakdownId },
-          select: { mcNumberId: true }
-        });
-        if (breakdown?.mcNumberId) {
-          assignedMcNumberId = breakdown.mcNumberId;
-        }
-      }
-
-      // If still no ID (or not breakdown), use fallback from context
-      if (!assignedMcNumberId) {
-        const { McStateManager } = await import('@/lib/managers/McStateManager');
-        assignedMcNumberId = await McStateManager.determineActiveCreationMc(session, request);
-      }
-    }
-
-    // Generate payment number
+    // Generate payment number and create
     const paymentNumber = `PAY-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-    // Create payment
     const payment = await prisma.payment.create({
       data: {
         invoiceId: validated.invoiceId || null,
@@ -392,13 +166,11 @@ export async function POST(request: NextRequest) {
         mcNumberId: assignedMcNumberId || null,
         paymentNumber,
         amount: validated.amount,
-        paymentDate: typeof validated.paymentDate === 'string'
-          ? new Date(validated.paymentDate)
-          : new Date(),
+        paymentDate: typeof validated.paymentDate === 'string' ? new Date(validated.paymentDate) : new Date(),
         paymentMethod: validated.paymentMethod,
         referenceNumber: validated.referenceNumber,
         receiptNumber: validated.receiptNumber,
-        invoiceNumber: validated.invoiceNumber, // Vendor invoice number
+        invoiceNumber: validated.invoiceNumber,
         paymentInstrumentId: validated.paymentInstrumentId || null,
         hasReceipt: validated.hasReceipt,
         hasInvoice: validated.hasInvoice,
@@ -406,103 +178,28 @@ export async function POST(request: NextRequest) {
         notes: validated.notes,
         createdById: session.user.id,
       },
-      include: {
-        invoice: {
-          include: {
-            customer: {
-              select: {
-                id: true,
-                name: true,
-                customerNumber: true,
-              },
-            },
-          },
-        },
-        fuelEntry: {
-          select: {
-            id: true,
-            date: true,
-            totalCost: true,
-          },
-        },
-        breakdown: {
-          select: {
-            id: true,
-            breakdownNumber: true,
-            totalCost: true,
-          },
-        },
-        mcNumber: {
-          select: {
-            id: true,
-            number: true,
-            companyName: true,
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
+      include: PaymentQueryManager.paymentInclude,
     });
 
-    // Update invoice payment amount and status if it's an invoice payment
-    if (invoice) {
-      const newAmountPaid = (invoice.amountPaid || 0) + validated.amount;
-      const newBalance = invoice.total - newAmountPaid;
-
-      let newStatus = invoice.status;
-      if (newBalance <= 0) {
-        newStatus = 'PAID';
-      } else if (newAmountPaid > 0) {
-        newStatus = 'PARTIAL';
-      }
-
-      await prisma.invoice.update({
-        where: { id: validated.invoiceId! },
-        data: {
-          amountPaid: newAmountPaid,
-          balance: newBalance,
-          status: newStatus,
-          paidDate: newBalance <= 0 ? new Date() : invoice.paidDate,
-        },
-      });
-    }
+    // Update invoice balance
+    await PaymentQueryManager.updateInvoiceAfterPayment(invoice, validated.amount);
 
     return NextResponse.json(
-      {
-        success: true,
-        data: payment,
-        message: 'Payment recorded successfully',
-      },
+      { success: true, data: payment, message: 'Payment recorded successfully' },
       { status: 201 }
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid request data',
-            details: error.issues,
-          },
-        },
+        { success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid request data', details: error.issues } },
         { status: 400 }
       );
     }
 
     console.error('Create payment error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
+      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } },
       { status: 500 }
     );
   }
 }
-

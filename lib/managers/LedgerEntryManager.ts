@@ -8,6 +8,7 @@
 import { prisma } from '@/lib/prisma';
 import { LedgerEntryStatus, LedgerEntryType } from '@prisma/client';
 import { logger } from '@/lib/utils/logger';
+import { NotFoundError, BadRequestError } from '@/lib/errors';
 
 export class LedgerEntryManager {
   /**
@@ -61,8 +62,8 @@ export class LedgerEntryManager {
       select: { status: true },
     });
 
-    if (!entry) throw new Error('Ledger entry not found');
-    if (entry.status !== 'PENDING') throw new Error(`Entry is ${entry.status}, cannot apply`);
+    if (!entry) throw new NotFoundError('Ledger entry', entryId);
+    if (entry.status !== 'PENDING') throw new BadRequestError(`Entry is ${entry.status}, cannot apply`);
 
     const updated = await prisma.ledgerEntry.update({
       where: { id: entryId },
@@ -86,8 +87,8 @@ export class LedgerEntryManager {
       select: { status: true, companyId: true },
     });
 
-    if (!entry) throw new Error('Ledger entry not found');
-    if (entry.status !== 'PENDING') throw new Error(`Entry is ${entry.status}, cannot cancel`);
+    if (!entry) throw new NotFoundError('Ledger entry', entryId);
+    if (entry.status !== 'PENDING') throw new BadRequestError(`Entry is ${entry.status}, cannot cancel`);
 
     const updated = await prisma.ledgerEntry.update({
       where: { id: entryId },

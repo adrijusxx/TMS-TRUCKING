@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import type { CreateSafetyPolicyInput, UpdateSafetyPolicyInput } from '@/lib/validations/safety-policy';
+import { NotFoundError } from '@/lib/errors';
 
 export class SafetyPolicyManager {
   /**
@@ -38,7 +39,7 @@ export class SafetyPolicyManager {
     const policy = await prisma.safetyPolicy.findFirst({
       where: { id: policyId, companyId, deletedAt: null },
     });
-    if (!policy) throw new Error('Safety policy not found');
+    if (!policy) throw new NotFoundError('Safety policy', policyId);
 
     return prisma.safetyPolicy.update({
       where: { id: policyId },
@@ -65,7 +66,7 @@ export class SafetyPolicyManager {
     const policy = await prisma.safetyPolicy.findFirst({
       where: { id: policyId, companyId, deletedAt: null },
     });
-    if (!policy) throw new Error('Safety policy not found');
+    if (!policy) throw new NotFoundError('Safety policy', policyId);
 
     return prisma.safetyPolicy.update({
       where: { id: policyId },
@@ -80,7 +81,7 @@ export class SafetyPolicyManager {
     const policy = await prisma.safetyPolicy.findFirst({
       where: { id: policyId, companyId, deletedAt: null },
     });
-    if (!policy) throw new Error('Safety policy not found');
+    if (!policy) throw new NotFoundError('Safety policy', policyId);
 
     const acknowledgments = await Promise.all(
       driverIds.map((driverId) =>
@@ -120,7 +121,7 @@ export class SafetyPolicyManager {
     const acknowledgment = await prisma.policyAcknowledgment.findUnique({
       where: { policyId_driverId: { policyId, driverId } },
     });
-    if (!acknowledgment) throw new Error('Policy acknowledgment record not found');
+    if (!acknowledgment) throw new NotFoundError('Policy acknowledgment', `${policyId}/${driverId}`);
 
     return prisma.policyAcknowledgment.update({
       where: { policyId_driverId: { policyId, driverId } },

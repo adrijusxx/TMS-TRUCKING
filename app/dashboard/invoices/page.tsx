@@ -4,9 +4,7 @@ import * as React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { FileText, Package, Clock, CheckCircle2, AlertTriangle, BarChart3, Zap } from 'lucide-react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { FileText, Package, Clock, CheckCircle2, AlertTriangle, BarChart3 } from 'lucide-react';
 import { PageShell } from '@/components/layout/PageShell';
 
 const InvoiceListNew = React.lazy(() => import('@/components/invoices/InvoiceListNew'));
@@ -70,12 +68,6 @@ export default function InvoicesPage() {
             );
           })}
           </TabsList>
-          <Link href="/dashboard/invoices/generate" className="shrink-0 ml-auto pl-4">
-            <Button size="sm">
-              <Zap className="h-4 w-4 mr-2" />
-              Generate Invoice
-            </Button>
-          </Link>
         </div>
 
         <React.Suspense fallback={<TabContentSkeleton />}>

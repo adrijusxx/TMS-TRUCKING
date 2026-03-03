@@ -9,6 +9,7 @@ import LeaderboardWidget from './LeaderboardWidget';
 import OverdueLeadsWidget from './OverdueLeadsWidget';
 import RecruiterWorkloadWidget from './RecruiterWorkloadWidget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import LeadSourceROIChart from '@/components/crm/LeadSourceROIChart';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
@@ -151,6 +152,9 @@ export default function RecruitingDashboard() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Lead Source ROI */}
+            <LeadSourceROIChart />
 
             {/* Hiring Velocity */}
             {data?.hiringVelocity && data.hiringVelocity.length > 0 && (

@@ -147,14 +147,23 @@ Return JSON with:
 - overallComplianceRisk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 - recommendations: string[]`;
 
-    const result = await this.callAI<ComplianceRisk>(
-      prompt,
-      {
-        temperature: 0.3,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in trucking compliance and CSA score management. Return ONLY valid JSON.',
+    let aiData: ComplianceRisk | null = null;
+    try {
+      const result = await this.callAI<ComplianceRisk>(
+        prompt,
+        {
+          temperature: 0.3,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in trucking compliance and CSA score management. Return ONLY valid JSON.',
+        }
+      );
+
+      if (result.data) {
+        aiData = result.data;
       }
-    );
+    } catch (error) {
+      console.error('[AIComplianceMonitor] Failed to assess compliance risk:', error instanceof Error ? error.message : String(error));
+    }
 
     // Add document expiry alerts from actual data
     const documentAlerts: ComplianceRisk['documentExpiryAlerts'] = [];
@@ -219,10 +228,24 @@ Return JSON with:
       }
     });
 
-    return {
-      ...result.data,
+    const defaultComplianceRisk: ComplianceRisk = {
       companyId,
-      documentExpiryAlerts: [...result.data.documentExpiryAlerts, ...documentAlerts],
+      csaScore: { current: null, predicted: null, riskLevel: 'MEDIUM', riskFactors: ['AI analysis unavailable'] },
+      iftaCompliance: { riskLevel: 'MEDIUM', riskFactors: [], recommendations: [] },
+      dotInspectionRisk: { riskLevel: 'MEDIUM', riskScore: 50, riskFactors: [] },
+      documentExpiryAlerts: documentAlerts,
+      overallComplianceRisk: 'MEDIUM',
+      recommendations: ['AI analysis unavailable. Manual review recommended.'],
+    };
+
+    if (!aiData) {
+      return defaultComplianceRisk;
+    }
+
+    return {
+      ...aiData,
+      companyId,
+      documentExpiryAlerts: [...(aiData.documentExpiryAlerts || []), ...documentAlerts],
     };
   }
 }

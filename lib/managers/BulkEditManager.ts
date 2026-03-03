@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { BulkEditField } from '@/components/data-table/types';
+import { ValidationError, InternalServerError } from '@/lib/errors';
 
 /**
  * Manager for handling bulk edit operations
@@ -73,7 +74,7 @@ export class BulkEditManager {
       const model = entityModelMap[entityType];
 
       if (!model) {
-        throw new Error(`Unknown entity type: ${entityType}`);
+        throw new ValidationError(`Unknown entity type: ${entityType}`);
       }
 
       // Special handling for entities without direct companyId
@@ -122,7 +123,7 @@ export class BulkEditManager {
         const validInvoiceIds = validInvoices.map((inv) => inv.id);
         
         if (validInvoiceIds.length === 0) {
-          throw new Error('No valid invoices found for this company');
+          throw new ValidationError('No valid invoices found for this company');
         }
 
         // Update records in batches
@@ -233,7 +234,7 @@ export class BulkEditManager {
 
       return { updatedCount, errors };
     } catch (error: any) {
-      throw new Error(`Bulk update failed: ${error.message}`);
+      throw new InternalServerError(`Bulk update failed: ${error.message}`);
     }
   }
 }

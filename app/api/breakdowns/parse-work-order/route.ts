@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { hasPermission } from '@/lib/permissions';
+import { AIService } from '@/lib/services/AIService';
+import { logger } from '@/lib/utils/logger';
+
+interface ParsedWorkOrder {
+  repairCost: number;
+  towingCost: number;
+  laborCost: number;
+  partsCost: number;
+  otherCosts: number;
+  serviceProvider: string;
+  serviceContact: string;
+  serviceAddress: string;
+  invoiceNumber: string;
+  notes: string;
+}
+
+const aiService = new AIService();
 
 /**
  * POST /api/breakdowns/parse-work-order
@@ -25,7 +42,6 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const breakdownId = formData.get('breakdownId') as string;
 
     if (!file) {
       return NextResponse.json(
@@ -34,60 +50,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const base64Content = buffer.toString('base64');
+    const mimeType = file.type || 'application/octet-stream';
 
-    // TODO: Implement AI parsing using OpenAI Vision or similar
-    // For now, return a placeholder response
-    // In production, you would:
-    // 1. Upload the file to storage
-    // 2. Use OpenAI Vision API or similar to extract text
-    // 3. Parse the extracted text for cost information
-    // 4. Return structured data
+    // Truncate large files to avoid token limits
+    const maxChars = 50000;
+    const contentForAI = base64Content.length > maxChars
+      ? base64Content.substring(0, maxChars)
+      : base64Content;
 
-    // Placeholder response
-    const parsedData = {
-      repairCost: 0,
-      towingCost: 0,
-      laborCost: 0,
-      partsCost: 0,
-      otherCosts: 0,
-      serviceProvider: '',
-      serviceContact: '',
-      serviceAddress: '',
-      invoiceNumber: '',
-      notes: 'AI parsing not yet implemented. Please enter values manually.',
-    };
+    const prompt = `Analyze this work order/invoice document and extract cost information.
+Return a JSON object with these fields:
+- repairCost: total repair cost (number, 0 if not found)
+- towingCost: towing cost (number, 0 if not found)
+- laborCost: labor cost (number, 0 if not found)
+- partsCost: parts cost (number, 0 if not found)
+- otherCosts: any other costs (number, 0 if not found)
+- serviceProvider: name of service provider/shop (string, empty if not found)
+- serviceContact: phone or contact info (string, empty if not found)
+- serviceAddress: address of service provider (string, empty if not found)
+- invoiceNumber: invoice or work order number (string, empty if not found)
+- notes: description of work performed (string, empty if not found)
 
-    return NextResponse.json({
-      success: true,
-      data: parsedData,
-      message: 'File received. AI parsing will be implemented in a future update.',
+Document (base64 ${mimeType}): ${contentForAI}`;
+
+    const result = await aiService.callAI<ParsedWorkOrder>(prompt, {
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      maxTokens: 2000,
+      systemPrompt: 'You extract cost information from work orders and invoices. Return ONLY valid JSON with the exact fields requested.',
     });
-  } catch (error: any) {
-    console.error('Error parsing work order:', error);
+
+    return NextResponse.json({ success: true, data: result.data });
+  } catch (error) {
+    logger.error('Error parsing work order', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         success: false,
         error: {
           code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to parse work order',
+          message: error instanceof Error ? error.message : 'Failed to parse work order',
         },
       },
       { status: 500 }
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-

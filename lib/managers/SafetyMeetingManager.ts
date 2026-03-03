@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import type { CreateSafetyMeetingInput, UpdateSafetyMeetingInput } from '@/lib/validations/safety-meeting';
+import { NotFoundError } from '@/lib/errors';
 
 export class SafetyMeetingManager {
   /**
@@ -38,7 +39,7 @@ export class SafetyMeetingManager {
     const meeting = await prisma.safetyMeeting.findFirst({
       where: { id: meetingId, companyId, deletedAt: null },
     });
-    if (!meeting) throw new Error('Safety meeting not found');
+    if (!meeting) throw new NotFoundError('Safety meeting', meetingId);
 
     return prisma.safetyMeeting.update({
       where: { id: meetingId },
@@ -68,7 +69,7 @@ export class SafetyMeetingManager {
     const meeting = await prisma.safetyMeeting.findFirst({
       where: { id: meetingId, companyId, deletedAt: null },
     });
-    if (!meeting) throw new Error('Safety meeting not found');
+    if (!meeting) throw new NotFoundError('Safety meeting', meetingId);
 
     return prisma.safetyMeeting.update({
       where: { id: meetingId },
@@ -87,7 +88,7 @@ export class SafetyMeetingManager {
     const meeting = await prisma.safetyMeeting.findFirst({
       where: { id: meetingId, companyId, deletedAt: null },
     });
-    if (!meeting) throw new Error('Safety meeting not found');
+    if (!meeting) throw new NotFoundError('Safety meeting', meetingId);
 
     const results = await Promise.all(
       attendanceData.map((record) =>
@@ -122,7 +123,7 @@ export class SafetyMeetingManager {
     const meeting = await prisma.safetyMeeting.findFirst({
       where: { id: meetingId, companyId, deletedAt: null },
     });
-    if (!meeting) throw new Error('Safety meeting not found');
+    if (!meeting) throw new NotFoundError('Safety meeting', meetingId);
 
     return prisma.safetyMeeting.update({
       where: { id: meetingId },

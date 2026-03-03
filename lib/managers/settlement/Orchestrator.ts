@@ -5,6 +5,7 @@ import { SettlementCalculationEngine } from './CalculationEngine';
 import { SettlementGenerationParams } from './types';
 import { LoadStatus } from '@prisma/client';
 import { logger } from '@/lib/utils/logger';
+import { NotFoundError, ConflictError, ValidationError, BadRequestError } from '@/lib/errors';
 
 export class SettlementOrchestrator {
     private calculationEngine: SettlementCalculationEngine;
@@ -23,7 +24,7 @@ export class SettlementOrchestrator {
             include: { user: { select: { firstName: true, lastName: true, email: true } } },
         });
 
-        if (!driver) throw new Error('Driver not found');
+        if (!driver) throw new NotFoundError('Driver', driverId);
 
         // Prevent duplicate settlements for same driver+period
         if (!loadIds || loadIds.length === 0) {
@@ -31,7 +32,7 @@ export class SettlementOrchestrator {
                 where: { driverId, periodStart, periodEnd, status: { in: ['PENDING', 'APPROVED', 'PAID'] } },
             });
             if (existing) {
-                throw new Error(`Settlement ${existing.settlementNumber} already exists for this driver and period. Use recalculate instead.`);
+                throw new ConflictError(`Settlement ${existing.settlementNumber} already exists for this driver and period. Use recalculate instead.`);
             }
         }
 
@@ -78,119 +79,127 @@ export class SettlementOrchestrator {
             orderBy: { deliveredAt: 'asc' },
         });
 
-        if (loads.length === 0) throw new Error('No completed loads found for the settlement period');
+        if (loads.length === 0) throw new ValidationError('No completed loads found for the settlement period');
 
         const preview = await this.calculationEngine.calculateSettlementPreview(driverId, loads, periodStart, periodEnd);
         const { grossPay, netPay, totalDeductions, totalAdditions, totalAdvances, additions, deductions, advances, negativeBalanceDeduction, previousNegativeBalance, auditLog } = preview;
 
         const settlementNumber = params.settlementNumber || `SET-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-        const settlement = await (prisma.settlement as any).create({
-            data: {
-                driverId,
-                settlementNumber,
-                loadIds: loads.map((l) => l.id),
-                grossPay,
-                deductions: totalDeductions + negativeBalanceDeduction,
-                advances: totalAdvances,
-                netPay: netPay < 0 ? 0 : netPay,
-                carriedForwardAmount: netPay < 0 ? Math.abs(netPay) : 0,
-                periodStart,
-                periodEnd,
-                status: 'PENDING',
-                approvalStatus: 'PENDING',
-                calculatedAt: new Date(),
-                notes: params.notes,
-                salaryBatchId,
-                calculationLog: auditLog as any,
-            },
-        });
-
-        if (netPay < 0) {
-            await prisma.driverNegativeBalance.create({
+        // Wrap all settlement persistence in a single transaction for atomicity
+        const settlement = await prisma.$transaction(async (tx) => {
+            const created = await (tx.settlement as any).create({
                 data: {
                     driverId,
-                    amount: Math.abs(netPay),
-                    originalSettlementId: settlement.id,
-                    notes: `Negative balance from settlement ${settlementNumber}.`,
+                    settlementNumber,
+                    loadIds: loads.map((l) => l.id),
+                    grossPay,
+                    deductions: totalDeductions + negativeBalanceDeduction,
+                    advances: totalAdvances,
+                    netPay: netPay < 0 ? 0 : netPay,
+                    carriedForwardAmount: netPay < 0 ? Math.abs(netPay) : 0,
+                    periodStart,
+                    periodEnd,
+                    status: 'PENDING',
+                    approvalStatus: 'PENDING',
+                    calculatedAt: new Date(),
+                    notes: params.notes,
+                    salaryBatchId,
+                    calculationLog: auditLog as any,
                 },
             });
 
-            if (previousNegativeBalance) {
-                await prisma.driverNegativeBalance.update({
+            if (netPay < 0) {
+                await tx.driverNegativeBalance.create({
+                    data: {
+                        driverId,
+                        amount: Math.abs(netPay),
+                        originalSettlementId: created.id,
+                        notes: `Negative balance from settlement ${settlementNumber}.`,
+                    },
+                });
+
+                if (previousNegativeBalance) {
+                    await tx.driverNegativeBalance.update({
+                        where: { id: previousNegativeBalance.id },
+                        data: { isApplied: true, appliedSettlementId: created.id, appliedAt: new Date() },
+                    });
+                }
+            } else if (previousNegativeBalance) {
+                await tx.driverNegativeBalance.update({
                     where: { id: previousNegativeBalance.id },
-                    data: { isApplied: true, appliedSettlementId: settlement.id, appliedAt: new Date() },
+                    data: { isApplied: true, appliedSettlementId: created.id, appliedAt: new Date() },
+                });
+
+                // Persist negative balance as a visible deduction line item
+                await tx.settlementDeduction.create({
+                    data: {
+                        settlementId: created.id,
+                        deductionType: 'ESCROW',
+                        category: 'deduction',
+                        description: `Previous negative balance applied (Settlement ${previousNegativeBalance.originalSettlement?.settlementNumber || 'N/A'})`,
+                        amount: negativeBalanceDeduction,
+                        metadata: { negativeBalanceId: previousNegativeBalance.id },
+                    },
                 });
             }
-        } else if (previousNegativeBalance) {
-            await prisma.driverNegativeBalance.update({
-                where: { id: previousNegativeBalance.id },
-                data: { isApplied: true, appliedSettlementId: settlement.id, appliedAt: new Date() },
-            });
 
-            // Persist negative balance as a visible deduction line item (amount already in settlement.deductions field)
-            await prisma.settlementDeduction.create({
+            // Persist Additions
+            for (const addition of additions) {
+                await tx.settlementDeduction.create({
+                    data: {
+                        settlementId: created.id,
+                        deductionType: addition.type as any,
+                        category: 'addition',
+                        description: addition.description,
+                        amount: addition.amount,
+                        loadExpenseId: addition.reference?.startsWith('expense_') ? addition.reference.replace('expense_', '') : undefined,
+                        metadata: addition.metadata,
+                    },
+                });
+            }
+
+            // Persist Deductions
+            const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
+            for (const deduction of deductions) {
+                if (additionTypes.includes(deduction.type)) continue;
+
+                await tx.settlementDeduction.create({
+                    data: {
+                        settlementId: created.id,
+                        deductionType: deduction.type as any,
+                        category: 'deduction',
+                        description: deduction.description,
+                        amount: deduction.amount,
+                        fuelEntryId: deduction.reference?.startsWith('fuel_') ? deduction.reference.replace('fuel_', '') : undefined,
+                        driverAdvanceId: deduction.reference?.startsWith('advance_') ? deduction.reference.replace('advance_', '') : undefined,
+                        loadExpenseId: deduction.reference?.startsWith('expense_') ? deduction.reference.replace('expense_', '') : undefined,
+                        metadata: deduction.metadata,
+                    },
+                });
+            }
+
+            // Create activity log within the transaction
+            await tx.activityLog.create({
                 data: {
-                    settlementId: settlement.id,
-                    deductionType: 'ESCROW',
-                    category: 'deduction',
-                    description: `Previous negative balance applied (Settlement ${previousNegativeBalance.originalSettlement?.settlementNumber || 'N/A'})`,
-                    amount: negativeBalanceDeduction,
-                    metadata: { negativeBalanceId: previousNegativeBalance.id },
+                    companyId: driver.companyId,
+                    action: 'SETTLEMENT_GENERATED',
+                    entityType: 'Settlement',
+                    entityId: created.id,
+                    description: `Settlement ${settlementNumber} generated for ${driver.user?.firstName ?? ''} ${driver.user?.lastName ?? ''}`,
+                    metadata: { grossPay, totalAdditions, totalDeductions, totalAdvances, netPay, loadCount: loads.length },
                 },
             });
-        }
 
-        // Persist Additions
-        for (const addition of additions) {
-            await prisma.settlementDeduction.create({
-                data: {
-                    settlementId: settlement.id,
-                    deductionType: addition.type as any,
-                    category: 'addition',
-                    description: addition.description,
-                    amount: addition.amount,
-                    loadExpenseId: addition.reference?.startsWith('expense_') ? addition.reference.replace('expense_', '') : undefined,
-                    metadata: addition.metadata,
-                },
-            });
-        }
+            return created;
+        });
 
-        // Persist Deductions
-        const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
-        for (const deduction of deductions) {
-            if (additionTypes.includes(deduction.type)) continue;
-
-            await prisma.settlementDeduction.create({
-                data: {
-                    settlementId: settlement.id,
-                    deductionType: deduction.type as any,
-                    category: 'deduction',
-                    description: deduction.description,
-                    amount: deduction.amount,
-                    fuelEntryId: deduction.reference?.startsWith('fuel_') ? deduction.reference.replace('fuel_', '') : undefined,
-                    driverAdvanceId: deduction.reference?.startsWith('advance_') ? deduction.reference.replace('advance_', '') : undefined,
-                    loadExpenseId: deduction.reference?.startsWith('expense_') ? deduction.reference.replace('expense_', '') : undefined,
-                    metadata: deduction.metadata,
-                },
-            });
-        }
-
+        // Mark advances as deducted (outside tx — uses its own manager logic)
         if (advances.length > 0) {
             await this.advanceManager.markAdvancesDeducted(advances.map((a) => a.id), settlement.id);
         }
 
-        await prisma.activityLog.create({
-            data: {
-                companyId: driver.companyId,
-                action: 'SETTLEMENT_GENERATED',
-                entityType: 'Settlement',
-                entityId: settlement.id,
-                description: `Settlement ${settlementNumber} generated for ${driver.user?.firstName ?? ''} ${driver.user?.lastName ?? ''}`,
-                metadata: { grossPay, totalAdditions, totalDeductions, totalAdvances, netPay, loadCount: loads.length },
-            },
-        });
-
+        // Non-critical usage tracking
         try { await UsageManager.trackUsage(driver.companyId, 'SETTLEMENTS_GENERATED'); } catch (e) { logger.error('Failed to track settlement usage', { error: e instanceof Error ? e.message : String(e) }); }
 
         return await prisma.settlement.findUnique({
@@ -209,7 +218,8 @@ export class SettlementOrchestrator {
             include: { driver: true },
         });
 
-        if (!settlement || settlement.status === 'PAID') throw new Error('Cannot recalculate');
+        if (!settlement) throw new NotFoundError('Settlement', settlementId);
+        if (settlement.status === 'PAID') throw new BadRequestError('Cannot recalculate a paid settlement');
 
         // Snapshot current calculation for audit trail before overwriting
         const previousSnapshot = settlement.calculationLog ? {
@@ -232,81 +242,84 @@ export class SettlementOrchestrator {
         const preview = await this.calculationEngine.calculateSettlementPreview(settlement.driverId, loads, settlement.periodStart, settlement.periodEnd);
         const { grossPay, netPay, totalDeductions, totalAdditions, totalAdvances, additions, deductions, advances, negativeBalanceDeduction, previousNegativeBalance, auditLog } = preview;
 
-        await (prisma.settlement as any).update({
-            where: { id: settlementId },
-            data: {
-                grossPay,
-                deductions: totalDeductions + negativeBalanceDeduction,
-                advances: totalAdvances,
-                netPay: netPay < 0 ? 0 : netPay,
-                carriedForwardAmount: netPay < 0 ? Math.abs(netPay) : 0,
-                calculatedAt: new Date(),
-                calculationLog: auditLog as any,
-                ...(previousSnapshot ? {
-                    calculationHistory: { push: previousSnapshot },
-                } : {}),
-            },
-        });
-
-        const existingNegativeBalance = await prisma.driverNegativeBalance.findFirst({ where: { originalSettlementId: settlementId } });
-        if (netPay < 0) {
-            if (existingNegativeBalance) {
-                await prisma.driverNegativeBalance.update({ where: { id: existingNegativeBalance.id }, data: { amount: Math.abs(netPay) } });
-            } else {
-                await prisma.driverNegativeBalance.create({ data: { driverId: settlement.driverId, amount: Math.abs(netPay), originalSettlementId: settlementId } });
-            }
-        } else if (existingNegativeBalance && !existingNegativeBalance.isApplied) {
-            await prisma.driverNegativeBalance.delete({ where: { id: existingNegativeBalance.id } });
-        }
-
-        await prisma.settlementDeduction.deleteMany({ where: { settlementId } });
-
-        // Persist Additions (with references)
-        for (const addition of additions) {
-            await prisma.settlementDeduction.create({
+        // Wrap all recalculation writes in a single transaction for atomicity
+        await prisma.$transaction(async (tx) => {
+            await (tx.settlement as any).update({
+                where: { id: settlementId },
                 data: {
-                    settlementId,
-                    deductionType: addition.type as any,
-                    category: 'addition',
-                    description: addition.description,
-                    amount: addition.amount,
-                    loadExpenseId: addition.reference?.startsWith('expense_') ? addition.reference.replace('expense_', '') : undefined,
-                    metadata: addition.metadata,
+                    grossPay,
+                    deductions: totalDeductions + negativeBalanceDeduction,
+                    advances: totalAdvances,
+                    netPay: netPay < 0 ? 0 : netPay,
+                    carriedForwardAmount: netPay < 0 ? Math.abs(netPay) : 0,
+                    calculatedAt: new Date(),
+                    calculationLog: auditLog as any,
+                    ...(previousSnapshot ? {
+                        calculationHistory: { push: previousSnapshot },
+                    } : {}),
                 },
             });
-        }
 
-        // Persist Deductions (with references including advance links)
-        const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
-        for (const deduction of deductions) {
-            if (additionTypes.includes(deduction.type)) continue;
-            await prisma.settlementDeduction.create({
-                data: {
-                    settlementId,
-                    deductionType: deduction.type as any,
-                    category: 'deduction',
-                    description: deduction.description,
-                    amount: deduction.amount,
-                    fuelEntryId: deduction.reference?.startsWith('fuel_') ? deduction.reference.replace('fuel_', '') : undefined,
-                    driverAdvanceId: deduction.reference?.startsWith('advance_') ? deduction.reference.replace('advance_', '') : undefined,
-                    loadExpenseId: deduction.reference?.startsWith('expense_') ? deduction.reference.replace('expense_', '') : undefined,
-                    metadata: deduction.metadata,
-                },
-            });
-        }
-
-        if (previousNegativeBalance) {
-            await prisma.settlementDeduction.create({
-                data: {
-                    settlementId,
-                    deductionType: 'ESCROW',
-                    category: 'deduction',
-                    description: `Previous negative balance applied (Settlement ${previousNegativeBalance.originalSettlement?.settlementNumber || 'N/A'})`,
-                    amount: negativeBalanceDeduction,
-                    metadata: { negativeBalanceId: previousNegativeBalance.id }
+            const existingNegativeBalance = await tx.driverNegativeBalance.findFirst({ where: { originalSettlementId: settlementId } });
+            if (netPay < 0) {
+                if (existingNegativeBalance) {
+                    await tx.driverNegativeBalance.update({ where: { id: existingNegativeBalance.id }, data: { amount: Math.abs(netPay) } });
+                } else {
+                    await tx.driverNegativeBalance.create({ data: { driverId: settlement.driverId, amount: Math.abs(netPay), originalSettlementId: settlementId } });
                 }
-            });
-        }
+            } else if (existingNegativeBalance && !existingNegativeBalance.isApplied) {
+                await tx.driverNegativeBalance.delete({ where: { id: existingNegativeBalance.id } });
+            }
+
+            await tx.settlementDeduction.deleteMany({ where: { settlementId } });
+
+            // Persist Additions (with references)
+            for (const addition of additions) {
+                await tx.settlementDeduction.create({
+                    data: {
+                        settlementId,
+                        deductionType: addition.type as any,
+                        category: 'addition',
+                        description: addition.description,
+                        amount: addition.amount,
+                        loadExpenseId: addition.reference?.startsWith('expense_') ? addition.reference.replace('expense_', '') : undefined,
+                        metadata: addition.metadata,
+                    },
+                });
+            }
+
+            // Persist Deductions (with references including advance links)
+            const additionTypes = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
+            for (const deduction of deductions) {
+                if (additionTypes.includes(deduction.type)) continue;
+                await tx.settlementDeduction.create({
+                    data: {
+                        settlementId,
+                        deductionType: deduction.type as any,
+                        category: 'deduction',
+                        description: deduction.description,
+                        amount: deduction.amount,
+                        fuelEntryId: deduction.reference?.startsWith('fuel_') ? deduction.reference.replace('fuel_', '') : undefined,
+                        driverAdvanceId: deduction.reference?.startsWith('advance_') ? deduction.reference.replace('advance_', '') : undefined,
+                        loadExpenseId: deduction.reference?.startsWith('expense_') ? deduction.reference.replace('expense_', '') : undefined,
+                        metadata: deduction.metadata,
+                    },
+                });
+            }
+
+            if (previousNegativeBalance) {
+                await tx.settlementDeduction.create({
+                    data: {
+                        settlementId,
+                        deductionType: 'ESCROW',
+                        category: 'deduction',
+                        description: `Previous negative balance applied (Settlement ${previousNegativeBalance.originalSettlement?.settlementNumber || 'N/A'})`,
+                        amount: negativeBalanceDeduction,
+                        metadata: { negativeBalanceId: previousNegativeBalance.id }
+                    }
+                });
+            }
+        });
 
         return await prisma.settlement.findUnique({ where: { id: settlementId }, include: { deductionItems: true } });
     }

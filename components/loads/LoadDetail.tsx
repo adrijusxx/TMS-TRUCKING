@@ -35,6 +35,9 @@ import LoadRouteTab from './LoadDetailTabs/LoadRouteTab';
 import LoadFinancialTab from './LoadDetailTabs/LoadFinancialTab';
 import LoadHistoryDocumentsTab from './LoadDetailTabs/LoadHistoryDocumentsTab';
 import LoadActivityTab from './LoadDetailTabs/LoadActivityTab';
+import { LoadCostBreakdown } from './LoadCostBreakdown';
+import { ProfitabilityBadge } from './ProfitabilityBadge';
+import { LoadChangeLog } from './LoadChangeLog';
 
 interface LoadDetailProps {
   load: any;
@@ -331,6 +334,11 @@ export default function LoadDetail({
             </Link>
           )}
           <h1 className="text-lg font-bold">{load.loadNumber}</h1>
+          <ProfitabilityBadge
+            revenue={load.revenue}
+            totalCosts={(load.driverPay || 0) + (load.totalExpenses || 0)}
+            showPercent
+          />
         </div>
         <div className="flex items-center gap-2">
           {/* Live Tracking - right side */}
@@ -396,12 +404,14 @@ export default function LoadDetail({
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-8">
+        <TabsList className="grid w-full grid-cols-7 h-8">
           <TabsTrigger value="details" className="text-xs h-7">Details</TabsTrigger>
           <TabsTrigger value="route" className="text-xs h-7">Route</TabsTrigger>
           <TabsTrigger value="financial" className="text-xs h-7">Financial</TabsTrigger>
+          <TabsTrigger value="costs" className="text-xs h-7">Costs</TabsTrigger>
           <TabsTrigger value="documents" className="text-xs h-7">Documents</TabsTrigger>
           <TabsTrigger value="activity" className="text-xs h-7">Activity</TabsTrigger>
+          <TabsTrigger value="changelog" className="text-xs h-7">History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="mt-3">
@@ -436,12 +446,26 @@ export default function LoadDetail({
           />
         </TabsContent>
 
+        <TabsContent value="costs" className="mt-3">
+          <LoadCostBreakdown
+            revenue={load.revenue || 0}
+            fuelSurcharge={load.fuelSurcharge}
+            driverPay={load.driverPay}
+            totalExpenses={load.totalExpenses}
+            totalMiles={load.totalMiles}
+          />
+        </TabsContent>
+
         <TabsContent value="documents" className="mt-3">
           <LoadHistoryDocumentsTab load={load} />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-3">
           <LoadActivityTab load={load} />
+        </TabsContent>
+
+        <TabsContent value="changelog" className="mt-3">
+          <LoadChangeLog loadId={load.id} />
         </TabsContent>
       </Tabs>
     </div>

@@ -207,16 +207,25 @@ Consider:
 4. Seasonal payment variations
 5. Customer reliability`;
 
-    const result = await this.callAI<CashFlowPredictionResult>(
-      prompt,
-      {
-        temperature: 0.2,
-        maxTokens: 3000,
-        systemPrompt: 'You are an expert in cash flow prediction for trucking companies. Analyze payment patterns and return ONLY valid JSON with predictions.',
-      }
-    );
+    try {
+      const result = await this.callAI<CashFlowPredictionResult>(
+        prompt,
+        {
+          temperature: 0.2,
+          maxTokens: 3000,
+          systemPrompt: 'You are an expert in cash flow prediction for trucking companies. Analyze payment patterns and return ONLY valid JSON with predictions.',
+        }
+      );
 
-    return result.data;
+      if (!result.data) {
+        return { predictions: [], summary: { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, averageDailyFlow: 0 }, recommendations: [] };
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AICashFlowPredictor] Failed to predict cash flow:', error instanceof Error ? error.message : String(error));
+      return { predictions: [], summary: { totalInflow: 0, totalOutflow: 0, netCashFlow: 0, averageDailyFlow: 0 }, recommendations: [] };
+    }
   }
 }
 

@@ -78,16 +78,25 @@ Return JSON array of scores, each with:
     reasoning: string
   }`;
 
-    const result = await this.callAI<LoadScore[]>(
-      prompt,
-      {
-        temperature: 0.3,
-        maxTokens: 4000,
-        systemPrompt: 'You are an expert in load board analysis and freight profitability. Return ONLY valid JSON array.',
-      }
-    );
+    try {
+      const result = await this.callAI<LoadScore[]>(
+        prompt,
+        {
+          temperature: 0.3,
+          maxTokens: 4000,
+          systemPrompt: 'You are an expert in load board analysis and freight profitability. Return ONLY valid JSON array.',
+        }
+      );
 
-    return result.data;
+      if (!result.data || !Array.isArray(result.data)) {
+        return [];
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('[AILoadBoardIntelligence] Failed to score loads:', error instanceof Error ? error.message : String(error));
+      return [];
+    }
   }
 }
 
