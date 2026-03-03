@@ -92,6 +92,8 @@ export function useTableData<TData extends TableData>({
         ...(isAdmin && includeDeleted && { includeDeleted: 'true' }),
       });
     },
+    staleTime: 30_000, // 30s — avoid refetching on tab focus
+    refetchOnWindowFocus: false,
   });
 
   // Handle search change

@@ -3,8 +3,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
 import { generateBreakdownCaseNumber } from '@/lib/utils/breakdown-numbering';
-import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { z } from 'zod';
+import { executeListQuery, type EntityQueryConfig } from '@/lib/managers/BaseQueryManager';
 
 const createBreakdownSchema = z.object({
   truckId: z.string().min(1, 'Truck is required'),
@@ -41,161 +41,52 @@ const createBreakdownSchema = z.object({
   telematicsSnapshot: z.any().optional(),
 });
 
+const breakdownQueryConfig: EntityQueryConfig = {
+  prismaModel: 'breakdown',
+  useMcFilter: true,
+  searchFields: ['breakdownNumber', 'location', 'description'],
+  nestedSearchFields: ['truck.truckNumber', 'driver.user.firstName', 'driver.user.lastName'],
+  equalityFilters: {
+    status: 'status',
+    priority: 'priority',
+    truckId: 'truckId',
+    driverId: 'driverId',
+    breakdownType: 'breakdownType',
+  },
+  defaultOrderBy: { reportedAt: 'desc' },
+  include: {
+    truck: { select: { id: true, truckNumber: true, make: true, model: true } },
+    load: { select: { id: true, loadNumber: true } },
+    driver: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
+    mcNumber: { select: { id: true, number: true, companyName: true } },
+    payments: {
+      select: {
+        id: true, paymentNumber: true, amount: true,
+        paymentDate: true, paymentMethod: true, type: true,
+      },
+    },
+  },
+  responseFormat: 'nested',
+  dataKey: 'breakdowns',
+  buildExtraWhere: ({ searchParams }) => {
+    const extra: Record<string, any> = {};
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    if (startDate || endDate) {
+      extra.reportedAt = {};
+      if (startDate) extra.reportedAt.gte = new Date(startDate);
+      if (endDate) extra.reportedAt.lte = new Date(endDate);
+    }
+    return extra;
+  },
+};
+
 /**
  * GET /api/breakdowns
  * List all breakdowns for the company
  */
 export async function GET(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const status = searchParams.get('status');
-    const priority = searchParams.get('priority');
-    const truckId = searchParams.get('truckId');
-    const driverId = searchParams.get('driverId');
-    const breakdownType = searchParams.get('breakdownType');
-    const search = searchParams.get('search');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-
-    // Build MC filter
-    const mcWhere = await buildMcNumberWhereClause(session, request);
-
-    const where: any = {
-      companyId: session.user.companyId,
-      deletedAt: null,
-    };
-
-    // Add MC number filter if applicable (not in "all" mode)
-    if (mcWhere.mcNumberId) {
-      where.mcNumberId = mcWhere.mcNumberId;
-    }
-
-    if (status) {
-      where.status = status;
-    }
-    if (priority) {
-      where.priority = priority;
-    }
-    if (truckId) {
-      where.truckId = truckId;
-    }
-    if (driverId) {
-      where.driverId = driverId;
-    }
-    if (breakdownType) {
-      where.breakdownType = breakdownType;
-    }
-    if (startDate || endDate) {
-      where.reportedAt = {};
-      if (startDate) {
-        where.reportedAt.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.reportedAt.lte = new Date(endDate);
-      }
-    }
-    if (search) {
-      where.OR = [
-        { breakdownNumber: { contains: search, mode: 'insensitive' } },
-        { location: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { truck: { truckNumber: { contains: search, mode: 'insensitive' } } },
-        { driver: { user: { firstName: { contains: search, mode: 'insensitive' } } } },
-        { driver: { user: { lastName: { contains: search, mode: 'insensitive' } } } },
-      ];
-    }
-
-    const [breakdowns, total] = await Promise.all([
-      prisma.breakdown.findMany({
-        where,
-        include: {
-          truck: {
-            select: {
-              id: true,
-              truckNumber: true,
-              make: true,
-              model: true,
-            },
-          },
-          load: {
-            select: {
-              id: true,
-              loadNumber: true,
-            },
-          },
-          driver: {
-            select: {
-              id: true,
-              user: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          },
-          mcNumber: {
-            select: {
-              id: true,
-              number: true,
-              companyName: true,
-            },
-          },
-          payments: {
-            select: {
-              id: true,
-              paymentNumber: true,
-              amount: true,
-              paymentDate: true,
-              paymentMethod: true,
-              type: true,
-            },
-          },
-        },
-        orderBy: {
-          reportedAt: 'desc',
-        },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.breakdown.count({ where }),
-    ]);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        breakdowns,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      },
-    });
-  } catch (error: any) {
-    console.error('Error fetching breakdowns:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to fetch breakdowns',
-        },
-      },
-      { status: 500 }
-    );
-  }
+  return executeListQuery(request, breakdownQueryConfig);
 }
 
 /**

@@ -4,7 +4,7 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { Badge } from '@/components/ui/badge';
 
-interface VendorData {
+export interface VendorData {
   id: string;
   vendorNumber: string;
   name: string;

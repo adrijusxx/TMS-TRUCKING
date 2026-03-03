@@ -47,8 +47,8 @@ const IMPORTER_REGISTRY: Record<string, ImporterCapabilities> = {
   locations: { hasPreviewMode: true, hasBatchOptimization: true, hasUpdateExisting: true },
   users: { hasPreviewMode: true, hasBatchOptimization: false, hasUpdateExisting: true },
   'recruiting-leads': { hasPreviewMode: true, hasBatchOptimization: true, hasUpdateExisting: true },
-  invoices: { hasPreviewMode: false, hasBatchOptimization: false, hasUpdateExisting: false },
-  settlements: { hasPreviewMode: false, hasBatchOptimization: false, hasUpdateExisting: false },
+  invoices: { hasPreviewMode: true, hasBatchOptimization: false, hasUpdateExisting: true },
+  settlements: { hasPreviewMode: true, hasBatchOptimization: false, hasUpdateExisting: true },
 };
 
 // All entity types that have importers

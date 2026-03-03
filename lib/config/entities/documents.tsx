@@ -4,7 +4,7 @@ import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/t
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/utils';
 
-interface DocumentData {
+export interface DocumentData {
   id: string;
   type: string;
   fileName: string;

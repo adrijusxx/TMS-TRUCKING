@@ -1,215 +1,109 @@
 'use client';
 
 import React from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { DataTable } from '@/components/data-table/DataTable';
-import { createCustomerColumns } from './columns';
-import { useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { bulkDeleteEntities } from '@/lib/actions/bulk-delete';
-import { toast } from 'sonner';
-import { exportToCSV } from '@/lib/export';
+import { Plus, Upload, Download } from 'lucide-react';
+import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
+import { BulkActionBar } from '@/components/data-table/BulkActionBar';
 import ImportSheet from '@/components/import-export/ImportSheet';
-
-interface CustomerData {
-  id: string;
-  customerNumber: string;
-  name: string;
-  type: any;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  phone: string;
-  email: string;
-  warning: string | null;
-  createdAt: Date;
-}
-
-interface CustomersTableClientProps {
-  data: CustomerData[];
-}
-
-import { Plus } from 'lucide-react';
+import ExportDialog from '@/components/import-export/ExportDialog';
 import CustomerSheet from '@/components/customers/CustomerSheet';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useEntityList } from '@/hooks/useEntityList';
+import { customersTableConfig, type CustomerData } from '@/lib/config/entities/customers';
+import { createEntityFetcher } from '@/lib/utils/entity-fetcher';
 
-// ... (existing imports, keep them)
+const fetchCustomers = createEntityFetcher<CustomerData>({
+  endpoint: '/api/customers',
+  defaultSortBy: 'name',
+  defaultSortOrder: 'asc',
+});
 
-export function CustomersTableClient({ data }: CustomersTableClientProps) {
-  const queryClient = useQueryClient();
-  const { can } = usePermissions();
-  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({});
-
-  // Sheet State
-  const [sheetOpen, setSheetOpen] = React.useState(false);
-  const [sheetMode, setSheetMode] = React.useState<'create' | 'edit' | 'view'>('view');
-  const [selectedCustomerId, setSelectedCustomerId] = React.useState<string | null>(null);
-  const searchParams = useSearchParams();
-
-  // Deep linking support
-  React.useEffect(() => {
-    const action = searchParams.get('action');
-    if (action === 'new') {
-      openSheet('create');
-    } else if (action === 'import') {
-      handleImport();
-    }
-
-    const customerIdFromUrl = searchParams.get('customerId');
-    if (customerIdFromUrl) {
-      setSelectedCustomerId(customerIdFromUrl);
-      setSheetMode(can('customers.edit') ? 'edit' : 'view');
-      setSheetOpen(true);
-    }
-  }, [searchParams, can]);
-
-  const openSheet = (mode: 'create' | 'edit' | 'view', id?: string) => {
-    setSheetMode(mode);
-    if (id) setSelectedCustomerId(id);
-    setSheetOpen(true);
-  };
-
-  const router = useRouter();
-
-  const handleUpdate = React.useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['customers'] });
-    router.refresh();
-  }, [queryClient, router]);
-
-  const handleDelete = React.useCallback(async (ids: string[]) => {
-    try {
-      const result = await bulkDeleteEntities('customer', ids);
-      if (result.success) {
-        toast.success(`Successfully deleted ${result.deletedCount || ids.length} customer(s)`);
-        queryClient.invalidateQueries({ queryKey: ['customers'] });
-      } else {
-        toast.error(result.error || 'Failed to delete customers');
-      }
-    } catch (err) {
-      toast.error('Failed to delete customers');
-      console.error(err);
-    }
-  }, [queryClient]);
-
-  const handleExport = React.useCallback(() => {
-    if (data.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-    const headers = Object.keys(data[0]);
-    exportToCSV(data, headers, `customers-export-${new Date().toISOString().split('T')[0]}.csv`);
-    toast.success(`Exported ${data.length} customer(s)`);
-  }, [data]);
-
-  // Get selected row IDs for bulk actions
-  const selectedRowIds = React.useMemo(() => {
-    return Object.keys(rowSelection).filter((key) => rowSelection[key]);
-  }, [rowSelection]);
-
-  const handleDeleteSelected = React.useCallback((ids: string[]) => {
-    handleDelete(ids);
-  }, [handleDelete]);
-
-  const handleExportSelected = React.useCallback((ids: string[]) => {
-    const selectedData = data.filter((row) => ids.includes(row.id));
-    if (selectedData.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-    const headers = Object.keys(selectedData[0]);
-    exportToCSV(selectedData, headers, `customers-selected-export-${new Date().toISOString().split('T')[0]}.csv`);
-    toast.success(`Exported ${selectedData.length} selected customer(s)`);
-  }, [data]);
-
-  const handleImport = React.useCallback(() => {
-    const trigger = document.querySelector('[data-import-trigger="customers"]') as HTMLButtonElement;
-    if (trigger) trigger.click();
-  }, []);
-
-  const columns = React.useMemo(
-    () => createCustomerColumns((id) => {
-      if (id) {
-        openSheet(can('customers.edit') ? 'edit' : 'view', id);
-      } else {
-        handleUpdate();
-      }
-    }),
-    [handleUpdate, can]
-  );
-
-  const rowActions = React.useCallback((row: CustomerData) => {
-    return (
-      <div className="flex items-center gap-2">
-        {can('customers.edit') ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openSheet('edit', row.id)}
-          >
-            Edit
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openSheet('view', row.id)}
-          >
-            View
-          </Button>
-        )}
-      </div>
-    );
-  }, [can]);
+export function CustomersTableClient() {
+  const {
+    sheetOpen,
+    setSheetOpen,
+    sheetMode,
+    selectedId,
+    openSheet,
+    handleUpdate,
+    rowSelection,
+    setRowSelection,
+    selectedRowIds,
+    can,
+    getViewMode,
+  } = useEntityList({
+    entityType: 'customers',
+    editPermission: 'customers.edit',
+    idParam: 'customerId',
+  });
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        {can('customers.create') && (
-          <Button onClick={() => openSheet('create')}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Customer
-          </Button>
-        )}
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={data}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        enableRowSelection={true}
-        rowActions={rowActions}
+    <div className="space-y-2">
+      <DataTableWrapper
+        config={customersTableConfig as any}
+        fetchData={fetchCustomers}
+        onRowClick={(row) => openSheet(getViewMode(), row.id)}
         emptyMessage="No customers found"
-        filterKey="name"
-        onDeleteSelected={handleDeleteSelected}
-        onExportSelected={handleExportSelected}
-        onImport={handleImport}
-        onExport={handleExport}
-        entityType="customers"
+        enableColumnVisibility={true}
+        enableRowSelection={true}
         enableColumnReorder={true}
+        onRowSelectionChange={React.useCallback((selection: Record<string, boolean>) => {
+          setRowSelection(selection);
+        }, [setRowSelection])}
+        toolbarActions={
+          <>
+            {can('data.import') && (
+              <ImportSheet entityType="customers" onImportComplete={handleUpdate}>
+                <Button variant="outline" size="sm" className="h-8 text-xs">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+              </ImportSheet>
+            )}
+            {can('data.export') && (
+              <ExportDialog entityType="customers">
+                <Button variant="outline" size="sm" className="h-8 text-xs">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </ExportDialog>
+            )}
+            {can('customers.create') && (
+              <Button size="sm" className="h-8 text-xs" onClick={() => openSheet('create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Customer
+              </Button>
+            )}
+          </>
+        }
       />
+
+      {selectedRowIds.length > 0 && (
+        <BulkActionBar
+          selectedIds={selectedRowIds}
+          onClearSelection={() => setRowSelection({})}
+          entityType="customers"
+          bulkEditFields={customersTableConfig.bulkEditFields}
+          enableBulkEdit={true}
+          enableBulkDelete={true}
+          enableBulkExport={true}
+          onActionComplete={handleUpdate}
+        />
+      )}
 
       <CustomerSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         mode={sheetMode}
-        customerId={selectedCustomerId}
+        customerId={selectedId}
         onSuccess={handleUpdate}
       />
 
       <div className="hidden">
-        <ImportSheet
-          entityType="customers"
-          onImportComplete={() => {
-            handleUpdate();
-          }}
-        >
+        <ImportSheet entityType="customers" onImportComplete={handleUpdate}>
           <button data-import-trigger="customers" type="button" />
         </ImportSheet>
       </div>
     </div>
   );
 }
-

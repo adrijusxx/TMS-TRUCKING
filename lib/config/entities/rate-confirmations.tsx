@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { EntityLink } from '@/components/common/EntityLink';
 
-interface RateConfirmationData {
+export interface RateConfirmationData {
   id: string;
   loadId: string;
   invoiceId?: string | null;

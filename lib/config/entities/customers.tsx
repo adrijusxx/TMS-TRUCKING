@@ -3,25 +3,35 @@ import { createEntityTableConfig } from '../entity-table-config';
 import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/types';
 import { CustomerType } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
+import { EditableCell } from '@/components/ui/editable-cell';
 import { formatCurrency } from '@/lib/utils';
+import { updateEntityField } from '@/lib/utils/updateEntityField';
 
-interface CustomerData {
+export interface CustomerData {
   id: string;
   customerNumber: string;
   name: string;
   type: CustomerType;
+  address: string;
   city: string;
   state: string;
+  zip: string;
   phone: string;
   email: string;
-  paymentTerms: number;
-  totalLoads: number;
-  totalRevenue: number;
+  warning: string | null;
+  paymentTerms?: number;
+  totalLoads?: number;
+  totalRevenue?: number;
+  createdAt: Date;
 }
 
 function formatCustomerType(type: CustomerType): string {
   return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
+
+const handleSave = async (rowId: string, columnId: string, value: string | number) => {
+  await updateEntityField('customer', rowId, columnId, value);
+};
 
 const columns: ExtendedColumnDef<CustomerData>[] = [
   {
@@ -58,35 +68,52 @@ const columns: ExtendedColumnDef<CustomerData>[] = [
     defaultVisible: true,
   },
   {
-    id: 'contact',
-    header: 'Contact',
+    id: 'phone',
+    accessorKey: 'phone',
+    header: 'Phone',
     cell: ({ row }) => (
-      <div>
-        <div className="text-sm">{row.original.phone}</div>
-        <div className="text-xs text-muted-foreground">{row.original.email}</div>
-      </div>
+      <EditableCell
+        value={row.original.phone}
+        rowId={row.original.id}
+        columnId="phone"
+        onSave={handleSave}
+        type="text"
+        placeholder="Enter phone number"
+      />
     ),
     defaultVisible: true,
   },
   {
-    id: 'paymentTerms',
-    accessorKey: 'paymentTerms',
-    header: 'Payment Terms',
-    cell: ({ row }) => `${row.original.paymentTerms} days`,
+    id: 'email',
+    accessorKey: 'email',
+    header: 'Email',
+    cell: ({ row }) => (
+      <EditableCell
+        value={row.original.email}
+        rowId={row.original.id}
+        columnId="email"
+        onSave={handleSave}
+        type="text"
+        placeholder="Enter email"
+      />
+    ),
+    defaultVisible: true,
+  },
+  {
+    id: 'address',
+    accessorKey: 'address',
+    header: 'Address',
+    cell: ({ row }) => (
+      <EditableCell
+        value={row.original.address}
+        rowId={row.original.id}
+        columnId="address"
+        onSave={handleSave}
+        type="text"
+        placeholder="Enter address"
+      />
+    ),
     defaultVisible: false,
-  },
-  {
-    id: 'totalLoads',
-    accessorKey: 'totalLoads',
-    header: 'Total Loads',
-    defaultVisible: true,
-  },
-  {
-    id: 'totalRevenue',
-    accessorKey: 'totalRevenue',
-    header: 'Total Revenue',
-    cell: ({ row }) => formatCurrency(row.original.totalRevenue),
-    defaultVisible: true,
   },
   {
     id: 'city',
@@ -101,15 +128,53 @@ const columns: ExtendedColumnDef<CustomerData>[] = [
     defaultVisible: false,
   },
   {
-    id: 'phone',
-    accessorKey: 'phone',
-    header: 'Phone',
+    id: 'zip',
+    accessorKey: 'zip',
+    header: 'Zip',
     defaultVisible: false,
   },
   {
-    id: 'email',
-    accessorKey: 'email',
-    header: 'Email',
+    id: 'paymentTerms',
+    accessorKey: 'paymentTerms',
+    header: 'Payment Terms',
+    cell: ({ row }) => row.original.paymentTerms ? `${row.original.paymentTerms} days` : '—',
+    defaultVisible: false,
+  },
+  {
+    id: 'totalLoads',
+    accessorKey: 'totalLoads',
+    header: 'Total Loads',
+    cell: ({ row }) => row.original.totalLoads ?? 0,
+    defaultVisible: true,
+  },
+  {
+    id: 'totalRevenue',
+    accessorKey: 'totalRevenue',
+    header: 'Total Revenue',
+    cell: ({ row }) => row.original.totalRevenue ? formatCurrency(row.original.totalRevenue) : '—',
+    defaultVisible: true,
+  },
+  {
+    id: 'notes',
+    accessorKey: 'warning',
+    header: 'Notes',
+    cell: ({ row }) => (
+      <EditableCell
+        value={row.original.warning || ''}
+        rowId={row.original.id}
+        columnId="warning"
+        onSave={handleSave}
+        type="text"
+        placeholder="Enter notes"
+      />
+    ),
+    defaultVisible: false,
+  },
+  {
+    id: 'createdAt',
+    accessorKey: 'createdAt',
+    header: 'Created',
+    cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
     defaultVisible: false,
   },
 ];
@@ -135,7 +200,7 @@ const bulkEditFields: BulkEditField[] = [
     key: 'mcNumberId',
     label: 'MC Number',
     type: 'select',
-    options: [], // Will be populated dynamically by BulkEditDialog
+    options: [],
     permission: 'mc_numbers.edit',
     placeholder: 'Select MC number',
   },
@@ -149,13 +214,14 @@ export const customersTableConfig = createEntityTableConfig<CustomerData>({
     'name',
     'type',
     'location',
-    'contact',
+    'phone',
+    'email',
     'totalLoads',
     'totalRevenue',
   ],
   requiredColumns: ['customerNumber'],
   bulkEditFields,
-  defaultSort: [{ id: 'customerNumber', desc: false }],
+  defaultSort: [{ id: 'name', desc: false }],
   defaultPageSize: 20,
   enableRowSelection: true,
   enableColumnVisibility: true,
@@ -169,11 +235,10 @@ export const customersTableConfig = createEntityTableConfig<CustomerData>({
       key: 'mcNumberId',
       label: 'MC Number',
       type: 'select',
-      options: [], // Will be populated dynamically
+      options: [],
       permission: 'mc_numbers.view',
     },
     { key: 'city', label: 'City', type: 'text' },
     { key: 'state', label: 'State', type: 'text' },
   ],
 });
-

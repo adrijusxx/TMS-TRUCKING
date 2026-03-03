@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { EntityLink } from '@/components/common/EntityLink';
 
-interface BreakdownData {
+export interface BreakdownData {
   id: string;
   breakdownNumber: string;
   truck: {

@@ -248,3 +248,6 @@ QUICK-REFERENCE.md
 typescript-errors.txt
 
 .claude/settings.local.json
+
+# Windows NUL device (created when bash scripts redirect to NUL instead of /dev/null)
+NUL

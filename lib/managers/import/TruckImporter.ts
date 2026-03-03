@@ -1,250 +1,153 @@
-
-import { PrismaClient, TruckStatus, EquipmentType } from '@prisma/client';
-import { BaseImporter, ImportResult } from './BaseImporter';
-import { getRowValue, parseImportDate, parseLocationString } from '@/lib/import-export/import-utils';
+import { BaseImporter } from './BaseImporter';
+import type { ImportContext, RowProcessResult } from './types/importer-types';
+import { SmartEnumMapper } from './utils/SmartEnumMapper';
+import { TRUCK_STATUS_MAP, EQUIPMENT_TYPE_MAP } from './utils/enum-maps';
+import { preFetchMcNumbers, resolveMcFromRow } from './utils/McNumberResolver';
+import { buildDriverLookupMap } from './utils/DriverLookupHelper';
+import { parseImportDate, parseLocationString } from '@/lib/import-export/import-utils';
 import { normalizeState } from '@/lib/utils/state-utils';
 
 export class TruckImporter extends BaseImporter {
-    async import(data: any[], options: {
-        previewOnly?: boolean;
-        currentMcNumber?: string;
-        updateExisting?: boolean;
-        columnMapping?: Record<string, string>;
-        importBatchId?: string;
-        formatSettings?: { dateFormat?: string };
-    }): Promise<ImportResult> {
-        const { previewOnly, currentMcNumber, updateExisting, columnMapping, importBatchId, formatSettings } = options;
-        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
-        const errors: any[] = [];
-        const warnings: any[] = [];
-        const trucksToCreate: any[] = [];
-        const trucksToUpdate: any[] = [];
-        const existingInFile = new Set<string>(); // catch duplicates by truckNumber or VIN
 
-        const [existingInDb, mcNumbers, drivers] = await Promise.all([
+    protected getPrismaDelegate() { return this.prisma.truck; }
+    protected useCreateMany() { return false; }
+
+    protected async preFetchLookups(_ctx: ImportContext) {
+        const [existing, mcLookup, driverMap] = await Promise.all([
             this.prisma.truck.findMany({
                 where: { companyId: this.companyId, deletedAt: null },
                 select: { truckNumber: true, vin: true, id: true }
             }),
-            this.prisma.mcNumber.findMany({
-                where: { companyId: this.companyId, deletedAt: null },
-                select: { id: true, number: true, isDefault: true, companyName: true }
-            }),
-            this.prisma.driver.findMany({
-                where: { companyId: this.companyId, deletedAt: null },
-                select: { id: true, driverNumber: true, user: { select: { firstName: true, lastName: true } } }
-            })
+            preFetchMcNumbers(this.prisma, this.companyId),
+            buildDriverLookupMap(this.prisma, this.companyId),
         ]);
 
-        const dbTruckNumberSet = new Set(existingInDb.map(t => t.truckNumber));
-        const dbVinSet = new Set(existingInDb.map(t => t.vin || ''));
-        const truckIdMap = new Map(existingInDb.map(t => [t.truckNumber.toLowerCase().trim(), t.id]));
-        const vinMap = new Map(existingInDb.map(t => [t.vin?.toLowerCase().trim() || '', t.id]));
+        return {
+            dbTruckNumberSet: new Set(existing.map(t => t.truckNumber)),
+            dbVinSet: new Set(existing.map(t => t.vin || '')),
+            truckIdMap: new Map(existing.map(t => [t.truckNumber.toLowerCase().trim(), t.id])),
+            vinMap: new Map(existing.map(t => [t.vin?.toLowerCase().trim() || '', t.id])),
+            mcLookup,
+            driverMap,
+        };
+    }
 
-        const mcIdMap = new Map<string, string>();
-        const defaultMcId = mcNumbers.find(mc => mc.isDefault)?.id || mcNumbers[0]?.id;
-        mcNumbers.forEach(mc => {
-            if (mc.number) mcIdMap.set(mc.number.trim(), mc.id);
-            if (mc.companyName) mcIdMap.set(mc.companyName.trim().toLowerCase(), mc.id);
-        });
+    protected async processRow(row: any, rowNum: number, ctx: ImportContext): Promise<RowProcessResult> {
+        const { columnMapping, currentMcNumber, updateExisting, importBatchId, formatSettings } = ctx.options;
+        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
+        const { dbTruckNumberSet, dbVinSet, truckIdMap, vinMap, mcLookup, driverMap } = ctx.lookups;
+        const warnings: RowProcessResult['warnings'] = [];
 
-        const driverMap = new Map<string, string>();
-        drivers.forEach(d => {
-            driverMap.set(d.driverNumber.toLowerCase().trim(), d.id);
-            if (d.user) {
-                const fullName = `${d.user.firstName} ${d.user.lastName}`.toLowerCase().trim();
-                driverMap.set(fullName, d.id);
-                driverMap.set(d.user.lastName.toLowerCase().trim(), d.id);
-            }
-        });
+        const truckNumber = this.getValue(row, 'truckNumber', columnMapping, ['Unit number', 'Truck Number', 'truck_number', 'Truck', 'truck', 'Truck ID', 'truck_id', 'Unit #', 'unit_number', 'Unit ID']);
+        const vin = this.getValue(row, 'vin', columnMapping, ['VIN', 'vin', 'Serial Number', 'serial_number', 'Serial', 'serial']);
 
-        for (let i = 0; i < data.length; i++) {
-            const row = data[i];
-            const rowNum = i + 1;
-
-            try {
-                const truckNumber = this.getValue(row, 'truckNumber', columnMapping, ['Unit number', 'Truck Number', 'truck_number', 'Truck', 'truck', 'Truck ID', 'truck_id', 'Unit #', 'unit_number', 'Unit ID']);
-                const vin = this.getValue(row, 'vin', columnMapping, ['VIN', 'vin', 'Serial Number', 'serial_number', 'Serial', 'serial']);
-
-                if (!truckNumber) {
-                    errors.push(this.error(rowNum, 'Truck number is required', 'Truck Number'));
-                    continue;
-                }
-
-                if (existingInFile.has(truckNumber) || (vin && existingInFile.has(vin))) {
-                    errors.push(this.error(rowNum, `Duplicate found in file: ${truckNumber}`, 'Duplicate'));
-                    continue;
-                }
-
-                const existsInDb = dbTruckNumberSet.has(truckNumber) || (vin && dbVinSet.has(vin));
-
-                if (existsInDb && !updateExisting) {
-                    errors.push(this.error(rowNum, `Truck already exists in database: ${truckNumber}`, 'Database Duplicate'));
-                    continue;
-                }
-
-                existingInFile.add(truckNumber);
-                if (vin) existingInFile.add(vin);
-
-                // Match Status and Equipment
-                const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status']);
-                const status = this.mapTruckStatusSmart(statusStr);
-
-                const eqTypeStr = this.getValue(row, 'equipmentType', columnMapping, ['Equipment Type', 'equipment_type']);
-                const eqType = this.mapEquipmentTypeSmart(eqTypeStr);
-
-                // Smart State Parsing
-                const stateVal = this.getValue(row, 'state', columnMapping, ['State', 'state', 'Registration State']);
-                const stateParsed = parseLocationString(stateVal) || { state: normalizeState(stateVal) || 'TX' };
-
-                // Resolve Driver (Matching only, no auto-create for now to stay safe)
-                const driverVal = String(this.getValue(row, 'driverId', columnMapping, ['Driver', 'driver', 'Assigned Driver']) || '').toLowerCase().trim();
-                const driverId = driverVal ? (driverMap.get(driverVal) || null) : undefined;
-
-                // Resolve MC Number ID using BaseImporter helper
-                const rowMc = this.getValue(row, 'mcNumberId', columnMapping, ['MC Number', 'mc_number']);
-                const currentMcValue = currentMcNumber?.trim();
-                const resolvedMcId = await this.resolveMcNumberId(rowMc || currentMcValue);
-
-                // Zero-Failure: Identity Fallbacks
-                let finalTruckNumber = truckNumber;
-                if (!finalTruckNumber) {
-                    finalTruckNumber = vin || this.getPlaceholder('TRK', rowNum);
-                    warnings.push(this.warning(rowNum, `Truck Number missing, defaulted to ${finalTruckNumber}`, 'truckNumber'));
-                }
-
-                let finalVin = vin;
-                if (!finalVin) {
-                    finalVin = this.getPlaceholder('VIN', rowNum);
-                    warnings.push(this.warning(rowNum, 'VIN missing, generated placeholder', 'vin'));
-                }
-
-                const futureDate = this.getFutureDate(1);
-
-                const truckData: any = {
-                    companyId: this.companyId,
-                    mcNumberId: resolvedMcId,
-                    truckNumber: finalTruckNumber,
-                    vin: finalVin,
-                    make: this.getValue(row, 'make', columnMapping, ['Make', 'make', 'Manufacturer', 'Brand']) || 'Unknown',
-                    model: this.getValue(row, 'model', columnMapping, ['Model', 'model']) || 'Unknown',
-                    year: parseInt(String(this.getValue(row, 'year', columnMapping, ['Year', 'year', 'Yr', 'yr']) || '0')) || new Date().getFullYear(),
-                    licensePlate: this.getValue(row, 'licensePlate', columnMapping, ['License Plate', 'license_plate', 'Plate', 'Tag', 'Registration']) || 'UNKNOWN',
-                    state: stateParsed.state || 'XX',
-                    equipmentType: eqType,
-                    status: status,
-                    currentDriverId: driverId || undefined,
-                    registrationExpiry: parseImportDate(this.getValue(row, 'registrationExpiry', columnMapping, ['Registration Expiry', 'registration_expiry']), dateHint) || futureDate,
-                    insuranceExpiry: parseImportDate(this.getValue(row, 'insuranceExpiry', columnMapping, ['Insurance Expiry', 'insurance_expiry']), dateHint) || futureDate,
-                    inspectionExpiry: parseImportDate(this.getValue(row, 'inspectionExpiry', columnMapping, ['Inspection Expiry', 'inspection_expiry']), dateHint) || futureDate,
-                    odometerReading: parseFloat(String(this.getValue(row, 'odometerReading', columnMapping, ['Odometer', 'odometer']) || '0')) || 0,
-                    capacity: parseFloat(String(this.getValue(row, 'capacity', columnMapping, ['Capacity', 'capacity']) || '45000')) || 45000,
-                    importBatchId
-                };
-
-                // Warnings for other defaults
-                if (truckData.make === 'Unknown') warnings.push(this.warning(rowNum, 'Make missing, defaulted to Unknown', 'make'));
-                if (truckData.model === 'Unknown') warnings.push(this.warning(rowNum, 'Model missing, defaulted to Unknown', 'model'));
-                if (truckData.licensePlate === 'UNKNOWN') warnings.push(this.warning(rowNum, 'License Plate missing, defaulted to UNKNOWN', 'licensePlate'));
-
-
-                if (existsInDb && updateExisting) {
-                    const existingId = truckIdMap.get(truckNumber.toLowerCase().trim()) || vinMap.get(vin?.toLowerCase().trim() || '');
-                    trucksToUpdate.push({ ...truckData, id: existingId });
-                } else {
-                    trucksToCreate.push(truckData);
-                }
-
-            } catch (err: any) {
-                errors.push(this.error(rowNum, err.message || 'Processing failed'));
-            }
+        if (!truckNumber) {
+            return { action: 'skip', error: this.error(rowNum, 'Truck number is required', 'Truck Number') };
         }
 
-        if (previewOnly) {
-            return this.success({
-                total: data.length,
-                created: trucksToCreate.length,
-                updated: trucksToUpdate.length,
-                skipped: errors.length,
-                errors: errors.length
-            }, trucksToCreate.slice(0, 10), errors, warnings);
+        // File dedup
+        if (ctx.existingInFile.has(truckNumber) || (vin && ctx.existingInFile.has(vin))) {
+            return { action: 'skip', error: this.error(rowNum, `Duplicate found in file: ${truckNumber}`, 'Duplicate') };
         }
 
-        let createdCount = 0;
+        // DB dedup
+        const existsInDb = dbTruckNumberSet.has(truckNumber) || (vin && dbVinSet.has(vin));
+        if (existsInDb && !updateExisting) {
+            return { action: 'skip', error: this.error(rowNum, `Truck already exists in database: ${truckNumber}`, 'Database Duplicate') };
+        }
+
+        ctx.existingInFile.add(truckNumber);
+        if (vin) ctx.existingInFile.add(vin);
+
+        // Enum mapping
+        const status = SmartEnumMapper.map(this.getValue(row, 'status', columnMapping, ['Status', 'status']), TRUCK_STATUS_MAP);
+        const eqType = SmartEnumMapper.map(this.getValue(row, 'equipmentType', columnMapping, ['Equipment Type', 'equipment_type']), EQUIPMENT_TYPE_MAP);
+
+        // State parsing
+        const stateVal = this.getValue(row, 'state', columnMapping, ['State', 'state', 'Registration State']);
+        const stateParsed = parseLocationString(stateVal) || { state: normalizeState(stateVal) || 'TX' };
+
+        // Resolve driver
+        const driverVal = String(this.getValue(row, 'driverId', columnMapping, ['Driver', 'driver', 'Assigned Driver']) || '').toLowerCase().trim();
+        const driverId = driverVal ? (driverMap.get(driverVal) || null) : undefined;
+
+        // Resolve MC number
+        const rowMc = this.getValue(row, 'mcNumberId', columnMapping, ['MC Number', 'mc_number']);
+        const resolvedMcId = resolveMcFromRow(rowMc, currentMcNumber, mcLookup);
+
+        // Identity fallbacks
+        let finalTruckNumber = truckNumber;
+        if (!finalTruckNumber) {
+            finalTruckNumber = vin || this.getPlaceholder('TRK', rowNum);
+            warnings.push(this.warning(rowNum, `Truck Number missing, defaulted to ${finalTruckNumber}`, 'truckNumber'));
+        }
+
+        let finalVin = vin;
+        if (!finalVin) {
+            finalVin = this.getPlaceholder('VIN', rowNum);
+            warnings.push(this.warning(rowNum, 'VIN missing, generated placeholder', 'vin'));
+        }
+
+        const futureDate = this.getFutureDate(1);
+        const make = this.getValue(row, 'make', columnMapping, ['Make', 'make', 'Manufacturer', 'Brand']) || 'Unknown';
+        const model = this.getValue(row, 'model', columnMapping, ['Model', 'model']) || 'Unknown';
+        const licensePlate = this.getValue(row, 'licensePlate', columnMapping, ['License Plate', 'license_plate', 'Plate', 'Tag', 'Registration']) || 'UNKNOWN';
+
+        if (make === 'Unknown') warnings.push(this.warning(rowNum, 'Make missing, defaulted to Unknown', 'make'));
+        if (model === 'Unknown') warnings.push(this.warning(rowNum, 'Model missing, defaulted to Unknown', 'model'));
+        if (licensePlate === 'UNKNOWN') warnings.push(this.warning(rowNum, 'License Plate missing, defaulted to UNKNOWN', 'licensePlate'));
+
+        const truckData: any = {
+            companyId: this.companyId,
+            mcNumberId: resolvedMcId,
+            truckNumber: finalTruckNumber,
+            vin: finalVin,
+            make, model,
+            year: parseInt(String(this.getValue(row, 'year', columnMapping, ['Year', 'year', 'Yr', 'yr']) || '0')) || new Date().getFullYear(),
+            licensePlate,
+            state: stateParsed.state || 'XX',
+            equipmentType: eqType,
+            status,
+            currentDriverId: driverId || undefined,
+            registrationExpiry: parseImportDate(this.getValue(row, 'registrationExpiry', columnMapping, ['Registration Expiry', 'registration_expiry']), dateHint) || futureDate,
+            insuranceExpiry: parseImportDate(this.getValue(row, 'insuranceExpiry', columnMapping, ['Insurance Expiry', 'insurance_expiry']), dateHint) || futureDate,
+            inspectionExpiry: parseImportDate(this.getValue(row, 'inspectionExpiry', columnMapping, ['Inspection Expiry', 'inspection_expiry']), dateHint) || futureDate,
+            odometerReading: parseFloat(String(this.getValue(row, 'odometerReading', columnMapping, ['Odometer', 'odometer']) || '0')) || 0,
+            capacity: parseFloat(String(this.getValue(row, 'capacity', columnMapping, ['Capacity', 'capacity']) || '45000')) || 45000,
+            importBatchId,
+        };
+
+        if (existsInDb && updateExisting) {
+            const existingId = truckIdMap.get(truckNumber.toLowerCase().trim()) || vinMap.get(vin?.toLowerCase().trim() || '');
+            return { action: 'update', data: { ...truckData, id: existingId }, warnings };
+        }
+        return { action: 'create', data: truckData, warnings };
+    }
+
+    /**
+     * Updates use transaction batch with individual fallback (preserves current behavior).
+     */
+    protected async batchUpdate(items: any[], ctx: ImportContext): Promise<number> {
         let updatedCount = 0;
-
-        if (trucksToCreate.length > 0) {
-            for (const item of trucksToCreate) {
-                try {
-                    await this.prisma.truck.create({ data: item });
-                    createdCount++;
-                } catch (e: any) {
-                    errors.push(this.error(0, `Create failed for ${item.truckNumber}: ${e.message}`));
-                }
-            }
-        }
-
-        if (updateExisting && trucksToUpdate.length > 0) {
-            try {
-                await this.prisma.$transaction(
-                    trucksToUpdate.map(item => {
-                        const { id, ...dataToUpdate } = item;
-                        return this.prisma.truck.update({
-                            where: { id },
-                            data: dataToUpdate
-                        });
-                    })
-                );
-                updatedCount = trucksToUpdate.length;
-            } catch (err: any) {
-                // Fallback to individual updates
-                for (const item of trucksToUpdate) {
+        try {
+            await this.prisma.$transaction(
+                items.map(item => {
                     const { id, ...dataToUpdate } = item;
-                    try {
-                        await this.prisma.truck.update({
-                            where: { id },
-                            data: dataToUpdate
-                        });
-                        updatedCount++;
-                    } catch (e: any) {
-                        errors.push(this.error(0, `Update failed for ${item.truckNumber}: ${e.message}`));
-                    }
+                    return this.prisma.truck.update({ where: { id }, data: dataToUpdate });
+                })
+            );
+            updatedCount = items.length;
+        } catch {
+            for (const item of items) {
+                const { id, ...dataToUpdate } = item;
+                try {
+                    await this.prisma.truck.update({ where: { id }, data: dataToUpdate });
+                    updatedCount++;
+                } catch (e: any) {
+                    ctx.errors.push(this.error(0, `Update failed for ${item.truckNumber}: ${e.message}`));
                 }
             }
         }
-
-        return this.success({
-            total: data.length,
-            created: createdCount,
-            updated: updatedCount,
-            skipped: data.length - createdCount - updatedCount - errors.length,
-            errors: errors.length
-        }, trucksToCreate, errors, warnings);
-    }
-
-    private mapTruckStatusSmart(value: any): TruckStatus {
-        if (!value) return TruckStatus.AVAILABLE;
-        const v = String(value).toUpperCase().trim();
-
-        if (v.includes('IN_USE') || v.includes('INUSE') || v.includes('ACTIVE')) return TruckStatus.IN_USE;
-        if (v.includes('MAINT') || v.includes('SHOP') || v.includes('REPAIR')) return TruckStatus.MAINTENANCE;
-        if (v.includes('OUT') || v.includes('DOWN') || v.includes('SERVICE')) return TruckStatus.OUT_OF_SERVICE;
-        if (v.includes('INACTIVE') || v.includes('QUIT')) return TruckStatus.INACTIVE;
-        if (v.includes('AVAIL') || v.includes('READY') || v.includes('OK')) return TruckStatus.AVAILABLE;
-
-        return TruckStatus.AVAILABLE;
-    }
-
-    private mapEquipmentTypeSmart(value: any): EquipmentType {
-        if (!value) return EquipmentType.DRY_VAN;
-        const v = String(value).toUpperCase().trim();
-
-        if (v.includes('REEFER') || v.includes('REF')) return EquipmentType.REEFER;
-        if (v.includes('FLAT') || v.includes('FB')) return EquipmentType.FLATBED;
-        if (v.includes('STEP') || v.includes('SD')) return EquipmentType.STEP_DECK;
-        if (v.includes('TANK')) return EquipmentType.TANKER;
-        if (v.includes('VAN') || v.includes('DRY')) return EquipmentType.DRY_VAN;
-
-        return EquipmentType.DRY_VAN;
+        return updatedCount;
     }
 }

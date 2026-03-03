@@ -1,163 +1,142 @@
-
-import { PrismaClient, Invoice, InvoiceStatus } from '@prisma/client';
-import { BaseImporter, ImportResult } from './BaseImporter';
+import { InvoiceStatus } from '@prisma/client';
+import { BaseImporter } from './BaseImporter';
+import type { ImportContext, RowProcessResult } from './types/importer-types';
+import { SmartEnumMapper } from './utils/SmartEnumMapper';
+import { INVOICE_STATUS_MAP } from './utils/enum-maps';
 import { parseImportDate, parseImportNumber } from '@/lib/import-export/import-utils';
 
 export class InvoiceImporter extends BaseImporter {
-    constructor(prisma: PrismaClient, companyId: string, userId: string) {
-        super(prisma, companyId, userId);
-    }
 
-    async import(data: any[], options: {
-        previewOnly?: boolean;
-        currentMcNumber?: string;
-        updateExisting?: boolean;
-        columnMapping?: Record<string, string>;
-        importBatchId?: string;
-        formatSettings?: { dateFormat?: string };
-    }): Promise<ImportResult> {
-        const { previewOnly, updateExisting, currentMcNumber, columnMapping = {}, importBatchId, formatSettings } = options;
-        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
-        const records = data;
-        const mapping = columnMapping;
-        const created: Invoice[] = [];
-        let updatedCount = 0;
-        const errors: Array<{ row: number; field?: string; error: string }> = [];
-        const warnings: Array<{ row: number; field?: string; error: string }> = [];
+    protected getPrismaDelegate() { return this.prisma.invoice; }
+    protected useCreateMany() { return false; }
 
-        // 0. Pre-fetch Customers for lookup
+    protected async preFetchLookups(_ctx: ImportContext) {
         const customers = await this.prisma.customer.findMany({
             where: { companyId: this.companyId, deletedAt: null },
             select: { id: true, name: true, customerNumber: true }
         });
 
-        // Create normalized maps for customer lookup
-        const customerMap = new Map<string, string>(); // name/number -> id
+        const customerMap = new Map<string, string>();
         for (const c of customers) {
             customerMap.set(c.name.toLowerCase(), c.id);
             if (c.customerNumber) customerMap.set(c.customerNumber.toLowerCase(), c.id);
         }
 
-        // 1. Process Records
-        for (let i = 0; i < records.length; i++) {
-            const row = records[i];
-            const rowNum = i + 1;
+        return { customerMap };
+    }
 
-            try {
-                // --- Resolve Customer ---
-                const customerVal = this.getValue(row, 'customer', mapping, ['Customer', 'Bill To', 'Customer Name']);
-                let customerId: string | null = null;
+    protected async processRow(row: any, rowNum: number, ctx: ImportContext): Promise<RowProcessResult> {
+        const { columnMapping, updateExisting, formatSettings } = ctx.options;
+        const dateHint = formatSettings?.dateFormat as Parameters<typeof parseImportDate>[1];
+        const { customerMap } = ctx.lookups;
+        const mapping = columnMapping || {};
+        const warnings: RowProcessResult['warnings'] = [];
 
-                if (customerVal) {
-                    const custStr = String(customerVal).toLowerCase().trim();
-                    if (customerMap.has(custStr)) {
-                        customerId = customerMap.get(custStr)!;
-                    }
-                }
-
-                if (!customerId) {
-                    customerId = Array.from(customerMap.values())[0] || null;
-                    if (customerId) {
-                        warnings.push(this.warning(rowNum, `Customer not found, defaulted to first available customer`, 'customer'));
-                    } else {
-                        // Truly desperate: No customers exist at all
-                        errors.push(this.error(rowNum, `Customer not found and no customers exist in system`, 'customer'));
-                        continue;
-                    }
-                }
-
-                // --- Basic Fields ---
-                const invoiceNumber = this.getValue(row, 'invoiceNumber', mapping, ['Invoice #', 'Invoice ID', 'Number', 'ID'])
-                    || this.getPlaceholder('INV', rowNum);
-
-                const invoiceDateVal = this.getValue(row, 'invoiceDate', mapping, ['Date', 'Invoice Date', 'Bill Date']);
-                const invoiceDate = parseImportDate(invoiceDateVal, dateHint) || new Date();
-
-                const dueDateVal = this.getValue(row, 'dueDate', mapping, ['Due Date', 'Due']);
-                const dueDate = parseImportDate(dueDateVal, dateHint) || new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000); // Default Net 30
-
-                // --- Financials ---
-                const totalAmount = parseImportNumber(this.getValue(row, 'totalAmount', mapping, ['Amount', 'Total', 'Total Amount'])) || 0;
-                const paidAmount = parseImportNumber(this.getValue(row, 'paidAmount', mapping, ['Paid', 'Paid Amount'])) || 0;
-                const balance = totalAmount - paidAmount;
-
-                // --- Status ---
-                let status: InvoiceStatus = InvoiceStatus.DRAFT;
-                const statusVal = this.getValue(row, 'status', mapping, ['Status']);
-
-                if (statusVal) {
-                    const s = String(statusVal).toUpperCase();
-                    if (s.includes('PAID')) status = InvoiceStatus.PAID;
-                    else if (s.includes('SENT')) status = InvoiceStatus.SENT;
-                    else if (s.includes('DRAFT')) status = InvoiceStatus.DRAFT;
-                    else if (s.includes('OVERDUE')) status = InvoiceStatus.OVERDUE;
-                } else if (balance <= 0 && totalAmount > 0) {
-                    status = InvoiceStatus.PAID;
-                }
-
-                // Check for duplicate
-                const existing = await this.prisma.invoice.findUnique({
-                    where: {
-                        companyId_invoiceNumber: {
-                            companyId: this.companyId,
-                            invoiceNumber
-                        }
-                    }
-                });
-
-                if (existing && !updateExisting) {
-                    warnings.push(this.warning(rowNum, `Invoice # ${invoiceNumber} already exists, skipping row.`, 'Database Duplicate'));
-                    continue;
-                }
-
-                const mcNumberId = await this.resolveMcNumberId(this.getValue(row, 'mcNumberId', mapping, ['MC', 'MC Number']));
-
-                const invoiceFields = {
-                    customerId,
-                    invoiceDate,
-                    dueDate,
-                    totalAmount,
-                    total: totalAmount,
-                    subtotal: totalAmount,
-                    balance,
-                    status,
-                    notes: `Imported via CSV on ${new Date().toLocaleDateString()}`,
-                    updatedAt: new Date(),
-                    mcNumberId,
-                };
-
-                if (existing && updateExisting) {
-                    // Update existing invoice
-                    const invoice = await this.prisma.invoice.update({
-                        where: { id: existing.id },
-                        data: invoiceFields,
-                    });
-                    created.push(invoice);
-                    updatedCount++;
-                } else {
-                    // Create new invoice
-                    const invoice = await this.prisma.invoice.create({
-                        data: {
-                            companyId: this.companyId,
-                            invoiceNumber,
-                            ...invoiceFields,
-                            createdAt: new Date(),
-                        }
-                    });
-                    created.push(invoice);
-                }
-
-            } catch (err: any) {
-                errors.push(this.error(rowNum, `Unexpected error: ${err.message}`));
+        // Resolve customer
+        const customerVal = this.getValue(row, 'customer', mapping, ['Customer', 'Bill To', 'Customer Name']);
+        let customerId: string | null = null;
+        if (customerVal) {
+            customerId = customerMap.get(String(customerVal).toLowerCase().trim()) || null;
+        }
+        if (!customerId) {
+            customerId = (Array.from(customerMap.values())[0] as string) || null;
+            if (customerId) {
+                warnings.push(this.warning(rowNum, 'Customer not found, defaulted to first available customer', 'customer'));
+            } else {
+                return { action: 'skip', error: this.error(rowNum, 'Customer not found and no customers exist in system', 'customer') };
             }
         }
 
-        return this.success({
-            total: records.length,
-            created: created.length - updatedCount,
-            updated: updatedCount,
-            skipped: records.length - created.length - errors.length,
-            errors: errors.length
-        }, created, errors, warnings);
+        // Basic fields
+        const invoiceNumber = this.getValue(row, 'invoiceNumber', mapping, ['Invoice #', 'Invoice ID', 'Number', 'ID'])
+            || this.getPlaceholder('INV', rowNum);
+        const invoiceDateVal = this.getValue(row, 'invoiceDate', mapping, ['Date', 'Invoice Date', 'Bill Date']);
+        const invoiceDate = parseImportDate(invoiceDateVal, dateHint) || new Date();
+        const dueDateVal = this.getValue(row, 'dueDate', mapping, ['Due Date', 'Due']);
+        const dueDate = parseImportDate(dueDateVal, dateHint) || new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        // Financials
+        const totalAmount = parseImportNumber(this.getValue(row, 'totalAmount', mapping, ['Amount', 'Total', 'Total Amount'])) || 0;
+        const paidAmount = parseImportNumber(this.getValue(row, 'paidAmount', mapping, ['Paid', 'Paid Amount'])) || 0;
+        const balance = totalAmount - paidAmount;
+
+        // Status
+        const statusVal = this.getValue(row, 'status', mapping, ['Status']);
+        let status: InvoiceStatus;
+        if (statusVal) {
+            status = SmartEnumMapper.map(statusVal, INVOICE_STATUS_MAP);
+        } else if (balance <= 0 && totalAmount > 0) {
+            status = InvoiceStatus.PAID;
+        } else {
+            status = InvoiceStatus.DRAFT;
+        }
+
+        // Per-row DB dedup (invoices use unique constraint companyId_invoiceNumber)
+        const existing = await this.prisma.invoice.findUnique({
+            where: { companyId_invoiceNumber: { companyId: this.companyId, invoiceNumber } }
+        });
+
+        if (existing && !updateExisting) {
+            return { action: 'skip', error: this.warning(rowNum, `Invoice # ${invoiceNumber} already exists, skipping row.`, 'Database Duplicate'), warnings };
+        }
+
+        const mcNumberId = await this.resolveMcNumberId(this.getValue(row, 'mcNumberId', mapping, ['MC', 'MC Number']));
+
+        const invoiceFields = {
+            customerId,
+            invoiceDate,
+            dueDate,
+            totalAmount,
+            total: totalAmount,
+            subtotal: totalAmount,
+            balance,
+            status,
+            notes: `Imported via CSV on ${new Date().toLocaleDateString()}`,
+            updatedAt: new Date(),
+            mcNumberId,
+        };
+
+        if (existing && updateExisting) {
+            return {
+                action: 'update',
+                data: { _existingId: existing.id, ...invoiceFields },
+                warnings,
+            };
+        }
+
+        return {
+            action: 'create',
+            data: { companyId: this.companyId, invoiceNumber, ...invoiceFields, createdAt: new Date() },
+            warnings,
+        };
+    }
+
+    /**
+     * Custom persist: invoices use inline create/update (preserves current behavior).
+     */
+    protected async persist(toCreate: any[], toUpdate: any[], ctx: ImportContext) {
+        let createdCount = 0;
+        let updatedCount = 0;
+
+        for (const item of toCreate) {
+            try {
+                await this.prisma.invoice.create({ data: item });
+                createdCount++;
+            } catch (e: any) {
+                ctx.errors.push(this.error(0, `Create failed: ${e.message}`));
+            }
+        }
+
+        for (const item of toUpdate) {
+            const { _existingId, ...data } = item;
+            try {
+                await this.prisma.invoice.update({ where: { id: _existingId }, data });
+                updatedCount++;
+            } catch (e: any) {
+                ctx.errors.push(this.error(0, `Update failed: ${e.message}`));
+            }
+        }
+
+        return { createdCount, updatedCount };
     }
 }

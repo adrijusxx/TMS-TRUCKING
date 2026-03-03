@@ -4,7 +4,7 @@ import type { ExtendedColumnDef, BulkEditField } from '@/components/data-table/t
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
 
-interface FactoringCompanyData {
+export interface FactoringCompanyData {
   id: string;
   name: string;
   accountNumber?: string | null;

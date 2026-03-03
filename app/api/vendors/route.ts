@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
+import { executeListQuery, type EntityQueryConfig } from '@/lib/managers/BaseQueryManager';
 
 const createVendorSchema = z.object({
   vendorNumber: z.string().min(1, 'Vendor number is required'),
@@ -34,88 +35,24 @@ const createVendorSchema = z.object({
   w9OnFile: z.boolean().default(false),
 });
 
+const vendorQueryConfig: EntityQueryConfig = {
+  prismaModel: 'vendor',
+  searchFields: ['vendorNumber', 'name', 'email'],
+  equalityFilters: { type: 'type' },
+  defaultOrderBy: { name: 'asc' },
+  include: {
+    contacts: { where: { isPrimary: true }, take: 1 },
+  },
+  responseFormat: 'nested',
+  dataKey: 'vendors',
+};
+
 /**
  * GET /api/vendors
  * List all vendors
  */
 export async function GET(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const search = searchParams.get('search');
-    const type = searchParams.get('type');
-
-    const where: any = {
-      companyId: session.user.companyId,
-      deletedAt: null,
-    };
-
-    if (search) {
-      where.OR = [
-        { vendorNumber: { contains: search, mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    if (type) {
-      where.type = type;
-    }
-
-    const [vendors, total] = await Promise.all([
-      prisma.vendor.findMany({
-        where,
-        include: {
-          contacts: {
-            where: {
-              isPrimary: true,
-            },
-            take: 1,
-          },
-        },
-        orderBy: {
-          name: 'asc',
-        },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.vendor.count({ where }),
-    ]);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        vendors,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      },
-    });
-  } catch (error: any) {
-    console.error('Error fetching vendors:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to fetch vendors',
-        },
-      },
-      { status: 500 }
-    );
-  }
+  return executeListQuery(request, vendorQueryConfig);
 }
 
 /**

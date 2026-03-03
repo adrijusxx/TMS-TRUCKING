@@ -8,7 +8,7 @@ import { EntityLink } from '@/components/common/EntityLink';
 import { CheckCircle2, DollarSign, XCircle } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 
-interface SettlementData {
+export interface SettlementData {
   id: string;
   settlementNumber: string;
   driver: {

@@ -6,7 +6,7 @@ import { BatchPostStatus } from '@prisma/client';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-interface BatchData {
+export interface BatchData {
   id: string;
   batchNumber: string;
   postStatus: BatchPostStatus;

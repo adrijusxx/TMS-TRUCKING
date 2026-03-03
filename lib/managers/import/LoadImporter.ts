@@ -1,5 +1,8 @@
 import { LoadStatus, LoadType, EquipmentType, PayType } from '@prisma/client';
 import { BaseImporter, ImportResult } from './BaseImporter';
+import type { ImportOptions } from './types/importer-types';
+import { SmartEnumMapper } from './utils/SmartEnumMapper';
+import { LOAD_STATUS_MAP, LOAD_TYPE_MAP } from './utils/enum-maps';
 import { ImporterEntityService } from './services/ImporterEntityService';
 import { LoadAnomalyDetector } from './detectors/LoadAnomalyDetector';
 import { LoadRowMapper } from './mapping/LoadRowMapper';
@@ -19,38 +22,32 @@ function statusAtOrBeyond(current: string, target: string): boolean {
 }
 
 /**
- * LoadImporter - Coordinates load import with historical mode support.
- * When treatAsHistorical=true (default), all loads are set to PAID status
- * with full timestamps, making them closed historical records.
+ * LoadImporter — Coordinates load import with historical mode support.
+ * Fully overrides import() due to service delegation pattern.
  */
 export class LoadImporter extends BaseImporter {
 
-    async import(data: any[], options: any): Promise<ImportResult> {
-        return this.importLoads(data, options);
-    }
-
-    async importLoads(data: any[], options: any): Promise<ImportResult> {
+    async import(data: any[], options: ImportOptions): Promise<ImportResult> {
         const { previewOnly, updateExisting, columnMapping, importBatchId, treatAsHistorical, formatSettings } = options;
         const autoCreate = options.autoCreate ?? { drivers: true, customers: true, trucks: true, trailers: true };
         const dateFormatHint = formatSettings?.dateFormat;
-        const maps = await this.preFetchLookups();
+        const maps = await this.fetchLookups();
         const entityService = new ImporterEntityService(this.prisma, this.companyId, maps.defaultMcId);
 
         const preparedLoads: any[] = [];
         const errors: any[] = [];
         const warnings: any[] = [];
+
         for (let i = 0; i < data.length; i++) {
             const row = data[i];
             const rowNum = i + 1;
             try {
-                // 1. Mapping & Parsing
                 const locations = LoadRowMapper.mapRowLocations(row, this.getValue.bind(this), columnMapping);
                 const financial = LoadRowMapper.mapFinancials(row, this.getValue.bind(this), columnMapping);
                 const dates = LoadRowMapper.mapDates(row, this.getValue.bind(this), columnMapping, dateFormatHint);
                 const details = LoadRowMapper.mapDetails(row, this.getValue.bind(this), columnMapping, dateFormatHint);
 
-                // 2. Entity Resolution (JIT)
-                // Customer Resolution: Try explicit Customer column first, then customerId (often contains name), then Pickup Location
+                // Entity resolution
                 const customerNameRaw = this.getValue(row, 'customerName', columnMapping, ['Customer', 'customer', 'Broker', 'broker', 'Bill To', 'bill_to'])
                     || this.getValue(row, 'customerId', columnMapping, ['Customer ID', 'customer_id', 'Customer #']);
                 const customerName = customerNameRaw || locations.pickup.location;
@@ -61,13 +58,9 @@ export class LoadImporter extends BaseImporter {
                 const truckId = await entityService.resolveTruck(this.getVal(row, 'truckId', columnMapping), maps.truckMap, previewOnly, importBatchId, autoCreate.trucks !== false);
                 const trailerId = await entityService.resolveTrailer(this.getVal(row, 'trailerId', columnMapping), maps.trailerMap, previewOnly, importBatchId, autoCreate.trailers !== false);
 
-                // 3. Status & Type Mapping
-                const statusStr = this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'load_status', 'Current Status']);
-                const csvStatus = this.mapLoadStatusSmart(statusStr);
+                // Status & Type
+                const csvStatus = SmartEnumMapper.map(this.getValue(row, 'status', columnMapping, ['Status', 'status', 'Load Status', 'load_status', 'Current Status']), LOAD_STATUS_MAP);
 
-                // If not explicitly historical, auto-detect: if both dates are in the past
-                // and delivery date is > 7 days ago, treat as DELIVERED to prevent
-                // the auto-status-updater from churning through stale loads
                 let status: LoadStatus;
                 if (treatAsHistorical) {
                     status = LoadStatus.PAID;
@@ -82,21 +75,16 @@ export class LoadImporter extends BaseImporter {
                     status = csvStatus;
                 }
 
-                const typeStr = this.getValue(row, 'loadType', columnMapping, ['Load Type', 'load_type', 'Type', 'size', 'Size']);
-                const loadType = this.mapLoadTypeSmart(typeStr);
+                const loadType = SmartEnumMapper.map(this.getValue(row, 'loadType', columnMapping, ['Load Type', 'load_type', 'Type', 'size', 'Size']), LOAD_TYPE_MAP);
 
-                // 3b. Surface date warnings
                 if (dates.dateWarnings?.length) {
-                    for (const dw of dates.dateWarnings) {
-                        warnings.push(this.warning(rowNum, dw, 'date'));
-                    }
+                    for (const dw of dates.dateWarnings) warnings.push(this.warning(rowNum, dw, 'date'));
                 }
 
-                // 4. Anomaly Detection & Driver Pay Auto-Calculation
+                // Anomaly Detection & Driver Pay
                 const { suspicious, anomalies } = LoadAnomalyDetector.detect({ ...financial, profit: financial.revenue - financial.driverPay }, updateExisting);
                 let { driverPay } = LoadAnomalyDetector.autoCorrect({ ...financial, defaultPayRate: 0.65 });
 
-                // Auto-calculate driver pay from driver's pay profile if not in CSV
                 if ((!driverPay || driverPay === 0) && driverId && !driverId.startsWith('PREVIEW_')) {
                     const payProfile = maps.driverPayMap.get(driverId);
                     if (payProfile && payProfile.payRate > 0) {
@@ -110,15 +98,13 @@ export class LoadImporter extends BaseImporter {
                     }
                 }
 
-                // 5. Construct Load Object
+                // Dispatcher resolution
                 const dispatcherNameRaw = this.getValue(row, 'dispatcherId', columnMapping, [
                     'Dispatcher', 'dispatcher', 'Dispatch', 'Agent', 'created_by', 'Created By',
                     'Dispatcher Name', 'dispatcher_name', 'Dispatcher Email', 'dispatcher_email',
                     'Assigned Dispatcher', 'Dispatch Agent'
                 ])?.toLowerCase().trim();
                 let dispatcherId = maps.dispatcherMap.get(dispatcherNameRaw);
-
-                // Fallback: Try partial match on First Name if full name fails
                 if (!dispatcherId && dispatcherNameRaw) {
                     for (const [key, id] of maps.dispatcherMap.entries()) {
                         if (key.includes(dispatcherNameRaw) || dispatcherNameRaw.includes(key)) {
@@ -128,13 +114,10 @@ export class LoadImporter extends BaseImporter {
                     }
                 }
 
-                let loadData = this.buildLoadObject(row, rowNum, {
+                const loadData = this.buildLoadObject(row, rowNum, {
                     ...locations, ...financial, ...dates, ...details, driverPay,
                     customerId, driverId, coDriverId, truckId, trailerId,
-                    mcNumberId: maps.defaultMcId,
-                    dispatcherId: dispatcherId,
-                    status,
-                    loadType
+                    mcNumberId: maps.defaultMcId, dispatcherId, status, loadType
                 }, columnMapping);
 
                 preparedLoads.push({ data: loadData, suspiciousPay: suspicious, anomalies, rowIndex: rowNum });
@@ -143,12 +126,11 @@ export class LoadImporter extends BaseImporter {
             }
         }
 
-        if (previewOnly) return this.buildPreviewResult(data.length, preparedLoads, errors, warnings);
+        if (previewOnly) return this.buildLoadPreview(data.length, preparedLoads, errors, warnings);
 
         const persistence = new LoadPersistenceService(this.prisma, this.companyId, this.userId);
         const persistResult = await persistence.persist(preparedLoads, { updateExisting, importBatchId });
 
-        // Post-import: auto-calculate miles for loads missing mileage data
         await this.autoCalculateMissingMiles(preparedLoads, maps, warnings);
 
         return {
@@ -166,7 +148,7 @@ export class LoadImporter extends BaseImporter {
         };
     }
 
-    private async preFetchLookups() {
+    private async fetchLookups() {
         const [customers, trucks, trailers, drivers, mcNumbers, users] = await Promise.all([
             this.prisma.customer.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, name: true, customerNumber: true } }),
             this.prisma.truck.findMany({ where: { companyId: this.companyId, deletedAt: null }, select: { id: true, truckNumber: true } }),
@@ -198,14 +180,8 @@ export class LoadImporter extends BaseImporter {
                     const fullName = `${u.firstName} ${u.lastName}`.toLowerCase().trim();
                     if (fullName && fullName !== ' ') map.set(fullName, u.id);
                     if (u.email) map.set(u.email.toLowerCase().trim(), u.id);
-                    if (u.firstName) {
-                        const fn = u.firstName.toLowerCase().trim();
-                        if (fn && !map.has(fn)) map.set(fn, u.id);
-                    }
-                    if (u.lastName) {
-                        const ln = u.lastName.toLowerCase().trim();
-                        if (ln && !map.has(ln)) map.set(ln, u.id);
-                    }
+                    if (u.firstName) { const fn = u.firstName.toLowerCase().trim(); if (fn && !map.has(fn)) map.set(fn, u.id); }
+                    if (u.lastName) { const ln = u.lastName.toLowerCase().trim(); if (ln && !map.has(ln)) map.set(ln, u.id); }
                 }
                 return map;
             })(),
@@ -219,83 +195,43 @@ export class LoadImporter extends BaseImporter {
         const status = context.status || LoadStatus.PENDING;
         const revenue = context.revenue || 0;
         const driverPay = context.driverPay || 0;
-
-        // Calculate revenuePerMile if not already set from CSV
         const rpm = context.revenuePerMile ||
-            (revenue > 0 && context.totalMiles > 0
-                ? Number((revenue / context.totalMiles).toFixed(2)) : undefined);
+            (revenue > 0 && context.totalMiles > 0 ? Number((revenue / context.totalMiles).toFixed(2)) : undefined);
 
         return {
             loadNumber: String(this.getValue(row, 'loadNumber', mapping, ['Load ID', 'load_id', 'Load Number']) || `L-${rowNum}-${Date.now().toString().slice(-4)}`).trim(),
-            customerId: context.customerId,
-            driverId: context.driverId,
-            coDriverId: context.coDriverId,
-            truckId: context.truckId,
-            trailerId: context.trailerId,
-            dispatcherId: context.dispatcherId,
-            revenue,
-            driverPay,
-            fuelAdvance: context.fuelAdvance,
-            totalMiles: context.totalMiles,
-            loadedMiles: context.loadedMiles,
-            emptyMiles: context.emptyMiles,
-            actualMiles: context.actualMiles,
-            weight: context.weight,
-            pieces: context.pieces,
-            pallets: context.pallets,
-            commodity: context.commodity,
-            temperature: context.temperature,
-            hazmat: context.hazmat,
-            hazmatClass: context.hazmatClass,
+            customerId: context.customerId, driverId: context.driverId, coDriverId: context.coDriverId,
+            truckId: context.truckId, trailerId: context.trailerId, dispatcherId: context.dispatcherId,
+            revenue, driverPay, fuelAdvance: context.fuelAdvance,
+            totalMiles: context.totalMiles, loadedMiles: context.loadedMiles, emptyMiles: context.emptyMiles, actualMiles: context.actualMiles,
+            weight: context.weight, pieces: context.pieces, pallets: context.pallets,
+            commodity: context.commodity, temperature: context.temperature, hazmat: context.hazmat, hazmatClass: context.hazmatClass,
             revenuePerMile: rpm,
-            pickupCity: pickup.city || context.pickupCity,
-            pickupState: pickup.state || context.pickupState,
-            pickupZip: pickup.zip || context.pickupZip,
-            pickupLocation: pickup.location || context.pickupLocation,
+            pickupCity: pickup.city || context.pickupCity, pickupState: pickup.state || context.pickupState,
+            pickupZip: pickup.zip || context.pickupZip, pickupLocation: pickup.location || context.pickupLocation,
             pickupCompany: pickup.company || context.pickupCompany,
-            deliveryCity: delivery.city || context.deliveryCity,
-            deliveryState: delivery.state || context.deliveryState,
-            deliveryZip: delivery.zip || context.deliveryZip,
-            deliveryLocation: delivery.location || context.deliveryLocation,
+            deliveryCity: delivery.city || context.deliveryCity, deliveryState: delivery.state || context.deliveryState,
+            deliveryZip: delivery.zip || context.deliveryZip, deliveryLocation: delivery.location || context.deliveryLocation,
             deliveryCompany: delivery.company || context.deliveryCompany,
-            pickupDate: context.pickupDate,
-            deliveryDate: context.deliveryDate,
-            mcNumberId: context.mcNumberId,
-            companyId: this.companyId,
-            createdById: this.userId,
-            status,
-            loadType: context.loadType || LoadType.FTL,
-            equipmentType: context.equipmentType || EquipmentType.DRY_VAN,
-            dispatchNotes: context.dispatchNotes,
-            driverNotes: context.driverNotes,
-            shipmentId: context.shipmentId,
-            tripId: context.tripId,
-            stopsCount: context.stopsCount,
-            lastNote: context.lastNote,
-            onTimeDelivery: context.onTimeDelivery,
-            lastUpdate: context.lastUpdate,
-            // Computed fields (netProfit = revenue - driverPay - totalExpenses)
+            pickupDate: context.pickupDate, deliveryDate: context.deliveryDate,
+            mcNumberId: context.mcNumberId, companyId: this.companyId, createdById: this.userId,
+            status, loadType: context.loadType || LoadType.FTL, equipmentType: context.equipmentType || EquipmentType.DRY_VAN,
+            dispatchNotes: context.dispatchNotes, driverNotes: context.driverNotes,
+            shipmentId: context.shipmentId, tripId: context.tripId, stopsCount: context.stopsCount,
+            lastNote: context.lastNote, onTimeDelivery: context.onTimeDelivery, lastUpdate: context.lastUpdate,
             totalExpenses: context.totalExpenses || 0,
             netProfit: revenue > 0 ? Number((revenue - driverPay - (context.totalExpenses || 0)).toFixed(2)) : undefined,
             readyForSettlement: statusAtOrBeyond(status, 'DELIVERED'),
-            // Status timestamps based on progression
             assignedAt: statusAtOrBeyond(status, 'ASSIGNED') ? (context.pickupDate || new Date()) : undefined,
             pickedUpAt: statusAtOrBeyond(status, 'AT_PICKUP') ? (context.pickupDate || new Date()) : undefined,
             deliveredAt: statusAtOrBeyond(status, 'DELIVERED') ? (context.deliveryDate || new Date()) : undefined,
             invoicedAt: statusAtOrBeyond(status, 'INVOICED') ? (context.deliveryDate || new Date()) : undefined,
             paidAt: status === LoadStatus.PAID ? (context.deliveryDate || new Date()) : undefined,
-            // Stop contact info (passed through to LoadStop creation)
-            pickupContact: context.pickupContact,
-            pickupPhone: context.pickupPhone,
-            deliveryContact: context.deliveryContact,
-            deliveryPhone: context.deliveryPhone,
+            pickupContact: context.pickupContact, pickupPhone: context.pickupPhone,
+            deliveryContact: context.deliveryContact, deliveryPhone: context.deliveryPhone,
         };
     }
 
-    /**
-     * Auto-calculate miles via Google Maps for imported loads that have no mileage data.
-     * Also recalculates driverPay for PER_MILE/HOURLY drivers when miles are updated.
-     */
     private async autoCalculateMissingMiles(preparedLoads: any[], maps: any, warnings: any[]) {
         const needsMiles = preparedLoads.filter(l => {
             const d = l.data;
@@ -303,7 +239,6 @@ export class LoadImporter extends BaseImporter {
         });
         if (needsMiles.length === 0) return;
 
-        // Deduplicate routes to minimize API calls (cached 7 days)
         const routeMap = new Map<string, { origin: { city: string; state: string }; dest: { city: string; state: string }; miles?: number }>();
         for (const l of needsMiles) {
             const key = `${l.data.pickupCity},${l.data.pickupState}→${l.data.deliveryCity},${l.data.deliveryState}`.toLowerCase();
@@ -315,23 +250,16 @@ export class LoadImporter extends BaseImporter {
             }
         }
 
-        // Calculate distances for unique routes
-        for (const [key, route] of routeMap) {
+        for (const [, route] of routeMap) {
             try {
                 const result = await calculateDistanceMatrix({
-                    origins: [route.origin],
-                    destinations: [route.dest],
-                    mode: 'driving',
-                    units: 'imperial',
+                    origins: [route.origin], destinations: [route.dest], mode: 'driving', units: 'imperial',
                 });
                 const el = result?.[0]?.[0];
-                if (el?.status === 'OK') {
-                    route.miles = Math.round(el.distance * METERS_TO_MILES * 10) / 10;
-                }
+                if (el?.status === 'OK') route.miles = Math.round(el.distance * METERS_TO_MILES * 10) / 10;
             } catch { /* skip failed routes */ }
         }
 
-        // Update loads in DB with calculated miles
         for (const l of needsMiles) {
             const key = `${l.data.pickupCity},${l.data.pickupState}→${l.data.deliveryCity},${l.data.deliveryState}`.toLowerCase();
             const route = routeMap.get(key);
@@ -352,7 +280,6 @@ export class LoadImporter extends BaseImporter {
                     updateData.revenuePerMile = Math.round((existing.revenue / totalMiles) * 100) / 100;
                 }
 
-                // Recalculate driver pay for PER_MILE/HOURLY
                 if (existing.driverId) {
                     const payProfile = maps.driverPayMap.get(existing.driverId);
                     if (payProfile?.payRate > 0 && (payProfile.payType === 'PER_MILE' || payProfile.payType === 'HOURLY')) {
@@ -375,38 +302,11 @@ export class LoadImporter extends BaseImporter {
         return this.getValue(row, key, mapping, []);
     }
 
-    private buildPreviewResult(total: number, loads: any[], errors: any[], warnings: any[]) {
+    private buildLoadPreview(total: number, loads: any[], errors: any[], warnings: any[]) {
         return {
             success: true, created: [], errors, warnings,
             preview: loads.slice(0, 100).map(l => ({ ...l.data, suspiciousPay: l.suspiciousPay })),
             summary: { total, created: loads.length, updated: 0, skipped: 0, errors: errors.length }
         };
-    }
-
-    private mapLoadStatusSmart(val: any): LoadStatus {
-        if (!val) return LoadStatus.PENDING;
-        const v = String(val).toUpperCase();
-
-        if (v.includes('PENDING') || v.includes('OPEN') || v.includes('AVAILABLE')) return LoadStatus.PENDING;
-        if (v.includes('ASSIGNED') || v.includes('COVERED') || v.includes('DISPATCHED')) return LoadStatus.ASSIGNED;
-        if (v.includes('PICK') || v.includes('LOADING')) return LoadStatus.AT_PICKUP;
-        if (v.includes('TRANSIT') || v.includes('ROUTE')) return LoadStatus.EN_ROUTE_DELIVERY;
-        if (v.includes('DELIVERED') || v.includes('COMPLETED') || v.includes('DONE')) return LoadStatus.DELIVERED;
-        if (v.includes('INVOICE') || v.includes('BILLED')) return LoadStatus.INVOICED;
-        if (v.includes('PAID')) return LoadStatus.PAID;
-        if (v.includes('CANCEL')) return LoadStatus.CANCELLED;
-
-        return LoadStatus.PENDING;
-    }
-
-    private mapLoadTypeSmart(val: any): LoadType {
-        if (!val) return LoadType.FTL;
-        const v = String(val).toUpperCase();
-
-        if (v.includes('LTL') || v.includes('PARTIAL') || v.includes('LESS')) return LoadType.LTL;
-        if (v.includes('FTL') || v.includes('FULL') || v.includes('VAN')) return LoadType.FTL;
-        if (v.includes('INTERMODAL') || v.includes('RAIL') || v.includes('CONTAINER')) return LoadType.INTERMODAL;
-
-        return LoadType.FTL;
     }
 }

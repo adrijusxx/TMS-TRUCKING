@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/tooltip';
 import { SelfFetchingTrackingBadge } from '@/components/loads/LoadTrackingBadge';
 
-interface LoadData {
+export interface LoadData {
   id: string;
   loadNumber: string;
   status: LoadStatus;

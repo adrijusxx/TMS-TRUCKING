@@ -7,7 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { EntityLink } from '@/components/common/EntityLink';
 import { calculateAgingDays } from '@/lib/utils/aging';
 
-interface InvoiceData {
+export interface InvoiceData {
   id: string;
   invoiceNumber: string;
   loadId?: string | null;

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
+import { executeListQuery, type EntityQueryConfig } from '@/lib/managers/BaseQueryManager';
 
 const createLocationSchema = z.object({
   locationNumber: z.string().min(1, 'Location number is required'),
@@ -34,91 +35,22 @@ const createLocationSchema = z.object({
   specialInstructions: z.string().optional().nullable(),
 });
 
+const locationQueryConfig: EntityQueryConfig = {
+  prismaModel: 'location',
+  searchFields: ['locationNumber', 'name', 'address', 'city'],
+  equalityFilters: { type: 'type' },
+  containsFilters: { city: 'city', state: 'state' },
+  defaultOrderBy: { name: 'asc' },
+  responseFormat: 'nested',
+  dataKey: 'locations',
+};
+
 /**
  * GET /api/locations
  * List all locations
  */
 export async function GET(request: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const search = searchParams.get('search');
-    const type = searchParams.get('type');
-    const city = searchParams.get('city');
-    const state = searchParams.get('state');
-
-    const where: any = {
-      companyId: session.user.companyId,
-      deletedAt: null,
-    };
-
-    if (search) {
-      where.OR = [
-        { locationNumber: { contains: search, mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-        { address: { contains: search, mode: 'insensitive' } },
-        { city: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    if (type) {
-      where.type = type;
-    }
-
-    if (city) {
-      where.city = { contains: city, mode: 'insensitive' };
-    }
-
-    if (state) {
-      where.state = { contains: state, mode: 'insensitive' };
-    }
-
-    const [locations, total] = await Promise.all([
-      prisma.location.findMany({
-        where,
-        orderBy: {
-          name: 'asc',
-        },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.location.count({ where }),
-    ]);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        locations,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      },
-    });
-  } catch (error: any) {
-    console.error('Error fetching locations:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to fetch locations',
-        },
-      },
-      { status: 500 }
-    );
-  }
+  return executeListQuery(request, locationQueryConfig);
 }
 
 /**

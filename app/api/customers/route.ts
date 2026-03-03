@@ -2,176 +2,67 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createCustomerSchema, quickCreateCustomerSchema } from '@/lib/validations/customer';
-import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
-import { buildMcNumberWhereClause, buildMultiMcNumberWhereClause } from '@/lib/mc-number-filter';
+import { buildMcNumberWhereClause, convertMcNumberIdToMcNumberString } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
 import { generateUniqueCustomerNumber } from '@/lib/utils/customer-numbering';
-import { buildDeletedRecordsFilter, parseIncludeDeleted } from '@/lib/filters/deleted-records-filter';
 import { handleApiError } from '@/lib/api/route-helpers';
+import { executeListQuery, type EntityQueryConfig } from '@/lib/managers/BaseQueryManager';
+
+const customerQueryConfig: EntityQueryConfig = {
+  prismaModel: 'customer',
+  viewPermission: 'customers.view',
+  // MC filter handled in buildExtraWhere (uses mcNumber string, not mcNumberId)
+  useMcFilter: false,
+  staticWhere: { isActive: true },
+  searchFields: ['name', 'customerNumber', 'email'],
+  equalityFilters: { type: 'type' },
+  containsFilters: { state: 'state', city: 'city' },
+  defaultOrderBy: { name: 'asc' },
+  select: {
+    id: true,
+    customerNumber: true,
+    name: true,
+    type: true,
+    city: true,
+    state: true,
+    phone: true,
+    email: true,
+    paymentTerms: true,
+    totalLoads: true,
+    totalRevenue: true,
+  },
+  responseFormat: 'standard',
+  buildExtraWhere: async ({ searchParams, session, where }) => {
+    const extra: Record<string, any> = {};
+
+    // MC filter: Customer uses mcNumber string, not mcNumberId relation
+    const mcWhereWithId = await buildMcNumberWhereClause(session as any, undefined);
+    const mcWhere = await convertMcNumberIdToMcNumberString(mcWhereWithId as any);
+
+    // Include customers with matching MC OR null MC (unassigned)
+    if (mcWhere.mcNumber) {
+      if (!where.AND) where.AND = [];
+      where.AND.push({
+        OR: [
+          { mcNumber: mcWhere.mcNumber },
+          { mcNumber: null },
+        ],
+      });
+    }
+
+    // minRevenue filter
+    const minRevenue = searchParams.get('minRevenue');
+    if (minRevenue) {
+      extra.totalRevenue = { gte: parseFloat(minRevenue) };
+    }
+
+    return extra;
+  },
+};
 
 export async function GET(request: NextRequest) {
-  try {
-    // 1. Authentication Check
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // 2. Permission Check
-    if (!hasPermission(session.user.role as any, 'customers.view')) {
-      return NextResponse.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        { status: 403 }
-      );
-    }
-
-    // 3. Build MC Filter (respects admin "all" view, user MC access, current selection)
-    // Note: Customer model uses mcNumber string field, not mcNumberId relation
-    // We need to convert mcNumberId to mcNumber string
-    const mcWhereWithId = await buildMcNumberWhereClause(session, request);
-
-    let mcWhere: { companyId?: string; mcNumber?: string | { in: string[] } } = {
-      companyId: mcWhereWithId.companyId
-    };
-
-    // Convert mcNumberId to mcNumber string for Customer model
-    if (mcWhereWithId.mcNumberId) {
-      if (typeof mcWhereWithId.mcNumberId === 'object' && 'in' in mcWhereWithId.mcNumberId) {
-        // Multiple MC IDs - convert to mcNumber strings
-        const mcNumbers = await prisma.mcNumber.findMany({
-          where: { id: { in: mcWhereWithId.mcNumberId.in }, companyId: mcWhereWithId.companyId },
-          select: { number: true },
-        });
-        const mcNumberValues = mcNumbers.map(mc => mc.number?.trim()).filter((n): n is string => !!n);
-        if (mcNumberValues.length > 0) {
-          mcWhere.mcNumber = { in: mcNumberValues };
-        }
-      } else {
-        // Single MC ID - convert to mcNumber string
-        const mcNumber = await prisma.mcNumber.findUnique({
-          where: { id: mcWhereWithId.mcNumberId as string },
-          select: { number: true },
-        });
-        if (mcNumber?.number) {
-          mcWhere.mcNumber = mcNumber.number.trim();
-        }
-      }
-    }
-
-    // 4. Query with Company + MC filtering
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
-    const skip = (page - 1) * limit;
-    const search = searchParams.get('search');
-    const type = searchParams.get('type');
-    const state = searchParams.get('state');
-    const city = searchParams.get('city');
-    const minRevenue = searchParams.get('minRevenue');
-
-    // Parse includeDeleted parameter (admins only)
-    const includeDeleted = parseIncludeDeleted(request);
-
-    // Build deleted records filter (admins can include deleted records if requested)
-    const deletedFilter = buildDeletedRecordsFilter(session, includeDeleted);
-
-    // Build where clause
-    const where: any = {
-      ...mcWhere,
-      isActive: true,
-      ...(deletedFilter && { ...deletedFilter }), // Only add if not undefined
-    };
-
-    // Include customers with matching MC number OR no MC number (null)
-    // This ensures newly created customers without MC numbers still appear
-    if (mcWhere.mcNumber) {
-      where.AND = [
-        {
-          OR: [
-            { mcNumber: mcWhere.mcNumber },
-            { mcNumber: null },
-          ],
-        },
-      ];
-      // Remove the direct mcNumber filter since we're using OR logic
-      const { mcNumber, ...whereWithoutMcNumber } = where;
-      Object.assign(where, whereWithoutMcNumber);
-    }
-
-    // Additional filters
-    if (type) {
-      where.type = type;
-    }
-
-    if (state) {
-      where.state = { contains: state, mode: 'insensitive' };
-    }
-
-    if (city) {
-      where.city = { contains: city, mode: 'insensitive' };
-    }
-
-    if (minRevenue) {
-      where.totalRevenue = { gte: parseFloat(minRevenue) };
-    }
-
-    if (search) {
-      // Combine search OR with existing AND conditions
-      const searchConditions = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { customerNumber: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-      ];
-
-      if (where.AND) {
-        where.AND.push({ OR: searchConditions });
-      } else {
-        where.OR = searchConditions;
-      }
-    }
-
-    const [customers, total] = await Promise.all([
-      prisma.customer.findMany({
-        where,
-        select: {
-          id: true,
-          customerNumber: true,
-          name: true,
-          type: true,
-          city: true,
-          state: true,
-          phone: true,
-          email: true,
-          paymentTerms: true,
-          totalLoads: true,
-          totalRevenue: true,
-        },
-        orderBy: { name: 'asc' },
-        skip,
-        take: limit,
-      }),
-      prisma.customer.count({ where }),
-    ]);
-
-    // 5. Filter Sensitive Fields (if needed - customers typically don't have sensitive fields)
-    // 6. Return Success Response
-    return NextResponse.json({
-      success: true,
-      data: customers,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
-  } catch (error) {
-    return handleApiError(error);
-  }
+  return executeListQuery(request, customerQueryConfig);
 }
 
 export async function POST(request: NextRequest) {
