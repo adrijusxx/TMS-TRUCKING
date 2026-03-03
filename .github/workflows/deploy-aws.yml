@@ -167,14 +167,11 @@ jobs:
                 grep -qF "$PARAM" /etc/sysctl.conf || echo "$PARAM" | sudo tee -a /etc/sysctl.conf
             done
 
-            echo "Installing production dependencies..."
-            npm ci --omit=dev --ignore-scripts --legacy-peer-deps
-
-            echo "Installing Prisma CLI for migrations..."
-            npm install prisma@6.19.0 @prisma/client@6.19.0 --legacy-peer-deps --no-save
+            echo "Installing dependencies..."
+            npm install --legacy-peer-deps --ignore-scripts
 
             echo "Generating Prisma Client..."
-            npx prisma@6.19.0 generate
+            npx prisma generate
 
             echo "Running database migrations..."
             node scripts/run-migration-with-secrets.js || echo "Migration skipped or failed"
