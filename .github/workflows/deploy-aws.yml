@@ -168,13 +168,10 @@ jobs:
             done
 
             echo "Installing production dependencies..."
-            npm ci --production --ignore-scripts --legacy-peer-deps
+            npm ci --omit=dev --ignore-scripts --legacy-peer-deps
 
-            echo "Installing Prisma CLI..."
-            npm install prisma@6.19.0 --legacy-peer-deps --save-dev
-
-            echo "Verifying Prisma version..."
-            npx prisma@6.19.0 --version | head -1
+            echo "Installing Prisma CLI for migrations..."
+            npm install prisma@6.19.0 @prisma/client@6.19.0 --legacy-peer-deps --no-save
 
             echo "Generating Prisma Client..."
             npx prisma@6.19.0 generate
