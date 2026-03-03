@@ -3,7 +3,6 @@
 import React from 'react';
 import { DataTableWrapper } from '@/components/data-table/DataTableWrapper';
 import { apiUrl } from '@/lib/utils';
-import { getMcContext } from '@/lib/utils/query-keys';
 import {
   createDriverComplianceColumns,
   driverComplianceFilterDefinitions,
@@ -47,10 +46,6 @@ async function fetchDriverCompliance(params: {
 
   const complianceFilter = params.filters?.find((f) => f.id === 'complianceStatus');
   if (complianceFilter?.value) queryParams.set('complianceStatus', String(complianceFilter.value));
-
-  // MC number context
-  const mcContext = getMcContext();
-  if (mcContext) queryParams.set('mcNumberId', mcContext);
 
   const response = await fetch(apiUrl(`/api/safety/driver-compliance?${queryParams}`));
   if (!response.ok) throw new Error('Failed to fetch driver compliance data');

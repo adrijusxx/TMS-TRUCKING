@@ -5,6 +5,7 @@ import { hasPermission } from '@/lib/permissions';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { createCompanyExpenseSchema } from '@/lib/validations/company-expense';
 import { companyExpenseManager } from '@/lib/managers/CompanyExpenseManager';
+import { McStateManager } from '@/lib/managers/McStateManager';
 
 const expenseInclude = {
   expenseType: { select: { id: true, name: true, color: true } },
@@ -131,9 +132,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auto-assign MC number from active selection if not provided
+    let mcNumberId = validation.data.mcNumberId ?? null;
+    if (!mcNumberId) {
+      mcNumberId = await McStateManager.determineActiveCreationMc(session, request);
+    }
+
     const expense = await companyExpenseManager.createExpense({
       companyId: session.user.companyId,
       ...validation.data,
+      mcNumberId,
       date: new Date(validation.data.date as string),
       createdById: session.user.id,
     });
