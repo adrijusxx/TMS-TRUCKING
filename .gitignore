@@ -247,3 +247,4 @@ PROJECT_RULES.md
 QUICK-REFERENCE.md
 typescript-errors.txt
 
+.claude/settings.local.json
