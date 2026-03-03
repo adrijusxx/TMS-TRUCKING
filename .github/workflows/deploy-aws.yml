@@ -168,7 +168,7 @@ jobs:
             done
 
             echo "Installing dependencies..."
-            npm install --legacy-peer-deps --ignore-scripts
+            npm install --legacy-peer-deps
 
             echo "Generating Prisma Client..."
             npx prisma generate
