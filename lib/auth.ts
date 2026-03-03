@@ -10,10 +10,9 @@ import bcrypt from 'bcryptjs';
 // @see lib/secrets/initialize.ts
 const nextAuthSecret = process.env.NEXTAUTH_SECRET;
 
-if (!nextAuthSecret) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('NEXTAUTH_SECRET is required in production. Set it in environment variables.');
-  }
+// Defer the fatal check to runtime — during `next build` the auth module is imported
+// for static analysis but NEXTAUTH_SECRET may not be set in the local build environment.
+if (!nextAuthSecret && process.env.NODE_ENV !== 'production') {
   logger.warn('NEXTAUTH_SECRET is not set. Auth will fail. Set it in .env.local');
 }
 

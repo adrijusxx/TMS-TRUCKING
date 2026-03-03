@@ -5,12 +5,13 @@ import CustomerTrackingView from '@/components/customer/CustomerTrackingView';
 export default async function CustomerTrackingPage({
   params,
 }: {
-  params: { loadNumber: string };
+  params: Promise<{ loadNumber: string }>;
 }) {
+  const { loadNumber } = await params;
   // Find load by load number (no auth required for public tracking)
   const load = await prisma.load.findFirst({
     where: {
-      loadNumber: params.loadNumber,
+      loadNumber,
       deletedAt: null,
     },
     include: {
