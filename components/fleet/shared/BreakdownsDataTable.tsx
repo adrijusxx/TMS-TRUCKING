@@ -46,10 +46,13 @@ interface Breakdown {
     status: string;
     breakdownType: string;
     location: string;
+    latitude?: number | null;
+    longitude?: number | null;
     description: string;
     timeElapsed: string;
     serviceProvider?: string;
     serviceContact?: string;
+    serviceAddress?: string;
     repairCost?: number;
     towingCost?: number;
     laborCost?: number;
@@ -60,7 +63,15 @@ interface Breakdown {
     driverChargeNotes?: string;
     resolution?: string;
     repairNotes?: string;
-    truck: { id: string; truckNumber: string; make?: string; model?: string };
+    technicianNotes?: string;
+    reportedAt?: string;
+    dispatchedAt?: string;
+    arrivedAt?: string;
+    repairStartedAt?: string;
+    repairCompletedAt?: string;
+    truckReadyAt?: string;
+    downtimeHours?: number;
+    truck: { id: string; truckNumber: string; make?: string; model?: string; samsaraId?: string | null };
     driver?: { id: string; driverNumber: string; user: { id: string; firstName: string; lastName: string; phone?: string; email?: string } } | null;
     assignments?: Assignment[];
     payments?: Payment[];
@@ -407,11 +418,16 @@ export default function BreakdownsDataTable({
             </Card >
 
             <Sheet open={!!selectedBreakdown} onOpenChange={(open) => !open && setSelectedBreakdown(null)}>
-                <SheetContent className="sm:max-w-5xl overflow-y-auto">
+                <SheetContent className="sm:max-w-[90vw] lg:max-w-[1200px] overflow-y-auto">
                     <SheetHeader className="pb-4">
                         <SheetTitle className="flex items-center gap-2">
                             <Edit className="h-5 w-5" />
                             Edit Case
+                            {selectedBreakdown && (
+                                <span className="font-mono text-muted-foreground text-sm ml-1">
+                                    {selectedBreakdown.breakdownNumber}
+                                </span>
+                            )}
                         </SheetTitle>
                     </SheetHeader>
                     {selectedBreakdown && (

@@ -83,6 +83,26 @@ export class SamsaraDeviceSyncService {
   }
 
   /**
+   * Auto-link a single queued device by matching to existing TMS records
+   */
+  async autoLinkDevice(
+    queueId: string,
+    userId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.queueManager.autoLinkDevice(queueId, userId);
+  }
+
+  /**
+   * Bulk auto-link pending devices by matching to existing TMS records
+   */
+  async bulkAutoLink(
+    queueIds: string[],
+    userId: string
+  ): Promise<{ linked: number; unmatched: number; errors: number }> {
+    return this.queueManager.bulkAutoLink(queueIds, userId);
+  }
+
+  /**
    * Sync odometer readings for all linked trucks
    */
   async syncOdometerReadings(): Promise<number> {

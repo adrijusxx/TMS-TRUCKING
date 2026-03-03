@@ -41,6 +41,7 @@ export async function getSamsaraVehicles(companyId?: string): Promise<SamsaraVeh
         }
     }
 
+    console.log(`[Samsara] Fetched ${allVehicles.length} vehicles total (pagination complete)`);
     return allVehicles.length > 0 ? allVehicles : null;
 }
 
@@ -78,6 +79,7 @@ export async function getSamsaraAssets(companyId?: string): Promise<SamsaraVehic
             }
         }
 
+        console.log(`[Samsara] Fetched ${allAssets.length} assets total (pagination complete)`);
         return allAssets.length > 0 ? allAssets : null;
     } catch (error) {
         console.debug('[Samsara] Assets endpoint not available');

@@ -105,7 +105,7 @@ export default function LoadSheet({ open, onOpenChange, mode, loadId, initialDat
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
                 side="right"
-                className="w-full sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-5xl overflow-y-auto p-0 border-l border-border/50 bg-background/95 backdrop-blur-sm"
+                className="w-full sm:max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-7xl overflow-y-auto p-0 border-l border-border/50 bg-background/95 backdrop-blur-sm"
             >
                 <SheetHeader className="px-6 py-4 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur-sm z-20">
                     <div className="flex items-center gap-3">

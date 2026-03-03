@@ -343,4 +343,56 @@ export class SamsaraQueueManager {
         }
         return { success, failed };
     }
+
+    /**
+     * Auto-link a single queued device by matching name/VIN/plate to existing TMS records
+     */
+    async autoLinkDevice(queueId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+        const item = await prisma.samsaraDeviceQueue.findUnique({ where: { id: queueId } });
+        if (!item) return { success: false, error: 'Queue item not found' };
+        if (item.status !== 'PENDING') return { success: false, error: 'Only PENDING items can be auto-linked' };
+
+        const device = {
+            id: item.samsaraId,
+            name: item.name,
+            vin: item.vin ?? undefined,
+            licensePlate: item.licensePlate ?? undefined,
+            make: item.make ?? undefined,
+            model: item.model ?? undefined,
+            year: item.year ?? undefined,
+        };
+
+        const match = await this.matchingService.matchToExistingRecord(
+            item.companyId,
+            device,
+            item.deviceType as 'TRUCK' | 'TRAILER'
+        );
+
+        if (!match) return { success: false, error: 'No matching record found' };
+
+        if (match.type === 'TRUCK') await this.linkTruck(match.recordId, item);
+        else await this.linkTrailer(match.recordId, item);
+
+        await this.markQueueLinked(queueId, userId, match.recordId, match.type);
+        return { success: true };
+    }
+
+    /**
+     * Bulk auto-link pending devices by matching to existing TMS records
+     */
+    async bulkAutoLink(queueIds: string[], userId: string) {
+        let linked = 0;
+        let unmatched = 0;
+        let errors = 0;
+        for (const id of queueIds) {
+            try {
+                const result = await this.autoLinkDevice(id, userId);
+                if (result.success) linked++;
+                else unmatched++;
+            } catch {
+                errors++;
+            }
+        }
+        return { linked, unmatched, errors };
+    }
 }

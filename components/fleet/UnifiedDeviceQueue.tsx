@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Wifi } from 'lucide-react';
+import { RefreshCw, Wifi, Activity } from 'lucide-react';
 import { DeviceQueueTable } from './DeviceQueueSections';
 import { MissingTrucksRepairBanner } from './MissingTrucksRepairBanner';
 import { BulkMcAssignmentBanner } from './BulkMcAssignmentBanner';
+import { toast } from 'sonner';
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -63,16 +64,37 @@ export function UnifiedDeviceQueue() {
   const handleSyncNow = async () => {
     setSyncing(true);
     try {
-      await fetch('/api/fleet/samsara-sync', {
+      const res = await fetch('/api/fleet/samsara-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'all' }),
       });
-      setTimeout(() => { fetchDevices(activeStatus); setSyncing(false); }, 2000);
-    } catch { setSyncing(false); }
+      const result = await res.json();
+      const devices = result?.data?.results?.devices;
+      if (devices) {
+        const parts: string[] = [];
+        if (devices.updated > 0) parts.push(`${devices.updated} already linked (updated)`);
+        if (devices.matched > 0) parts.push(`${devices.matched} auto-matched`);
+        if (devices.queued > 0) parts.push(`${devices.queued} queued for review`);
+        if (devices.errors?.length > 0) parts.push(`${devices.errors.length} errors`);
+        if (devices.orphansReset > 0) parts.push(`${devices.orphansReset} orphans reset`);
+        toast.success('Sync complete', {
+          description: parts.length > 0 ? parts.join(' · ') : 'No changes',
+          duration: 8000,
+        });
+      } else {
+        toast.success('Sync complete');
+      }
+      await fetchDevices(activeStatus);
+    } catch {
+      toast.error('Sync failed. Please try again.');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const counts = data?.counts || {};
+  const alreadySynced = data?.alreadySynced;
 
   return (
     <div className="space-y-4">
@@ -107,6 +129,22 @@ export function UnifiedDeviceQueue() {
         onRepairComplete={() => fetchDevices(activeStatus)}
       />
       <BulkMcAssignmentBanner currentMcNumberId={currentMcNumberId} />
+
+      {/* Already synced summary */}
+      {alreadySynced && (alreadySynced.trucks > 0 || alreadySynced.trailers > 0) && (
+        <div className="flex items-center gap-3 px-3 py-2 rounded-md border bg-muted/30 text-sm">
+          <Activity className="h-4 w-4 text-green-500 shrink-0" />
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{alreadySynced.trucks}</strong> trucks synced
+            {alreadySynced.trailers > 0 && (
+              <> · <strong className="text-foreground">{alreadySynced.trailers}</strong> trailers synced</>
+            )}
+            {counts.pending > 0 && (
+              <> · <strong className="text-foreground">{counts.pending}</strong> pending review</>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs value={activeStatus} onValueChange={setActiveStatus}>

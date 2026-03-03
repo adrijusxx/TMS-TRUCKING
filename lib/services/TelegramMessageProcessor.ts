@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { AIMessageService } from './AIMessageService';
 import { getTelegramService } from './TelegramService';
 import { TelegramCaseCreator } from '@/lib/managers/telegram/TelegramCaseCreator';
+import { checkEmergencyKeywords, isWithinBusinessHours } from './telegram-utils';
+import { TelegramDriverMatcher, DriverMatchResult } from './TelegramDriverMatcher';
 
 /** Patterns that can be classified without AI */
 const SKIP_AI_PATTERNS = [
@@ -66,6 +68,12 @@ export class TelegramMessageProcessor {
 
         const senderId = message.senderId?.toString();
         if (!senderId) return;
+
+        // Skip permanently ignored contacts before any processing
+        const isIgnored = await prisma.telegramIgnoredContact.findUnique({
+            where: { companyId_telegramChatId: { companyId: this.companyId, telegramChatId: senderId } },
+        });
+        if (isIgnored) return;
 
         // Batch rapid-fire messages from the same sender
         const pending = pendingMessages.get(senderId);
@@ -150,7 +158,44 @@ export class TelegramMessageProcessor {
                 },
             });
 
-            const driver = driverMapping?.driver;
+            let driver = driverMapping?.driver;
+            let autoMatchResult: DriverMatchResult | null = null;
+
+            // Auto-match: try to link unlinked contacts to drivers
+            if (!driver) {
+                const matcher = new TelegramDriverMatcher(this.companyId);
+                autoMatchResult = await matcher.findMatch({
+                    telegramId: senderId,
+                    phoneNumber: driverMapping?.phoneNumber,
+                    firstName: driverMapping?.firstName ?? (sender?.firstName || undefined),
+                    lastName: driverMapping?.lastName ?? (sender?.lastName || undefined),
+                    username: driverMapping?.username,
+                });
+
+                if (autoMatchResult && autoMatchResult.confidence >= 0.85) {
+                    // High confidence — auto-link
+                    await prisma.telegramDriverMapping.upsert({
+                        where: { telegramId: senderId },
+                        create: {
+                            telegramId: senderId,
+                            driverId: autoMatchResult.driverId,
+                            phoneNumber: driverMapping?.phoneNumber,
+                            firstName: driverMapping?.firstName ?? sender?.firstName,
+                            lastName: driverMapping?.lastName ?? sender?.lastName,
+                            username: driverMapping?.username,
+                            isActive: true,
+                        },
+                        update: { driverId: autoMatchResult.driverId, isActive: true },
+                    });
+                    const linkedMapping = await prisma.telegramDriverMapping.findUnique({
+                        where: { telegramId: senderId },
+                        include: { driver: { include: { user: true, currentTruck: true } } },
+                    });
+                    driver = linkedMapping?.driver;
+                    console.log(`[Telegram] Auto-linked ${senderId} to driver ${autoMatchResult.driverName} (${autoMatchResult.method}, ${autoMatchResult.confidence})`);
+                }
+            }
+
             const driverName = driver?.user ? `${driver.user.firstName} ${driver.user.lastName}` : 'Unknown User';
 
             // Analyze message with AI
@@ -182,73 +227,97 @@ export class TelegramMessageProcessor {
 
             console.log(`[Telegram] Settings: autoCreateCases=${settings.autoCreateCases}, aiAutoResponse=${settings.aiAutoResponse}, threshold=${settings.confidenceThreshold}, requireStaffApproval=${settings.requireStaffApproval}`);
 
+            // --- Emergency keyword detection ---
+            const isEmergency = checkEmergencyKeywords(messageText, settings.emergencyKeywords || []);
+            if (isEmergency) {
+                console.log(`[Telegram] EMERGENCY keyword detected in message from ${senderId}`);
+                analysis.urgency = 'CRITICAL';
+                analysis.confidence = Math.max(analysis.confidence, 1.0);
+                if (!analysis.isBreakdown && !analysis.isSafetyIncident && !analysis.isMaintenanceRequest) {
+                    analysis.isSafetyIncident = true;
+                    analysis.category = 'SAFETY';
+                }
+            }
+
             let caseId: string | undefined;
             let caseNumber: string | undefined;
 
-            // Auto-create cases based on detection
-            if (driver && settings.autoCreateCases && analysis.confidence >= settings.confidenceThreshold) {
-                if (analysis.isBreakdown) {
-                    // Check for existing open breakdown for this truck to prevent duplicates
-                    const existingBreakdown = await prisma.breakdown.findFirst({
-                        where: {
-                            truckId: driver.currentTruck?.id,
-                            status: { in: ['REPORTED', 'IN_PROGRESS'] }
-                        }
-                    });
+            // Decide whether to auto-create or queue for review
+            const shouldAutoCreate = !!driver
+                && analysis.confidence >= settings.confidenceThreshold
+                && (isEmergency || (settings.autoCreateCases && !settings.requireStaffApproval));
 
+            if (shouldAutoCreate && driver) {
+                if (analysis.isBreakdown) {
+                    const existingBreakdown = await prisma.breakdown.findFirst({
+                        where: { truckId: driver.currentTruck?.id, status: { in: ['REPORTED', 'IN_PROGRESS'] } },
+                    });
                     if (!existingBreakdown) {
                         const breakdown = await this.caseCreator.createBreakdownCase(driver.id, driver.currentTruck?.id, driver.currentTruck?.samsaraId, analysis, messageText);
                         caseId = breakdown.id;
                         caseNumber = breakdown.breakdownNumber;
                         console.log(`[Telegram] Created breakdown case: ${caseNumber}`);
                     } else {
-                        console.log(`[Telegram] Skipped breakdown creation: Active case ${existingBreakdown.breakdownNumber} exists`);
+                        console.log(`[Telegram] Skipped breakdown: Active case ${existingBreakdown.breakdownNumber} exists`);
                         caseId = existingBreakdown.id;
                         caseNumber = existingBreakdown.breakdownNumber;
                     }
                 } else if (analysis.isSafetyIncident) {
-                    const incident = await this.caseCreator.createSafetyIncident(driver.id, driver.currentTruck?.id, analysis, messageText);
-                    caseId = incident.id;
-                    caseNumber = incident.incidentNumber;
-                    console.log(`[Telegram] Created safety incident: ${caseNumber}`);
+                    const existing = await prisma.safetyIncident.findFirst({
+                        where: { driverId: driver.id, status: { in: ['REPORTED', 'UNDER_INVESTIGATION'] } },
+                    });
+                    if (!existing) {
+                        const incident = await this.caseCreator.createSafetyIncident(driver.id, driver.currentTruck?.id, analysis, messageText);
+                        caseId = incident.id;
+                        caseNumber = incident.incidentNumber;
+                        console.log(`[Telegram] Created safety incident: ${caseNumber}`);
+                    } else {
+                        console.log(`[Telegram] Skipped safety incident: Active ${existing.incidentNumber} exists`);
+                        caseId = existing.id;
+                        caseNumber = existing.incidentNumber;
+                    }
                 } else if (analysis.isMaintenanceRequest) {
-                    const record = await this.caseCreator.createMaintenanceRequest(driver.id, driver.currentTruck?.id, analysis, messageText);
-                    caseId = record.id;
-                    caseNumber = record.maintenanceNumber || record.id;
-                    console.log(`[Telegram] Created maintenance request: ${caseNumber}`);
+                    const existing = driver.currentTruck?.id
+                        ? await prisma.maintenanceRecord.findFirst({
+                            where: { truckId: driver.currentTruck.id, status: { in: ['OPEN', 'IN_PROGRESS'] } },
+                        })
+                        : null;
+                    if (!existing) {
+                        const record = await this.caseCreator.createMaintenanceRequest(driver.id, driver.currentTruck?.id, analysis, messageText);
+                        caseId = record.id;
+                        caseNumber = record.maintenanceNumber || record.id;
+                        console.log(`[Telegram] Created maintenance request: ${caseNumber}`);
+                    } else {
+                        console.log(`[Telegram] Skipped maintenance: Active ${existing.maintenanceNumber} exists`);
+                        caseId = existing.id;
+                        caseNumber = existing.maintenanceNumber || existing.id;
+                    }
                 }
             } else if (!driver) {
-                console.log(`[Telegram] Skipped case creation: Chat ${senderId} not linked to a driver profile`);
-            } else if (!settings.autoCreateCases) {
-                console.log('[Telegram] Skipped case creation: autoCreateCases is disabled');
-            } else if (analysis.confidence < settings.confidenceThreshold) {
-                console.log(`[Telegram] Skipped case creation: confidence ${analysis.confidence} < threshold ${settings.confidenceThreshold}`);
+                console.log(`[Telegram] Skipped case creation: Chat ${senderId} not linked to a driver`);
+            } else {
+                console.log(`[Telegram] Skipped case creation: auto=${settings.autoCreateCases}, approval=${settings.requireStaffApproval}, conf=${analysis.confidence}`);
             }
 
             // Determine if this needs a review queue item
             const needsReview = !caseId && (analysis.isBreakdown || analysis.isSafetyIncident || analysis.isMaintenanceRequest);
 
-            // Log communication (linked to breakdown if one was created/found)
-            const communicationData = {
-                companyId: settings.companyId,
-                type: analysis.category === 'BREAKDOWN' ? 'BREAKDOWN_REPORT' : 'MESSAGE',
-                channel: 'TELEGRAM',
-                direction: 'INBOUND',
-                content: messageText,
-                telegramMessageId: message.id,
-                telegramChatId: senderId,
-                driverId: driver?.id,
-                breakdownId: caseId || undefined,
-                status: 'DELIVERED',
-            };
-
-            // Create Communication record
-            // @ts-ignore
+            // Log communication
             const communication = await prisma.communication.create({
-                data: communicationData as any
+                data: {
+                    companyId: settings.companyId,
+                    type: analysis.category === 'BREAKDOWN' ? 'BREAKDOWN_REPORT' : 'MESSAGE',
+                    channel: 'TELEGRAM',
+                    direction: 'INBOUND',
+                    content: messageText,
+                    telegramMessageId: message.id,
+                    telegramChatId: senderId,
+                    driverId: driver?.id,
+                    breakdownId: caseId || undefined,
+                    status: 'DELIVERED',
+                } as any,
             });
 
-            // Create AI Response Log linked to communication
             await prisma.aIResponseLog.create({
                 data: {
                     communicationId: communication.id,
@@ -256,14 +325,42 @@ export class TelegramMessageProcessor {
                     aiAnalysis: analysis as any,
                     confidence: analysis.confidence,
                     requiresReview: analysis.requiresHumanReview,
-                    wasAutoSent: false, // Updated later if sent
+                    wasAutoSent: false,
                 },
             });
+
+            // Audit trail: create APPROVED review item for auto-created cases
+            if (caseId && shouldAutoCreate) {
+                await prisma.telegramReviewItem.create({
+                    data: {
+                        companyId: this.companyId,
+                        type: 'CASE_APPROVAL',
+                        status: 'APPROVED',
+                        telegramChatId: senderId,
+                        chatTitle,
+                        senderName: driverName !== 'Unknown User' ? driverName : telegramSenderName,
+                        messageContent: messageText,
+                        messageDate: new Date(),
+                        aiCategory: analysis.category,
+                        aiConfidence: analysis.confidence,
+                        aiUrgency: analysis.urgency,
+                        aiAnalysis: analysis as any,
+                        communicationId: communication.id,
+                        driverId: driver?.id,
+                        breakdownId: analysis.isBreakdown ? caseId : undefined,
+                        resolvedAt: new Date(),
+                        resolvedNote: isEmergency ? 'Auto-created (emergency keyword)' : 'Auto-created by system',
+                    },
+                });
+            }
 
             // Create review queue item if case was skipped but AI detected something actionable
             if (needsReview) {
                 const reviewType = !driver ? 'DRIVER_LINK_NEEDED' : 'CASE_APPROVAL';
                 const resolvedSenderName = driverName !== 'Unknown User' ? driverName : telegramSenderName;
+                // Include suggested match for DRIVER_LINK_NEEDED items (medium confidence)
+                const suggestion = reviewType === 'DRIVER_LINK_NEEDED' && autoMatchResult && autoMatchResult.confidence >= 0.50
+                    ? autoMatchResult : undefined;
                 await this.createReviewItem({
                     type: reviewType as any,
                     telegramChatId: senderId,
@@ -273,25 +370,28 @@ export class TelegramMessageProcessor {
                     analysis,
                     communicationId: communication.id,
                     driverId: driver?.id,
+                    suggestedDriverId: suggestion?.driverId,
+                    matchConfidence: suggestion?.confidence,
+                    matchMethod: suggestion?.method,
                 });
             }
 
-            // Determine if we should auto-respond
-            const shouldAutoRespond = await this.shouldAutoRespond(settings, analysis, driverMapping);
+            // --- Auto-respond logic ---
+            const shouldRespond = await this.shouldAutoRespond(settings, analysis, driverMapping);
+            const outsideHours = settings.businessHoursOnly && !isWithinBusinessHours(
+                settings.businessHoursStart || '09:00',
+                settings.businessHoursEnd || '17:00',
+                settings.timezone || 'America/Chicago',
+            );
 
-            if (shouldAutoRespond) {
-                // Fetch conversation history (Safe fallback approach)
+            if (shouldRespond) {
                 let history: any[] = [];
                 try {
                     const rawHistory = await prisma.communication.findMany({
-                        where: {
-                            channel: 'TELEGRAM',
-                            companyId: this.companyId
-                        },
+                        where: { channel: 'TELEGRAM', companyId: this.companyId },
                         orderBy: { createdAt: 'desc' },
                         take: 10,
                     });
-
                     const targetId = senderId.toString();
                     history = rawHistory.filter((msg: any) =>
                         (msg as any).senderId === targetId ||
@@ -306,30 +406,27 @@ export class TelegramMessageProcessor {
 
                 const conversationHistory = history.reverse().map(msg => ({
                     role: (msg as any).direction === 'INBOUND' ? 'user' : 'assistant',
-                    content: msg.content
+                    content: msg.content,
                 }));
 
-                const responseContext = {
+                const response = await this.aiService.generateResponse(analysis, {
                     driverName: driverMapping?.driver?.user?.firstName || 'Driver',
-                    caseNumber: caseNumber,
-                    isAiAutoReplyEnabled: !!driverMapping?.aiAutoReply,
-                    conversationHistory,
-                    originalMessage: messageText
-                };
-
-                const response = await this.aiService.generateResponse(analysis, responseContext);
-                console.log(`[Telegram] Generated response: "${response}" (Length: ${response?.length})`);
+                    caseNumber,
+                });
 
                 if (response) {
-                    console.log(`[Telegram] Attempting to send response to ${senderId}...`);
                     await this.sendResponse(senderId, response, communication.id, !settings.requireStaffApproval);
-                } else {
-                    console.warn(`[Telegram] Response generation returned empty/null.`);
                 }
+            } else if (outsideHours) {
+                // Send after-hours template
+                const afterHoursMsg = settings.afterHoursMessage || 'We received your message after hours. On-call staff will respond within 15 minutes.';
+                await this.sendResponse(senderId, afterHoursMsg, communication.id, true);
+                console.log('[Telegram] Sent after-hours message');
             } else if (analysis.requiresHumanReview || settings.requireStaffApproval) {
-                // Queue for staff review (only if not already queued above)
                 if (!needsReview) {
                     const reviewType = driver ? 'CASE_APPROVAL' : 'DRIVER_LINK_NEEDED';
+                    const suggestion2 = reviewType === 'DRIVER_LINK_NEEDED' && autoMatchResult && autoMatchResult.confidence >= 0.50
+                        ? autoMatchResult : undefined;
                     await this.createReviewItem({
                         type: reviewType as any,
                         telegramChatId: senderId,
@@ -339,6 +436,9 @@ export class TelegramMessageProcessor {
                         analysis,
                         communicationId: communication.id,
                         driverId: driver?.id,
+                        suggestedDriverId: suggestion2?.driverId,
+                        matchConfidence: suggestion2?.confidence,
+                        matchMethod: suggestion2?.method,
                     });
                 }
                 console.log('[Telegram] Message queued for staff review');
@@ -361,6 +461,9 @@ export class TelegramMessageProcessor {
         analysis: any;
         communicationId: string;
         driverId?: string;
+        suggestedDriverId?: string;
+        matchConfidence?: number;
+        matchMethod?: string;
     }): Promise<void> {
         // Dedup: skip if a PENDING item of same type already exists for this chat
         const existing = await prisma.telegramReviewItem.findFirst({
@@ -399,6 +502,9 @@ export class TelegramMessageProcessor {
                 aiAnalysis: params.analysis,
                 communicationId: params.communicationId,
                 driverId: params.driverId,
+                suggestedDriverId: params.suggestedDriverId,
+                matchConfidence: params.matchConfidence,
+                matchMethod: params.matchMethod,
             },
         });
         console.log(`[Telegram] Review item created: type=${params.type}, chat=${params.telegramChatId}`);
@@ -418,6 +524,19 @@ export class TelegramMessageProcessor {
         if (driverMapping?.aiAutoReply) {
             console.log(`[Telegram] Auto-Reply enabled for ${driverMapping.telegramId} (Override HumanReview)`);
             return true;
+        }
+
+        // 1.5. Business hours restriction
+        if (settings.businessHoursOnly) {
+            const withinHours = isWithinBusinessHours(
+                settings.businessHoursStart || '09:00',
+                settings.businessHoursEnd || '17:00',
+                settings.timezone || 'America/Chicago',
+            );
+            if (!withinHours) {
+                console.log('[Telegram] Auto-Reply OFF: Outside business hours');
+                return false;
+            }
         }
 
         // 2. Check Global Settings

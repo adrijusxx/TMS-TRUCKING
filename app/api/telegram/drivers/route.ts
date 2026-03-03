@@ -110,6 +110,11 @@ export async function POST(request: NextRequest) {
                 },
             });
 
+        // Auto-unignore: if this contact was previously ignored, remove from ignore list
+        await prisma.telegramIgnoredContact.deleteMany({
+            where: { telegramChatId: telegramId },
+        });
+
         return NextResponse.json({ data: mapping });
     } catch (error) {
         console.error('[API] Error creating driver mapping:', error);

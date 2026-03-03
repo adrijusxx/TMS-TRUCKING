@@ -156,6 +156,12 @@ export async function GET(request: NextRequest) {
         s => s.status === 'LINKED' && s.deviceType === 'TRAILER'
       )?._count || 0;
 
+      // Count trucks/trailers already synced with Samsara (have samsaraId set)
+      const [syncedTrucks, syncedTrailers] = await Promise.all([
+        prisma.truck.count({ where: { companyId: session.user.companyId, deletedAt: null, samsaraId: { not: null } } }),
+        prisma.trailer.count({ where: { companyId: session.user.companyId, deletedAt: null, samsaraId: { not: null } } }),
+      ]);
+
       return NextResponse.json({
         success: true,
         data: {
@@ -170,9 +176,13 @@ export async function GET(request: NextRequest) {
             pending: statusCounts.find(s => s.status === 'PENDING')?._count || 0,
             approved: statusCounts.find(s => s.status === 'APPROVED')?._count || 0,
             linked: statusCounts.find(s => s.status === 'LINKED')?._count || 0,
-            linkedTrucks, // Trucks only
-            linkedTrailers, // Trailers only
+            linkedTrucks,
+            linkedTrailers,
             rejected: statusCounts.find(s => s.status === 'REJECTED')?._count || 0,
+          },
+          alreadySynced: {
+            trucks: syncedTrucks,
+            trailers: syncedTrailers,
           },
           filterOptions: {
             makes: makes.map(m => m.make).filter(Boolean),
@@ -320,6 +330,21 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({
             success: true,
             data: { action: 'bulk-reset', success: result.success, failed: result.failed },
+          });
+        }
+
+        case 'auto-link': {
+          const { queueIds: autoLinkIds } = body;
+          if (!autoLinkIds || !Array.isArray(autoLinkIds)) {
+            return NextResponse.json(
+              { success: false, error: { code: 'BAD_REQUEST', message: 'Missing queueIds array' } },
+              { status: 400 }
+            );
+          }
+          const result = await syncService.bulkAutoLink(autoLinkIds, session.user.id);
+          return NextResponse.json({
+            success: true,
+            data: { action: 'auto-link', ...result },
           });
         }
 

@@ -30,7 +30,7 @@ export default function CustomerSheet({ open, onOpenChange, mode, customerId, on
     const { data: customerData, isLoading: isLoadingCustomer } = useQuery({
         queryKey: ['customer', customerId],
         queryFn: () => fetchCustomer(customerId as string),
-        enabled: !!customerId && mode === 'edit' && open,
+        enabled: !!customerId && (mode === 'edit' || mode === 'view') && open,
     });
 
     const customer = customerData?.data;

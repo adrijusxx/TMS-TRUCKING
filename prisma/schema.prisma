@@ -90,6 +90,7 @@ model User {
   // Samsara Integration
   reviewedSamsaraDevices     SamsaraDeviceQueue[]
   resolvedTelegramReviewItems TelegramReviewItem[] @relation("TelegramReviewResolver")
+  telegramIgnoredContacts    TelegramIgnoredContact[] @relation("TelegramIgnoredBy")
   resolvedFaults             TruckFaultHistory[]
   financialLockedLoads       Load[]                 @relation("LoadFinancialLockedBy")
   createdLedgerEntries       LedgerEntry[]          @relation("LedgerEntryCreatedBy")
@@ -415,6 +416,7 @@ model Company {
   knowledgeBaseDocuments KnowledgeBaseDocument[]
   aiAgents               AIAgent[]
   telegramReviewItems    TelegramReviewItem[]
+  telegramIgnoredContacts TelegramIgnoredContact[]
   apiKeys                ApiKeyConfig[]
   salaryBatches          SalaryBatch[]
   vendorBillBatches      VendorBillBatch[]
@@ -1115,6 +1117,7 @@ model Driver {
   iftaEntries               IFTAEntry[]
   telegramMapping           TelegramDriverMapping? // Telegram integration
   telegramReviewItems       TelegramReviewItem[]      @relation("TelegramReviewItems")
+  telegramSuggestedReviews  TelegramReviewItem[]      @relation("TelegramSuggestedDriver")
   recruitingLead            Lead?                     @relation("RecruitingLead")
   onboardingChecklist       OnboardingChecklist?
 
@@ -7742,6 +7745,11 @@ model TelegramReviewItem {
   driverId        String?
   driver          Driver?              @relation("TelegramReviewItems", fields: [driverId], references: [id])
 
+  suggestedDriverId String?
+  suggestedDriver   Driver?            @relation("TelegramSuggestedDriver", fields: [suggestedDriverId], references: [id])
+  matchConfidence   Float?
+  matchMethod       String?
+
   resolvedAt      DateTime?
   resolvedById    String?
   resolvedBy      User?                @relation("TelegramReviewResolver", fields: [resolvedById], references: [id])
@@ -7766,6 +7774,21 @@ enum TelegramReviewStatus {
   PENDING
   APPROVED
   DISMISSED
+}
+
+model TelegramIgnoredContact {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  telegramChatId  String
+  senderName      String?
+  reason          String?
+  ignoredById     String
+  ignoredBy       User     @relation("TelegramIgnoredBy", fields: [ignoredById], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@unique([companyId, telegramChatId])
+  @@index([companyId])
 }
 
 // ============================================

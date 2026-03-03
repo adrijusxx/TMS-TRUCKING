@@ -154,6 +154,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     id: 'loadNumber',
     accessorKey: 'loadNumber',
     header: 'Load #',
+    className: 'w-[160px] min-w-[120px]',
     cell: ({ row }) => {
       // Check if created today
       const isNew = row.original.createdAt ? (() => {
@@ -218,6 +219,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
     id: 'status',
     accessorKey: 'status',
     header: 'Status',
+    className: 'w-[160px] min-w-[130px]',
     cell: ({ row }) => (
       <LoadStatusCell
         loadId={row.original.id}

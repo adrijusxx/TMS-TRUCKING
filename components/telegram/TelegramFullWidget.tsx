@@ -1,290 +1,42 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-    MessageSquare,
-    Send,
-    User,
-    Users,
-    Radio,
-    Loader2,
-    Settings,
-    Paperclip,
-    Image,
-    File,
-    X,
-    ArrowLeft,
-    Bot,
-} from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
-import { toast } from 'sonner';
+import { MessageSquare, Settings } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
-import MessageMedia from './MessageMedia';
-import TelegramMessageBubble from './TelegramMessageBubble';
+import { TelegramDialog } from '@/lib/types/telegram';
+import TelegramConversationList from './TelegramConversationList';
+import TelegramChatView from './TelegramChatView';
 import CreateCaseModal from '@/components/fleet/CreateCaseModal';
-import LinkDriverButton from './LinkDriverButton';
-
-interface Dialog {
-    id: string;
-    title: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    username?: string | null;
-    unreadCount: number;
-    lastMessage: string;
-    lastMessageDate: string | null;
-    isUser: boolean;
-    isGroup: boolean;
-    isChannel: boolean;
-    aiAutoReply?: boolean;
-    phone?: string;
-}
-
-interface Message {
-    id: number;
-    text: string;
-    date: string | null;
-    out: boolean;
-    senderId: string;
-    replyToMsgId: number | null;
-    media: {
-        type: string;
-        messageId: number;
-        chatId: string;
-        isPhoto?: boolean;
-        photoId?: string;
-        isDocument?: boolean;
-        fileName?: string;
-        mimeType?: string;
-        size?: number;
-        isVoice?: boolean;
-        duration?: number;
-    } | null;
-}
-
-async function updateDriverAutoReply(telegramId: string, enabled: boolean) {
-    const response = await fetch(apiUrl('/api/telegram/driver-settings'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramId, aiAutoReply: enabled }),
-    });
-    if (!response.ok) throw new Error('Failed to update settings');
-    return response.json();
-}
 
 async function fetchDialogs() {
-    const response = await fetch(apiUrl('/api/telegram/dialogs'));
-    if (!response.ok) {
-        const data = await response.json();
-        if (data.needsConnection) {
-            throw new Error('NOT_CONNECTED');
-        }
+    const res = await fetch(apiUrl('/api/telegram/dialogs'));
+    if (!res.ok) {
+        const data = await res.json();
+        if (data.needsConnection) throw new Error('NOT_CONNECTED');
         throw new Error('Failed to fetch dialogs');
     }
-    return response.json();
-}
-
-async function fetchMessages(chatId: string) {
-    const response = await fetch(apiUrl(`/api/telegram/messages/${chatId}`));
-    if (!response.ok) throw new Error('Failed to fetch messages');
-    return response.json();
-}
-
-async function sendMessage(chatId: string, text: string) {
-    const response = await fetch(apiUrl(`/api/telegram/messages/${chatId}`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-    });
-    if (!response.ok) throw new Error('Failed to send message');
-    return response.json();
-}
-
-async function fetchLinkedCases(chatId: string) {
-    const response = await fetch(apiUrl(`/api/telegram/messages/${chatId}/cases`));
-    if (!response.ok) return { data: {} };
-    return response.json();
-}
-
-async function uploadFile(chatId: string, file: File, caption?: string) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('chatId', chatId);
-    if (caption) formData.append('caption', caption);
-
-    const response = await fetch(apiUrl('/api/telegram/upload'), {
-        method: 'POST',
-        body: formData,
-    });
-    if (!response.ok) throw new Error('Failed to upload file');
-    return response.json();
+    return res.json();
 }
 
 export default function TelegramFullWidget() {
-    const queryClient = useQueryClient();
-    const [selectedChat, setSelectedChat] = useState<Dialog | null>(null);
-    const [messageInput, setMessageInput] = useState('');
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [filePreview, setFilePreview] = useState<string | null>(null);
+    const [selectedChat, setSelectedChat] = useState<TelegramDialog | null>(null);
     const [createCaseOpen, setCreateCaseOpen] = useState(false);
     const [createCaseDefaults, setCreateCaseDefaults] = useState<{ description?: string }>({});
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Fetch dialogs
-    const { data: dialogsData, isLoading: dialogsLoading, error: dialogsError } = useQuery({
-        queryKey: ['telegram-dialogs-full'],
+    const { data: dialogsData, isLoading, error } = useQuery({
+        queryKey: ['telegram-dialogs'],
         queryFn: fetchDialogs,
         refetchInterval: 30000,
         retry: false,
     });
 
-    // Fetch messages for selected chat
-    const { data: messagesData, isLoading: messagesLoading } = useQuery({
-        queryKey: ['telegram-messages-full', selectedChat?.id],
-        queryFn: () => fetchMessages(selectedChat!.id),
-        enabled: !!selectedChat,
-        refetchInterval: 5000,
-    });
+    const dialogs: TelegramDialog[] = dialogsData?.data || [];
 
-    // Fetch linked cases for the selected chat
-    const { data: linkedCasesData } = useQuery({
-        queryKey: ['telegram-linked-cases', selectedChat?.id],
-        queryFn: () => fetchLinkedCases(selectedChat!.id),
-        enabled: !!selectedChat,
-        refetchInterval: 30000,
-    });
-    const linkedCasesMap: Record<string, { breakdownNumber: string; status: string; priority: string }> =
-        linkedCasesData?.data || {};
-
-    // Send message mutation
-    const sendMutation = useMutation({
-        mutationFn: ({ chatId, text }: { chatId: string; text: string }) =>
-            sendMessage(chatId, text),
-        onSuccess: () => {
-            setMessageInput('');
-            queryClient.invalidateQueries({ queryKey: ['telegram-messages-full', selectedChat?.id] });
-            queryClient.invalidateQueries({ queryKey: ['telegram-dialogs-full'] });
-        },
-        onError: (error: Error) => {
-            toast.error(error.message || 'Failed to send message');
-        },
-    });
-
-    // Upload file mutation
-    const uploadMutation = useMutation({
-        mutationFn: ({ chatId, file, caption }: { chatId: string; file: File; caption?: string }) =>
-            uploadFile(chatId, file, caption),
-        onSuccess: () => {
-            setSelectedFile(null);
-            setFilePreview(null);
-            setMessageInput('');
-            queryClient.invalidateQueries({ queryKey: ['telegram-messages-full', selectedChat?.id] });
-            queryClient.invalidateQueries({ queryKey: ['telegram-dialogs-full'] });
-            toast.success('File sent successfully!');
-        },
-        onError: (error: Error) => {
-            toast.error(error.message || 'Failed to send file');
-        },
-    });
-
-    // Toggle AI Auto-Reply Mutation
-    const toggleAiMutation = useMutation({
-        mutationFn: ({ id, enabled }: { id: string, enabled: boolean }) => updateDriverAutoReply(id, enabled),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['telegram-dialogs-full'] });
-            toast.success('AI Auto-Reply updated');
-        },
-        onError: () => toast.error('Failed to update AI settings'),
-    });
-
-    // Auto-scroll to bottom on new messages
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messagesData]);
-
-    // Handle file selection
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setSelectedFile(file);
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => setFilePreview(e.target?.result as string);
-                reader.readAsDataURL(file);
-            } else {
-                setFilePreview(null);
-            }
-        }
-    };
-
-    const dialogs: Dialog[] = dialogsData?.data || [];
-    const messages: Message[] = messagesData?.data || [];
-
-    const handleSend = () => {
-        if (!selectedChat) return;
-
-        if (selectedFile) {
-            uploadMutation.mutate({
-                chatId: selectedChat.id,
-                file: selectedFile,
-                caption: messageInput || undefined
-            });
-        } else if (messageInput.trim()) {
-            sendMutation.mutate({ chatId: selectedChat.id, text: messageInput });
-        }
-    };
-
-    const cancelFileSelection = () => {
-        setSelectedFile(null);
-        setFilePreview(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    const getDialogIcon = (dialog: Dialog) => {
-        if (dialog.isChannel) return <Radio className="h-4 w-4" />;
-        if (dialog.isGroup) return <Users className="h-4 w-4" />;
-        return <User className="h-4 w-4" />;
-    };
-
-    const getInitials = (name: string) => {
-        return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-    };
-
-    /** Build display name from custom contact name (firstName/lastName) with fallback to title */
-    const getDisplayName = (dialog: Dialog) => {
-        const parts = [dialog.firstName, dialog.lastName].filter(Boolean);
-        return parts.length > 0 ? parts.join(' ') : dialog.title;
-    };
-
-    /** Subtitle line: username + phone (if available and different from display name) */
-    const getSubtitle = (dialog: Dialog) => {
-        const parts: string[] = [];
-        if (dialog.username) parts.push(`@${dialog.username}`);
-        if (dialog.phone) parts.push(dialog.phone);
-        return parts.length > 0 ? parts.join(' · ') : null;
-    };
-
-    const getMediaIcon = (media: Message['media']) => {
-        if (!media) return null;
-        const type = media.type.toLowerCase();
-        if (type.includes('photo') || type.includes('image')) {
-            return <Image className="h-4 w-4" />;
-        }
-        return <File className="h-4 w-4" />;
-    };
-
-    // Not connected state
-    if (dialogsError?.message === 'NOT_CONNECTED') {
+    if (error?.message === 'NOT_CONNECTED') {
         return (
             <Card>
                 <CardHeader>
@@ -312,281 +64,61 @@ export default function TelegramFullWidget() {
     }
 
     return (
-        <Card>
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                accept="image/*,.pdf,.doc,.docx,.txt"
-                className="hidden"
-            />
+        <>
+            <Card className="overflow-hidden">
+                <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <MessageSquare className="h-5 w-5" />
+                            Messages
+                        </CardTitle>
+                        <Link href="/dashboard/settings/integrations/telegram">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <Settings className="h-4 w-4" />
+                            </Button>
+                        </Link>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="flex h-[600px] border-t">
+                        {/* Sidebar */}
+                        <TelegramConversationList
+                            dialogs={dialogs}
+                            isLoading={isLoading}
+                            selectedChatId={selectedChat?.id}
+                            onSelectChat={setSelectedChat}
+                            className={`w-72 border-r flex flex-col ${selectedChat ? 'hidden md:flex' : 'flex'}`}
+                        />
 
-            <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                        <MessageSquare className="h-5 w-5" />
-                        Telegram Messages
-                    </CardTitle>
-                    <Link href="/dashboard/settings/integrations/telegram">
-                        <Button variant="ghost" size="sm">
-                            <Settings className="h-4 w-4" />
-                        </Button>
-                    </Link>
-                </div>
-            </CardHeader>
-
-            <CardContent className="p-0">
-                <div className="flex h-[600px]">
-                    {/* Conversations List */}
-                    <div className={`w-80 border-r ${selectedChat ? 'hidden md:block' : 'block'}`}>
-                        <ScrollArea className="h-full">
-                            {dialogsLoading ? (
-                                <div className="flex items-center justify-center h-32">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                </div>
-                            ) : dialogs.length === 0 ? (
-                                <div className="p-4 text-center text-muted-foreground text-sm">
-                                    No conversations found
-                                </div>
+                        {/* Chat */}
+                        <div className={`flex-1 flex flex-col ${!selectedChat ? 'hidden md:flex' : 'flex'}`}>
+                            {selectedChat ? (
+                                <TelegramChatView
+                                    chat={selectedChat}
+                                    onBack={() => setSelectedChat(null)}
+                                    onCreateCase={(text) => {
+                                        setCreateCaseDefaults({ description: text });
+                                        setCreateCaseOpen(true);
+                                    }}
+                                />
                             ) : (
-                                <div className="divide-y">
-                                    {dialogs.map((dialog) => (
-                                        <button
-                                            key={dialog.id}
-                                            onClick={() => setSelectedChat(dialog)}
-                                            className={`w-full p-3 text-left hover:bg-muted/50 transition-colors relative group/item ${selectedChat?.id === dialog.id ? 'bg-muted' : ''
-                                                }`}
-                                        >
-                                            <div className="flex items-start gap-2 pr-8">
-                                                <Avatar className="h-10 w-10">
-                                                    <AvatarFallback className="text-xs bg-primary/10">
-                                                        {getInitials(getDisplayName(dialog))}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                            <div className="flex items-center gap-1 min-w-0">
-                                                                {getDialogIcon(dialog)}
-                                                                <span className="text-sm font-medium truncate">
-                                                                    {getDisplayName(dialog)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-
-                                                        {dialog.unreadCount > 0 && (
-                                                            <Badge className="bg-primary text-xs h-5 min-w-5 shrink-0">
-                                                                {dialog.unreadCount}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                    {getSubtitle(dialog) && (
-                                                        <p className="text-xs text-muted-foreground truncate -mt-0.5 mb-0.5">
-                                                            {getSubtitle(dialog)}
-                                                        </p>
-                                                    )}
-                                                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                                                        {dialog.lastMessage || 'No messages'}
-                                                    </p>
-                                                    {dialog.lastMessageDate && (
-                                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                                            {formatDistanceToNow(new Date(dialog.lastMessageDate), { addSuffix: true })}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                        </button>
-                                    ))}
+                                <div className="flex-1 flex items-center justify-center">
+                                    <div className="text-center text-muted-foreground">
+                                        <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                                        <p className="text-sm">Select a conversation</p>
+                                    </div>
                                 </div>
                             )}
-                        </ScrollArea>
+                        </div>
                     </div>
+                </CardContent>
+            </Card>
 
-                    {/* Chat View */}
-                    <div className={`flex-1 flex flex-col ${!selectedChat ? 'hidden md:flex' : 'flex'}`}>
-                        {selectedChat ? (
-                            <>
-                                {/* Chat Header */}
-                                <div className="p-3 border-b flex items-center gap-3">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="md:hidden"
-                                        onClick={() => setSelectedChat(null)}
-                                    >
-                                        <ArrowLeft className="h-4 w-4" />
-                                    </Button>
-                                    <div className="flex-1 flex items-center justify-between min-w-0 mr-2">
-                                        {/* User Info */}
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <Avatar className="h-10 w-10 border border-muted">
-                                                <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                                                    {getInitials(getDisplayName(selectedChat))}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div className="min-w-0">
-                                                <h3 className="font-semibold text-sm truncate flex items-center gap-2">
-                                                    {getDialogIcon(selectedChat)}
-                                                    <span className="truncate">{getDisplayName(selectedChat)}</span>
-                                                </h3>
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                    {selectedChat.username && (
-                                                        <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
-                                                            @{selectedChat.username}
-                                                        </span>
-                                                    )}
-                                                    {selectedChat.phone && (
-                                                        <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
-                                                            {selectedChat.phone}
-                                                        </span>
-                                                    )}
-                                                    <span>•</span>
-                                                    <span>{selectedChat.isChannel ? 'Channel' : selectedChat.isGroup ? 'Group' : 'Private Chat'}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Actions Toolbar */}
-                                        <div className="flex items-center gap-4">
-                                            {(!selectedChat.isChannel && !selectedChat.isGroup) && (
-                                                <LinkDriverButton
-                                                    chatId={selectedChat.id}
-                                                    chatTitle={selectedChat.title}
-                                                    chatPhone={selectedChat.phone}
-                                                />
-                                            )}
-                                            {(!selectedChat.isChannel && !selectedChat.isGroup) && (
-                                                <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-full border border-border/50">
-                                                    <div className="flex flex-col items-end mr-1">
-                                                        <span className="text-[11px] font-bold leading-none text-primary/80">AI AGENT</span>
-                                                        <span className="text-[10px] leading-none text-muted-foreground w-full text-right">
-                                                            {selectedChat.aiAutoReply ? 'Active' : 'Offline'}
-                                                        </span>
-                                                    </div>
-                                                    <Switch
-                                                        checked={selectedChat.aiAutoReply || false}
-                                                        onCheckedChange={(checked) => toggleAiMutation.mutate({ id: selectedChat.id, enabled: checked })}
-                                                        disabled={toggleAiMutation.isPending}
-                                                        className="scale-75 data-[state=checked]:bg-green-500"
-                                                    />
-                                                    <Bot className={`h-4 w-4 ${selectedChat.aiAutoReply ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}`} />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Messages */}
-                                <ScrollArea className="flex-1 p-3">
-                                    {messagesLoading ? (
-                                        <div className="flex items-center justify-center h-32">
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                        </div>
-                                    ) : messages.length === 0 ? (
-                                        <div className="text-center text-muted-foreground text-sm py-8">
-                                            No messages yet
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {[...messages].reverse().map((msg) => (
-                                                <TelegramMessageBubble
-                                                    key={msg.id}
-                                                    msg={msg}
-                                                    linkedCase={linkedCasesMap[msg.id?.toString()]}
-                                                    onCreateCase={(text) => {
-                                                        setCreateCaseDefaults({ description: text });
-                                                        setCreateCaseOpen(true);
-                                                    }}
-                                                />
-                                            ))}
-                                            <div ref={messagesEndRef} />
-                                        </div>
-                                    )}
-                                </ScrollArea>
-
-                                {/* File Preview */}
-                                {selectedFile && (
-                                    <div className="p-2 border-t bg-muted/50">
-                                        <div className="flex items-center gap-2 p-2 bg-background rounded">
-                                            {filePreview ? (
-                                                <img src={filePreview} alt="Preview" className="h-12 w-12 object-cover rounded" />
-                                            ) : (
-                                                <div className="h-12 w-12 bg-muted rounded flex items-center justify-center">
-                                                    <File className="h-6 w-6 text-muted-foreground" />
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium truncate">{selectedFile.name}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {(selectedFile.size / 1024).toFixed(1)} KB
-                                                </p>
-                                            </div>
-                                            <Button variant="ghost" size="icon" onClick={cancelFileSelection}>
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Message Input */}
-                                <div className="p-3 border-t">
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            disabled={uploadMutation.isPending || sendMutation.isPending}
-                                        >
-                                            <Paperclip className="h-4 w-4" />
-                                        </Button>
-                                        <Input
-                                            placeholder={selectedFile ? "Add a caption..." : "Type a message..."}
-                                            value={messageInput}
-                                            onChange={(e) => setMessageInput(e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && !e.shiftKey) {
-                                                    e.preventDefault();
-                                                    handleSend();
-                                                }
-                                            }}
-                                            disabled={sendMutation.isPending || uploadMutation.isPending}
-                                        />
-                                        <Button
-                                            onClick={handleSend}
-                                            disabled={
-                                                (!messageInput.trim() && !selectedFile) ||
-                                                sendMutation.isPending ||
-                                                uploadMutation.isPending
-                                            }
-                                        >
-                                            {sendMutation.isPending || uploadMutation.isPending ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                                <Send className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="flex-1 flex items-center justify-center">
-                                <div className="text-center text-muted-foreground">
-                                    <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                                    <p className="text-sm">Select a conversation to start messaging</p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </CardContent >
-
-            {/* Create Case Modal (triggered from message action) */}
             <CreateCaseModal
                 open={createCaseOpen}
                 onOpenChange={setCreateCaseOpen}
                 defaultValues={createCaseDefaults}
             />
-        </Card >
+        </>
     );
 }

@@ -3,22 +3,16 @@
 import { useState } from 'react';
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatCurrency, formatDate, formatDateTime, apiUrl } from '@/lib/utils';
-import { LoadStatus } from '@prisma/client';
-import {
-  ArrowLeft,
-  Trash2,
-  Save,
-} from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
+import { ArrowLeft, Trash2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useSession } from 'next-auth/react';
-import DispatchStatusSelector, { DispatchStatusBadge } from './DispatchStatusSelector';
+import DispatchStatusSelector from './DispatchStatusSelector';
 import { LoadDetailTrackingCard } from './LoadDetailTrackingCard';
+import { ProfitabilityBadge } from './ProfitabilityBadge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,15 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import LoadDetailsTab from './LoadDetailTabs/LoadDetailsTab';
-import LoadRouteTab from './LoadDetailTabs/LoadRouteTab';
-import LoadFinancialTab from './LoadDetailTabs/LoadFinancialTab';
-import LoadHistoryDocumentsTab from './LoadDetailTabs/LoadHistoryDocumentsTab';
-import LoadActivityTab from './LoadDetailTabs/LoadActivityTab';
-import { LoadCostBreakdown } from './LoadCostBreakdown';
-import { ProfitabilityBadge } from './ProfitabilityBadge';
-import { LoadChangeLog } from './LoadChangeLog';
+import LoadDetailLeftPanel from './LoadDetailTabs/LoadDetailLeftPanel';
+import LoadDetailRightPanel from './LoadDetailTabs/LoadDetailRightPanel';
 
 interface LoadDetailProps {
   load: any;
@@ -49,30 +36,8 @@ interface LoadDetailProps {
   isSheet?: boolean;
 }
 
-const statusColors: Record<LoadStatus, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  ASSIGNED: 'bg-blue-100 text-blue-800 border-blue-200',
-  EN_ROUTE_PICKUP: 'bg-purple-100 text-purple-800 border-purple-200',
-  AT_PICKUP: 'bg-orange-100 text-orange-800 border-orange-200',
-  LOADED: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  EN_ROUTE_DELIVERY: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-  AT_DELIVERY: 'bg-pink-100 text-pink-800 border-pink-200',
-  DELIVERED: 'bg-green-100 text-green-800 border-green-200',
-  BILLING_HOLD: 'bg-amber-100 text-amber-800 border-amber-200',
-  READY_TO_BILL: 'bg-lime-100 text-lime-800 border-lime-200',
-  INVOICED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  PAID: 'bg-teal-100 text-teal-800 border-teal-200',
-  CANCELLED: 'bg-red-100 text-red-800 border-red-200',
-};
-
-function formatStatus(status: LoadStatus): string {
-  return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-}
-
 async function deleteLoad(loadId: string) {
-  const response = await fetch(apiUrl(`/api/loads/${loadId}`), {
-    method: 'DELETE',
-  });
+  const response = await fetch(apiUrl(`/api/loads/${loadId}`), { method: 'DELETE' });
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error?.message || 'Failed to delete load');
@@ -106,15 +71,11 @@ export default function LoadDetail({
   availableTrailers = [],
   onSuccess,
   onCancel,
-  isSheet = false,
 }: LoadDetailProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
-  const { data: session } = useSession();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState('details');
 
   const { data: customersData } = useQuery({
     queryKey: ['customers'],
@@ -124,9 +85,7 @@ export default function LoadDetail({
   const customers = React.useMemo(() => {
     const fetchedCustomers = customersData?.data || [];
     const currentCustomer = load.customer;
-
     const hasCurrentCustomer = fetchedCustomers.some((c: any) => c.id === currentCustomer?.id);
-
     if (currentCustomer && !hasCurrentCustomer) {
       return [
         {
@@ -138,7 +97,6 @@ export default function LoadDetail({
         ...fetchedCustomers,
       ];
     }
-
     return fetchedCustomers;
   }, [customersData, load.customer]);
 
@@ -206,12 +164,10 @@ export default function LoadDetail({
       queryClient.invalidateQueries({ queryKey: ['load', load.id] });
       queryClient.invalidateQueries({ queryKey: ['loads'] });
 
-      // Check for completion warnings from API
       const completionWarnings = data?.meta?.warnings;
       const completionResult = data?.meta?.completionResult;
 
       if (completionWarnings && completionWarnings.length > 0) {
-        // Status updated but with issues
         toast.warning('Load Updated (Action Required)', {
           description: (
             <div className="flex flex-col gap-1">
@@ -267,7 +223,6 @@ export default function LoadDetail({
       return true;
     };
 
-    // All fields
     const fields = [
       'truckId', 'trailerId', 'trailerNumber', 'driverId', 'coDriverId', 'customerId',
       'status', 'dispatchStatus', 'loadType', 'equipmentType',
@@ -319,7 +274,7 @@ export default function LoadDetail({
 
   return (
     <div className="space-y-3">
-      {/* Header - Compact */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           {onCancel ? (
@@ -341,7 +296,6 @@ export default function LoadDetail({
           />
         </div>
         <div className="flex items-center gap-2">
-          {/* Live Tracking - right side */}
           <LoadDetailTrackingCard loadId={load.id} loadStatus={load.status} />
           <DispatchStatusSelector
             loadId={load.id}
@@ -380,6 +334,39 @@ export default function LoadDetail({
         </div>
       )}
 
+      {/* Two-Panel Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Left Panel — Assignment + Route */}
+        <div className="lg:col-span-7">
+          <LoadDetailLeftPanel
+            load={load}
+            formData={formData}
+            onFormDataChange={setFormData}
+            availableDrivers={availableDrivers}
+            availableTrucks={availableTrucks}
+            availableTrailers={availableTrailers}
+            customers={customers}
+            onLoadRefetch={() => {
+              queryClient.invalidateQueries({ queryKey: ['load', load.id] });
+            }}
+          />
+        </div>
+
+        {/* Right Panel — Info + Details */}
+        <div className="lg:col-span-5">
+          <LoadDetailRightPanel
+            load={load}
+            loadId={load.id}
+            formData={formData}
+            onFormDataChange={setFormData}
+            onLoadRefetch={() => {
+              queryClient.invalidateQueries({ queryKey: ['load', load.id] });
+            }}
+            customers={customers}
+          />
+        </div>
+      </div>
+
       {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
@@ -401,73 +388,6 @@ export default function LoadDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 h-8">
-          <TabsTrigger value="details" className="text-xs h-7">Details</TabsTrigger>
-          <TabsTrigger value="route" className="text-xs h-7">Route</TabsTrigger>
-          <TabsTrigger value="financial" className="text-xs h-7">Financial</TabsTrigger>
-          <TabsTrigger value="costs" className="text-xs h-7">Costs</TabsTrigger>
-          <TabsTrigger value="documents" className="text-xs h-7">Documents</TabsTrigger>
-          <TabsTrigger value="activity" className="text-xs h-7">Activity</TabsTrigger>
-          <TabsTrigger value="changelog" className="text-xs h-7">History</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="mt-3">
-          <LoadDetailsTab
-            load={load}
-            formData={formData}
-            onFormDataChange={setFormData}
-            availableDrivers={availableDrivers}
-            availableTrucks={availableTrucks}
-            availableTrailers={availableTrailers}
-            customers={customers}
-
-          />
-        </TabsContent>
-
-        <TabsContent value="route" className="mt-3">
-          <LoadRouteTab
-            load={load}
-            formData={formData}
-            onFormDataChange={setFormData}
-          />
-        </TabsContent>
-
-        <TabsContent value="financial" className="mt-3">
-          <LoadFinancialTab
-            load={load}
-            formData={formData}
-            onFormDataChange={setFormData}
-            onLoadRefetch={() => {
-              queryClient.invalidateQueries({ queryKey: ['load', load.id] });
-            }}
-          />
-        </TabsContent>
-
-        <TabsContent value="costs" className="mt-3">
-          <LoadCostBreakdown
-            revenue={load.revenue || 0}
-            fuelSurcharge={load.fuelSurcharge}
-            driverPay={load.driverPay}
-            totalExpenses={load.totalExpenses}
-            totalMiles={load.totalMiles}
-          />
-        </TabsContent>
-
-        <TabsContent value="documents" className="mt-3">
-          <LoadHistoryDocumentsTab load={load} />
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-3">
-          <LoadActivityTab load={load} />
-        </TabsContent>
-
-        <TabsContent value="changelog" className="mt-3">
-          <LoadChangeLog loadId={load.id} />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

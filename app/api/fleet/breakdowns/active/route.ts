@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
             licensePlate: true,
             state: true,
             currentLocation: true,
+            samsaraId: true,
           },
         },
         load: {

@@ -107,29 +107,6 @@ cd /home/ec2-user/tms/current && node scripts/baseline-migrations.js
 # 3. Restart the app
 pm2 restart tms
 
-
-Check on EC2 if the new version landed:
-curl -s http://localhost:3001/api/version
-If it still shows 0.2.0, it means the deploy either hasn't finished yet or 
-PM2 didn't restart from the current symlink. Check:
-
-pm2 describe tms | grep "exec cwd"
-If it's still pointing to /home/ec2-user/tms instead of /home/ec2-user/tms/current, restart it:
-
-cd /home/ec2-user/tms/current && pm2 delete tms && pm2 start ecosystem.config.js
-
-
-# Check swap pressure
-free -h
-
-# Keep Prisma engine in RAM
-sudo sysctl vm.swappiness=10
-
-# OS-level dead connection detection
-sudo sysctl net.ipv4.tcp_keepalive_time=60
-sudo sysctl net.ipv4.tcp_keepalive_intvl=10
-sudo sysctl net.ipv4.tcp_keepalive_probes=6
-
 ## Rollback
 
 ```bash
@@ -169,32 +146,6 @@ git push
 Never use prisma db push for real schema changes — it skips creating migration files, which is what caused all these issues.
 
 ---
-
-
-
-**Tag & push:**
-
-```bash
-git add .
-git commit -m "feat: your message"
-git tag -a v0.2.0 -m "Release v0.2.0"
-git push origin main --tags
-```
-
-> GitHub Actions deploys automatically (~5 min). Verify at `https://tms.vaidera.eu/api/version`.
-> Every push updates the commit SHA in the sidebar (e.g. `v0.2.0 (ef1e131)`). Bump version only for meaningful releases.
-
----
-
-
-
-## Misc / Troubleshooting
-
-**Legacy peer deps install:**
-
-```bash
-npm install --legacy-peer-deps
-```
 
 **Fix VS Code nested .git folders (PowerShell):**
 

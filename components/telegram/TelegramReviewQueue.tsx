@@ -11,13 +11,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     ClipboardCheck, Loader2, MessageSquare, AlertTriangle, Wrench,
     ShieldAlert, UserX, Clock, CheckCircle2, XCircle, Timer,
-    Phone, MapPin, Truck, Search,
+    Phone, MapPin, Truck, Search, Ban,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { apiUrl } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import ReviewItemActions from './ReviewItemActions';
 import DismissedAdminControls from './DismissedAdminControls';
+import TelegramIgnoredContacts from './TelegramIgnoredContacts';
 
 interface ReviewItem {
     id: string;
@@ -38,6 +39,14 @@ interface ReviewItem {
         user: { firstName: string; lastName: string; phone?: string };
         currentTruck?: { id: string; truckNumber: string; currentLocation?: string };
     };
+    suggestedDriverId?: string;
+    suggestedDriver?: {
+        id: string;
+        user: { firstName: string; lastName: string; phone?: string };
+        currentTruck?: { id: string; truckNumber: string };
+    };
+    matchConfidence?: number;
+    matchMethod?: string;
     breakdown?: { id: string; breakdownNumber: string; status: string };
     resolvedBy?: { firstName: string; lastName: string };
     resolvedNote?: string;
@@ -47,7 +56,7 @@ interface ReviewItem {
 
 interface ReviewData {
     items: ReviewItem[];
-    counts: { pending: number; approved: number; dismissed: number; caseApproval: number; driverLinkNeeded: number };
+    counts: { pending: number; approved: number; dismissed: number; ignored: number; caseApproval: number; driverLinkNeeded: number };
     pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
@@ -58,10 +67,10 @@ const URGENCY_COLORS: Record<string, string> = {
     LOW: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
 };
 
-const CATEGORY_ICONS: Record<string, typeof MessageSquare> = {
-    BREAKDOWN: AlertTriangle,
-    MAINTENANCE: Wrench,
-    SAFETY: ShieldAlert,
+const CATEGORY_CONFIG: Record<string, { icon: typeof MessageSquare; color: string; bg: string }> = {
+    BREAKDOWN: { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/30' },
+    MAINTENANCE: { icon: Wrench, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/30' },
+    SAFETY: { icon: ShieldAlert, color: 'text-orange-500', bg: 'bg-orange-500/10 border-orange-500/30' },
 };
 
 export default function TelegramReviewQueue() {
@@ -106,7 +115,7 @@ export default function TelegramReviewQueue() {
     }, [dialogsData]);
 
     const items = data?.items || [];
-    const counts = data?.counts || { pending: 0, approved: 0, dismissed: 0 };
+    const counts = data?.counts || { pending: 0, approved: 0, dismissed: 0, ignored: 0 };
     const pagination = data?.pagination;
 
     if (isLoading) {
@@ -138,7 +147,7 @@ export default function TelegramReviewQueue() {
                     />
                 </div>
                 <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); setSearchQuery(''); }}>
-                    <TabsList className="grid w-full grid-cols-3 max-w-md">
+                    <TabsList className="grid w-full grid-cols-4 max-w-lg">
                         <TabsTrigger value="PENDING" className="gap-1.5">
                             <Clock className="h-3.5 w-3.5" /> Pending
                             {counts.pending > 0 && <Badge variant="destructive" className="ml-1 h-5 text-[10px]">{counts.pending}</Badge>}
@@ -151,45 +160,55 @@ export default function TelegramReviewQueue() {
                             <XCircle className="h-3.5 w-3.5" /> Dismissed
                             {counts.dismissed > 0 && <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{counts.dismissed}</Badge>}
                         </TabsTrigger>
+                        <TabsTrigger value="IGNORED" className="gap-1.5">
+                            <Ban className="h-3.5 w-3.5" /> Ignored
+                            {counts.ignored > 0 && <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{counts.ignored}</Badge>}
+                        </TabsTrigger>
                     </TabsList>
                 </Tabs>
             </CardHeader>
 
             <CardContent className="p-0">
-                {statusFilter === 'DISMISSED' && (
-                    <DismissedAdminControls
-                        dismissedCount={counts.dismissed}
-                        onDeleted={() => queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] })}
-                    />
-                )}
-                <ScrollArea className="h-[500px]">
-                    {items.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                            <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                            <p className="text-sm">No {statusFilter.toLowerCase()} items</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y">
-                            {items.map(item => (
-                                <ReviewItemRow key={item.id} item={item} isPending={statusFilter === 'PENDING'} chatNameMap={chatNameMap} />
-                            ))}
-                        </div>
-                    )}
-                </ScrollArea>
+                {statusFilter === 'IGNORED' ? (
+                    <TelegramIgnoredContacts />
+                ) : (
+                    <>
+                        {statusFilter === 'DISMISSED' && (
+                            <DismissedAdminControls
+                                dismissedCount={counts.dismissed}
+                                onDeleted={() => queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] })}
+                            />
+                        )}
+                        <ScrollArea className="h-[500px]">
+                            {items.length === 0 ? (
+                                <div className="text-center py-12 text-muted-foreground">
+                                    <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                                    <p className="text-sm">No {statusFilter.toLowerCase()} items</p>
+                                </div>
+                            ) : (
+                                <div className="divide-y">
+                                    {items.map(item => (
+                                        <ReviewItemRow key={item.id} item={item} isPending={statusFilter === 'PENDING'} chatNameMap={chatNameMap} />
+                                    ))}
+                                </div>
+                            )}
+                        </ScrollArea>
 
-                {/* Pagination */}
-                {pagination && pagination.totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-2 border-t">
-                        <span className="text-xs text-muted-foreground">
-                            {pagination.total} items — Page {pagination.page}/{pagination.totalPages}
-                        </span>
-                        <div className="flex gap-1">
-                            <Button size="sm" variant="outline" className="h-7 text-xs"
-                                disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs"
-                                disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
-                        </div>
-                    </div>
+                        {/* Pagination */}
+                        {pagination && pagination.totalPages > 1 && (
+                            <div className="flex items-center justify-between px-4 py-2 border-t">
+                                <span className="text-xs text-muted-foreground">
+                                    {pagination.total} items — Page {pagination.page}/{pagination.totalPages}
+                                </span>
+                                <div className="flex gap-1">
+                                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                                        disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                                        disabled={page >= pagination.totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </CardContent>
         </Card>
@@ -229,9 +248,13 @@ function ExpiryTimer({ createdAt }: { createdAt: string }) {
 
 function ReviewItemRow({ item, isPending, chatNameMap }: { item: ReviewItem; isPending: boolean; chatNameMap: Record<string, string> }) {
     const queryClient = useQueryClient();
-    const CategoryIcon = CATEGORY_ICONS[item.aiCategory || ''] || MessageSquare;
+    const catConfig = CATEGORY_CONFIG[item.aiCategory || ''];
+    const CategoryIcon = catConfig?.icon || MessageSquare;
+    const catColor = catConfig?.color || 'text-muted-foreground';
+    const catBg = catConfig?.bg || 'bg-muted/50 border-muted-foreground/20';
     const urgencyClass = URGENCY_COLORS[item.aiUrgency || ''] || URGENCY_COLORS.LOW;
     const displayName = item.senderName || item.chatTitle || chatNameMap[item.telegramChatId] || `Chat ${item.telegramChatId}`;
+    const isAutoCreated = item.resolvedNote?.startsWith('Auto-created');
 
     return (
         <div className="p-4 hover:bg-muted/30 transition-colors">
@@ -275,9 +298,9 @@ function ReviewItemRow({ item, isPending, chatNameMap }: { item: ReviewItem; isP
 
             {/* AI badges + truck info */}
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <Badge variant="outline" className="text-[10px] gap-1">
-                    <CategoryIcon className="h-3 w-3" />
-                    {item.aiCategory || 'Unknown'}
+                <Badge variant="outline" className={`text-[10px] gap-1 border ${catBg}`}>
+                    <CategoryIcon className={`h-3 w-3 ${catColor}`} />
+                    <span className={catColor}>{item.aiCategory || 'Unknown'}</span>
                 </Badge>
                 {item.aiUrgency && (
                     <Badge className={`text-[10px] border ${urgencyClass}`}>
@@ -310,19 +333,25 @@ function ReviewItemRow({ item, isPending, chatNameMap }: { item: ReviewItem; isP
                     onResolved={() => queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] })}
                 />
             ) : (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                     {item.status === 'APPROVED' && item.breakdown && (
                         <Badge variant="secondary" className="text-[10px]">
                             Case {item.breakdown.breakdownNumber}
                         </Badge>
                     )}
-                    {item.resolvedBy && (
+                    {isAutoCreated && (
+                        <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/30 gap-0.5">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {item.resolvedNote?.includes('emergency') ? 'Emergency Auto-created' : 'Auto-created'}
+                        </Badge>
+                    )}
+                    {item.resolvedBy && !isAutoCreated && (
                         <span>by {item.resolvedBy.firstName} {item.resolvedBy.lastName}</span>
                     )}
                     {item.resolvedAt && (
                         <span>{formatDistanceToNow(new Date(item.resolvedAt), { addSuffix: true })}</span>
                     )}
-                    {item.resolvedNote && (
+                    {item.resolvedNote && !isAutoCreated && (
                         <span className="italic">— {item.resolvedNote}</span>
                     )}
                 </div>

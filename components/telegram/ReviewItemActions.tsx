@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
-import { Check, X, UserPlus, Loader2, Truck, AlertTriangle, Users, ChevronsUpDown } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Check, X, UserPlus, Loader2, Truck, AlertTriangle, Users, Ban, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 
@@ -27,6 +28,14 @@ interface ReviewItem {
         user: { firstName: string; lastName: string; phone?: string };
         currentTruck?: { id: string; truckNumber: string; currentLocation?: string };
     };
+    suggestedDriverId?: string;
+    suggestedDriver?: {
+        id: string;
+        user: { firstName: string; lastName: string; phone?: string };
+        currentTruck?: { id: string; truckNumber: string };
+    };
+    matchConfidence?: number;
+    matchMethod?: string;
 }
 
 interface DriverOption {
@@ -52,6 +61,20 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
     const [showDismiss, setShowDismiss] = useState(false);
     const [staffOpen, setStaffOpen] = useState(false);
     const [selectedStaff, setSelectedStaff] = useState<StaffOption | null>(null);
+    const [showIgnoreConfirm, setShowIgnoreConfirm] = useState(false);
+
+    // Pre-select suggested driver if available
+    useEffect(() => {
+        if (item.suggestedDriver && item.type === 'DRIVER_LINK_NEEDED' && !selectedDriver) {
+            setSelectedDriver({
+                id: item.suggestedDriver.id,
+                driverNumber: '',
+                firstName: item.suggestedDriver.user.firstName,
+                lastName: item.suggestedDriver.user.lastName,
+                truckNumber: item.suggestedDriver.currentTruck?.truckNumber,
+            });
+        }
+    }, [item.suggestedDriver]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const { data: drivers } = useQuery<DriverOption[]>({
         queryKey: ['drivers-for-linking'],
@@ -125,7 +148,27 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
         onError: (e: Error) => toast.error(e.message),
     });
 
-    const isPending = approveMutation.isPending || dismissMutation.isPending;
+    const ignoreMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch(apiUrl(`/api/telegram/review-queue/${item.id}/ignore`), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: 'Manually ignored by staff' }),
+            });
+            if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed'); }
+            return res.json();
+        },
+        onSuccess: () => {
+            toast.success('Contact permanently ignored');
+            queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] });
+            queryClient.invalidateQueries({ queryKey: ['telegram-review-stats'] });
+            setShowIgnoreConfirm(false);
+            onResolved();
+        },
+        onError: (e: Error) => toast.error(e.message),
+    });
+
+    const isPending = approveMutation.isPending || dismissMutation.isPending || ignoreMutation.isPending;
 
     const staffPicker = (
         <Popover open={staffOpen} onOpenChange={setStaffOpen}>
@@ -160,10 +203,38 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
         </Popover>
     );
 
+    const ignoreConfirmDialog = (
+        <AlertDialog open={showIgnoreConfirm} onOpenChange={setShowIgnoreConfirm}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Ignore this contact forever?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        All messages from <strong>{item.senderName || item.chatTitle || item.telegramChatId}</strong> will
+                        be permanently ignored. No AI processing, review items, or responses will be generated.
+                        You can un-ignore from the Ignored tab later.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => ignoreMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        {ignoreMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Ban className="h-3 w-3 mr-1" />}
+                        Ignore Forever
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+
     // DRIVER_LINK_NEEDED: need to pick a driver first, then approve
     if (item.type === 'DRIVER_LINK_NEEDED') {
         return (
             <div className="flex items-center gap-2 flex-wrap">
+                {item.suggestedDriverId && item.matchConfidence && (
+                    <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/30 gap-0.5">
+                        <Sparkles className="h-2.5 w-2.5" />
+                        Suggested ({Math.round(item.matchConfidence * 100)}% {item.matchMethod?.toLowerCase()})
+                    </Badge>
+                )}
                 {selectedDriver ? (
                     <div className="flex items-center gap-1.5">
                         <Badge variant="secondary" className="text-xs">
@@ -210,6 +281,11 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
                 )}
                 <DismissButton show={showDismiss} setShow={setShowDismiss} note={dismissNote}
                     setNote={setDismissNote} onDismiss={() => dismissMutation.mutate()} isPending={isPending} />
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" disabled={isPending}
+                    onClick={() => setShowIgnoreConfirm(true)}>
+                    <Ban className="h-3 w-3 mr-1" /> Ignore Forever
+                </Button>
+                {ignoreConfirmDialog}
             </div>
         );
     }
@@ -225,6 +301,11 @@ export default function ReviewItemActions({ item, onResolved }: { item: ReviewIt
             </Button>
             <DismissButton show={showDismiss} setShow={setShowDismiss} note={dismissNote}
                 setNote={setDismissNote} onDismiss={() => dismissMutation.mutate()} isPending={isPending} />
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" disabled={isPending}
+                onClick={() => setShowIgnoreConfirm(true)}>
+                <Ban className="h-3 w-3 mr-1" /> Ignore Forever
+            </Button>
+            {ignoreConfirmDialog}
         </div>
     );
 }

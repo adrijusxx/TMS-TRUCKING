@@ -20,6 +20,7 @@ import {
   Truck,
   Info,
   AlertTriangle,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -221,6 +222,34 @@ export function DeviceQueueTable({
     }
   };
 
+  const runBulkAutoLink = async () => {
+    const ids = selectedIds.size > 0 ? Array.from(selectedIds) : items.map((d) => d.id);
+    if (ids.length === 0) return;
+    setBulkActioning(true);
+    try {
+      const res = await fetch('/api/fleet/device-queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'auto-link', queueIds: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        const { linked, unmatched } = data.data || {};
+        if (linked > 0) toast.success(`${linked} device(s) auto-linked`);
+        if (unmatched > 0) toast.info(`${unmatched} device(s) could not be matched`);
+        if (linked === 0 && unmatched === 0) toast.info('No devices to process');
+      } else {
+        toast.error(data.error?.message || 'Auto-link failed');
+      }
+    } catch {
+      toast.error('Network error. Please try again.');
+    } finally {
+      setSelectedIds(new Set());
+      onActionComplete();
+      setBulkActioning(false);
+    }
+  };
+
   const allSelected = filtered.length > 0 && filtered.every((d) => selectedIds.has(d.id));
 
   const toggleAll = () => {
@@ -268,6 +297,19 @@ export function DeviceQueueTable({
             {filtered.length} / {items.length}
           </span>
         )}
+        {isPending && selectedIds.size === 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={runBulkAutoLink}
+            disabled={bulkActioning || items.length === 0}
+            className="ml-auto"
+            title="Attempt to match all pending devices to existing trucks/trailers by name, VIN, or plate"
+          >
+            <Zap className="h-4 w-4 mr-1.5" />
+            Auto-Link All
+          </Button>
+        )}
         {isRejected && selectedIds.size === 0 && (
           <span className="text-xs text-muted-foreground ml-auto">
             Select devices to bulk re-queue them back to Pending
@@ -282,6 +324,16 @@ export function DeviceQueueTable({
           <div className="flex gap-2 ml-auto">
             {isPending && (
               <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={runBulkAutoLink}
+                  disabled={bulkActioning}
+                  title="Match selected devices to existing trucks/trailers by name, VIN, or plate"
+                >
+                  <Zap className="h-4 w-4 mr-1.5" />
+                  Auto-Link {selectedIds.size}
+                </Button>
                 <Button
                   size="sm"
                   onClick={() => runBulk('approve')}

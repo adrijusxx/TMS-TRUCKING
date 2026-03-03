@@ -19,7 +19,7 @@ export function LoadStatusCell({ loadId, status, dispatchStatus }: LoadStatusCel
   }
 
   return (
-    <Badge variant="outline" className={statusColors[status]}>
+    <Badge variant="outline" className={`whitespace-nowrap ${statusColors[status]}`}>
       {formatStatus(status)}
     </Badge>
   );

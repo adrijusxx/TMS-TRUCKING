@@ -49,9 +49,7 @@ export async function POST(
             linkedDriverId = driverId;
         }
 
-        // Step 2: Create case if requested
-        // When user explicitly clicks "Approve & Create Case", always create the breakdown
-        // regardless of AI classification — the user's action is the authority.
+        // Step 2: Create case if requested — route to correct case type based on AI category
         if (createCase) {
             if (!linkedDriverId) {
                 return NextResponse.json(
@@ -61,40 +59,50 @@ export async function POST(
             }
 
             const analysis = (item.aiAnalysis as any) || {};
-
-            // Look up driver's truck for the breakdown
             const driver = await prisma.driver.findUnique({
                 where: { id: linkedDriverId },
                 include: { currentTruck: { select: { id: true, samsaraId: true, mcNumberId: true } } },
             });
 
-            if (!driver?.currentTruck?.id) {
-                return NextResponse.json(
-                    { error: 'Cannot create breakdown case: driver has no assigned truck. Please assign a truck first.' },
-                    { status: 400 }
+            const caseCreator = new TelegramCaseCreator(companyId);
+            const category = item.aiCategory || analysis.category || '';
+
+            if (category === 'SAFETY' || analysis.isSafetyIncident) {
+                const incident = await caseCreator.createSafetyIncident(
+                    linkedDriverId, driver?.currentTruck?.id, analysis, item.messageContent,
                 );
+                breakdownId = incident.id;
+            } else if (category === 'MAINTENANCE' || analysis.isMaintenanceRequest) {
+                if (!driver?.currentTruck?.id) {
+                    return NextResponse.json(
+                        { error: 'Cannot create maintenance case: driver has no assigned truck.' },
+                        { status: 400 },
+                    );
+                }
+                const record = await caseCreator.createMaintenanceRequest(
+                    linkedDriverId, driver.currentTruck.id, analysis, item.messageContent,
+                );
+                breakdownId = record.id;
+            } else {
+                // Default to breakdown
+                if (!driver?.currentTruck?.id) {
+                    return NextResponse.json(
+                        { error: 'Cannot create breakdown case: driver has no assigned truck.' },
+                        { status: 400 },
+                    );
+                }
+                const breakdown = await caseCreator.createBreakdownCase(
+                    linkedDriverId, driver.currentTruck.id, driver.currentTruck.samsaraId,
+                    analysis, item.messageContent,
+                );
+                breakdownId = breakdown.id;
             }
 
-            const caseCreator = new TelegramCaseCreator(companyId);
-            const breakdown = await caseCreator.createBreakdownCase(
-                linkedDriverId,
-                driver.currentTruck.id,
-                driver.currentTruck.samsaraId,
-                analysis,
-                item.messageContent
-            );
-            breakdownId = breakdown.id;
-
-            // Assign team member to the case if specified
+            // Assign team member if specified
             if (assignedToUserId && breakdownId) {
                 try {
                     await prisma.breakdownAssignment.create({
-                        data: {
-                            breakdownId,
-                            userId: assignedToUserId,
-                            role: assignmentRole || 'Support',
-                            assignedBy: userId,
-                        },
+                        data: { breakdownId, userId: assignedToUserId, role: assignmentRole || 'Support', assignedBy: userId },
                     });
                 } catch (assignErr) {
                     console.warn('[API] Failed to create case assignment:', assignErr);

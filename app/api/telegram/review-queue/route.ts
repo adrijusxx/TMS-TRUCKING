@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        const [rawItems, total, counts] = await Promise.all([
+        const [rawItems, total, counts, ignoredCount] = await Promise.all([
             pageSize > 0
                 ? prisma.telegramReviewItem.findMany({
                     where,
@@ -72,6 +72,12 @@ export async function GET(request: NextRequest) {
                             include: {
                                 user: { select: { firstName: true, lastName: true, phone: true } },
                                 currentTruck: { select: { id: true, truckNumber: true, samsaraId: true, currentLocation: true } },
+                            },
+                        },
+                        suggestedDriver: {
+                            include: {
+                                user: { select: { firstName: true, lastName: true, phone: true } },
+                                currentTruck: { select: { id: true, truckNumber: true } },
                             },
                         },
                         breakdown: { select: { id: true, breakdownNumber: true, status: true } },
@@ -88,6 +94,7 @@ export async function GET(request: NextRequest) {
                 where: { companyId },
                 _count: true,
             }),
+            prisma.telegramIgnoredContact.count({ where: { companyId } }),
         ]);
 
         // Enrich items missing chatTitle/senderName from TelegramDriverMapping
@@ -116,7 +123,7 @@ export async function GET(request: NextRequest) {
         });
 
         // Aggregate counts
-        const countMap = { pending: 0, approved: 0, dismissed: 0, caseApproval: 0, driverLinkNeeded: 0 };
+        const countMap = { pending: 0, approved: 0, dismissed: 0, ignored: ignoredCount, caseApproval: 0, driverLinkNeeded: 0 };
         for (const g of counts) {
             if (g.status === 'PENDING') countMap.pending += g._count;
             if (g.status === 'APPROVED') countMap.approved += g._count;
