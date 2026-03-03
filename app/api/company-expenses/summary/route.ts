@@ -86,18 +86,14 @@ export async function GET(request: NextRequest) {
         orderBy: { _sum: { amount: 'desc' } },
         take: 10,
       }),
-      // Last 6 months trend
-      prisma.$queryRaw<Array<{ month: string; total: number }>>`
-        SELECT
-          TO_CHAR(date, 'YYYY-MM') as month,
-          SUM(amount) as total
-        FROM "CompanyExpense"
-        WHERE "companyId" = ${companyId}
-          AND "deletedAt" IS NULL
-          AND date >= ${new Date(now.getFullYear(), now.getMonth() - 5, 1)}
-        GROUP BY TO_CHAR(date, 'YYYY-MM')
-        ORDER BY month ASC
-      `,
+      // Last 6 months trend (uses baseWhere for MC filtering)
+      prisma.companyExpense.findMany({
+        where: {
+          ...baseWhere,
+          date: { gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) },
+        },
+        select: { date: true, amount: true },
+      }),
     ]);
 
     // Enrich expense types with names
@@ -141,10 +137,15 @@ export async function GET(request: NextRequest) {
             : null,
           total: i._sum.amount ?? 0,
         })),
-        monthlyTrend: monthlyTrend.map((m) => ({
-          month: m.month,
-          total: Number(m.total),
-        })),
+        monthlyTrend: Object.entries(
+          monthlyTrend.reduce<Record<string, number>>((acc, row) => {
+            const key = `${row.date.getFullYear()}-${String(row.date.getMonth() + 1).padStart(2, '0')}`;
+            acc[key] = (acc[key] ?? 0) + row.amount;
+            return acc;
+          }, {}),
+        )
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([month, total]) => ({ month, total })),
       },
     });
   } catch (error) {

@@ -41,7 +41,8 @@ export function ExpenseReceiptCell({ id, source, receiptUrl }: ExpenseReceiptCel
       if (!patchRes.ok) throw new Error('Failed to save receipt link');
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['company-expenses-feed'] });
+      qc.invalidateQueries({ queryKey: ['company-expenses'] });
+      qc.invalidateQueries({ queryKey: ['company-expenses-summary'] });
       toast.success('Receipt uploaded');
     },
     onError: (err: any) => toast.error(err.message),

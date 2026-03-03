@@ -121,6 +121,22 @@ jobs:
 
             echo "=== Deploying release: ${RELEASE_TAG} ==="
 
+            # Disk cleanup FIRST — remove failed/old releases before doing anything
+            echo "Freeing disk space..."
+            mkdir -p "${RELEASES_DIR}"
+            CURRENT_RELEASE=$(readlink "${CURRENT_LINK}" 2>/dev/null | xargs basename 2>/dev/null || echo "")
+            for dir in "${RELEASES_DIR}"/*/; do
+                dir_name=$(basename "$dir")
+                if [ "$dir_name" != "$CURRENT_RELEASE" ] && [ "$dir_name" != "${RELEASE_TAG}" ]; then
+                    echo "Removing old release: $dir_name"
+                    rm -rf "$dir"
+                fi
+            done
+            rm -rf /home/ec2-user/.npm/_cacache 2>/dev/null || true
+            npm cache clean --force 2>/dev/null || true
+            echo "Disk usage after cleanup:"
+            df -h /home/ec2-user | tail -1
+
             # Create directories
             mkdir -p "${RELEASES_DIR}" "${SHARED_DIR}" "${RELEASE_DIR}"
 
@@ -167,8 +183,10 @@ jobs:
                 grep -qF "$PARAM" /etc/sysctl.conf || echo "$PARAM" | sudo tee -a /etc/sysctl.conf
             done
 
-            echo "Installing dependencies..."
-            npm install --legacy-peer-deps
+            # Install only what we need: prisma (for migrations) + @prisma/client
+            # The standalone build already bundles all runtime dependencies
+            echo "Installing Prisma for migrations..."
+            npm install prisma @prisma/client @prisma/adapter-pg --legacy-peer-deps --no-package-lock
 
             echo "Generating Prisma Client..."
             npx prisma generate
@@ -186,11 +204,6 @@ jobs:
             pm2 delete tms tms-keepalive 2>/dev/null || true
             pm2 start ecosystem.config.js
             pm2 save
-
-            # Cleanup: keep only the last N releases
-            echo "Cleaning up old releases..."
-            cd "${RELEASES_DIR}"
-            ls -dt */ | tail -n +$((MAX_RELEASES + 1)) | xargs rm -rf 2>/dev/null || true
 
             # Cleanup archive
             rm -f /home/ec2-user/tms/deploy.tar.gz

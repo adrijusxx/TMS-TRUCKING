@@ -63,6 +63,16 @@ export async function GET(request: NextRequest) {
     const mcWhere = await buildMcNumberWhereClause(session, request);
     const companyId = session.user.companyId;
 
+    // Extract MC number filter for models that have their own mcNumberId (Payment)
+    // or for nested relations (LoadExpense -> Load)
+    // mcWhere is either { companyId } or { companyId, OR: [{ mcNumberId: { in: [...] } }, { mcNumberId: null }] }
+    const mcNumberIdFilter: any = {};
+    if ((mcWhere as any).OR) {
+      mcNumberIdFilter.OR = (mcWhere as any).OR;
+    } else if ((mcWhere as any).mcNumberId) {
+      mcNumberIdFilter.mcNumberId = (mcWhere as any).mcNumberId;
+    }
+
     const dateFilter = (dateFrom || dateTo)
       ? {
           ...(dateFrom && { gte: new Date(dateFrom) }),
@@ -112,12 +122,13 @@ export async function GET(request: NextRequest) {
               ...(instrumentId && { paymentInstrumentId: instrumentId }),
               ...(dateFilter && { paymentDate: dateFilter }),
               ...(hasReceiptFilter !== undefined && { hasReceipt: hasReceiptFilter }),
-              ...(search && {
-                OR: [
-                  { paymentNumber: { contains: search, mode: 'insensitive' } },
-                  { notes: { contains: search, mode: 'insensitive' } },
-                ],
-              }),
+              AND: [
+                ...(mcNumberIdFilter.OR ? [{ OR: mcNumberIdFilter.OR }] : mcNumberIdFilter.mcNumberId ? [{ mcNumberId: mcNumberIdFilter.mcNumberId }] : []),
+                ...(search ? [{ OR: [
+                  { paymentNumber: { contains: search, mode: 'insensitive' as const } },
+                  { notes: { contains: search, mode: 'insensitive' as const } },
+                ] }] : []),
+              ],
             },
             include: {
               paymentInstrument: { select: { id: true, name: true, color: true, lastFour: true } },
@@ -133,7 +144,7 @@ export async function GET(request: NextRequest) {
       sources.includes('LOAD_EXPENSE')
         ? prisma.loadExpense.findMany({
             where: {
-              load: { companyId, deletedAt: null },
+              load: { companyId, deletedAt: null, ...mcNumberIdFilter },
               ...(instrumentId && { paymentInstrumentId: instrumentId }),
               ...(approvalStatus && { approvalStatus: approvalStatus as any }),
               ...(dateFilter && { date: dateFilter }),
