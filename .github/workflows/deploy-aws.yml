@@ -183,13 +183,24 @@ jobs:
                 grep -qF "$PARAM" /etc/sysctl.conf || echo "$PARAM" | sudo tee -a /etc/sysctl.conf
             done
 
-            # Install only what we need: prisma (for migrations) + @prisma/client
-            # The standalone build already bundles all runtime dependencies
-            echo "Installing Prisma for migrations..."
-            npm install prisma @prisma/client @prisma/adapter-pg --legacy-peer-deps --no-package-lock
+            # Install ONLY what's needed on the server:
+            # - prisma CLI + client: for migrations and client generation
+            # - @aws-sdk/client-secrets-manager: used by run-migration-with-secrets.js
+            # The standalone Next.js build already bundles all other runtime dependencies
+            #
+            # We install into a temp package to avoid the project's lockfile pulling
+            # in all 1100+ deps. Then move node_modules into the release dir.
+            echo "Installing minimal dependencies for migrations..."
+            TEMP_INSTALL=$(mktemp -d)
+            cd "${TEMP_INSTALL}"
+            npm init -y --silent >/dev/null 2>&1
+            npm install prisma@6.19.1 @prisma/client@6.19.1 @aws-sdk/client-secrets-manager --ignore-scripts 2>&1 | tail -3
+            mv node_modules "${RELEASE_DIR}/node_modules"
+            cd "${RELEASE_DIR}"
+            rm -rf "${TEMP_INSTALL}"
 
             echo "Generating Prisma Client..."
-            npx prisma generate
+            npx prisma generate --no-hints
 
             echo "Running database migrations..."
             node scripts/run-migration-with-secrets.js || echo "Migration skipped or failed"
