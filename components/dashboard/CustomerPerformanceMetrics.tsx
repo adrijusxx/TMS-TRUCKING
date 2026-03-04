@@ -56,7 +56,7 @@ export default function CustomerPerformanceMetrics() {
             </CardTitle>
             <CardDescription>Top customers and revenue metrics</CardDescription>
           </div>
-          <Link href="/dashboard/customers">
+          <Link href="/dashboard/customers" prefetch={false}>
             <Button variant="ghost" size="sm">
               View All
             </Button>

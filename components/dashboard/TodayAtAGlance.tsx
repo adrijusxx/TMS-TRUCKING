@@ -35,6 +35,7 @@ function Tile({ href, icon: Icon, value, label, sub, urgency = 'ok' }: TileProps
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`flex items-center gap-4 rounded-lg border p-4 transition-colors ${colors[urgency]}`}
     >
       <div className={`rounded-md p-2 bg-muted ${iconColors[urgency]}`}>

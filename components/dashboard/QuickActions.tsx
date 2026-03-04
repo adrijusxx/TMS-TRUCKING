@@ -102,7 +102,7 @@ export default function QuickActions() {
             {visibleActions.map((action) => {
               const Icon = action.icon;
               return (
-                <Link key={action.href} href={action.href}>
+                <Link key={action.href} href={action.href} prefetch={false}>
                   <Button
                     variant="outline"
                     className="w-full justify-start h-auto p-4"

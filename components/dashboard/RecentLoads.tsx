@@ -71,7 +71,7 @@ export default function RecentLoads() {
             </CardTitle>
             <CardDescription>Latest load activity</CardDescription>
           </div>
-          <Link href="/dashboard/loads">
+          <Link href="/dashboard/loads" prefetch={false}>
             <Button variant="ghost" size="sm">
               View All
             </Button>
@@ -89,6 +89,7 @@ export default function RecentLoads() {
               <Link
                 key={load.id}
                 href={`/dashboard/loads/${load.id}`}
+                prefetch={false}
                 className="block p-3 border rounded-lg hover:bg-muted transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">

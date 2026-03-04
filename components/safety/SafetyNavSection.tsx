@@ -126,6 +126,7 @@ export default function SafetyNavSection({
                 <TooltipTrigger asChild>
                   <Link
                     href={item.href}
+                    prefetch={false}
                     className={cn(
                       'flex items-center',
                       NAV_SPACING.iconText,

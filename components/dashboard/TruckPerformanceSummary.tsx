@@ -61,7 +61,7 @@ export default function TruckPerformanceSummary() {
             </CardTitle>
             <CardDescription>Truck status and utilization</CardDescription>
           </div>
-          <Link href="/dashboard/trucks">
+          <Link href="/dashboard/trucks" prefetch={false}>
             <Button variant="ghost" size="sm">
               View All
             </Button>

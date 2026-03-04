@@ -62,7 +62,7 @@ export default function DriverPerformanceSummary() {
             </CardTitle>
             <CardDescription>Driver status and top performers</CardDescription>
           </div>
-          <Link href="/dashboard/drivers">
+          <Link href="/dashboard/drivers" prefetch={false}>
             <Button variant="ghost" size="sm">
               View All
             </Button>

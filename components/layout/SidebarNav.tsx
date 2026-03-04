@@ -172,6 +172,7 @@ export default function SidebarNav({ collapsed, onItemClick }: SidebarNavProps) 
       <Link
         key={item.name}
         href={settingsUrl}
+        prefetch={false}
         className={cn(
           'flex items-center rounded-lg text-sm font-medium transition-colors',
           collapsed ? 'justify-center px-2 py-2' : 'space-x-3 px-3 py-2',

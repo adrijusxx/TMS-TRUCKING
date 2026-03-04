@@ -70,7 +70,7 @@ export default function AnalyticsNavigationCards() {
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {hubItems.map((item) => (
-                <Link key={item.href} href={item.href} className="block group">
+                <Link key={item.href} href={item.href} prefetch={false} className="block group">
                     <Card className="h-full transition-all hover:shadow-md border-muted/60 hover:border-primary/20">
                         <CardHeader className="flex flex-row items-start space-y-0 pb-2">
                             <div className={cn("p-2 rounded-lg mr-3", item.bg)}>

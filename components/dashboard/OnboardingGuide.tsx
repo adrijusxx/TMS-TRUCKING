@@ -129,7 +129,7 @@ export default function OnboardingGuide() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Link href="/dashboard/onboarding">
+            <Link href="/dashboard/onboarding" prefetch={false}>
               <Button variant="outline" size="sm" className="gap-1.5 text-xs">
                 <BookOpen className="h-3.5 w-3.5" />
                 Full Setup Guide

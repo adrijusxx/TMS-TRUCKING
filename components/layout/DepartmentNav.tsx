@@ -50,6 +50,7 @@ export function DepartmentNav({ items, basePath }: DepartmentNavProps) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 whitespace-nowrap',
               isActive
@@ -127,6 +128,7 @@ function DropdownNavItem({
               <Link
                 key={child.href}
                 href={child.href}
+                prefetch={false}
                 onClick={() => setOpen(false)}
                 className={cn(
                   'block px-3 py-2 text-sm transition-colors',

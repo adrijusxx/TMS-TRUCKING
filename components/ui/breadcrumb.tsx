@@ -25,6 +25,7 @@ const Breadcrumb = React.forwardRef<
     >
       <Link
         href="/dashboard"
+        prefetch={false}
         className="hover:text-foreground transition-colors"
         aria-label="Home"
       >
@@ -36,6 +37,7 @@ const Breadcrumb = React.forwardRef<
           {item.href && index < items.length - 1 ? (
             <Link
               href={item.href}
+              prefetch={false}
               className="hover:text-foreground transition-colors"
             >
               {item.label}
