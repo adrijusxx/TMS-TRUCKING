@@ -40,8 +40,8 @@ module.exports = {
       script: 'scripts/start-with-secrets.js',
       // args: 'scripts/start-app-with-secrets.sh', // Deprecated shell script
       cwd: process.cwd(), // Use current directory
-      instances: 2,
-      exec_mode: 'cluster',
+      instances: 1,
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
