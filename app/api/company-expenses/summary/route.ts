@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
     }
 
     const mcWhere = await buildMcNumberWhereClause(session, request);
-    const companyId = session.user.companyId;
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -29,7 +28,14 @@ export async function GET(request: NextRequest) {
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-    const baseWhere = { deletedAt: null, ...mcWhere };
+    // Build baseWhere correctly: put MC OR clause in AND to avoid conflicts
+    const mcOrClause = (mcWhere as any).OR;
+    const baseWhere: any = {
+      deletedAt: null,
+      companyId: mcWhere.companyId,
+      ...(mcWhere.mcNumberId && { mcNumberId: mcWhere.mcNumberId }),
+      ...(mcOrClause && { AND: [{ OR: mcOrClause }] }),
+    };
 
     const [
       totalThisMonth,

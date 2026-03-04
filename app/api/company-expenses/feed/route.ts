@@ -63,15 +63,9 @@ export async function GET(request: NextRequest) {
     const mcWhere = await buildMcNumberWhereClause(session, request);
     const companyId = session.user.companyId;
 
-    // Extract MC number filter for models that have their own mcNumberId (Payment)
-    // or for nested relations (LoadExpense -> Load)
-    // mcWhere is either { companyId } or { companyId, OR: [{ mcNumberId: { in: [...] } }, { mcNumberId: null }] }
-    const mcNumberIdFilter: any = {};
-    if ((mcWhere as any).OR) {
-      mcNumberIdFilter.OR = (mcWhere as any).OR;
-    } else if ((mcWhere as any).mcNumberId) {
-      mcNumberIdFilter.mcNumberId = (mcWhere as any).mcNumberId;
-    }
+    // Extract MC OR clause for use in AND conditions (avoids OR key conflicts)
+    const mcOrClause: any[] | null = (mcWhere as any).OR || null;
+    const mcNumberIdDirect: any = (mcWhere as any).mcNumberId || null;
 
     const dateFilter = (dateFrom || dateTo)
       ? {
@@ -84,24 +78,50 @@ export async function GET(request: NextRequest) {
       ? ([source] as FeedSource[])
       : ['COMPANY_EXPENSE', 'BREAKDOWN_PAYMENT', 'LOAD_EXPENSE'];
 
+    // Build AND conditions for CompanyExpense (MC filter OR + search OR must not conflict)
+    const ceAndConditions: any[] = [];
+    if (mcOrClause) ceAndConditions.push({ OR: mcOrClause });
+    if (search) {
+      ceAndConditions.push({
+        OR: [
+          { description: { contains: search, mode: 'insensitive' } },
+          { expenseNumber: { contains: search, mode: 'insensitive' } },
+          { vendorName: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    // Build AND conditions for Payment (breakdown)
+    const paymentAndConditions: any[] = [];
+    if (mcOrClause) paymentAndConditions.push({ OR: mcOrClause });
+    else if (mcNumberIdDirect) paymentAndConditions.push({ mcNumberId: mcNumberIdDirect });
+    if (search) {
+      paymentAndConditions.push({
+        OR: [
+          { paymentNumber: { contains: search, mode: 'insensitive' as const } },
+          { notes: { contains: search, mode: 'insensitive' as const } },
+        ],
+      });
+    }
+
+    // Build load MC filter for LoadExpense (nested via load relation)
+    const loadMcFilter: any = {};
+    if (mcOrClause) loadMcFilter.OR = mcOrClause;
+    else if (mcNumberIdDirect) loadMcFilter.mcNumberId = mcNumberIdDirect;
+
     const [companyExpenses, breakdownPayments, loadExpenses] = await Promise.all([
       sources.includes('COMPANY_EXPENSE')
         ? prisma.companyExpense.findMany({
             where: {
               deletedAt: null,
-              ...mcWhere,
+              companyId: mcWhere.companyId,
+              ...(mcNumberIdDirect && { mcNumberId: mcNumberIdDirect }),
               ...(department && { department: department as any }),
               ...(instrumentId && { paymentInstrumentId: instrumentId }),
               ...(approvalStatus && { approvalStatus: approvalStatus as any }),
               ...(dateFilter && { date: dateFilter }),
               ...(hasReceiptFilter !== undefined && { hasReceipt: hasReceiptFilter }),
-              ...(search && {
-                OR: [
-                  { description: { contains: search, mode: 'insensitive' } },
-                  { expenseNumber: { contains: search, mode: 'insensitive' } },
-                  { vendorName: { contains: search, mode: 'insensitive' } },
-                ],
-              }),
+              ...(ceAndConditions.length > 0 && { AND: ceAndConditions }),
             },
             include: {
               expenseType: { select: { name: true, color: true } },
@@ -122,13 +142,7 @@ export async function GET(request: NextRequest) {
               ...(instrumentId && { paymentInstrumentId: instrumentId }),
               ...(dateFilter && { paymentDate: dateFilter }),
               ...(hasReceiptFilter !== undefined && { hasReceipt: hasReceiptFilter }),
-              AND: [
-                ...(mcNumberIdFilter.OR ? [{ OR: mcNumberIdFilter.OR }] : mcNumberIdFilter.mcNumberId ? [{ mcNumberId: mcNumberIdFilter.mcNumberId }] : []),
-                ...(search ? [{ OR: [
-                  { paymentNumber: { contains: search, mode: 'insensitive' as const } },
-                  { notes: { contains: search, mode: 'insensitive' as const } },
-                ] }] : []),
-              ],
+              ...(paymentAndConditions.length > 0 && { AND: paymentAndConditions }),
             },
             include: {
               paymentInstrument: { select: { id: true, name: true, color: true, lastFour: true } },
@@ -144,7 +158,7 @@ export async function GET(request: NextRequest) {
       sources.includes('LOAD_EXPENSE')
         ? prisma.loadExpense.findMany({
             where: {
-              load: { companyId, deletedAt: null, ...mcNumberIdFilter },
+              load: { companyId, deletedAt: null, ...loadMcFilter },
               ...(instrumentId && { paymentInstrumentId: instrumentId }),
               ...(approvalStatus && { approvalStatus: approvalStatus as any }),
               ...(dateFilter && { date: dateFilter }),

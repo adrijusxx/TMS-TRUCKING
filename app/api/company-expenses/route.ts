@@ -49,19 +49,31 @@ export async function GET(request: NextRequest) {
 
     const mcWhere = await buildMcNumberWhereClause(session, request);
 
-    const where: any = {
-      deletedAt: null,
-      ...mcWhere,
-    };
+    // Build AND array to avoid OR conflicts between MC filter and search
+    const andConditions: any[] = [];
+
+    // MC filter may contain an OR clause (mcNumberId IN [...] OR mcNumberId IS NULL)
+    if ((mcWhere as any).OR) {
+      andConditions.push({ OR: (mcWhere as any).OR });
+    }
 
     if (search) {
-      where.OR = [
-        { description: { contains: search, mode: 'insensitive' } },
-        { expenseNumber: { contains: search, mode: 'insensitive' } },
-        { vendorName: { contains: search, mode: 'insensitive' } },
-        { notes: { contains: search, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { description: { contains: search, mode: 'insensitive' } },
+          { expenseNumber: { contains: search, mode: 'insensitive' } },
+          { vendorName: { contains: search, mode: 'insensitive' } },
+          { notes: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
+
+    const where: any = {
+      deletedAt: null,
+      companyId: mcWhere.companyId,
+      ...(mcWhere.mcNumberId && { mcNumberId: mcWhere.mcNumberId }),
+      ...(andConditions.length > 0 && { AND: andConditions }),
+    };
     if (department) where.department = department;
     if (expenseTypeId) where.expenseTypeId = expenseTypeId;
     if (paymentInstrumentId) where.paymentInstrumentId = paymentInstrumentId;

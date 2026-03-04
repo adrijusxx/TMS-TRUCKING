@@ -30,31 +30,34 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'date',
       accessorKey: 'date',
       header: 'Date',
+      className: 'w-[100px] min-w-[90px]',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="text-xs">{format(new Date(row.original.date), 'MMM d, yyyy')}</span>
+        <span className="text-xs whitespace-nowrap">{format(new Date(row.original.date), 'MMM d, yyyy')}</span>
       ),
     },
     {
       id: 'expenseNumber',
       accessorKey: 'expenseNumber',
       header: 'Ref #',
+      className: 'w-[110px] min-w-[100px]',
       cell: ({ row }) => (
-        <span className="text-xs font-mono text-muted-foreground">{row.original.expenseNumber}</span>
+        <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">{row.original.expenseNumber}</span>
       ),
     },
     {
       id: 'description',
       accessorKey: 'description',
       header: 'Description',
+      className: 'w-full min-w-[180px]',
       enableSorting: true,
       cell: ({ row }) => (
-        <div className="max-w-[200px]">
+        <div className="min-w-0">
           <div className="truncate text-xs font-medium">{row.original.description}</div>
           {row.original.linkedReference && (
-            <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <ExternalLink className="h-2.5 w-2.5" />
-              {row.original.linkedReference}
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{row.original.linkedReference}</span>
             </div>
           )}
         </div>
@@ -64,16 +67,17 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'category',
       accessorKey: 'category',
       header: 'Category',
+      className: 'w-[120px] min-w-[100px]',
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="text-xs inline-flex items-center gap-1">
+        <span className="text-xs inline-flex items-center gap-1.5">
           {row.original.categoryColor && (
             <span
               className="h-2 w-2 rounded-full shrink-0 inline-block"
               style={{ backgroundColor: row.original.categoryColor }}
             />
           )}
-          <span className="truncate max-w-[100px]">{row.original.category}</span>
+          <span className="truncate">{row.original.category}</span>
         </span>
       ),
     },
@@ -81,6 +85,7 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'department',
       accessorKey: 'department',
       header: 'Department',
+      className: 'w-[110px] min-w-[90px]',
       enableSorting: true,
       filterType: 'select',
       filterOptions: [
@@ -94,13 +99,14 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
         { value: 'OTHER', label: 'Other' },
       ],
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">{row.original.department || '—'}</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">{row.original.department || '—'}</span>
       ),
     },
     {
       id: 'paymentInstrument',
       accessorKey: 'paymentInstrument',
       header: 'Card / Account',
+      className: 'w-[130px] min-w-[110px]',
       cell: ({ row }) =>
         row.original.paymentInstrument ? (
           <PaymentInstrumentBadge
@@ -116,8 +122,9 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'vendor',
       accessorKey: 'vendor',
       header: 'Vendor',
+      className: 'w-[120px] min-w-[80px]',
       cell: ({ row }) => (
-        <span className="text-xs truncate block max-w-[80px] text-muted-foreground">
+        <span className="text-xs truncate block text-muted-foreground">
           {row.original.vendor ?? '—'}
         </span>
       ),
@@ -126,6 +133,7 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'approvalStatus',
       accessorKey: 'approvalStatus',
       header: 'Status',
+      className: 'w-[90px] min-w-[80px]',
       filterType: 'select',
       filterOptions: [
         { value: 'PENDING', label: 'Pending' },
@@ -145,6 +153,7 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'source',
       accessorKey: 'source',
       header: 'Source',
+      className: 'w-[90px] min-w-[80px]',
       filterType: 'select',
       filterOptions: [
         { value: 'COMPANY_EXPENSE', label: 'Company Expenses' },
@@ -161,6 +170,7 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'receipt',
       accessorKey: 'receiptUrl',
       header: 'Receipt',
+      className: 'w-[80px] min-w-[70px]',
       cell: ({ row }) => (
         <ExpenseReceiptCell
           id={row.original.id}
@@ -173,11 +183,11 @@ export function createCompanyExpenseColumns(): ExtendedColumnDef<any>[] {
       id: 'amount',
       accessorKey: 'amount',
       header: 'Amount',
+      className: 'w-[100px] min-w-[80px] text-right',
       enableSorting: true,
-      className: 'text-right',
       aggregation: { type: 'sum', formatter: (v) => formatCurrency(v) },
       cell: ({ row }) => (
-        <span className="text-xs font-medium">{formatCurrency(row.original.amount)}</span>
+        <span className="text-xs font-medium tabular-nums">{formatCurrency(row.original.amount)}</span>
       ),
     },
   ];

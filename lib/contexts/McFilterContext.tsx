@@ -161,7 +161,7 @@ export function McFilterProvider({ children }: McFilterProviderProps) {
         if (mcOption.mcNumber) {
           document.cookie = `currentMcNumber=${encodeURIComponent(mcOption.mcNumber)}; path=/; max-age=${60 * 60 * 24 * 30}`;
         }
-        document.cookie = `mcViewMode=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        document.cookie = `mcViewMode=filtered; path=/; max-age=${60 * 60 * 24 * 30}`;
       }
     } else {
       document.cookie = `mcViewMode=all; path=/; max-age=${60 * 60 * 24 * 30}`;
