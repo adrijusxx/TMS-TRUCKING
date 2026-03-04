@@ -100,11 +100,11 @@ async function buildDatabaseUrl(rdsSecretJson) {
         const dbname = "tms_database";
         const encodedPassword = encodeURIComponent(secret.password);
         // Pool params tuned for single-instance PM2 fork mode on EC2:
-        // connection_limit=10 — enough headroom for concurrent requests + keepalive + heartbeat
-        // pool_timeout=10     — fail fast if all connections busy
-        // connect_timeout=3   — RDS is same-region, <5ms away
-        // socket_timeout=3    — detect zombie TCP connections in 3s (not 30-60s OS default)
-        return `postgresql://${secret.username}:${encodedPassword}@${endpoint}:${port}/${dbname}?sslmode=require&connection_limit=10&pool_timeout=10&connect_timeout=3&socket_timeout=3`;
+        // connection_limit=25 — headroom for concurrent RSC requests + Inngest cron jobs + keepalive
+        // pool_timeout=20     — wait for a free connection before failing (cron jobs can hold connections)
+        // connect_timeout=5   — RDS is same-region, <5ms away
+        // socket_timeout=5    — detect zombie TCP connections quickly (not 30-60s OS default)
+        return `postgresql://${secret.username}:${encodedPassword}@${endpoint}:${port}/${dbname}?sslmode=require&connection_limit=25&pool_timeout=20&connect_timeout=5&socket_timeout=5`;
     } catch (e) {
         console.error("[Startup] Failed to parse RDS secret JSON", e);
         throw e;

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 
@@ -33,6 +32,7 @@ function checkActive(itemHref: string, pathname: string | null, fullPath: string
 
 export function DepartmentNav({ items, basePath }: DepartmentNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
   const fullPath = `${pathname}${search ? `?${search}` : ''}`;
@@ -47,16 +47,19 @@ export function DepartmentNav({ items, basePath }: DepartmentNavProps) {
         const isActive = checkActive(item.href, pathname, fullPath, basePath);
 
         return (
-          <Link
+          <a
             key={item.href}
             href={item.href}
-            prefetch={false}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 whitespace-nowrap',
               isActive
                 ? 'bg-primary/10 text-primary shadow-xs'
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             )}
+            onClick={(e) => {
+              e.preventDefault();
+              router.push(item.href);
+            }}
           >
             <item.icon className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{item.name}</span>
@@ -65,7 +68,7 @@ export function DepartmentNav({ items, basePath }: DepartmentNavProps) {
                 {item.badge}
               </span>
             )}
-          </Link>
+          </a>
         );
       })}
     </nav>
@@ -83,6 +86,7 @@ function DropdownNavItem({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const isActive =
     fullPath === item.href ||
@@ -125,20 +129,23 @@ function DropdownNavItem({
           {item.children!.map((child) => {
             const childActive = fullPath === child.href || pathname === child.href || pathname?.startsWith(child.href + '/');
             return (
-              <Link
+              <a
                 key={child.href}
                 href={child.href}
-                prefetch={false}
-                onClick={() => setOpen(false)}
                 className={cn(
                   'block px-3 py-2 text-sm transition-colors',
                   childActive
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 )}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setOpen(false);
+                  router.push(child.href);
+                }}
               >
                 {child.name}
-              </Link>
+              </a>
             );
           })}
         </div>

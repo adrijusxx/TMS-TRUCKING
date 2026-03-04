@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
@@ -126,6 +125,7 @@ interface SidebarNavProps {
 
 export default function SidebarNav({ collapsed, onItemClick }: SidebarNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { can, isAdmin } = usePermissions();
   const { data: session } = useSession();
   const role = session?.user?.role || 'CUSTOMER';
@@ -169,20 +169,23 @@ export default function SidebarNav({ collapsed, onItemClick }: SidebarNavProps) 
       : 'text-muted-foreground hover:bg-accent/10 hover:text-foreground';
 
     const navLink = (
-      <Link
+      <a
         key={item.name}
         href={settingsUrl}
-        prefetch={false}
         className={cn(
           'flex items-center rounded-lg text-sm font-medium transition-colors',
           collapsed ? 'justify-center px-2 py-2' : 'space-x-3 px-3 py-2',
           isActive ? activeStyles : hoverStyles
         )}
-        onClick={onItemClick}
+        onClick={(e) => {
+          e.preventDefault();
+          onItemClick?.();
+          router.push(settingsUrl);
+        }}
       >
         <item.icon className="h-4 w-4 flex-shrink-0" />
         {!collapsed && <span>{item.name}</span>}
-      </Link>
+      </a>
     );
 
     if (collapsed) {
