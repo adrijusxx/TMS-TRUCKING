@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
                 });
                 const settledLoadIds = new Set(existingSettlements.flatMap(s => s.loadIds));
 
-                // Find eligible loads — same criteria as Orchestrator and draft-batch
+                // Find eligible loads — filtered by batch period delivery date
                 const eligibleLoads = await prisma.load.findMany({
                     where: {
                         driverId: driver.id,
@@ -113,6 +113,14 @@ export async function POST(request: NextRequest) {
                         OR: [
                             { readyForSettlement: true },
                             { status: { in: ['INVOICED', 'PAID'] } },
+                        ],
+                        AND: [
+                            {
+                                OR: [
+                                    { deliveredAt: { gte: periodStart, lte: periodEnd } },
+                                    { deliveredAt: null, deliveryDate: { gte: periodStart, lte: periodEnd } },
+                                ],
+                            },
                         ],
                     },
                     select: { id: true },
