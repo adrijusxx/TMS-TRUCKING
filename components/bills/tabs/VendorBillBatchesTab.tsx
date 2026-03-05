@@ -247,7 +247,10 @@ export default function VendorBillBatchesTab() {
                       {batch.postStatus === 'POSTED' && (
                         <DropdownMenuItem onClick={() => handleStatusChange(batch.id, 'PAID')}>Mark as Paid</DropdownMenuItem>
                       )}
-                      {batch.postStatus === 'UNPOSTED' && (
+                      {batch.postStatus !== 'UNPOSTED' && can('batches.reopen') && (
+                        <DropdownMenuItem onClick={() => handleStatusChange(batch.id, 'UNPOSTED')}>Reopen</DropdownMenuItem>
+                      )}
+                      {(batch.postStatus === 'UNPOSTED' || can('batches.delete_posted')) && (
                         <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(batch.id)}>Delete</DropdownMenuItem>
                       )}
                     </DropdownMenuContent>

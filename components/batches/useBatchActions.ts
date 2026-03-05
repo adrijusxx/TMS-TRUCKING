@@ -54,12 +54,18 @@ export function useBatchActions(batchId: string, batch: any) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ postStatus }),
       });
-      if (!response.ok) throw new Error('Failed to update status');
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error?.message || 'Failed to update status');
+      }
       return response.json();
     },
     onSuccess: () => {
       invalidateBatch();
       toast.success('Status updated');
+    },
+    onError: (error) => {
+      toast.error(error.message);
     },
   });
 

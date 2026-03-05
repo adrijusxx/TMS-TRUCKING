@@ -17,9 +17,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { apiUrl, formatCurrency } from '@/lib/utils';
+import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Loader2, Trash2, Download, ChevronDown, Send, DollarSign,
+  ArrowLeft, Loader2, Trash2, Download, ChevronDown, Send, DollarSign, RefreshCw,
 } from 'lucide-react';
 
 interface VendorBillBatchDetailProps {
@@ -87,6 +88,7 @@ function billStatusBadge(status: string) {
 export default function VendorBillBatchDetail({ batchId }: VendorBillBatchDetailProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const [statusFilter, setStatusFilter] = React.useState<string>('All');
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [editNotes, setEditNotes] = React.useState<string | null>(null);
@@ -146,6 +148,13 @@ export default function VendorBillBatchDetail({ batchId }: VendorBillBatchDetail
   const handleMarkPaid = () => {
     patchMutation.mutate({ postStatus: 'PAID' }, {
       onSuccess: () => toast.success('Batch marked as paid'),
+      onError: (err: Error) => toast.error(err.message),
+    });
+  };
+
+  const handleReopen = () => {
+    patchMutation.mutate({ postStatus: 'UNPOSTED' }, {
+      onSuccess: () => toast.success('Batch reopened'),
       onError: (err: Error) => toast.error(err.message),
     });
   };
@@ -242,7 +251,13 @@ export default function VendorBillBatchDetail({ batchId }: VendorBillBatchDetail
               Mark Paid
             </Button>
           )}
-          {data.postStatus === 'UNPOSTED' && (
+          {data.postStatus !== 'UNPOSTED' && can('batches.reopen') && (
+            <Button size="sm" variant="outline" onClick={handleReopen} disabled={patchMutation.isPending}>
+              {patchMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+              Reopen
+            </Button>
+          )}
+          {(data.postStatus === 'UNPOSTED' || can('batches.delete_posted')) && (
             <Button variant="destructive" size="sm" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
               {deleteMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
               Delete

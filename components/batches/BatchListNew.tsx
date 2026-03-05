@@ -165,13 +165,13 @@ export default function BatchListNew({ embedded }: BatchListNewProps = {}) {
 
   const rowActions = (row: BatchData) => (
     <div className="flex items-center gap-2">
-      {row.postStatus === 'UNPOSTED' && (
+      {(row.postStatus === 'UNPOSTED' || can('batches.delete_posted')) && (
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setDeleteBatchId(row.id)}
           className="text-destructive hover:text-destructive"
-          title="Delete batch"
+          title={row.postStatus !== 'UNPOSTED' ? 'Delete posted batch' : 'Delete batch'}
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -249,7 +249,6 @@ export default function BatchListNew({ embedded }: BatchListNewProps = {}) {
             <AlertDialogTitle>Delete Batch</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this batch? This action cannot be undone.
-              Only UNPOSTED batches can be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

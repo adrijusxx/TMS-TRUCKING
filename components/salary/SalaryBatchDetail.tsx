@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  ChevronLeft, Download, Loader2, CheckCircle, Trash2, Save, Send, FileText,
+  ChevronLeft, Download, Loader2, CheckCircle, Trash2, Save, Send, FileText, RefreshCw,
 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
@@ -77,6 +77,7 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
   const [editPayCompany, setEditPayCompany] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
   const [isPosting, setIsPosting] = React.useState(false);
+  const [isReopening, setIsReopening] = React.useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [isSending, setIsSending] = React.useState(false);
@@ -152,6 +153,24 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
       queryClient.invalidateQueries({ queryKey: ['salary-batch', batchId] });
     } catch (err: any) { toast.error(err.message); }
     finally { setIsPosting(false); }
+  };
+
+  const handleReopen = async () => {
+    setIsReopening(true);
+    try {
+      const res = await fetch(apiUrl(`/api/salary-batches/${batchId}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'OPEN' }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to reopen');
+      }
+      toast.success('Batch reopened — financial effects reversed');
+      queryClient.invalidateQueries({ queryKey: ['salary-batch', batchId] });
+    } catch (err: any) { toast.error(err.message); }
+    finally { setIsReopening(false); }
   };
 
   const handleDelete = async () => {
@@ -268,24 +287,36 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
                 {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
                 Send
               </Button>
-              <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Delete Batch?</DialogTitle>
-                    <DialogDescription>This will permanently delete the batch and all settlements. This cannot be undone.</DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
-                    <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-                      {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </>
+          )}
+          {batch.status === 'POSTED' && can('batches.reopen') && (
+            <Button size="sm" variant="outline" onClick={handleReopen} disabled={isReopening}>
+              {isReopening ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+              Reopen
+            </Button>
+          )}
+          {(batch.status === 'OPEN' || can('batches.delete_posted')) && (
+            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <DialogTrigger asChild>
+                <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Batch?</DialogTitle>
+                  <DialogDescription>
+                    {batch.status === 'POSTED'
+                      ? 'This batch is POSTED. Deleting it will reverse all financial effects (escrow, deduction rules) and remove all settlements. This cannot be undone.'
+                      : 'This will permanently delete the batch and all settlements. This cannot be undone.'}
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+                  <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
           <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isExporting}>
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}

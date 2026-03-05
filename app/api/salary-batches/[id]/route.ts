@@ -1,8 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permissions';
 import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
+
+/** Reverse all financial side effects of posting a salary batch */
+async function reverseSalaryBatchPosting(batchId: string) {
+    // Reverse escrow balance increments
+    const escrowDeductions = await prisma.settlementDeduction.findMany({
+        where: {
+            settlement: { salaryBatchId: batchId },
+            deductionType: 'ESCROW',
+            category: 'deduction',
+        },
+        include: { settlement: { select: { driverId: true } } },
+    });
+
+    if (escrowDeductions.length > 0) {
+        const driverEscrowMap = new Map<string, number>();
+        for (const item of escrowDeductions) {
+            const current = driverEscrowMap.get(item.settlement.driverId) || 0;
+            driverEscrowMap.set(item.settlement.driverId, current + item.amount);
+        }
+        for (const [driverId, amount] of driverEscrowMap) {
+            await prisma.driver.update({
+                where: { id: driverId },
+                data: { escrowBalance: { decrement: amount } },
+            });
+        }
+    }
+
+    // Reverse deduction rule currentAmount increments
+    const allDeductions = await prisma.settlementDeduction.findMany({
+        where: {
+            settlement: { salaryBatchId: batchId },
+            category: 'deduction',
+        },
+    });
+
+    for (const item of allDeductions) {
+        const meta = item.metadata as Record<string, any> | null;
+        if (meta?.deductionRuleId) {
+            await prisma.deductionRule.update({
+                where: { id: meta.deductionRuleId },
+                data: { currentAmount: { decrement: item.amount } },
+            });
+        }
+    }
+}
 
 export async function GET(
     request: NextRequest,
@@ -192,6 +238,37 @@ export async function PATCH(
             return NextResponse.json({ success: true, data: updatedBatch });
         }
 
+        // Reopen: POSTED → OPEN (requires batches.reopen permission)
+        if (body.status === 'OPEN') {
+            const role = session.user.role as string;
+            if (!hasPermission(role, 'batches.reopen')) {
+                return NextResponse.json({ error: 'You do not have permission to reopen posted batches' }, { status: 403 });
+            }
+
+            const currentBatch = await prisma.salaryBatch.findUnique({
+                where: { id: resolved.id, companyId: session.user.companyId },
+            });
+            if (!currentBatch) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+            if (currentBatch.status !== 'POSTED') return NextResponse.json({ error: 'Batch must be POSTED to reopen' }, { status: 400 });
+
+            // Reverse financial side effects of posting
+            await reverseSalaryBatchPosting(resolved.id);
+
+            // Reset batch and settlements
+            const [updatedBatch] = await prisma.$transaction([
+                prisma.salaryBatch.update({
+                    where: { id: resolved.id },
+                    data: { status: 'OPEN', postedAt: null },
+                }),
+                prisma.settlement.updateMany({
+                    where: { salaryBatchId: resolved.id },
+                    data: { status: 'PENDING', approvalStatus: 'PENDING' },
+                }),
+            ]);
+
+            return NextResponse.json({ success: true, data: updatedBatch });
+        }
+
         return NextResponse.json({ error: 'Invalid update action' }, { status: 400 });
 
     } catch (error) {
@@ -216,18 +293,23 @@ export async function DELETE(
             return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
         }
 
-        // Only OPEN batches can be deleted — no escrow rollback needed since
-        // escrow balance is only updated when batch is POSTED
         const batch = await prisma.salaryBatch.findUnique({
             where: { id: resolved.id, companyId: session.user.companyId },
         });
 
         if (!batch) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-        if (batch.status !== 'OPEN') return NextResponse.json({ error: 'Cannot delete a POSTED or ARCHIVED batch' }, { status: 400 });
 
-        // Cascade delete handled by logic or schema? 
-        // SettlementDeduction has onDelete: Cascade so it will be auto-deleted when Settlement is deleted.
-        // But we need to handle DriverAdvance reset manually.
+        // Posted/Archived batches require batches.delete_posted permission
+        if (batch.status !== 'OPEN') {
+            const role = session.user.role as string;
+            if (!hasPermission(role, 'batches.delete_posted')) {
+                return NextResponse.json({ error: 'You do not have permission to delete posted batches' }, { status: 403 });
+            }
+            // Reverse financial side effects before deleting
+            if (batch.status === 'POSTED') {
+                await reverseSalaryBatchPosting(resolved.id);
+            }
+        }
 
         // Step 1: Get all settlement IDs for this batch
         const settlements = await prisma.settlement.findMany({

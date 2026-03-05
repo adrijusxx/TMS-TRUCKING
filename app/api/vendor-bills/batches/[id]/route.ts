@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permissions';
 import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { VendorBillManager } from '@/lib/managers/VendorBillManager';
 import { handleApiError } from '@/lib/api/route-helpers';
@@ -71,6 +72,20 @@ export async function PATCH(
       return NextResponse.json({ success: true, data: batch });
     }
 
+    // Reopening (POSTED/PAID → UNPOSTED) requires batches.reopen permission
+    if (body.postStatus === 'UNPOSTED') {
+      const current = await prisma.vendorBillBatch.findFirst({
+        where: { id: resolved.id },
+        select: { postStatus: true },
+      });
+      if (current && current.postStatus !== 'UNPOSTED') {
+        const role = session.user.role as string;
+        if (!hasPermission(role, 'batches.reopen')) {
+          return NextResponse.json({ error: 'You do not have permission to reopen posted batches' }, { status: 403 });
+        }
+      }
+    }
+
     const updated = await prisma.vendorBillBatch.update({
       where: { id: resolved.id },
       data: {
@@ -109,7 +124,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
     }
     if (batch.postStatus !== 'UNPOSTED') {
-      return NextResponse.json({ error: 'Can only delete unposted batches' }, { status: 400 });
+      const role = session.user.role as string;
+      if (!hasPermission(role, 'batches.delete_posted')) {
+        return NextResponse.json({ error: 'You do not have permission to delete posted batches' }, { status: 403 });
+      }
     }
 
     // Unlink bills, then delete batch

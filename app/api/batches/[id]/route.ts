@@ -352,18 +352,20 @@ export async function DELETE(
       );
     }
 
-    // Only allow deletion of UNPOSTED batches
+    // Posted/Paid batches require batches.delete_posted permission
     if (batch.postStatus !== 'UNPOSTED') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'INVALID_STATUS',
-            message: 'Can only delete UNPOSTED batches',
+      if (!hasPermission(role, 'batches.delete_posted')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'You do not have permission to delete posted batches',
+            },
           },
-        },
-        { status: 400 }
-      );
+          { status: 403 }
+        );
+      }
     }
 
     await prisma.invoiceBatch.delete({

@@ -102,6 +102,8 @@ export type Permission =
   | 'batches.post'
   | 'batches.bulk_edit'
   | 'batches.bulk_delete'
+  | 'batches.delete_posted'
+  | 'batches.reopen'
   | 'deduction_rules.view'
   | 'deduction_rules.create'
   | 'deduction_rules.edit'
@@ -307,7 +309,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'documents.bulk_edit', 'documents.bulk_delete',
     'safety.view', 'safety.manage', 'compliance.view', 'compliance.manage',
     'batches.view', 'batches.create', 'batches.edit', 'batches.delete', 'batches.post',
-    'batches.bulk_edit', 'batches.bulk_delete',
+    'batches.bulk_edit', 'batches.bulk_delete', 'batches.delete_posted', 'batches.reopen',
     'deduction_rules.view', 'deduction_rules.create', 'deduction_rules.edit', 'deduction_rules.delete',
     'advances.view', 'advances.create', 'advances.approve', 'advances.delete',
     'maintenance.view', 'maintenance.create', 'maintenance.edit', 'maintenance.delete',
@@ -393,6 +395,7 @@ export const systemRoleDefaults: Record<string, Permission[]> = {
     'safety.view', 'safety.manage', 'compliance.view', 'compliance.manage',
     // Accounting & Batches
     'batches.view', 'batches.create', 'batches.edit', 'batches.delete', 'batches.post',
+    'batches.delete_posted', 'batches.reopen',
     'deduction_rules.view', 'deduction_rules.create', 'deduction_rules.edit', 'deduction_rules.delete',
     'advances.view', 'advances.create', 'advances.approve', 'advances.delete',
     // Fleet Operations
@@ -700,7 +703,7 @@ export function getAllPermissions(): Permission[] {
     'safety.view', 'safety.manage', 'compliance.view', 'compliance.manage',
     // Accounting & Batches
     'batches.view', 'batches.create', 'batches.edit', 'batches.delete', 'batches.post',
-    'batches.bulk_edit', 'batches.bulk_delete',
+    'batches.bulk_edit', 'batches.bulk_delete', 'batches.delete_posted', 'batches.reopen',
     'deduction_rules.view', 'deduction_rules.create', 'deduction_rules.edit', 'deduction_rules.delete',
     'advances.view', 'advances.create', 'advances.approve', 'advances.delete',
     // Fleet Operations

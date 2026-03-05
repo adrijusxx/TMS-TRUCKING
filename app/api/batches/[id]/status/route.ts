@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { hasPermission } from '@/lib/permissions';
 import { z } from 'zod';
 
 const changeStatusSchema = z.object({
@@ -40,6 +41,21 @@ export async function PATCH(
         },
         { status: 404 }
       );
+    }
+
+    // Reopening a posted/paid batch requires batches.reopen permission
+    const isReopening = batch.postStatus !== 'UNPOSTED' && validated.postStatus === 'UNPOSTED';
+    if (isReopening) {
+      const role = session.user.role as string;
+      if (!hasPermission(role, 'batches.reopen')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'You do not have permission to reopen posted batches' },
+          },
+          { status: 403 }
+        );
+      }
     }
 
     const updated = await prisma.invoiceBatch.update({
