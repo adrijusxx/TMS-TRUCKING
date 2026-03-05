@@ -92,7 +92,7 @@ export function createDOTInspectionColumns(
       header: 'Inspection #',
       cell: ({ row }) => (
         <Link
-          href={`/dashboard/trucks/${row.original.truck.id}/inspections/${row.original.id}`}
+          href={`/dashboard/trucks/${row.original.truck.truckNumber || row.original.truck.id}/inspections/${row.original.inspectionNumber || row.original.id}`}
           className="text-primary hover:underline font-medium"
         >
           {row.original.inspectionNumber}
@@ -120,7 +120,7 @@ export function createDOTInspectionColumns(
       header: 'Vehicle',
       cell: ({ row }) => (
         <Link
-          href={`/dashboard/trucks/${row.original.truck.id}`}
+          href={`/dashboard/trucks/${row.original.truck.truckNumber || row.original.truck.id}`}
           className="text-primary hover:underline"
         >
           {row.original.truck.truckNumber}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,7 @@ import {
   Sheet,
   Database,
   Phone,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface Integration {
@@ -29,9 +30,26 @@ interface Integration {
   status: 'active' | 'available' | 'coming-soon' | 'not-configured';
   category: 'communications' | 'gps' | 'finance' | 'data';
   features?: string[];
+  healthProvider?: string; // maps to health API provider name
 }
 
-const integrations: Integration[] = [
+interface HealthData {
+  provider: string;
+  status: 'connected' | 'degraded' | 'disconnected' | 'unconfigured';
+}
+
+// Map health API status to display status
+function mapHealthStatus(healthStatus: HealthData['status']): Integration['status'] {
+  switch (healthStatus) {
+    case 'connected': return 'active';
+    case 'degraded': return 'available'; // show as "available" with warning
+    case 'disconnected': return 'not-configured';
+    case 'unconfigured': return 'not-configured';
+    default: return 'not-configured';
+  }
+}
+
+const BASE_INTEGRATIONS: Integration[] = [
   // Communications
   {
     id: 'netsapiens',
@@ -55,8 +73,9 @@ const integrations: Integration[] = [
     description: 'AI-powered driver communication with automatic case creation and intelligent auto-responses',
     icon: MessageSquare,
     href: '/dashboard/settings/integrations/telegram',
-    status: 'available',
+    status: 'not-configured',
     category: 'communications',
+    healthProvider: 'TELEGRAM',
     features: [
       'AI-powered breakdown detection',
       'Automatic case creation',
@@ -75,6 +94,7 @@ const integrations: Integration[] = [
     href: '/dashboard/settings/integrations/samsara',
     status: 'not-configured',
     category: 'gps',
+    healthProvider: 'SAMSARA',
     features: [
       'Real-time GPS tracking',
       'ELD compliance',
@@ -89,8 +109,9 @@ const integrations: Integration[] = [
     description: 'Distance calculation, route planning, and traffic-aware routing',
     icon: Map,
     href: '/dashboard/settings/integrations/google-maps',
-    status: 'active',
+    status: 'not-configured',
     category: 'gps',
+    healthProvider: 'GOOGLE_MAPS',
     features: [
       'Automatic mileage calculation',
       'Multi-stop route planning',
@@ -108,6 +129,7 @@ const integrations: Integration[] = [
     href: '/dashboard/settings/integrations/quickbooks',
     status: 'not-configured',
     category: 'finance',
+    healthProvider: 'QUICKBOOKS',
     features: [
       'Invoice sync to QuickBooks',
       'Expense import',
@@ -159,6 +181,32 @@ const categoryInfo = {
 
 export default function IntegrationsSettings() {
   const [activeCategory, setActiveCategory] = useState<'all' | 'communications' | 'gps' | 'finance' | 'data'>('all');
+  const [integrations, setIntegrations] = useState<Integration[]>(BASE_INTEGRATIONS);
+
+  // Fetch real health status on mount
+  useEffect(() => {
+    async function fetchHealth() {
+      try {
+        const res = await fetch('/api/settings/integrations/health');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const healthByProvider: Record<string, HealthData> = {};
+          for (const h of data.data) {
+            healthByProvider[h.provider] = h;
+          }
+          setIntegrations(BASE_INTEGRATIONS.map(integration => {
+            if (!integration.healthProvider) return integration;
+            const health = healthByProvider[integration.healthProvider];
+            if (!health) return integration;
+            return { ...integration, status: mapHealthStatus(health.status) };
+          }));
+        }
+      } catch {
+        // Keep default statuses on error
+      }
+    }
+    fetchHealth();
+  }, []);
 
   const getStatusBadge = (status: Integration['status']) => {
     switch (status) {

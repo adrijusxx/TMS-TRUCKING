@@ -4,66 +4,75 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SettlementAuditLog } from './SettlementAuditLog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { apiUrl } from '@/lib/utils';
+import { apiUrl, formatCurrency } from '@/lib/utils';
 import { SettlementStatus } from '@prisma/client';
 import {
-  Loader2,
-  ArrowLeft,
-  XCircle,
-  Download,
-  Mail,
-  ChevronsUpDown,
-  RefreshCw,
+  Loader2, ArrowLeft, XCircle, ChevronLeft, ChevronRight,
+  Send, FileText, MoreVertical, Undo2, History, CheckCircle, Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { statusColors, formatStatus } from './settlement-detail/types';
+import { format } from 'date-fns';
 import {
-  fetchSettlement,
-  updateSettlement,
-  downloadSettlementPDF,
-  sendSettlementEmail,
-  fetchDeductions,
-  fetchAdditions,
+  fetchSettlement, updateSettlement, downloadSettlementPDF,
+  sendSettlementEmail, fetchDeductions, fetchAdditions,
 } from './settlement-detail/api';
-import SettlementBreakdown from './settlement-detail/SettlementBreakdown';
 import SettlementLoads from './settlement-detail/SettlementLoads';
 import SettlementTransactions from './settlement-detail/SettlementTransactions';
+import SettlementDriverBalances from './settlement-detail/SettlementDriverBalances';
+import DeductionTariffDialog from './settlement-detail/DeductionTariffDialog';
+import AddTripsDialog from './settlement-detail/AddTripsDialog';
 
 interface SettlementDetailProps {
   settlementId: string;
   onOpenDriver?: (driverId: string) => void;
+  batchSettlementIds?: string[];
+  onSettlementChange?: (id: string) => void;
 }
 
-export default function SettlementDetail({ settlementId, onOpenDriver }: SettlementDetailProps) {
+function formatPayTariff(driver: any): string {
+  if (!driver) return '-';
+  const rate = driver.payRate ?? 0;
+  switch (driver.payType) {
+    case 'PERCENTAGE': return `${rate}% from gross`;
+    case 'PER_MILE': return `$${rate.toFixed(2)} per mile`;
+    case 'PER_LOAD': return `$${rate.toFixed(2)} per load`;
+    case 'HOURLY': return `$${rate.toFixed(2)}/hr`;
+    default: return driver.payType || '-';
+  }
+}
+
+const DRIVER_TYPE_LABELS: Record<string, string> = {
+  COMPANY_DRIVER: 'Company driver',
+  OWNER_OPERATOR: 'Owner operator',
+  LEASE: 'Lease',
+};
+
+export default function SettlementDetail({
+  settlementId, onOpenDriver, batchSettlementIds, onSettlementChange,
+}: SettlementDetailProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SettlementStatus | ''>('');
   const [notes, setNotes] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
+  const [activeView, setActiveView] = useState<'details' | 'audit'>('details');
   const [editedGrossPay, setEditedGrossPay] = useState('');
   const [editedPeriodStart, setEditedPeriodStart] = useState('');
   const [editedPeriodEnd, setEditedPeriodEnd] = useState('');
+  const [addTripsOpen, setAddTripsOpen] = useState(false);
+  const [isModifyingLoads, setIsModifyingLoads] = useState(false);
 
   const { data, isLoading, error: settlementError } = useQuery({
     queryKey: ['settlement', settlementId],
@@ -99,43 +108,15 @@ export default function SettlementDetail({ settlementId, onOpenDriver }: Settlem
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => updateSettlement(settlementId, data),
+    mutationFn: (d: any) => updateSettlement(settlementId, d),
     onSuccess: () => {
-      toast.success('Settlement updated successfully');
+      toast.success('Settlement updated');
       queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
       setIsEditing(false);
-      setStatus('');
-      setNotes('');
-      setEditedGrossPay('');
-      setEditedPeriodStart('');
-      setEditedPeriodEnd('');
+      setStatus(''); setNotes(''); setEditedGrossPay('');
+      setEditedPeriodStart(''); setEditedPeriodEnd('');
     },
   });
-
-  const handleRecalculate = async () => {
-    if (!confirm('Are you sure you want to recalculate this settlement? This will reset all auto-generated deductions and update pay based on current load data. Manual edits to deductions may be lost.')) return;
-    setIsRecalculating(true);
-    try {
-      const response = await fetch(apiUrl(`/api/settlements/${settlementId}/recalculate`), { method: 'POST' });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to recalculate settlement');
-      }
-      const result = await response.json();
-      if (result.success) {
-        toast.success('Settlement recalculated successfully');
-        queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
-        queryClient.invalidateQueries({ queryKey: ['settlement-deductions', settlementId] });
-        queryClient.invalidateQueries({ queryKey: ['settlement-additions', settlementId] });
-        refetchDeductions();
-        refetchAdditions();
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to recalculate settlement');
-    } finally {
-      setIsRecalculating(false);
-    }
-  };
 
   const settlement = data?.data;
 
@@ -150,159 +131,302 @@ export default function SettlementDetail({ settlementId, onOpenDriver }: Settlem
 
   if (settlementError || !settlement || !settlement.driver) {
     const message = settlementError instanceof Error ? settlementError.message
-      : !settlement ? 'The settlement you are looking for does not exist or you do not have access to it.'
-      : 'This settlement is missing driver information. Please contact support.';
+      : !settlement ? 'Settlement not found or no access.' : 'Missing driver information.';
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <XCircle className="h-12 w-12 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold mb-2">
-          {settlementError ? 'Error Loading Settlement' : !settlement ? 'Settlement Not Found' : 'Driver Information Missing'}
-        </h2>
         <p className="text-muted-foreground mb-4">{message}</p>
-        <Link href="/dashboard/settlements">
-          <Button variant="outline"><ArrowLeft className="h-4 w-4 mr-2" />Back to Settlements</Button>
+        <Link href="/dashboard/accounting/salary?tab=statements">
+          <Button variant="outline"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button>
         </Link>
       </div>
     );
   }
 
+  const currentIdx = batchSettlementIds?.indexOf(settlementId) ?? -1;
+  const prevId = currentIdx > 0 ? batchSettlementIds![currentIdx - 1] : null;
+  const nextId = batchSettlementIds && currentIdx < batchSettlementIds.length - 1
+    ? batchSettlementIds[currentIdx + 1] : null;
+
+  const driver = settlement.driver;
+  const additionsTotal = additionsData?.data?.reduce(
+    (s: number, a: any) => s + a.amount * (a.quantity ?? 1), 0
+  ) || 0;
+  const fuelTollExpenses = settlement.deductionItems?.filter(
+    (d: any) => ['FUEL_ADVANCE', 'TOLLS', 'FUEL_CARD', 'FUEL_CARD_FEE'].includes(d.deductionType)
+  ).reduce((s: number, d: any) => s + d.amount * (d.quantity ?? 1), 0) || 0;
+
   const handleSave = () => {
-    const updateData: any = {};
-    if (status) updateData.status = status;
-    if (notes !== settlement.notes) updateData.notes = notes;
+    const d: any = {};
+    if (status) d.status = status;
+    if (notes !== settlement.notes) d.notes = notes;
     if (editedGrossPay && parseFloat(editedGrossPay) !== settlement.grossPay) {
-      updateData.grossPay = parseFloat(editedGrossPay);
+      d.grossPay = parseFloat(editedGrossPay);
     }
-    if (editedPeriodStart && editedPeriodStart !== new Date(settlement.periodStart).toISOString().split('T')[0]) {
-      updateData.periodStart = new Date(editedPeriodStart);
-    }
-    if (editedPeriodEnd && editedPeriodEnd !== new Date(settlement.periodEnd).toISOString().split('T')[0]) {
-      updateData.periodEnd = new Date(editedPeriodEnd);
-    }
-    updateMutation.mutate(updateData);
+    if (editedPeriodStart) d.periodStart = new Date(editedPeriodStart);
+    if (editedPeriodEnd) d.periodEnd = new Date(editedPeriodEnd);
+    updateMutation.mutate(d);
   };
 
-  const handleDownloadPDF = async (format?: string) => {
-    setIsDownloadingPDF(true);
-    try { await downloadSettlementPDF(settlementId, format); } finally { setIsDownloadingPDF(false); }
+  const handlePost = async () => {
+    setIsPosting(true);
+    try {
+      await updateSettlement(settlementId, { status: 'APPROVED' });
+      toast.success('Settlement posted');
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+    } catch { toast.error('Failed to post'); }
+    finally { setIsPosting(false); }
   };
 
-  const handleSendEmail = async () => {
+  const handleUndo = async () => {
+    try {
+      await updateSettlement(settlementId, { status: 'PENDING' });
+      toast.success('Status reverted to Pending');
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+    } catch { toast.error('Failed to undo'); }
+  };
+
+  const handleSendToDriver = async () => {
     setIsSendingEmail(true);
-    try { await sendSettlementEmail(settlementId); } finally { setIsSendingEmail(false); }
+    try { await sendSettlementEmail(settlementId); toast.success('Sent to driver'); }
+    catch { toast.error('Failed to send'); }
+    finally { setIsSendingEmail(false); }
   };
+
+  const handleDownloadPDF = async () => {
+    setIsDownloadingPDF(true);
+    try { await downloadSettlementPDF(settlementId); } finally { setIsDownloadingPDF(false); }
+  };
+
+  const handleAddTrips = async (loadIds: string[]) => {
+    setIsModifyingLoads(true);
+    try {
+      await updateSettlement(settlementId, { addLoadIds: loadIds });
+      toast.success(`Added ${loadIds.length} trip(s)`);
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+      setAddTripsOpen(false);
+    } catch { toast.error('Failed to add trips'); }
+    finally { setIsModifyingLoads(false); }
+  };
+
+  const handleDeleteLoads = async (loadIds: string[]) => {
+    setIsModifyingLoads(true);
+    try {
+      await updateSettlement(settlementId, { removeLoadIds: loadIds });
+      toast.success(`Removed ${loadIds.length} load(s)`);
+      queryClient.invalidateQueries({ queryKey: ['settlement', settlementId] });
+    } catch { toast.error('Failed to remove loads'); }
+    finally { setIsModifyingLoads(false); }
+  };
+
+  const periodStr = settlement.periodStart && settlement.periodEnd
+    ? `${format(new Date(settlement.periodStart), 'MM/dd')} - ${format(new Date(settlement.periodEnd), 'MM/dd')}`
+    : '-';
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/settlements">
-            <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+    <div className="space-y-4">
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1">
+          <Link href="/dashboard/accounting/salary?tab=statements">
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
           </Link>
-          <div><h1 className="text-3xl font-bold">{settlement.settlementNumber}</h1></div>
         </div>
-        <div className="flex items-center flex-wrap gap-2">
-          <Badge variant="outline" className={statusColors[settlement.status as SettlementStatus]}>
-            {formatStatus(settlement.status)}
-          </Badge>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" onClick={handleSendToDriver} disabled={isSendingEmail}
+            className="bg-blue-600 hover:bg-blue-700 text-white">
+            {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+            Send to driver
+          </Button>
+          <Button size="sm" onClick={handlePost}
+            disabled={isPosting || settlement.status === 'APPROVED'}
+            className="bg-green-600 hover:bg-green-700 text-white">
+            {isPosting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+            Post
+          </Button>
+          <DeductionTariffDialog deductionRules={driver?.deductionRules || []} driverId={driver?.id} />
+          <Button size="sm" variant="outline" onClick={handleDownloadPDF} disabled={isDownloadingPDF}>
+            {isDownloadingPDF ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
+            Export as PDF
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={isDownloadingPDF}>
-                {isDownloadingPDF ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Downloading...</>
-                ) : (
-                  <><Download className="mr-2 h-4 w-4" />Download PDF<ChevronsUpDown className="ml-2 h-3 w-3 opacity-50" /></>
-                )}
+              <Button variant="outline" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="z-[60]">
-              <DropdownMenuItem onClick={() => handleDownloadPDF()}>Formal (Office)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDownloadPDF('simple')}>Driver Friendly (Simple)</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleUndo}>
+                <Undo2 className="h-4 w-4 mr-2" />Undo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveView('audit')}>
+                <History className="h-4 w-4 mr-2" />History
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={handleSendEmail} disabled={isSendingEmail} variant="outline" size="sm">
-            {isSendingEmail ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</>
-            ) : (
-              <><Mail className="mr-2 h-4 w-4" />Email Statement</>
-            )}
-          </Button>
-          {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)} variant="outline">Edit</Button>
-          ) : (
-            <div className="flex gap-2">
-              <Button onClick={() => setIsEditing(false)} variant="outline">Cancel</Button>
-              <Button onClick={handleSave} disabled={updateMutation.isPending}>Save</Button>
-            </div>
-          )}
         </div>
       </div>
 
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="details">Settlement Details</TabsTrigger>
-          <TabsTrigger value="audit">Audit Log</TabsTrigger>
-        </TabsList>
-        <TabsContent value="details">
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            <SettlementBreakdown
-              settlement={settlement}
-              additionsData={additionsData}
-              isEditing={isEditing}
-              editedGrossPay={editedGrossPay}
-              editedPeriodStart={editedPeriodStart}
-              editedPeriodEnd={editedPeriodEnd}
-              onEditGrossPay={setEditedGrossPay}
-              onEditPeriodStart={setEditedPeriodStart}
-              onEditPeriodEnd={setEditedPeriodEnd}
-              onOpenDriver={onOpenDriver}
-            />
+      {/* Settlement Info Header — readable grid layout */}
+      <div className="border rounded-lg bg-muted/30 p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-6 gap-y-3 text-sm">
+          {/* Row 1: Identity info */}
+          <InfoCell label="Settlement">
+            <div className="flex items-center gap-1">
+              {prevId && (
+                <Button variant="ghost" size="icon" className="h-6 w-6"
+                  onClick={() => onSettlementChange?.(prevId)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <span className="font-semibold">{settlement.settlementNumber}</span>
+              {nextId && (
+                <Button variant="ghost" size="icon" className="h-6 w-6"
+                  onClick={() => onSettlementChange?.(nextId)}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          </InfoCell>
+          <InfoCell label="Driver">
+            <button className="text-primary hover:underline font-medium text-left"
+              onClick={() => onOpenDriver?.(driver.id)}>
+              {driver.user?.firstName} {driver.user?.lastName}
+            </button>
+          </InfoCell>
+          <InfoCell label="Period">{periodStr}</InfoCell>
+          <InfoCell label="Driver type">
+            {DRIVER_TYPE_LABELS[driver.driverType] || driver.driverType || '-'}
+          </InfoCell>
+          <InfoCell label="Payment tariff">{formatPayTariff(driver)}</InfoCell>
+          <InfoCell label="Trips count">{settlement.loads?.length || 0}</InfoCell>
+        </div>
 
-            <SettlementTransactions
-              settlementId={settlementId}
-              additionsData={additionsData}
-              deductionsData={deductionsData}
-              refetchDeductions={refetchDeductions}
-              refetchAdditions={refetchAdditions}
-            />
-
-            {/* Status Update */}
-            {isEditing && (
-              <Card className="md:col-span-2 lg:col-span-3">
-                <CardHeader><CardTitle>Update Settlement</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select value={status} onValueChange={(v) => setStatus(v as SettlementStatus)}>
-                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PENDING">Pending</SelectItem>
-                        <SelectItem value="APPROVED">Approved</SelectItem>
-                        <SelectItem value="PAID">Paid</SelectItem>
-                        <SelectItem value="DISPUTED">Disputed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Notes</Label>
-                    <Textarea id="notes" placeholder="Add notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-                  </div>
-                </CardContent>
-              </Card>
+        <div className="border-t mt-3 pt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-x-6 gap-y-3 text-sm">
+          <InfoCell label="Total Gross">
+            <span className="font-bold text-base">{formatCurrency(settlement.grossPay)}</span>
+          </InfoCell>
+          <InfoCell label="Deductions">
+            <span className="font-bold text-base text-red-500">({formatCurrency(settlement.deductions)})</span>
+          </InfoCell>
+          <InfoCell label="Earnings">
+            <span className="font-bold text-base">{formatCurrency(settlement.grossPay + additionsTotal)}</span>
+          </InfoCell>
+          <InfoCell label="Net pay">
+            <span className="font-bold text-base">{formatCurrency(settlement.netPay)}</span>
+          </InfoCell>
+          <InfoCell label="Advances">
+            <span className="font-medium">({formatCurrency(settlement.advances)})</span>
+          </InfoCell>
+          <InfoCell label="Balances">
+            <span className="font-medium">{formatCurrency(driver.escrowBalance || 0)}</span>
+            {(driver.escrowBalance > 0) && (
+              <button className="text-primary text-xs hover:underline ml-1"
+                onClick={() => {
+                  const el = document.getElementById('driver-balances-section');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}>
+                <Eye className="h-3 w-3 inline" /> Review
+              </button>
             )}
-
-            {settlement.notes && !isEditing && (
-              <Card className="md:col-span-2 lg:col-span-3">
-                <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
-                <CardContent><p className="text-sm whitespace-pre-wrap">{settlement.notes}</p></CardContent>
-              </Card>
+          </InfoCell>
+          <InfoCell label="Expenses">
+            {formatCurrency(0)}
+          </InfoCell>
+          <InfoCell label="Fuel & Toll expenses">
+            <span>{formatCurrency(fuelTollExpenses)}</span>
+            {fuelTollExpenses > 0 && (
+              <button className="text-primary text-xs hover:underline ml-1"
+                onClick={() => {
+                  const el = document.getElementById('deductions-section');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}>
+                <Eye className="h-3 w-3 inline" /> Review
+              </button>
             )}
+          </InfoCell>
+          <InfoCell label="Other pay">{formatCurrency(additionsTotal)}</InfoCell>
+          <InfoCell label="Attachments & Notes">
+            {settlement.notes ? (
+              <span className="truncate max-w-[120px] block" title={settlement.notes}>View</span>
+            ) : '-'}
+          </InfoCell>
+        </div>
+      </div>
 
-            <SettlementLoads loads={settlement.loads} />
+      {activeView === 'details' ? (
+        <div className="space-y-6">
+          <SettlementLoads
+            loads={settlement.loads}
+            hideRevenue
+            onAddTrips={() => setAddTripsOpen(true)}
+            onDeleteLoads={handleDeleteLoads}
+            isDeleting={isModifyingLoads}
+          />
+
+          <AddTripsDialog
+            open={addTripsOpen}
+            onOpenChange={setAddTripsOpen}
+            driverId={driver.id}
+            existingLoadIds={settlement.loadIds || []}
+            onAdd={handleAddTrips}
+            isAdding={isModifyingLoads}
+          />
+
+          <SettlementTransactions
+            settlementId={settlementId}
+            additionsData={additionsData}
+            deductionsData={deductionsData}
+            refetchDeductions={refetchDeductions}
+            refetchAdditions={refetchAdditions}
+          />
+
+          <div id="driver-balances-section">
+            <SettlementDriverBalances
+              driver={driver}
+              escrowItems={settlement.deductionItems?.filter(
+                (d: any) => d.deductionType === 'ESCROW'
+              )}
+            />
           </div>
-        </TabsContent>
-        <TabsContent value="audit">
+
+          {isEditing && (
+            <Card>
+              <CardHeader><CardTitle>Update Settlement</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={status} onValueChange={(v) => setStatus(v as SettlementStatus)}>
+                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="APPROVED">Approved</SelectItem>
+                      <SelectItem value="PAID">Paid</SelectItem>
+                      <SelectItem value="DISPUTED">Disputed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea placeholder="Add notes..." value={notes}
+                    onChange={(e) => setNotes(e.target.value)} rows={3} />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => setIsEditing(false)} variant="outline">Cancel</Button>
+                  <Button onClick={handleSave} disabled={updateMutation.isPending}>Save</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      ) : (
+        <div>
+          <Button variant="ghost" size="sm" className="mb-2"
+            onClick={() => setActiveView('details')}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back to details
+          </Button>
           <SettlementAuditLog
             auditLog={settlement.calculationLog as any}
             calculationHistory={(settlement as any).calculationHistory || []}
@@ -310,8 +434,17 @@ export default function SettlementDetail({ settlementId, onOpenDriver }: Settlem
             netPay={settlement.netPay}
             deductions={settlement.deductions}
           />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoCell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <div className="font-medium">{children}</div>
     </div>
   );
 }

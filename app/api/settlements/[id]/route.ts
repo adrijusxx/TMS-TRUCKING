@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { recalculateSettlementTotals } from '@/lib/utils/settlement-recalc';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 const updateSettlementSchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'PAID', 'DISPUTED']).optional(),
@@ -10,6 +12,8 @@ const updateSettlementSchema = z.object({
   grossPay: z.number().positive().optional(),
   periodStart: z.string().or(z.date()).optional(),
   periodEnd: z.string().or(z.date()).optional(),
+  addLoadIds: z.array(z.string()).optional(),
+  removeLoadIds: z.array(z.string()).optional(),
 });
 
 export async function GET(
@@ -27,10 +31,17 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('settlements', resolvedParams.id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Settlement not found' } },
+        { status: 404 }
+      );
+    }
     const isSuperAdmin = session.user.role === 'SUPER_ADMIN';
 
     const where: any = {
-      id: resolvedParams.id,
+      id: resolved.id,
     };
 
     // Only enforce company isolation for non-super admins
@@ -73,7 +84,7 @@ export async function GET(
     });
 
     if (!settlement) {
-      console.error(`[Settlement GET] Settlement ${resolvedParams.id} not found for company ${session.user.companyId}`);
+      console.error(`[Settlement GET] Settlement ${resolved.id} not found for company ${session.user.companyId}`);
       return NextResponse.json(
         {
           success: false,
@@ -84,7 +95,7 @@ export async function GET(
     }
 
     if (!settlement.driver) {
-      console.error(`[Settlement GET] Settlement ${resolvedParams.id} has no driver associated`);
+      console.error(`[Settlement GET] Settlement ${resolved.id} has no driver associated`);
       return NextResponse.json(
         {
           success: false,
@@ -102,18 +113,34 @@ export async function GET(
       select: {
         id: true,
         loadNumber: true,
+        tripId: true,
+        status: true,
         pickupCity: true,
         pickupState: true,
         deliveryCity: true,
         deliveryState: true,
         revenue: true,
         driverPay: true,
+        totalExpenses: true,
         totalMiles: true,
         loadedMiles: true,
         emptyMiles: true,
+        revenuePerMile: true,
         route: {
           select: {
             totalDistance: true,
+          },
+        },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        truck: {
+          select: {
+            id: true,
+            truckNumber: true,
           },
         },
         pickupDate: true,
@@ -193,10 +220,17 @@ export async function PATCH(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('settlements', resolvedParams.id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Settlement not found' } },
+        { status: 404 }
+      );
+    }
     // Verify settlement belongs to company
     const existing = await prisma.settlement.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         driver: {
           companyId: session.user.companyId,
         },
@@ -236,10 +270,58 @@ export async function PATCH(
         : new Date(validated.periodEnd);
     }
 
-    const settlement = await prisma.settlement.update({
-      where: { id: resolvedParams.id },
+    // Handle load additions/removals
+    if (validated.addLoadIds?.length || validated.removeLoadIds?.length) {
+      let currentLoadIds = [...existing.loadIds];
+
+      if (validated.removeLoadIds?.length) {
+        const removeSet = new Set(validated.removeLoadIds);
+        currentLoadIds = currentLoadIds.filter(id => !removeSet.has(id));
+      }
+
+      if (validated.addLoadIds?.length) {
+        // Verify loads belong to same driver and company
+        const loads = await prisma.load.findMany({
+          where: {
+            id: { in: validated.addLoadIds },
+            driverId: existing.driverId,
+            deletedAt: null,
+          },
+          select: { id: true, driverPay: true },
+        });
+        const validIds = loads.map(l => l.id);
+        const existingSet = new Set(currentLoadIds);
+        for (const id of validIds) {
+          if (!existingSet.has(id)) currentLoadIds.push(id);
+        }
+      }
+
+      updateData.loadIds = currentLoadIds;
+
+      // Recalculate grossPay from loads
+      if (currentLoadIds.length > 0) {
+        const loads = await prisma.load.findMany({
+          where: { id: { in: currentLoadIds } },
+          select: { driverPay: true },
+        });
+        updateData.grossPay = loads.reduce((sum, l) => sum + (l.driverPay || 0), 0);
+      } else {
+        updateData.grossPay = 0;
+      }
+    }
+
+    let settlement = await prisma.settlement.update({
+      where: { id: resolved.id },
       data: updateData,
     });
+
+    // Recalculate totals when grossPay or loads change
+    if (validated.grossPay !== undefined || validated.addLoadIds?.length || validated.removeLoadIds?.length) {
+      await recalculateSettlementTotals(resolved.id);
+      settlement = await prisma.settlement.findUniqueOrThrow({
+        where: { id: resolved.id },
+      });
+    }
 
     return NextResponse.json({
       success: true,

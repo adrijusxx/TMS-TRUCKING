@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 /**
  * GET /api/mobile/driver/settlements/[id]
@@ -32,10 +33,17 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('settlements', resolvedParams.id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Entity not found' } },
+        { status: 404 }
+      );
+    }
 
     const settlement = await prisma.settlement.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         driverId: driver.id,
       },
       include: {

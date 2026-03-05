@@ -118,15 +118,17 @@ export async function POST(request: NextRequest) {
                     select: { id: true },
                 });
 
-                // Exclude already-settled loads
-                const unsettledLoads = eligibleLoads.filter(l => !settledLoadIds.has(l.id));
-                if (unsettledLoads.length === 0) continue;
+                // Exclude already-settled loads and deduplicate
+                const unsettledLoadIds = [...new Set(
+                    eligibleLoads.filter(l => !settledLoadIds.has(l.id)).map(l => l.id)
+                )];
+                if (unsettledLoadIds.length === 0) continue;
 
                 const settlement = await manager.generateSettlement({
                     driverId: driver.id,
                     periodStart,
                     periodEnd,
-                    loadIds: unsettledLoads.map(l => l.id),
+                    loadIds: unsettledLoadIds,
                     forceIncludeNotReady: true,
                     notes: `Batch ${batchNumber}`,
                     salaryBatchId: batch.id,

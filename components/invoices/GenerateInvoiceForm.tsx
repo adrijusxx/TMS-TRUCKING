@@ -73,7 +73,7 @@ export default function GenerateInvoiceForm() {
       queryClient.invalidateQueries({ queryKey: ['loads'] });
       toast.success(`Successfully generated ${data.data?.length || 1} invoice(s)`);
       if (data.data && data.data.length > 0) {
-        router.push(`/dashboard/invoices/${data.data[0].id}`);
+        router.push(`/dashboard/invoices/${data.data[0].invoiceNumber || data.data[0].id}`);
       }
     },
     onError: (error: any) => {

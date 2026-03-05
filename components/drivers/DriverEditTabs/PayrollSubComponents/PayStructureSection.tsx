@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DollarSign } from 'lucide-react';
 import { PayType } from '@prisma/client';
 
@@ -188,6 +189,43 @@ export function PayStructureSection({
               className="min-h-[80px]"
             />
           </div>
+        </div>
+
+        {/* Stop Pay Configuration */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox
+              id="stopPayEnabled"
+              checked={watch('stopPayEnabled') || false}
+              onCheckedChange={(checked) => setValue('stopPayEnabled', checked as boolean)}
+              disabled={isReadOnly}
+            />
+            <Label htmlFor="stopPayEnabled" className="text-sm font-medium">
+              Enable Stop Pay (extra stops between pickup & delivery)
+            </Label>
+          </div>
+          {watch('stopPayEnabled') && (
+            <div className="space-y-2">
+              <Label htmlFor="stopPayRate">Stop Pay Rate ($)</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">$</span>
+                <Input
+                  id="stopPayRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register('stopPayRate', { valueAsNumber: true })}
+                  placeholder="30.00"
+                  disabled={isReadOnly}
+                  readOnly={isReadOnly}
+                />
+                <span className="text-sm text-muted-foreground">/stop</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Auto-applied per extra stop beyond pickup & delivery
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Payment Summary - Auto-calculated display */}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateMaintenanceSchema = z.object({
@@ -34,10 +35,17 @@ export async function GET(
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('maintenance', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json(
+                { success: false, error: { code: 'NOT_FOUND', message: 'Record not found' } },
+                { status: 404 }
+            );
+        }
 
         const record = await prisma.maintenanceRecord.findFirst({
             where: {
-                id,
+                id: resolved.id,
                 truck: {
                     companyId: session.user.companyId,
                 },
@@ -99,13 +107,21 @@ export async function PATCH(
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('maintenance', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json(
+                { success: false, error: { code: 'NOT_FOUND', message: 'Record not found' } },
+                { status: 404 }
+            );
+        }
+
         const body = await request.json();
         const validatedData = updateMaintenanceSchema.parse(body);
 
         // Verify record belongs to company
         const existingRecord = await prisma.maintenanceRecord.findFirst({
             where: {
-                id,
+                id: resolved.id,
                 truck: {
                     companyId: session.user.companyId,
                 },
@@ -124,7 +140,7 @@ export async function PATCH(
         if (validatedData.nextServiceDate) updateData.nextServiceDate = new Date(validatedData.nextServiceDate);
 
         const record = await prisma.maintenanceRecord.update({
-            where: { id },
+            where: { id: resolved.id },
             data: updateData,
             include: {
                 truck: true,
@@ -187,11 +203,18 @@ export async function DELETE(
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('maintenance', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json(
+                { success: false, error: { code: 'NOT_FOUND', message: 'Record not found' } },
+                { status: 404 }
+            );
+        }
 
         // Verify record belongs to company
         const record = await prisma.maintenanceRecord.findFirst({
             where: {
-                id,
+                id: resolved.id,
                 truck: {
                     companyId: session.user.companyId,
                 },
@@ -206,7 +229,7 @@ export async function DELETE(
         }
 
         await prisma.maintenanceRecord.delete({
-            where: { id },
+            where: { id: resolved.id },
         });
 
         return NextResponse.json({

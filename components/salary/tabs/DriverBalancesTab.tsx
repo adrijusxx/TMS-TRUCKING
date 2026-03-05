@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { apiUrl, formatCurrency } from '@/lib/utils';
+import { exportToCSV } from '@/lib/export';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -65,20 +66,28 @@ export default function DriverBalancesTab() {
     const queryClient = useQueryClient();
     const [view, setView] = React.useState<'advances' | 'balances'>('advances');
 
-    // Fetch driver advances
-    const { data: advances, isLoading: loadingAdvances } = useQuery({
+    // Fetch driver advances with negative balances
+    const { data: advancesData, isLoading: loadingAdvances } = useQuery({
         queryKey: ['driver-advances'],
         queryFn: async () => {
-            const response = await fetch(apiUrl('/api/advances/driver?limit=100'));
+            const response = await fetch(apiUrl('/api/advances?limit=100&includeNegativeBalance=true'));
             if (!response.ok) throw new Error('Failed to fetch advances');
-            const result = await response.json();
-            return (result.data || []) as DriverAdvance[];
+            return response.json();
         },
     });
 
-    // Calculate driver balances from advances
+    const advances = (advancesData?.data || []) as DriverAdvance[];
+    const negativeBalanceMap = React.useMemo(() => {
+        const map = new Map<string, number>();
+        ((advancesData?.negativeBalances || []) as { driverId: string; amount: number }[]).forEach(
+            (nb) => map.set(nb.driverId, nb.amount)
+        );
+        return map;
+    }, [advancesData?.negativeBalances]);
+
+    // Calculate driver balances from advances + negative balances
     const driverBalances = React.useMemo(() => {
-        if (!advances) return [];
+        if (!advances.length) return [];
 
         const balanceMap = new Map<string, DriverBalance>();
 
@@ -91,7 +100,7 @@ export default function DriverBalancesTab() {
                     driverNumber: adv.driver.driverNumber,
                     pendingAdvances: 0,
                     approvedAdvances: 0,
-                    negativeBalance: 0,
+                    negativeBalance: negativeBalanceMap.get(driverId) || 0,
                     totalOwed: 0,
                 });
             }
@@ -106,7 +115,7 @@ export default function DriverBalancesTab() {
         });
 
         return Array.from(balanceMap.values()).sort((a, b) => b.totalOwed - a.totalOwed);
-    }, [advances]);
+    }, [advances, negativeBalanceMap]);
 
     const handleRefresh = () => {
         queryClient.invalidateQueries({ queryKey: ['driver-advances'] });
@@ -115,7 +124,7 @@ export default function DriverBalancesTab() {
 
     // Summary stats
     const stats = React.useMemo(() => {
-        if (!advances) return { pending: 0, approved: 0, total: 0, count: 0 };
+        if (!advances.length) return { pending: 0, approved: 0, total: 0, count: 0 };
         return advances.reduce(
             (acc, adv) => {
                 if (adv.approvalStatus === 'PENDING') acc.pending += adv.amount;
@@ -174,7 +183,36 @@ export default function DriverBalancesTab() {
                         <Button variant="outline" size="sm" onClick={handleRefresh}>
                             <RefreshCw className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => {
+                            if (view === 'advances' && advances.length) {
+                                exportToCSV(
+                                    advances.map((a) => ({
+                                        'Advance #': a.advanceNumber || '',
+                                        Driver: `${a.driver.user.firstName} ${a.driver.user.lastName}`,
+                                        'Driver #': a.driver.driverNumber,
+                                        Amount: a.amount,
+                                        'Request Date': a.requestDate ? format(new Date(a.requestDate), 'MM/dd/yyyy') : '',
+                                        Status: a.approvalStatus,
+                                        Notes: a.notes || '',
+                                    })),
+                                    ['Advance #', 'Driver', 'Driver #', 'Amount', 'Request Date', 'Status', 'Notes'],
+                                    'driver-advances.csv'
+                                );
+                            } else if (view === 'balances' && driverBalances.length) {
+                                exportToCSV(
+                                    driverBalances.map((b) => ({
+                                        Driver: b.driverName,
+                                        'Driver #': b.driverNumber,
+                                        'Pending Advances': b.pendingAdvances,
+                                        'Approved Advances': b.approvedAdvances,
+                                        'Negative Balance': b.negativeBalance,
+                                        'Total Owed': b.totalOwed,
+                                    })),
+                                    ['Driver', 'Driver #', 'Pending Advances', 'Approved Advances', 'Negative Balance', 'Total Owed'],
+                                    'driver-balances.csv'
+                                );
+                            }
+                        }}>
                             <Download className="h-4 w-4 mr-2" />
                             Export
                         </Button>

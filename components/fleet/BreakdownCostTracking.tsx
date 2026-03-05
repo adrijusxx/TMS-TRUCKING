@@ -400,7 +400,7 @@ export default function BreakdownCostTracking() {
                           <div className="flex items-center gap-2">
                             <Truck className="h-4 w-4 text-muted-foreground" />
                             <Link
-                              href={`/dashboard/trucks/${breakdown.truck.id}`}
+                              href={`/dashboard/trucks/${breakdown.truck.truckNumber || breakdown.truck.id}`}
                               className="text-sm font-medium text-primary hover:underline"
                             >
                               #{breakdown.truck.truckNumber}

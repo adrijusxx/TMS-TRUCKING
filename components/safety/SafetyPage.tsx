@@ -344,7 +344,7 @@ export default function SafetyPage() {
                         </TableCell>
                         <TableCell>
                           <Link
-                            href={`/dashboard/safety/incidents/${incident.id}`}
+                            href={`/dashboard/safety/incidents/${incident.incidentNumber || incident.id}`}
                             className="font-medium hover:underline"
                           >
                             {incident.incidentNumber}
@@ -368,7 +368,7 @@ export default function SafetyPage() {
                         <TableCell>
                           {incident.driver ? (
                             <Link
-                              href={`/dashboard/drivers/${incident.driver.id}`}
+                              href={`/dashboard/drivers/${incident.driver.driverNumber || incident.driver.id}`}
                               className="hover:underline"
                             >
                               {incident.driver.user.firstName} {incident.driver.user.lastName}
@@ -380,7 +380,7 @@ export default function SafetyPage() {
                         <TableCell>
                           {incident.truck ? (
                             <Link
-                              href={`/dashboard/trucks/${incident.truck.id}`}
+                              href={`/dashboard/trucks/${incident.truck.truckNumber || incident.truck.id}`}
                               className="hover:underline"
                             >
                               {incident.truck.truckNumber}
@@ -562,7 +562,7 @@ export default function SafetyPage() {
                         </TableCell>
                         <TableCell>
                           <Link
-                            href={`/dashboard/drivers/${training.driver.id}`}
+                            href={`/dashboard/drivers/${training.driver.driverNumber || training.driver.id}`}
                             className="font-medium hover:underline"
                           >
                             {training.driver.user.firstName} {training.driver.user.lastName}

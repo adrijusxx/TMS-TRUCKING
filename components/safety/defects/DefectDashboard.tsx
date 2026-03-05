@@ -150,7 +150,7 @@ export default function DefectDashboard() {
                     <p className="font-medium mb-1">{defect.description}</p>
                     {defect.truck && (
                       <Link
-                        href={`/dashboard/trucks/${defect.truck.id}`}
+                        href={`/dashboard/trucks/${defect.truck.truckNumber || defect.truck.id}`}
                         className="text-sm text-muted-foreground hover:underline"
                       >
                         Vehicle: {defect.truck.truckNumber}
@@ -196,7 +196,7 @@ export default function DefectDashboard() {
                     <p className="font-medium mb-1">{defect.description}</p>
                     {defect.truck && (
                       <Link
-                        href={`/dashboard/trucks/${defect.truck.id}`}
+                        href={`/dashboard/trucks/${defect.truck.truckNumber || defect.truck.id}`}
                         className="text-sm text-muted-foreground hover:underline"
                       >
                         Vehicle: {defect.truck.truckNumber}

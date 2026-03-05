@@ -4,20 +4,10 @@ import {
   Shield,
   CreditCard,
   Plug,
-  FileText,
-  Hash,
-  ShoppingBag,
-  Palette,
-  Tag,
-  FolderTree,
-  Layers,
   Building2,
   Bell,
   User,
-  Activity,
   Database,
-  RotateCcw,
-  History,
   Timer,
 } from 'lucide-react';
 
@@ -96,20 +86,6 @@ export function getSettingsNavigationCategories(baseSettingsPath: string): NavCa
       ],
     },
     {
-      name: 'Customizations',
-      adminOnly: true,
-      items: [
-        {
-          name: 'Customizations',
-          href: baseSettingsPath,
-          icon: Layers,
-          query: 'tab=customizations',
-          category: 'Customizations',
-          adminOnly: true
-        },
-      ],
-    },
-    {
       name: 'Security & Preferences',
       adminOnly: false,
       items: [
@@ -158,65 +134,11 @@ export function getSettingsNavigationCategories(baseSettingsPath: string): NavCa
       adminOnly: true,
       items: [
         {
-          name: 'Bulk Delete',
+          name: 'Data & Audit',
           href: baseSettingsPath,
           icon: Database,
           query: 'tab=data-management',
           category: 'Data Management',
-          adminOnly: true
-        },
-        {
-          name: 'Deleted Items',
-          href: baseSettingsPath,
-          icon: RotateCcw,
-          query: 'tab=deleted-items',
-          category: 'Data Management',
-          adminOnly: true
-        },
-        {
-          name: 'Audit History',
-          href: baseSettingsPath,
-          icon: History,
-          query: 'tab=audit-history',
-          category: 'Data Management',
-          adminOnly: true
-        },
-        {
-          name: 'Data Reconciliation',
-          href: '/dashboard/import-export/reconcile',
-          icon: Database, // Re-using Database icon or similar
-          category: 'Data Management',
-          adminOnly: true
-        },
-      ],
-    },
-    {
-      name: 'Other',
-      adminOnly: false,
-      items: [
-        {
-          name: 'EDI',
-          href: '/dashboard/edi',
-          icon: FileText,
-          category: 'Other'
-        },
-        {
-          name: 'MC Numbers',
-          href: '/dashboard/mc-numbers',
-          icon: Hash,
-          category: 'Other'
-        },
-        {
-          name: 'Apps & Marketplace',
-          href: '/dashboard/apps/marketplace',
-          icon: ShoppingBag,
-          category: 'Other'
-        },
-        {
-          name: 'System Monitoring',
-          href: '/dashboard/admin/monitoring',
-          icon: Activity,
-          category: 'Other',
           adminOnly: true
         },
       ],

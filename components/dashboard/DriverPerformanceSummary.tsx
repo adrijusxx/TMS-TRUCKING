@@ -144,7 +144,7 @@ export default function DriverPerformanceSummary() {
                   {performance.topPerformers.slice(0, 3).map((driver) => (
                     <Link
                       key={driver.id}
-                      href={`/dashboard/drivers/${driver.id}`}
+                      href={`/dashboard/drivers/${driver.driverNumber || driver.id}`}
                       className="flex items-center justify-between p-2 border rounded-lg hover:bg-muted transition-colors"
                     >
                       <div className="flex-1 min-w-0">

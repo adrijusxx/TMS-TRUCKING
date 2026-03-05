@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateTrailerSchema = z.object({
@@ -42,9 +43,17 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('trailers', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Trailer not found' } },
+        { status: 404 }
+      );
+    }
+
     const trailer = await prisma.trailer.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -149,9 +158,17 @@ export async function PATCH(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('trailers', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Trailer not found' } },
+        { status: 404 }
+      );
+    }
+
     const existingTrailer = await prisma.trailer.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -189,7 +206,7 @@ export async function PATCH(
     }
 
     const trailer = await prisma.trailer.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: updateData,
     });
 
@@ -253,9 +270,17 @@ export async function DELETE(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('trailers', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Trailer not found' } },
+        { status: 404 }
+      );
+    }
+
     const existingTrailer = await prisma.trailer.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -275,7 +300,7 @@ export async function DELETE(
     const activeLoads = await prisma.load.count({
       where: {
         OR: [
-          { trailerId: resolvedParams.id },
+          { trailerId: resolved.id },
           { trailerNumber: existingTrailer.trailerNumber },
         ],
         status: {
@@ -300,7 +325,7 @@ export async function DELETE(
 
     // Soft delete
     await prisma.trailer.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: { deletedAt: new Date(), isActive: false },
     });
 

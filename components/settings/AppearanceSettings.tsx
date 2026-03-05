@@ -169,7 +169,7 @@ export default function AppearanceSettings() {
             <Select
               value={watch('theme')}
               onValueChange={(value: any) => {
-                setValue('theme', value);
+                setValue('theme', value, { shouldDirty: true });
                 setTheme(value);
               }}
             >
@@ -288,7 +288,7 @@ export default function AppearanceSettings() {
               <Label htmlFor="sidebarPosition">Sidebar Position</Label>
               <Select
                 value={watch('sidebarPosition')}
-                onValueChange={(value: any) => setValue('sidebarPosition', value)}
+                onValueChange={(value: any) => setValue('sidebarPosition', value, { shouldDirty: true })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -304,7 +304,7 @@ export default function AppearanceSettings() {
               <Label htmlFor="density">Density</Label>
               <Select
                 value={watch('density')}
-                onValueChange={(value: any) => setValue('density', value)}
+                onValueChange={(value: any) => setValue('density', value, { shouldDirty: true })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -330,7 +330,7 @@ export default function AppearanceSettings() {
               </div>
               <Switch
                 checked={watch('sidebarCollapsed')}
-                onCheckedChange={(checked) => setValue('sidebarCollapsed', checked)}
+                onCheckedChange={(checked) => setValue('sidebarCollapsed', checked, { shouldDirty: true })}
               />
             </div>
 
@@ -343,7 +343,7 @@ export default function AppearanceSettings() {
               </div>
               <Switch
                 checked={watch('compactMode')}
-                onCheckedChange={(checked) => setValue('compactMode', checked)}
+                onCheckedChange={(checked) => setValue('compactMode', checked, { shouldDirty: true })}
               />
             </div>
           </div>
@@ -367,7 +367,7 @@ export default function AppearanceSettings() {
               <Label htmlFor="fontSize">Font Size</Label>
               <Select
                 value={watch('fontSize')}
-                onValueChange={(value: any) => setValue('fontSize', value)}
+                onValueChange={(value: any) => setValue('fontSize', value, { shouldDirty: true })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -385,7 +385,7 @@ export default function AppearanceSettings() {
               <Label htmlFor="fontFamily">Font Family</Label>
               <Select
                 value={watch('fontFamily')}
-                onValueChange={(value: any) => setValue('fontFamily', value)}
+                onValueChange={(value: any) => setValue('fontFamily', value, { shouldDirty: true })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -423,7 +423,7 @@ export default function AppearanceSettings() {
             </div>
             <Switch
               checked={watch('showBreadcrumbs')}
-              onCheckedChange={(checked) => setValue('showBreadcrumbs', checked)}
+              onCheckedChange={(checked) => setValue('showBreadcrumbs', checked, { shouldDirty: true })}
             />
           </div>
 
@@ -436,7 +436,7 @@ export default function AppearanceSettings() {
             </div>
             <Switch
               checked={watch('showPageHeaders')}
-              onCheckedChange={(checked) => setValue('showPageHeaders', checked)}
+              onCheckedChange={(checked) => setValue('showPageHeaders', checked, { shouldDirty: true })}
             />
           </div>
 
@@ -449,7 +449,7 @@ export default function AppearanceSettings() {
             </div>
             <Switch
               checked={watch('showTableStripes')}
-              onCheckedChange={(checked) => setValue('showTableStripes', checked)}
+              onCheckedChange={(checked) => setValue('showTableStripes', checked, { shouldDirty: true })}
             />
           </div>
 
@@ -462,7 +462,7 @@ export default function AppearanceSettings() {
             </div>
             <Switch
               checked={watch('showAnimations')}
-              onCheckedChange={(checked) => setValue('showAnimations', checked)}
+              onCheckedChange={(checked) => setValue('showAnimations', checked, { shouldDirty: true })}
             />
           </div>
         </CardContent>
@@ -484,7 +484,7 @@ export default function AppearanceSettings() {
             <Label htmlFor="dashboardLayout">Dashboard Layout</Label>
             <Select
               value={watch('dashboardLayout')}
-              onValueChange={(value: any) => setValue('dashboardLayout', value)}
+              onValueChange={(value: any) => setValue('dashboardLayout', value, { shouldDirty: true })}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -509,7 +509,7 @@ export default function AppearanceSettings() {
               </div>
               <Switch
                 checked={watch('showQuickActions')}
-                onCheckedChange={(checked) => setValue('showQuickActions', checked)}
+                onCheckedChange={(checked) => setValue('showQuickActions', checked, { shouldDirty: true })}
               />
             </div>
 
@@ -522,7 +522,7 @@ export default function AppearanceSettings() {
               </div>
               <Switch
                 checked={watch('showRecentActivity')}
-                onCheckedChange={(checked) => setValue('showRecentActivity', checked)}
+                onCheckedChange={(checked) => setValue('showRecentActivity', checked, { shouldDirty: true })}
               />
             </div>
 
@@ -535,7 +535,7 @@ export default function AppearanceSettings() {
               </div>
               <Switch
                 checked={watch('showStats')}
-                onCheckedChange={(checked) => setValue('showStats', checked)}
+                onCheckedChange={(checked) => setValue('showStats', checked, { shouldDirty: true })}
               />
             </div>
           </div>

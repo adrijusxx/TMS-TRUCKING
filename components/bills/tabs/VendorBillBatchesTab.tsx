@@ -221,7 +221,7 @@ export default function VendorBillBatchesTab() {
           </TableHeader>
           <TableBody>
             {batches.map((batch) => (
-              <TableRow key={batch.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/dashboard/bills/batches/${batch.id}`)}>
+              <TableRow key={batch.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/dashboard/bills/batches/${batch.batchNumber || batch.id}`)}>
                 <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selectedIds.has(batch.id)} onCheckedChange={() => toggleSelect(batch.id)} /></TableCell>
                 <TableCell className="font-medium text-primary">{batch.batchNumber}</TableCell>
                 <TableCell>{batch.vendorCount}</TableCell>

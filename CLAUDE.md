@@ -113,6 +113,13 @@ tests/                   # Vitest test files
 ### Import Pattern
 All importers extend `BaseImporter` in `lib/managers/import/`. Best-effort parsing with warnings (not hard failures). Entity configs defined in `lib/import-export/entity-config.ts`.
 
+### Entity URL Convention
+- URLs use entity number fields, NOT raw database IDs: `/dashboard/loads/L-0042` not `/dashboard/loads/cmmauozuw00gpk1gfxmk9s799`
+- Use `buildEntityUrl()` from `lib/utils/entity-resolver.ts` for all entity navigation
+- Use `resolveEntityParam()` in all `[id]` API routes to resolve URL param → internal ID
+- Register new entities in `ENTITY_CONFIG` in `lib/utils/entity-resolver.ts`
+- Both formats work (backward compatible) — the resolver detects CUIDs vs number fields automatically
+
 ## Key Entities & Financial Model
 
 ### Load Lifecycle

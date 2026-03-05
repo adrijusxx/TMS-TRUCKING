@@ -26,6 +26,7 @@ import { apiUrl, formatCurrency } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import SettlementSheet from '@/components/settlements/SettlementSheet';
+import SalaryNavigation from './SalaryNavigation';
 
 interface SalaryBatchDetailProps {
   batchId: string;
@@ -239,6 +240,9 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
 
   return (
     <div className="space-y-4 p-4 md:p-6">
+      {/* Salary module navigation */}
+      <SalaryNavigation activeTab="batches" hideGenerate />
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
@@ -424,7 +428,14 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
         </Table>
       </div>
 
-      <SettlementSheet open={sheetOpen} onOpenChange={setSheetOpen} settlementId={selectedSettlementId} onSuccess={() => queryClient.invalidateQueries({ queryKey: ['salary-batch', batchId] })} />
+      <SettlementSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        settlementId={selectedSettlementId}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['salary-batch', batchId] })}
+        batchSettlementIds={batch?.settlements?.map((s: any) => s.id) || []}
+        onSettlementChange={(id: string) => setSelectedSettlementId(id)}
+      />
     </div>
   );
 }

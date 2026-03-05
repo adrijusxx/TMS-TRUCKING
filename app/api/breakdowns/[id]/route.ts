@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateBreakdownSchema = z.object({
@@ -77,9 +78,17 @@ export async function GET(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('breakdowns', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Breakdown not found' } },
+        { status: 404 }
+      );
+    }
+
     const breakdown = await prisma.breakdown.findFirst({
       where: {
-        id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -235,6 +244,14 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('breakdowns', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Breakdown not found' } },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = updateBreakdownSchema.parse(body);
 
@@ -248,7 +265,7 @@ export async function PATCH(
       validatedData.otherCosts !== undefined
     ) {
       const existing = await prisma.breakdown.findUnique({
-        where: { id },
+        where: { id: resolved.id },
         select: {
           repairCost: true,
           towingCost: true,
@@ -271,7 +288,7 @@ export async function PATCH(
     let downtimeHours = undefined;
     if (validatedData.repairCompletedAt || validatedData.truckReadyAt) {
       const existing = await prisma.breakdown.findUnique({
-        where: { id },
+        where: { id: resolved.id },
         select: {
           reportedAt: true,
           repairCompletedAt: true,
@@ -307,7 +324,7 @@ export async function PATCH(
 
     const breakdown = await prisma.breakdown.update({
       where: {
-        id,
+        id: resolved.id,
         companyId: session.user.companyId,
       },
       data: updateData,
@@ -398,9 +415,17 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('breakdowns', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Breakdown not found' } },
+        { status: 404 }
+      );
+    }
+
     await prisma.breakdown.update({
       where: {
-        id,
+        id: resolved.id,
         companyId: session.user.companyId,
       },
       data: {

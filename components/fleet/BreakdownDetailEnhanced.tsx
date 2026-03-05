@@ -234,7 +234,7 @@ function BreakdownHeader({ breakdown, downtimeHours, canEdit, dispatchDialogOpen
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Load:</span>
-                <Link href={`/dashboard/loads/${breakdown.load.id}`} className="font-semibold text-primary hover:underline">
+                <Link href={`/dashboard/loads/${breakdown.load.loadNumber || breakdown.load.id}`} className="font-semibold text-primary hover:underline">
                   {breakdown.load.loadNumber}
                 </Link>
               </div>

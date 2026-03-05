@@ -148,7 +148,7 @@ export default function LoadCalendar() {
                       </div>
                       <div className="space-y-0.5 max-h-[50px] overflow-y-auto">
                         {dayLoads.slice(0, 3).map((load) => (
-                          <Link key={load.id} href={`/dashboard/loads/${load.id}`}>
+                          <Link key={load.id} href={`/dashboard/loads/${load.loadNumber || load.id}`}>
                             <Badge
                               variant="outline"
                               className={`w-full text-[8px] h-4 justify-start px-1 ${STATUS_COLORS[load.status] || 'bg-gray-100'}`}

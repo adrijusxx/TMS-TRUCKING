@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { VendorBillManager } from '@/lib/managers/VendorBillManager';
 import { handleApiError } from '@/lib/api/route-helpers';
 
@@ -15,8 +16,13 @@ export async function GET(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('vendor-bill-batches', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Entity not found' }, { status: 404 });
+    }
+
     const batch = await prisma.vendorBillBatch.findFirst({
-      where: { id, companyId: session.user.companyId },
+      where: { id: resolved.id, companyId: session.user.companyId },
       include: {
         createdBy: { select: { firstName: true, lastName: true } },
         bills: {
@@ -52,16 +58,21 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('vendor-bill-batches', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Entity not found' }, { status: 404 });
+    }
+
     const body = await request.json();
 
     // Support status change (post/unpost)
     if (body.postStatus === 'POSTED') {
-      const batch = await VendorBillManager.postBatch(id);
+      const batch = await VendorBillManager.postBatch(resolved.id);
       return NextResponse.json({ success: true, data: batch });
     }
 
     const updated = await prisma.vendorBillBatch.update({
-      where: { id },
+      where: { id: resolved.id },
       data: {
         notes: body.notes,
         postStatus: body.postStatus,
@@ -86,8 +97,13 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('vendor-bill-batches', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Entity not found' }, { status: 404 });
+    }
+
     const batch = await prisma.vendorBillBatch.findFirst({
-      where: { id, companyId: session.user.companyId },
+      where: { id: resolved.id, companyId: session.user.companyId },
     });
     if (!batch) {
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
@@ -98,10 +114,10 @@ export async function DELETE(
 
     // Unlink bills, then delete batch
     await prisma.vendorBill.updateMany({
-      where: { batchId: id },
+      where: { batchId: resolved.id },
       data: { batchId: null },
     });
-    await prisma.vendorBillBatch.delete({ where: { id } });
+    await prisma.vendorBillBatch.delete({ where: { id: resolved.id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

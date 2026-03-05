@@ -324,6 +324,53 @@ export class LoadUpdateManager {
             }
         }
 
+        // Stop Pay: auto-create AccessorialCharge when stopsCount changes or driver changes
+        const stopsChanged = validated.stopsCount !== undefined && validated.stopsCount !== existingLoad.stopsCount;
+        const driverChanged = validated.driverId !== undefined && validated.driverId !== existingLoad.driverId;
+        if (stopsChanged || driverChanged) {
+            try {
+                await this.syncStopPay(load.id, load.companyId, load.driverId, validated.stopsCount ?? existingLoad.stopsCount);
+            } catch (e: any) {
+                warnings.push(`Stop pay sync warning: ${e.message}`);
+            }
+        }
+
         return { completionResult, warnings };
+    }
+
+    /** Auto-create/update ADDITIONAL_STOP AccessorialCharge based on driver stop pay config */
+    private static async syncStopPay(loadId: string, companyId: string, driverId: string | null, stopsCount: number | null) {
+        // Remove existing auto-created stop charges
+        await prisma.accessorialCharge.deleteMany({
+            where: {
+                loadId,
+                chargeType: 'ADDITIONAL_STOP',
+                description: { startsWith: 'Auto: ' },
+            },
+        });
+
+        if (!driverId || !stopsCount || stopsCount <= 2) return;
+
+        const driver = await prisma.driver.findUnique({
+            where: { id: driverId },
+            select: { stopPayEnabled: true, stopPayRate: true },
+        });
+
+        if (!driver?.stopPayEnabled) return;
+
+        const extraStops = stopsCount - 2;
+        const rate = driver.stopPayRate ?? 30;
+        const totalStopPay = extraStops * rate;
+
+        await prisma.accessorialCharge.create({
+            data: {
+                companyId,
+                loadId,
+                chargeType: 'ADDITIONAL_STOP',
+                description: `Auto: ${extraStops} additional stop(s) @ $${rate}/stop`,
+                amount: totalStopPay,
+                status: 'APPROVED',
+            },
+        });
     }
 }

@@ -16,7 +16,7 @@ import { formatCurrency } from '@/lib/utils';
 import { Plus, Trash2, Loader2, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { deductionTypeLabels } from './types';
+import { getTransactionLabel } from './types';
 import { createDeduction, createAddition, deleteDeduction, deleteAddition } from './api';
 import TransactionTypeCombobox from './TransactionTypeCombobox';
 
@@ -41,8 +41,8 @@ export default function SettlementTransactions({
   const [searchTerm, setSearchTerm] = useState('');
   const [isDeductionDialogOpen, setIsDeductionDialogOpen] = useState(false);
   const [isAdditionDialogOpen, setIsAdditionDialogOpen] = useState(false);
-  const [newDeduction, setNewDeduction] = useState({ deductionType: 'OTHER', description: '', amount: '' });
-  const [newAddition, setNewAddition] = useState({ deductionType: 'BONUS', description: '', amount: '' });
+  const [newDeduction, setNewDeduction] = useState({ deductionType: 'OTHER', description: '', amount: '', quantity: '1' });
+  const [newAddition, setNewAddition] = useState({ deductionType: 'BONUS', description: '', amount: '', quantity: '1' });
 
   useEffect(() => {
     const fetchCustomTypes = async () => {
@@ -106,7 +106,7 @@ export default function SettlementTransactions({
       invalidateSettlement();
       queryClient.invalidateQueries({ queryKey: ['settlement-deductions', settlementId] });
       setIsDeductionDialogOpen(false);
-      setNewDeduction({ deductionType: 'OTHER', description: '', amount: '' });
+      setNewDeduction({ deductionType: 'OTHER', description: '', amount: '', quantity: '1' });
       refetchDeductions();
     },
     onError: (error: Error) => toast.error(error.message || 'Failed to add deduction'),
@@ -119,7 +119,7 @@ export default function SettlementTransactions({
       invalidateSettlement();
       queryClient.invalidateQueries({ queryKey: ['settlement-additions', settlementId] });
       setIsAdditionDialogOpen(false);
-      setNewAddition({ deductionType: 'BONUS', description: '', amount: '' });
+      setNewAddition({ deductionType: 'BONUS', description: '', amount: '', quantity: '1' });
       refetchAdditions();
     },
     onError: (error: Error) => toast.error(error.message || 'Failed to add addition'),
@@ -159,13 +159,13 @@ export default function SettlementTransactions({
 
   return (
     <>
-      {/* Additions Section */}
+      {/* Other Pay Section */}
       <Card className="md:col-span-2 lg:col-span-3">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Plus className="h-5 w-5 text-green-600" />
-              Additions
+              Other pay
             </CardTitle>
             <Dialog open={isAdditionDialogOpen} onOpenChange={setIsAdditionDialogOpen}>
               <DialogTrigger asChild>
@@ -192,6 +192,7 @@ export default function SettlementTransactions({
                           deductionType: newAddition.deductionType,
                           description: newAddition.description,
                           amount: parseFloat(newAddition.amount),
+                          quantity: parseInt(newAddition.quantity) || 1,
                         });
                       }
                     }}
@@ -212,6 +213,8 @@ export default function SettlementTransactions({
                   <TableHead>Type</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -220,7 +223,9 @@ export default function SettlementTransactions({
                   <TableRow key={a.id}>
                     <TableCell>{additionTypeLabel(a.deductionType)}</TableCell>
                     <TableCell>{a.description}</TableCell>
-                    <TableCell className="text-right font-medium text-green-600">+{formatCurrency(a.amount)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(a.amount)}</TableCell>
+                    <TableCell className="text-right">{a.quantity ?? 1}</TableCell>
+                    <TableCell className="text-right font-medium text-green-600">+{formatCurrency(a.amount * (a.quantity ?? 1))}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm" onClick={() => deleteAdditionMutation.mutate(a.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -270,6 +275,7 @@ export default function SettlementTransactions({
                         deductionType: newDeduction.deductionType,
                         description: newDeduction.description,
                         amount: parseFloat(newDeduction.amount),
+                        quantity: parseInt(newDeduction.quantity) || 1,
                       });
                     }}
                     disabled={createDeductionMutation.isPending}
@@ -290,15 +296,21 @@ export default function SettlementTransactions({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Type</TableHead>
+                    <TableHead>Description</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {deductions.map((d: any) => (
                     <TableRow key={d.id}>
-                      <TableCell>{deductionTypeLabels[d.deductionType] || d.deductionType}</TableCell>
-                      <TableCell className="text-right text-red-600">-{formatCurrency(d.amount)}</TableCell>
+                      <TableCell>{getTransactionLabel(d.deductionType, d.description)}</TableCell>
+                      <TableCell className="text-muted-foreground">{d.description || '-'}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(d.amount)}</TableCell>
+                      <TableCell className="text-right">{d.quantity ?? 1}</TableCell>
+                      <TableCell className="text-right text-red-600">-{formatCurrency(d.amount * (d.quantity ?? 1))}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => {
                           if (confirm('Delete this deduction?')) deleteDeductionMutation.mutate(d.id);
@@ -314,7 +326,7 @@ export default function SettlementTransactions({
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Total Deductions:</span>
                   <span className="text-lg font-bold text-red-600">
-                    -{formatCurrency(deductions.reduce((sum: number, d: any) => sum + d.amount, 0))}
+                    -{formatCurrency(deductions.reduce((sum: number, d: any) => sum + d.amount * (d.quantity ?? 1), 0))}
                   </span>
                 </div>
               </div>

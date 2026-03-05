@@ -429,7 +429,7 @@ export default function AccessorialChargesList() {
                     <TableCell>
                       {charge.invoice ? (
                         <Link
-                          href={`/dashboard/invoices/${charge.invoice.id}`}
+                          href={`/dashboard/invoices/${charge.invoice.invoiceNumber || charge.invoice.id}`}
                           className="text-primary hover:underline"
                         >
                           {charge.invoice.invoiceNumber}

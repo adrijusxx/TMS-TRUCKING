@@ -1041,8 +1041,10 @@ model Driver {
   onTimePercentage Float  @default(100)
 
   // Pay
-  payType PayType @default(PER_MILE)
-  payRate Float
+  payType        PayType @default(PER_MILE)
+  payRate        Float
+  stopPayEnabled Boolean @default(false)
+  stopPayRate    Float   @default(30.0)
 
   payTo String? // Who to pay to (e.g., company name)
 
@@ -2524,6 +2526,7 @@ model SettlementDeduction {
   category      String        @default("deduction") // "addition" | "deduction"
   description   String
   amount        Float
+  quantity      Int           @default(1)
 
   // For fuel advances, link to fuel entry
   fuelEntryId String?

@@ -10,6 +10,7 @@ import {
   extractFinancialFields,
 } from '@/lib/utils/financial-access';
 import { DriverQueryManager } from '@/lib/managers/DriverQueryManager';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +18,7 @@ export async function GET(
 ) {
   try {
     const session = await auth();
-    const { id } = await params;
+    const { id: paramId } = await params;
 
     if (!session?.user?.companyId) {
       return NextResponse.json(
@@ -26,8 +27,16 @@ export async function GET(
       );
     }
 
+    const resolved = await resolveEntityParam('drivers', paramId, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Driver not found' } },
+        { status: 404 }
+      );
+    }
+
     const driver = await prisma.driver.findUnique({
-      where: { id },
+      where: { id: resolved.id },
       include: DriverQueryManager.singleDriverInclude,
     });
 
@@ -62,7 +71,7 @@ export async function PATCH(
 ) {
   try {
     const session = await auth();
-    const { id } = await params;
+    const { id: paramId } = await params;
 
     if (!session?.user?.companyId) {
       return NextResponse.json(
@@ -70,6 +79,15 @@ export async function PATCH(
         { status: 401 }
       );
     }
+
+    const resolved = await resolveEntityParam('drivers', paramId, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Driver not found' } },
+        { status: 404 }
+      );
+    }
+    const id = resolved.id;
 
     const existingDriver = await prisma.driver.findFirst({
       where: { id, companyId: session.user.companyId, deletedAt: null },
@@ -104,14 +122,6 @@ export async function PATCH(
 
     // Build update data
     const updateData = DriverQueryManager.buildUpdateData(validated);
-
-    // Process recurring transactions
-    await DriverQueryManager.processRecurringTransactions({
-      driverId: id,
-      companyId: session.user.companyId,
-      existingDriver,
-      validated,
-    });
 
     // Track truck/trailer assignment changes
     const oldTruckId = existingDriver.currentTruckId;
@@ -164,7 +174,7 @@ export async function DELETE(
 ) {
   try {
     const session = await auth();
-    const { id } = await params;
+    const { id: paramId } = await params;
 
     if (!session?.user?.companyId) {
       return NextResponse.json(
@@ -172,6 +182,15 @@ export async function DELETE(
         { status: 401 }
       );
     }
+
+    const resolved = await resolveEntityParam('drivers', paramId, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Driver not found' } },
+        { status: 404 }
+      );
+    }
+    const id = resolved.id;
 
     const existingDriver = await prisma.driver.findFirst({
       where: { id, companyId: session.user.companyId, deletedAt: null },

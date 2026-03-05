@@ -3,17 +3,6 @@ import { LoadStatus } from '@prisma/client';
 import { logger } from '@/lib/utils/logger';
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface DriverUpdateContext {
-  driverId: string;
-  companyId: string;
-  existingDriver: any;
-  validated: any;
-}
-
-// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -34,29 +23,14 @@ const DRIVER_FIELDS = [
   'payTo', 'escrowTargetAmount', 'escrowDeductionPerWeek',
   'escrowBalance', 'warnings', 'licenseNumber', 'licenseState',
   'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
-  'payType', 'payRate', 'homeTerminal', 'emergencyContact', 'emergencyPhone',
+  'payType', 'payRate', 'stopPayEnabled', 'stopPayRate',
+  'homeTerminal', 'emergencyContact', 'emergencyPhone',
 ];
 
 const DATE_FIELDS = [
   'licenseExpiry', 'medicalCardExpiry', 'drugTestDate', 'backgroundCheck',
   'birthDate', 'hireDate', 'terminationDate', 'licenseIssueDate',
 ];
-
-/** Transaction types classified as additions (payments to driver) */
-const ADDITION_TYPES = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'];
-
-/** Valid DeductionType enum values from Prisma schema */
-const VALID_DEDUCTION_TYPES = new Set([
-  'FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'OCCUPATIONAL_ACCIDENT',
-  'TRUCK_PAYMENT', 'TRUCK_LEASE', 'ESCROW', 'EQUIPMENT_RENTAL',
-  'MAINTENANCE', 'TOLLS', 'PERMITS', 'FUEL_CARD', 'FUEL_CARD_FEE',
-  'TRAILER_RENTAL', 'OTHER', 'BONUS', 'OVERTIME', 'INCENTIVE',
-]);
-
-const DEDUCTION_TYPE_MAP: Record<string, string> = {
-  LEASE: 'TRUCK_LEASE',
-  ELD: 'EQUIPMENT_RENTAL',
-};
 
 // ---------------------------------------------------------------------------
 // Manager
@@ -65,7 +39,6 @@ const DEDUCTION_TYPE_MAP: Record<string, string> = {
 /**
  * DriverQueryManager - handles complex driver update logic including:
  * - Building update data from validated input
- * - Recurring transaction management (DeductionRule records)
  * - Truck/trailer assignment history tracking
  * - User account synchronization
  */
@@ -99,64 +72,6 @@ export class DriverQueryManager {
     });
 
     return updateData;
-  }
-
-  /** Process recurring transactions: deactivate old rules and create new ones */
-  static async processRecurringTransactions(ctx: DriverUpdateContext): Promise<void> {
-    if (ctx.validated.recurringTransactions === undefined) return;
-
-    const driverIdentifier = ctx.existingDriver.driverNumber || ctx.driverId.slice(0, 8);
-
-    // Deactivate old rules
-    const existingRules = await prisma.deductionRule.findMany({
-      where: { companyId: ctx.companyId, driverId: ctx.driverId },
-    });
-
-    if (existingRules.length > 0) {
-      await prisma.deductionRule.updateMany({
-        where: { id: { in: existingRules.map(r => r.id) } },
-        data: { isActive: false },
-      });
-    }
-
-    const transactions = ctx.validated.recurringTransactions;
-    if (!Array.isArray(transactions) || transactions.length === 0) return;
-
-    for (const txn of transactions) {
-      if (!txn.type || txn.amount <= 0 || !txn.frequency) {
-        logger.warn('[Driver Update] Skipping invalid transaction', txn);
-        continue;
-      }
-
-      const frequency = txn.frequency === 'WEEKLY' ? 'WEEKLY' : 'MONTHLY';
-      const isAddition = txn.category
-        ? txn.category === 'addition'
-        : ADDITION_TYPES.includes(txn.type);
-      const deductionType = this.mapDeductionType(txn.type);
-
-      try {
-        await prisma.deductionRule.create({
-          data: {
-            companyId: ctx.companyId,
-            driverId: ctx.driverId,
-            name: `Driver ${driverIdentifier} - ${txn.type}${txn.note ? ` (${txn.note})` : ''}`,
-            deductionType: deductionType as any,
-            driverType: ctx.existingDriver.driverType as any,
-            isAddition,
-            calculationType: 'FIXED',
-            amount: txn.amount,
-            goalAmount: txn.stopLimit,
-            currentAmount: txn.currentBalance || 0,
-            frequency: frequency as any,
-            deductionFrequency: frequency as any,
-            notes: txn.note || null,
-            isActive: true,
-          },
-        });
-      } catch (error: any) {
-        logger.error('[Driver Update] Error creating transaction rule', { error: error?.message });
-      }
-    }
   }
 
   /** Track truck assignment changes with history */
@@ -227,13 +142,14 @@ export class DriverQueryManager {
   ): Promise<void> {
     if (!userId) return;
 
-    if (validated.firstName || validated.lastName || validated.phone !== undefined) {
+    if (validated.firstName || validated.lastName || validated.phone !== undefined || validated.mcNumberId !== undefined) {
       await prisma.user.update({
         where: { id: userId },
         data: {
           ...(validated.firstName && { firstName: validated.firstName }),
           ...(validated.lastName && { lastName: validated.lastName }),
           ...(validated.phone !== undefined && { phone: validated.phone }),
+          ...(validated.mcNumberId !== undefined && { mcNumberId: validated.mcNumberId }),
         },
       });
     }
@@ -249,14 +165,6 @@ export class DriverQueryManager {
         },
       });
     }
-  }
-
-  /** Map frontend transaction type to a valid DeductionType enum */
-  private static mapDeductionType(type: string): string {
-    const mapped = DEDUCTION_TYPE_MAP[type];
-    if (mapped) return mapped;
-    if (VALID_DEDUCTION_TYPES.has(type)) return type;
-    return 'OTHER';
   }
 
   /** Apply tab-based filtering to the where clause */

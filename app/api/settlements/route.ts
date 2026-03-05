@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       if (toDate) where.periodEnd.lte = new Date(toDate);
     }
 
-    const [settlements, total] = await Promise.all([
+    const [settlements, total, aggregates] = await Promise.all([
       prisma.settlement.findMany({
         where,
         include: {
@@ -88,20 +88,63 @@ export async function GET(request: NextRequest) {
               batchNumber: true,
             },
           },
+          deductionItems: {
+            select: {
+              amount: true,
+              quantity: true,
+              category: true,
+              loadExpenseId: true,
+            },
+          },
         },
         orderBy: { periodEnd: 'desc' },
         skip,
         take: limit,
       }),
       prisma.settlement.count({ where }),
+      prisma.settlement.aggregate({
+        where,
+        _sum: { grossPay: true, deductions: true, advances: true, netPay: true },
+      }),
     ]);
 
-    // 5. Filter Sensitive Fields based on role
-    const filteredSettlements = settlements.map((settlement) =>
+    // 5. Enrich settlements with computed financial columns
+    const allLoadIds = [...new Set(settlements.flatMap(s => s.loadIds || []))];
+    const loadFinancials = allLoadIds.length > 0
+      ? await prisma.load.findMany({
+          where: { id: { in: allLoadIds } },
+          select: { id: true, revenue: true, driverPay: true },
+        })
+      : [];
+    const loadMap = new Map(loadFinancials.map(l => [l.id, l]));
+
+    const enrichedSettlements = settlements.map(s => {
+      let totalRevenue = 0;
+      let totalLoadPay = 0;
+      for (const lid of (s.loadIds || [])) {
+        const load = loadMap.get(lid);
+        if (load) {
+          totalRevenue += load.revenue || 0;
+          totalLoadPay += load.driverPay || 0;
+        }
+      }
+      const expense = (s.deductionItems || [])
+        .filter((d: any) => d.loadExpenseId)
+        .reduce((sum: number, d: any) => sum + d.amount * (d.quantity ?? 1), 0);
+      const otherPay = (s.deductionItems || [])
+        .filter((d: any) => d.category === 'addition')
+        .reduce((sum: number, d: any) => sum + d.amount * (d.quantity ?? 1), 0);
+
+      const { deductionItems, ...rest } = s;
+      return { ...rest, totalRevenue, totalLoadPay, expense, otherPay };
+    });
+
+    // 6. Filter Sensitive Fields based on role
+    const filteredSettlements = enrichedSettlements.map((settlement) =>
       filterSensitiveFields(settlement, session.user.role as any)
     );
 
-    // 6. Return Success Response
+    // 7. Return Success Response
     return NextResponse.json({
       success: true,
       data: filteredSettlements,
@@ -110,6 +153,12 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+        totals: {
+          grossPay: aggregates._sum.grossPay || 0,
+          deductions: aggregates._sum.deductions || 0,
+          advances: aggregates._sum.advances || 0,
+          netPay: aggregates._sum.netPay || 0,
+        },
       },
     });
   } catch (error) {

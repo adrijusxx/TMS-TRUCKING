@@ -8,7 +8,7 @@ export default function ScheduledJobsCategory() {
       <div>
         <h2 className="text-2xl font-bold mb-2">Scheduled Jobs</h2>
         <p className="text-muted-foreground">
-          View and manage automated background tasks like CRM lead syncing, follow-up reminders, and system automation
+          View and configure automated tasks like settlement generation, data sync, and cleanup jobs. Jobs run on configurable schedules &mdash; enable, disable, or adjust timing for each. Use the test button to trigger a job manually.
         </p>
       </div>
 

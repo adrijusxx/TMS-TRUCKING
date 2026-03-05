@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateStatusSchema = z.object({
@@ -58,9 +59,17 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('loads', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Entity not found' } },
+        { status: 404 }
+      );
+    }
+
     const load = await prisma.load.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         driverId: driver.id,
         deletedAt: null,
       },
@@ -193,13 +202,21 @@ export async function PATCH(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('loads', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Entity not found' } },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const validated = updateStatusSchema.parse(body);
 
     // Verify load belongs to driver
     const load = await prisma.load.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         driverId: driver.id,
         deletedAt: null,
       },
@@ -217,7 +234,7 @@ export async function PATCH(
 
     // Update load status
     const updatedLoad = await prisma.load.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: {
         status: validated.status,
       },
@@ -226,7 +243,7 @@ export async function PATCH(
     // Create status history entry
     await prisma.loadStatusHistory.create({
       data: {
-        loadId: resolvedParams.id,
+        loadId: resolved.id,
         status: validated.status,
         location: validated.location || null,
         createdBy: session.user.id,

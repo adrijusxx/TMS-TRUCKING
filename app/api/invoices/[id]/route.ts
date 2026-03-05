@@ -7,6 +7,7 @@ import {
   INVOICE_DETAIL_SELECT,
   InvoiceUpdateManager,
 } from '@/lib/managers/InvoiceUpdateManager';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 export async function GET(
   request: NextRequest,
@@ -24,8 +25,16 @@ export async function GET(
 
     const resolvedParams = await params;
 
+    const resolved = await resolveEntityParam('invoices', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Invoice not found' } },
+        { status: 404 }
+      );
+    }
+
     const invoice = await prisma.invoice.findFirst({
-      where: { id: resolvedParams.id, customer: { companyId: session.user.companyId } },
+      where: { id: resolved.id, customer: { companyId: session.user.companyId } },
       select: INVOICE_DETAIL_SELECT,
     });
 
@@ -67,8 +76,16 @@ export async function PATCH(
     const resolvedParams = await params;
     const body = await request.json();
 
+    const resolved = await resolveEntityParam('invoices', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Invoice not found' } },
+        { status: 404 }
+      );
+    }
+
     const existingInvoice = await prisma.invoice.findUnique({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       include: { customer: { select: { id: true, companyId: true, name: true } } },
     });
 
@@ -80,7 +97,7 @@ export async function PATCH(
     }
 
     if (!existingInvoice.customer) {
-      console.error('Invoice missing customer:', { invoiceId: resolvedParams.id });
+      console.error('Invoice missing customer:', { invoiceId: resolved.id });
       return NextResponse.json(
         { success: false, error: { code: 'INVALID_RECORD', message: 'Invoice is missing customer information.' } },
         { status: 400 }
@@ -106,7 +123,7 @@ export async function PATCH(
     const wasPaid = existingInvoice.status !== 'PAID' && body.status === 'PAID';
 
     const invoice = await prisma.invoice.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: updateData,
       include: {
         customer: { select: { id: true, name: true, customerNumber: true } },
@@ -152,8 +169,16 @@ export async function DELETE(
       );
     }
 
+    const resolved = await resolveEntityParam('invoices', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Invoice not found' } },
+        { status: 404 }
+      );
+    }
+
     const existingInvoice = await prisma.invoice.findFirst({
-      where: { id: resolvedParams.id, customer: { companyId: session.user.companyId } },
+      where: { id: resolved.id, customer: { companyId: session.user.companyId } },
     });
 
     if (!existingInvoice) {

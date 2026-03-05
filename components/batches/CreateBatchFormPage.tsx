@@ -45,7 +45,7 @@ export default function CreateBatchFormPage() {
         ? `Batch created: ${data.meta.generatedInvoices} invoice(s) generated, ${data.meta.existingInvoices} existing`
         : 'Batch created successfully';
       toast.success(msg);
-      router.push(`/dashboard/invoices/batches/${data.data.id}`);
+      router.push(`/dashboard/invoices/batches/${data.data.batchNumber || data.data.id}`);
     },
     onError: (error: any) => {
       const details = error.errorDetails?.details;

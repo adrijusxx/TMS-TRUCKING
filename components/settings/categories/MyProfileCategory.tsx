@@ -1,6 +1,5 @@
 'use client';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import UserProfileSettings from '@/components/settings/UserProfileSettings';
 import EmployeeGeneralSettings from '@/components/settings/EmployeeGeneralSettings';
 import EmployeeNotificationsSettings from '@/components/settings/EmployeeNotificationsSettings';
@@ -11,109 +10,101 @@ import AccountantSettings from '@/components/settings/role-specific/AccountantSe
 import DriverSettings from '@/components/settings/role-specific/DriverSettings';
 import SafetySettings from '@/components/settings/role-specific/SafetySettings';
 import FleetSettings from '@/components/settings/role-specific/FleetSettings';
-import { User, Settings, Bell, Eye, Shield, Package, DollarSign, Truck, AlertTriangle, Wrench, Phone } from 'lucide-react';
-// UserRole removed — using string-based roleSlug
-import { usePermissions } from '@/hooks/usePermissions';
-
 import YokomobileIntegration from '@/components/settings/integrations/YokomobileIntegration';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { User, Settings, Bell, Eye, Shield, Phone, Package, DollarSign, Truck, AlertTriangle, Wrench } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export default function MyProfileCategory() {
   const { role } = usePermissions();
 
-  // Get role-specific tab name and component
-  const getRoleSpecificTab = () => {
+  const getRoleSection = () => {
     switch (role) {
       case 'DISPATCHER':
-        return { name: 'Dispatch', value: 'dispatch', Icon: Package, component: <DispatcherSettings /> };
+        return { name: 'Dispatch Settings', Icon: Package, component: <DispatcherSettings /> };
       case 'ACCOUNTANT':
-        return { name: 'Accounting', value: 'accounting', Icon: DollarSign, component: <AccountantSettings /> };
+        return { name: 'Accounting Settings', Icon: DollarSign, component: <AccountantSettings /> };
       case 'DRIVER':
-        return { name: 'Driver', value: 'driver', Icon: Truck, component: <DriverSettings /> };
+        return { name: 'Driver Settings', Icon: Truck, component: <DriverSettings /> };
       case 'SAFETY':
-        return { name: 'Safety', value: 'safety', Icon: AlertTriangle, component: <SafetySettings /> };
+        return { name: 'Safety Settings', Icon: AlertTriangle, component: <SafetySettings /> };
       case 'FLEET':
-        return { name: 'Fleet', value: 'fleet', Icon: Wrench, component: <FleetSettings /> };
+        return { name: 'Fleet Settings', Icon: Wrench, component: <FleetSettings /> };
       default:
         return null;
     }
   };
 
-  const roleSpecificTab = getRoleSpecificTab();
+  const roleSection = getRoleSection();
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">My Profile</h2>
         <p className="text-muted-foreground">
-          Manage your account information, preferences, and settings
+          Update your personal information, notification preferences, appearance settings, and security options like password changes. Role-specific settings are available based on your assigned role.
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="profile">
-            <User className="h-4 w-4 mr-2" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="general">
-            <Settings className="h-4 w-4 mr-2" />
-            Preferences
-          </TabsTrigger>
-          <TabsTrigger value="voip">
-            <Phone className="h-4 w-4 mr-2" />
-            VoIP
-          </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="h-4 w-4 mr-2" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="appearance">
-            <Eye className="h-4 w-4 mr-2" />
-            Appearance
-          </TabsTrigger>
-          <TabsTrigger value="security">
-            <Shield className="h-4 w-4 mr-2" />
-            Security
-          </TabsTrigger>
-          {roleSpecificTab && (
-            <TabsTrigger value={roleSpecificTab.value}>
-              <roleSpecificTab.Icon className="h-4 w-4 mr-2" />
-              {roleSpecificTab.name}
-            </TabsTrigger>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column */}
+        <div className="space-y-6">
+          <ProfileSection title="Profile" icon={User}>
+            <UserProfileSettings />
+          </ProfileSection>
+
+          <ProfileSection title="Preferences" icon={Settings}>
+            <EmployeeGeneralSettings />
+          </ProfileSection>
+
+          <ProfileSection title="Security" icon={Shield}>
+            <EmployeeSecuritySettings />
+          </ProfileSection>
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          <ProfileSection title="Notifications" icon={Bell}>
+            <EmployeeNotificationsSettings />
+          </ProfileSection>
+
+          <ProfileSection title="Appearance" icon={Eye}>
+            <AppearanceSettings />
+          </ProfileSection>
+
+          <ProfileSection title="VoIP" icon={Phone}>
+            <YokomobileIntegration />
+          </ProfileSection>
+
+          {roleSection && (
+            <ProfileSection title={roleSection.name} icon={roleSection.Icon}>
+              {roleSection.component}
+            </ProfileSection>
           )}
-        </TabsList>
-
-        <TabsContent value="profile" className="space-y-6">
-          <UserProfileSettings />
-        </TabsContent>
-
-        <TabsContent value="general" className="space-y-6">
-          <EmployeeGeneralSettings />
-        </TabsContent>
-
-        <TabsContent value="voip" className="space-y-6">
-          <YokomobileIntegration />
-        </TabsContent>
-
-        <TabsContent value="notifications" className="space-y-6">
-          <EmployeeNotificationsSettings />
-        </TabsContent>
-
-        <TabsContent value="appearance" className="space-y-6">
-          <AppearanceSettings />
-        </TabsContent>
-
-        <TabsContent value="security" className="space-y-6">
-          <EmployeeSecuritySettings />
-        </TabsContent>
-
-        {roleSpecificTab && (
-          <TabsContent value={roleSpecificTab.value} className="space-y-6">
-            {roleSpecificTab.component}
-          </TabsContent>
-        )}
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
 
+function ProfileSection({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+          <CardTitle>{title}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}

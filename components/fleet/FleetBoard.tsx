@@ -166,7 +166,7 @@ export default function FleetBoard() {
           <Card key={truck.id}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <Link href={`/dashboard/trucks/${truck.id}`}>
+                <Link href={`/dashboard/trucks/${truck.truckNumber || truck.id}`}>
                   <CardTitle className="hover:underline">
                     {truck.truckNumber}
                   </CardTitle>
@@ -203,7 +203,7 @@ export default function FleetBoard() {
                   {truck.loads.map((load) => (
                     <Link
                       key={load.id}
-                      href={`/dashboard/loads/${load.id}`}
+                      href={`/dashboard/loads/${load.loadNumber || load.id}`}
                       className="block p-2 border rounded hover:bg-muted"
                     >
                       <div className="text-sm font-medium">{load.loadNumber}</div>

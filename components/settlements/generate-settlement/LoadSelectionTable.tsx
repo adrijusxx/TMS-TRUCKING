@@ -104,7 +104,7 @@ export default function LoadSelectionTable({
                       </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex flex-col">
-                          <Link href={`/dashboard/loads/${load.id}`} className="text-primary hover:underline">{load.loadNumber}</Link>
+                          <Link href={`/dashboard/loads/${load.loadNumber || load.id}`} className="text-primary hover:underline">{load.loadNumber}</Link>
                           {!load.readyForSettlement && (
                             <span className="text-[10px] text-yellow-600 dark:text-yellow-500 font-semibold flex items-center gap-1">
                               <AlertCircle className="h-3 w-3" /> Not Ready

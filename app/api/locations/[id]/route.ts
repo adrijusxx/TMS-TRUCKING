@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateLocationSchema = z.object({
@@ -48,9 +49,17 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('locations', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Location not found' } },
+        { status: 404 }
+      );
+    }
+
     const location = await prisma.location.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -103,12 +112,20 @@ export async function PATCH(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('locations', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Location not found' } },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = updateLocationSchema.parse(body);
 
     const existing = await prisma.location.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -122,7 +139,7 @@ export async function PATCH(
     }
 
     const location = await prisma.location.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: validatedData,
     });
 
@@ -180,9 +197,17 @@ export async function DELETE(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('locations', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Location not found' } },
+        { status: 404 }
+      );
+    }
+
     const location = await prisma.location.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -196,7 +221,7 @@ export async function DELETE(
     }
 
     await prisma.location.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: { deletedAt: new Date() },
     });
 

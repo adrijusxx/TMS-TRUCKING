@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Shield, Lock, Key, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
@@ -41,7 +40,6 @@ export default function EmployeeSecuritySettings() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const {
@@ -189,21 +187,10 @@ export default function EmployeeSecuritySettings() {
             <div className="space-y-0.5">
               <Label>Two-Factor Authentication</Label>
               <p className="text-sm text-muted-foreground">
-                Require a verification code in addition to your password
+                Two-factor authentication is not yet available. Contact your administrator for updates.
               </p>
             </div>
-            <Switch
-              checked={twoFactorEnabled}
-              onCheckedChange={setTwoFactorEnabled}
-            />
           </div>
-          {twoFactorEnabled && (
-            <div className="mt-4 p-4 bg-muted rounded-md">
-              <p className="text-sm text-muted-foreground">
-                Two-factor authentication setup coming soon. Contact your administrator for assistance.
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

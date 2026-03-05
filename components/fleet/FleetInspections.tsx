@@ -400,7 +400,7 @@ export default function FleetInspections() {
                       <TableRow key={inspection.id}>
                         <TableCell>
                           <Link
-                            href={`/dashboard/inspections/${inspection.id}`}
+                            href={`/dashboard/inspections/${inspection.inspectionNumber || inspection.id}`}
                             className="font-mono text-sm font-semibold hover:underline"
                           >
                             {inspection.inspectionNumber}
@@ -420,7 +420,7 @@ export default function FleetInspections() {
                             <Truck className="h-4 w-4 text-muted-foreground" />
                             <div>
                               <Link
-                                href={`/dashboard/trucks/${inspection.truck.id}`}
+                                href={`/dashboard/trucks/${inspection.truck.truckNumber || inspection.truck.id}`}
                                 className="font-medium text-primary hover:underline"
                               >
                                 #{inspection.truck.truckNumber}
@@ -464,7 +464,7 @@ export default function FleetInspections() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Link href={`/dashboard/inspections/${inspection.id}`}>
+                          <Link href={`/dashboard/inspections/${inspection.inspectionNumber || inspection.id}`}>
                             <Button variant="ghost" size="sm">
                               View
                             </Button>

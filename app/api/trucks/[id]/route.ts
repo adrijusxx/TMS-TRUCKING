@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { updateTruckSchema } from '@/lib/validations/truck';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 export async function GET(
   request: NextRequest,
@@ -20,9 +21,17 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('trucks', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Truck not found' } },
+        { status: 404 }
+      );
+    }
+
     const truck = await prisma.truck.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -121,20 +130,10 @@ export async function PATCH(
     }
 
     const resolvedParams = await params;
-    const existingTruck = await prisma.truck.findFirst({
-      where: {
-        id: resolvedParams.id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
-
-    if (!existingTruck) {
+    const resolved = await resolveEntityParam('trucks', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'NOT_FOUND', message: 'Truck not found' },
-        },
+        { success: false, error: { code: 'NOT_FOUND', message: 'Truck not found' } },
         { status: 404 }
       );
     }
@@ -177,7 +176,7 @@ export async function PATCH(
     }
 
     const truck = await prisma.truck.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: updateData,
       include: {
         currentDrivers: {
@@ -240,20 +239,10 @@ export async function DELETE(
     }
 
     const resolvedParams = await params;
-    const existingTruck = await prisma.truck.findFirst({
-      where: {
-        id: resolvedParams.id,
-        companyId: session.user.companyId,
-        deletedAt: null,
-      },
-    });
-
-    if (!existingTruck) {
+    const resolved = await resolveEntityParam('trucks', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
       return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'NOT_FOUND', message: 'Truck not found' },
-        },
+        { success: false, error: { code: 'NOT_FOUND', message: 'Truck not found' } },
         { status: 404 }
       );
     }
@@ -275,7 +264,7 @@ export async function DELETE(
 
     // Soft delete
     await prisma.truck.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: { deletedAt: new Date(), isActive: false },
     });
 

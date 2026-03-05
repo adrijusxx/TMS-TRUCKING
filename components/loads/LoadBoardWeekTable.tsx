@@ -54,7 +54,7 @@ export default function LoadBoardWeekTable({ drivers, weekDays, stats }: LoadBoa
               return (
                 <tr key={schedule.driver.id} className="border-b hover:bg-muted/30">
                   <td className="py-1 px-2 sticky left-0 bg-background z-10">
-                    <Link href={`/dashboard/drivers/${schedule.driver.id}`} prefetch={false} className="hover:underline font-medium">
+                    <Link href={`/dashboard/drivers/${schedule.driver.driverNumber || schedule.driver.id}`} prefetch={false} className="hover:underline font-medium">
                       {schedule.driver.firstName} {schedule.driver.lastName}
                     </Link>
                   </td>
@@ -91,7 +91,7 @@ export default function LoadBoardWeekTable({ drivers, weekDays, stats }: LoadBoa
                             {loads.slice(0, 2).map((load) => (
                               <Link
                                 key={load.id}
-                                href={`/dashboard/loads/${load.id}`}
+                                href={`/dashboard/loads/${load.loadNumber || load.id}`}
                                 prefetch={false}
                                 className={cn(
                                   'block px-0.5 py-0.5 rounded truncate hover:opacity-80',

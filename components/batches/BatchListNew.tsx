@@ -176,7 +176,7 @@ export default function BatchListNew({ embedded }: BatchListNewProps = {}) {
           <Trash2 className="h-4 w-4" />
         </Button>
       )}
-      <Link href={`/dashboard/invoices/batches/${row.id}`}>
+      <Link href={`/dashboard/invoices/batches/${row.batchNumber || row.id}`}>
         <Button variant="ghost" size="sm">View</Button>
       </Link>
     </div>
@@ -218,7 +218,7 @@ export default function BatchListNew({ embedded }: BatchListNewProps = {}) {
         config={batchesTableConfig}
         fetchData={fetchBatches}
         rowActions={rowActions}
-        onRowClick={(row) => router.push(`/dashboard/invoices/batches/${row.id}`)}
+        onRowClick={(row) => router.push(`/dashboard/invoices/batches/${row.batchNumber || row.id}`)}
         emptyMessage="No batches found. Get started by creating your first batch."
         enableColumnVisibility={can('data.column_visibility')}
         enableRowSelection={true}

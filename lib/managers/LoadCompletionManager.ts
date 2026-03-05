@@ -314,7 +314,7 @@ export class LoadCompletionManager {
       category: 'load_status',
       title: 'Load Completed',
       message: `Load ${load.loadNumber} delivered — revenue: $${(load.revenue ?? 0).toFixed(2)}`,
-      link: `/dashboard/loads/${load.id}`,
+      link: `/dashboard/loads/${load.loadNumber}`,
       entityType: 'Load',
       entityId: load.id,
     });

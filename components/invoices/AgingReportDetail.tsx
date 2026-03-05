@@ -133,7 +133,7 @@ export default function AgingReportDetail() {
                   <TableRow key={inv.id} className="hover:bg-muted/50">
                     <TableCell>{inv.customer.name}</TableCell>
                     <TableCell>
-                      <Link href={`/dashboard/invoices/${inv.id}`} className="text-primary hover:underline font-medium">
+                      <Link href={`/dashboard/invoices/${inv.invoiceNumber || inv.id}`} className="text-primary hover:underline font-medium">
                         {inv.invoiceNumber}
                       </Link>
                     </TableCell>

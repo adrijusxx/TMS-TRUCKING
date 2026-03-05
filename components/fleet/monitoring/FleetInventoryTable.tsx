@@ -17,6 +17,7 @@ import type {
 } from '@/lib/managers/fleet-monitoring/types';
 
 type TabType = 'truck' | 'trailer' | 'idle-drivers' | 'dormant-equipment';
+type IdleSubTab = 'all' | '2-10days' | '8+days';
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All Statuses' },
@@ -52,6 +53,7 @@ export default function FleetInventoryTable({
   const [status, setStatus] = useState('ALL');
   const [search, setSearch] = useState('');
   const [oosTarget, setOosTarget] = useState<OOSEquipmentRef | null>(null);
+  const [idleSubTab, setIdleSubTab] = useState<IdleSubTab>('all');
 
   const isInventoryTab = activeTab === 'truck' || activeTab === 'trailer';
 
@@ -71,9 +73,22 @@ export default function FleetInventoryTable({
     enabled: isInventoryTab,
   });
 
+  // Idle driver sub-tab counts (computed from raw data, pre-search)
+  const idleSubCounts = useMemo(() => ({
+    all: idleDrivers.length,
+    '2-10days': idleDrivers.filter(d => d.idleHours >= 48 && d.idleHours <= 240).length,
+    '8+days': idleDrivers.filter(d => d.idleHours >= 192).length,
+  }), [idleDrivers]);
+
   // Client-side filtering/sorting/pagination for idle drivers
   const filteredIdleDrivers = useMemo(() => {
     let list = [...idleDrivers];
+    // Apply sub-tab filter
+    if (idleSubTab === '2-10days') {
+      list = list.filter(d => d.idleHours >= 48 && d.idleHours <= 240);
+    } else if (idleSubTab === '8+days') {
+      list = list.filter(d => d.idleHours >= 192);
+    }
     if (search) {
       const term = search.toLowerCase();
       list = list.filter(d => d.driverName.toLowerCase().includes(term) || d.driverNumber.toLowerCase().includes(term));
@@ -86,7 +101,7 @@ export default function FleetInventoryTable({
         : b.driverName.localeCompare(a.driverName));
     }
     return list;
-  }, [idleDrivers, search, sort]);
+  }, [idleDrivers, idleSubTab, search, sort]);
 
   // Client-side filtering/sorting/pagination for dormant equipment
   const dormantCombined = useMemo(() => [...dormantTrucks, ...dormantTrailers], [dormantTrucks, dormantTrailers]);
@@ -121,6 +136,7 @@ export default function FleetInventoryTable({
     setPage(1);
     setSearch('');
     setStatus('ALL');
+    setIdleSubTab('all');
     if (tab === 'truck') setSort({ column: 'truckNumber', order: 'asc' });
     else if (tab === 'trailer') setSort({ column: 'trailerNumber', order: 'asc' });
     else if (tab === 'idle-drivers') setSort({ column: 'idleHours', order: 'desc' });
@@ -173,6 +189,34 @@ export default function FleetInventoryTable({
             onSearchChange={handleSearchChange}
             totalCount={totalCount}
           />
+          {activeTab === 'idle-drivers' && (
+            <div className="flex items-center gap-2 mt-2">
+              <Button
+                variant={idleSubTab === 'all' ? 'default' : 'outline'}
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => { setIdleSubTab('all'); setPage(1); }}
+              >
+                All ({idleSubCounts.all})
+              </Button>
+              <Button
+                variant={idleSubTab === '2-10days' ? 'default' : 'outline'}
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => { setIdleSubTab('2-10days'); setPage(1); }}
+              >
+                2-10 Days ({idleSubCounts['2-10days']})
+              </Button>
+              <Button
+                variant={idleSubTab === '8+days' ? 'default' : 'outline'}
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => { setIdleSubTab('8+days'); setPage(1); }}
+              >
+                8+ Days ({idleSubCounts['8+days']})
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (

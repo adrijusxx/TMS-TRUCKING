@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { McNumber, CrmIntegration } from '@prisma/client';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -12,8 +12,11 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, Save, RotateCcw, ChevronDown, Check, AlertCircle, Layers } from 'lucide-react';
+import { Loader2, RefreshCw, Save, RotateCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useDebounce } from '@/lib/hooks/useDebounce';
+import { normalizeCrmConfig, getSelectedSheets, getTotalImportedRows } from '@/lib/utils/crm-config';
+import { SheetTabSelector } from './SheetTabSelector';
 
 interface CrmSettingsListProps {
     mcNumbers: (McNumber & { crmIntegrations: CrmIntegration[] })[];
@@ -22,8 +25,8 @@ interface CrmSettingsListProps {
 interface FormData {
     enabled: boolean;
     sheetId: string;
-    sheetName: string;
-    syncInterval: number; // minutes, 0 = manual only
+    selectedSheets: string[];
+    syncInterval: number;
 }
 
 const SYNC_INTERVALS = [
@@ -40,7 +43,6 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
     const [loading, setLoading] = useState<string | null>(null);
     const [syncing, setSyncing] = useState<string | null>(null);
     const [resetting, setResetting] = useState<string | null>(null);
-    // Per-MC tab loading and available tabs
     const [tabsLoading, setTabsLoading] = useState<Record<string, boolean>>({});
     const [availableTabs, setAvailableTabs] = useState<Record<string, string[]>>({});
 
@@ -48,42 +50,59 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
         const initial: Record<string, FormData> = {};
         mcNumbers.forEach(mc => {
             const integration = mc.crmIntegrations.find(i => i.type === 'GOOGLE_SHEETS');
-            const config = integration?.config as any || {};
+            const rawConfig = (integration?.config as Record<string, any>) || {};
+            const normalized = normalizeCrmConfig(rawConfig);
             initial[mc.id] = {
                 enabled: integration?.enabled ?? false,
-                sheetId: config.sheetId || '',
-                sheetName: config.sheetName || '',
+                sheetId: normalized.sheetId,
+                selectedSheets: getSelectedSheets(normalized),
                 syncInterval: integration?.syncInterval ?? 15,
             };
         });
         return initial;
     });
 
+    // Debounced auto-fetch of tabs when sheetId changes
+    const sheetIdMap = Object.fromEntries(
+        Object.entries(formData).map(([mcId, data]) => [mcId, data.sheetId])
+    );
+    const debouncedSheetIds = useDebounce(JSON.stringify(sheetIdMap), 600);
+    const prevDebouncedRef = useRef(debouncedSheetIds);
+
+    useEffect(() => {
+        if (debouncedSheetIds === prevDebouncedRef.current) return;
+        prevDebouncedRef.current = debouncedSheetIds;
+
+        const parsed = JSON.parse(debouncedSheetIds) as Record<string, string>;
+        for (const [mcId, sheetId] of Object.entries(parsed)) {
+            const trimmed = sheetId?.trim();
+            if (trimmed && trimmed.length > 10 && formData[mcId]?.enabled) {
+                fetchTabs(mcId, trimmed);
+            }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedSheetIds]);
+
     function updateField<K extends keyof FormData>(mcId: string, key: K, value: FormData[K]) {
         setFormData(prev => ({ ...prev, [mcId]: { ...prev[mcId], [key]: value } }));
-        // Clear tabs if sheet ID changed
         if (key === 'sheetId') {
             setAvailableTabs(prev => ({ ...prev, [mcId]: [] }));
         }
     }
 
-    async function loadTabs(mcId: string) {
-        const sheetId = formData[mcId]?.sheetId?.trim();
-        if (!sheetId) {
-            toast.error('Enter a Sheet ID first');
-            return;
-        }
+    async function fetchTabs(mcId: string, sheetId?: string) {
+        const id = sheetId || formData[mcId]?.sheetId?.trim();
+        if (!id) return;
         setTabsLoading(prev => ({ ...prev, [mcId]: true }));
         try {
-            const res = await fetch(`/api/crm/integrations/google-sheets/tabs?sheetId=${encodeURIComponent(sheetId)}`);
+            const res = await fetch(`/api/crm/integrations/google-sheets/tabs?sheetId=${encodeURIComponent(id)}`);
             const json = await res.json();
             if (!res.ok) throw new Error(json.error);
             setAvailableTabs(prev => ({ ...prev, [mcId]: json.tabs }));
-            // Auto-select first tab if none selected
-            if (!formData[mcId].sheetName && json.tabs.length > 0) {
-                updateField(mcId, 'sheetName', json.tabs[0]);
+            // Auto-select all tabs if none were selected
+            if (formData[mcId].selectedSheets.length === 0 && json.tabs.length > 0) {
+                updateField(mcId, 'selectedSheets', json.tabs);
             }
-            toast.success(`Found ${json.tabs.length} sheet${json.tabs.length !== 1 ? 's' : ''}`);
         } catch (err: any) {
             toast.error(err.message || 'Failed to load sheet tabs');
         } finally {
@@ -97,8 +116,26 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
             toast.error('Please enter a Google Sheet ID');
             return;
         }
+        if (data.enabled && data.selectedSheets.length === 0) {
+            toast.error('Please select at least one sheet tab');
+            return;
+        }
         setLoading(mcId);
         try {
+            // Preserve existing per-sheet progress
+            const integration = mcNumbers.find(m => m.id === mcId)
+                ?.crmIntegrations.find(i => i.type === 'GOOGLE_SHEETS');
+            const existingConfig = normalizeCrmConfig((integration?.config as Record<string, any>) || {});
+
+            const sheets: Record<string, { lastImportedRow: number; columnMapping: Record<string, string> | null }> = {};
+            for (const name of data.selectedSheets) {
+                const existing = existingConfig.sheets[name];
+                sheets[name] = {
+                    lastImportedRow: existing?.lastImportedRow || 0,
+                    columnMapping: existing?.columnMapping || null,
+                };
+            }
+
             const res = await fetch('/api/crm/integrations/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -107,10 +144,7 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
                     type: 'GOOGLE_SHEETS',
                     enabled: data.enabled,
                     syncInterval: data.syncInterval || null,
-                    config: {
-                        sheetId: data.sheetId.trim(),
-                        sheetName: data.sheetName || 'Sheet1',
-                    },
+                    config: { sheetId: data.sheetId.trim(), sheets },
                 }),
             });
             if (!res.ok) {
@@ -166,19 +200,21 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
 
         setResetting(mcId);
         try {
+            const data = formData[mcId];
+            const sheets: Record<string, { lastImportedRow: number; columnMapping: null }> = {};
+            for (const name of data.selectedSheets) {
+                sheets[name] = { lastImportedRow: 0, columnMapping: null };
+            }
+
             const res = await fetch('/api/crm/integrations/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     mcNumberId: mcId,
                     type: 'GOOGLE_SHEETS',
-                    enabled: formData[mcId].enabled,
-                    syncInterval: formData[mcId].syncInterval || null,
-                    config: {
-                        sheetId: formData[mcId].sheetId.trim(),
-                        sheetName: formData[mcId].sheetName || 'Sheet1',
-                        lastImportedRow: 0,
-                    },
+                    enabled: data.enabled,
+                    syncInterval: data.syncInterval || null,
+                    config: { sheetId: data.sheetId.trim(), sheets },
                 }),
             });
             if (!res.ok) throw new Error('Failed to reset');
@@ -195,11 +231,12 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
         <div className="grid gap-6">
             {mcNumbers.map((mc) => {
                 const integration = mc.crmIntegrations.find(i => i.type === 'GOOGLE_SHEETS');
-                const config = integration?.config as any || {};
-                const data = formData[mc.id] || { enabled: false, sheetId: '', sheetName: '', syncInterval: 15 };
+                const rawConfig = (integration?.config as Record<string, any>) || {};
+                const normalizedConfig = normalizeCrmConfig(rawConfig);
+                const data = formData[mc.id] || { enabled: false, sheetId: '', selectedSheets: [], syncInterval: 15 };
                 const tabs = availableTabs[mc.id] || [];
                 const isTabsLoading = tabsLoading[mc.id] || false;
-                const lastRow = config.lastImportedRow || 0;
+                const totalRows = getTotalImportedRows(normalizedConfig);
 
                 return (
                     <Card key={mc.id}>
@@ -218,7 +255,7 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
                                 )}
                             </CardTitle>
                             <CardDescription>
-                                Automatically import leads from a Google Sheet tab into this MC number's pipeline.
+                                Automatically import leads from Google Sheet tabs into this MC number's pipeline.
                             </CardDescription>
                         </CardHeader>
 
@@ -235,75 +272,35 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
                                 </Label>
                             </div>
 
-                            {/* Sheet ID + tab loader */}
+                            {/* Sheet ID */}
                             <div className="space-y-2">
                                 <Label htmlFor={`sheet-${mc.id}`}>Google Sheet ID or URL</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        id={`sheet-${mc.id}`}
-                                        placeholder="Paste Sheet URL or ID..."
-                                        value={data.sheetId}
-                                        onChange={(e) => updateField(mc.id, 'sheetId', e.target.value)}
-                                        disabled={!data.enabled}
-                                        className="flex-1"
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => loadTabs(mc.id)}
-                                        disabled={!data.enabled || !data.sheetId.trim() || isTabsLoading}
-                                        title="Load available sheet tabs"
-                                    >
-                                        {isTabsLoading ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                            <Layers className="h-4 w-4" />
-                                        )}
-                                    </Button>
-                                </div>
+                                <Input
+                                    id={`sheet-${mc.id}`}
+                                    placeholder="Paste Sheet URL or ID..."
+                                    value={data.sheetId}
+                                    onChange={(e) => updateField(mc.id, 'sheetId', e.target.value)}
+                                    disabled={!data.enabled}
+                                />
                                 <p className="text-xs text-muted-foreground">
                                     Paste the full URL or just the ID from the spreadsheet address bar.
                                 </p>
                             </div>
 
-                            {/* Sheet tab selector */}
+                            {/* Sheet tab multi-selector */}
                             <div className="space-y-2">
-                                <Label>Sheet Tab</Label>
-                                {tabs.length > 0 ? (
-                                    <Select
-                                        value={data.sheetName}
-                                        onValueChange={(v) => updateField(mc.id, 'sheetName', v)}
-                                        disabled={!data.enabled}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a tab..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {tabs.map((tab) => (
-                                                <SelectItem key={tab} value={tab}>
-                                                    <span className="flex items-center gap-2">
-                                                        {tab}
-                                                        {tab === data.sheetName && <Check className="h-3.5 w-3.5 text-green-600" />}
-                                                    </span>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <Input
-                                            placeholder={data.sheetName || 'Sheet1'}
-                                            value={data.sheetName}
-                                            onChange={(e) => updateField(mc.id, 'sheetName', e.target.value)}
-                                            disabled={!data.enabled}
-                                        />
-                                        <p className="text-xs text-muted-foreground whitespace-nowrap">
-                                            or click <Layers className="h-3 w-3 inline" /> to load tabs
-                                        </p>
-                                    </div>
-                                )}
+                                <Label>Sheet Tabs</Label>
+                                <SheetTabSelector
+                                    availableTabs={tabs}
+                                    selectedTabs={data.selectedSheets}
+                                    onSelectionChange={(sheets) => updateField(mc.id, 'selectedSheets', sheets)}
+                                    isLoading={isTabsLoading}
+                                    disabled={!data.enabled}
+                                    onLoadTabs={() => fetchTabs(mc.id)}
+                                    perSheetProgress={normalizedConfig.sheets}
+                                />
                                 <p className="text-xs text-muted-foreground">
-                                    The tab name from the bottom of your spreadsheet (e.g. Sheet3, Leads, etc.)
+                                    Select one or more tabs to import leads from. Tabs auto-load when you enter a Sheet ID.
                                 </p>
                             </div>
 
@@ -332,10 +329,13 @@ export default function CrmSettingsList({ mcNumbers }: CrmSettingsListProps) {
                             </div>
 
                             {/* Sync progress info */}
-                            {integration && lastRow > 0 && (
+                            {integration && totalRows > 0 && (
                                 <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm">
                                     <span className="text-muted-foreground">
-                                        Progress: <span className="font-medium text-foreground">{lastRow} row{lastRow !== 1 ? 's' : ''}</span> already imported
+                                        Progress: <span className="font-medium text-foreground">{totalRows} row{totalRows !== 1 ? 's' : ''}</span> already imported
+                                        {data.selectedSheets.length > 1 && (
+                                            <span className="ml-1">across {data.selectedSheets.length} sheets</span>
+                                        )}
                                     </span>
                                     <Button
                                         variant="ghost"

@@ -248,7 +248,7 @@ export default function InspectionList() {
                     </TableCell>
                     <TableCell>
                       <Link
-                        href={`/dashboard/inspections/${inspection.id}`}
+                        href={`/dashboard/inspections/${inspection.inspectionNumber || inspection.id}`}
                         className="font-medium hover:underline"
                       >
                         {inspection.inspectionNumber}
@@ -256,7 +256,7 @@ export default function InspectionList() {
                     </TableCell>
                     <TableCell>
                       <Link
-                        href={`/dashboard/trucks/${inspection.truck.id}`}
+                        href={`/dashboard/trucks/${inspection.truck.truckNumber || inspection.truck.id}`}
                         className="font-medium hover:underline"
                       >
                         {inspection.truck.truckNumber}

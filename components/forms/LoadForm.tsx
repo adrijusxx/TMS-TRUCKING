@@ -162,7 +162,7 @@ export default function LoadForm({ initialData, loadId, onSuccess, onCancel, isS
         } catch (err) { toast.error('Load created but some files failed to upload'); }
       }
       queryClient.invalidateQueries({ queryKey: ['loads'] });
-      if (onSuccess) onSuccess(); else router.push(`/dashboard/loads/${newLoadId}`);
+      if (onSuccess) onSuccess(); else router.push(`/dashboard/loads/${data.data.loadNumber || newLoadId}`);
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -172,7 +172,7 @@ export default function LoadForm({ initialData, loadId, onSuccess, onCancel, isS
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loads'] });
       queryClient.invalidateQueries({ queryKey: ['load', editLoadId] });
-      if (onSuccess) onSuccess(); else router.push(`/dashboard/loads/${editLoadId}`);
+      if (onSuccess) onSuccess(); else router.push(`/dashboard/loads/${initialData?.loadNumber || editLoadId}`);
     },
     onError: (err: Error) => setError(err.message),
   });

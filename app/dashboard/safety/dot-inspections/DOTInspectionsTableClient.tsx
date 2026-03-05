@@ -104,7 +104,7 @@ export function DOTInspectionsTableClient() {
 
   const rowActions = (row: DOTInspectionData) => (
     <div className="flex items-center gap-2">
-      <Link href={`/dashboard/trucks/${row.truck.id}/inspections/${row.id}`}>
+      <Link href={`/dashboard/trucks/${row.truck.truckNumber || row.truck.id}/inspections/${row.inspectionNumber || row.id}`}>
         <Button variant="ghost" size="sm">
           <Eye className="h-4 w-4 mr-1" />
           View

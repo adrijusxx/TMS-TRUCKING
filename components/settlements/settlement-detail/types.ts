@@ -36,12 +36,9 @@ export function formatStatus(status: SettlementStatus): string {
   return status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
-export const deductionTypeLabels: Record<string, string> = {
-  FUEL_ADVANCE: 'Fuel Advance',
-  CASH_ADVANCE: 'Cash Advance',
-  INSURANCE: 'Insurance',
-  ESCROW: 'Escrow',
-  FINE: 'Fine',
-  REPAIR: 'Repair',
-  OTHER: 'Other',
-};
+export function getTransactionLabel(deductionType: string, description?: string): string {
+  if (description) return description;
+  const entry = TRANSACTION_TYPES[deductionType as keyof typeof TRANSACTION_TYPES];
+  if (entry) return entry.label;
+  return deductionType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+}

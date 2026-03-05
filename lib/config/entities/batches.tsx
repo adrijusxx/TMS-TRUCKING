@@ -38,7 +38,7 @@ const columns: ExtendedColumnDef<BatchData>[] = [
     accessorKey: 'batchNumber',
     header: 'Batch #',
     cell: ({ row }) => (
-      <Link href={`/dashboard/invoices/batches/${row.original.id}`} className="text-primary hover:underline font-medium">
+      <Link href={`/dashboard/invoices/batches/${row.original.batchNumber || row.original.id}`} className="text-primary hover:underline font-medium">
         {row.original.batchNumber}
       </Link>
     ),

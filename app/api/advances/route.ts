@@ -78,9 +78,31 @@ export async function GET(request: NextRequest) {
       prisma.driverAdvance.count({ where }),
     ]);
 
+    // Optionally include negative balances per driver
+    const includeNegativeBalance = searchParams.get('includeNegativeBalance') === 'true';
+    let negativeBalances: { driverId: string; _sum: { amount: number | null } }[] = [];
+
+    if (includeNegativeBalance) {
+      const grouped = await prisma.driverNegativeBalance.groupBy({
+        by: ['driverId'],
+        where: {
+          isApplied: false,
+          driver: { companyId: session.user.companyId },
+        },
+        _sum: { amount: true },
+      });
+      negativeBalances = grouped.map((g) => ({ driverId: g.driverId, _sum: { amount: g._sum.amount } }));
+    }
+
     return NextResponse.json({
       success: true,
       data: advances,
+      ...(includeNegativeBalance && {
+        negativeBalances: negativeBalances.map((nb) => ({
+          driverId: nb.driverId,
+          amount: nb._sum.amount || 0,
+        })),
+      }),
       pagination: {
         page,
         limit,

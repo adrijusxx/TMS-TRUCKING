@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import { SettlementPreviewDialog } from '@/components/settlements/SettlementPrev
 import { fetchDrivers, fetchDriverSettlementEligibleLoads, generateSettlement } from './generate-settlement/api';
 import { calculateLoadDriverPay } from './generate-settlement/calculateLoadDriverPay';
 import LoadSelectionTable from './generate-settlement/LoadSelectionTable';
+import { DateRangeFilter } from '@/components/data-table/DateRangeFilter';
 
 function formatPayRate(driver: any): string {
   if (!driver.payType || !driver.payRate) return '';
@@ -42,6 +43,7 @@ export default function GenerateSettlementForm() {
   const [advances, setAdvances] = useState('0');
   const [notes, setNotes] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [dateRange, setDateRange] = useState<string | undefined>(undefined);
 
   const { data: driversData } = useQuery({ queryKey: ['drivers'], queryFn: fetchDrivers });
   const { data: loadsData, isLoading: loadsLoading } = useQuery({
@@ -67,12 +69,32 @@ export default function GenerateSettlementForm() {
   });
 
   const drivers = driversData?.data || [];
-  const availableLoads = loadsData?.data || [];
+  const allLoads = loadsData?.data || [];
   const selectedDriver = drivers.find((d: any) => d.id === selectedDriverId);
+
+  // Filter loads by date range if set
+  const availableLoads = useMemo(() => {
+    if (!dateRange) return allLoads;
+    const parts = dateRange.includes(':') ? dateRange.split(':') : [dateRange, dateRange];
+    const start = new Date(parts[0]);
+    const end = new Date(parts[1]);
+    end.setHours(23, 59, 59, 999);
+    return allLoads.filter((load: any) => {
+      const d = load.deliveredAt || load.pickupDate;
+      if (!d) return false;
+      const loadDate = new Date(d);
+      return loadDate >= start && loadDate <= end;
+    });
+  }, [allLoads, dateRange]);
 
   useEffect(() => {
     if (selectedDriverId) setSelectedLoads(new Set());
   }, [selectedDriverId]);
+
+  // Clear selections when date range changes
+  useEffect(() => {
+    setSelectedLoads(new Set());
+  }, [dateRange]);
 
   const handleToggleLoad = (loadId: string) => {
     const next = new Set(selectedLoads);
@@ -108,7 +130,10 @@ export default function GenerateSettlementForm() {
       });
     }
 
-    const dates = loadsToSettle.map((l: any) => l.deliveredAt ? new Date(l.deliveredAt).getTime() : 0).filter((d: number) => d > 0);
+    const dates = loadsToSettle.map((l: any) => {
+      const d = l.deliveredAt || l.pickupDate;
+      return d ? new Date(d).getTime() : 0;
+    }).filter((d: number) => d > 0);
     const periodStart = dates.length > 0 ? new Date(Math.min(...dates)) : new Date();
     const periodEnd = dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
 
@@ -249,6 +274,26 @@ export default function GenerateSettlementForm() {
             )}
           </CardContent>
         </Card>
+
+        {/* Settlement Period Filter */}
+        {selectedDriverId && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Settlement Period</CardTitle>
+              <CardDescription>Filter loads by delivery date range</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <DateRangeFilter value={dateRange} onChange={setDateRange} />
+                {dateRange && (
+                  <p className="text-sm text-muted-foreground">
+                    Showing {availableLoads.length} of {allLoads.length} loads
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Load Selection */}
         {selectedDriverId && (

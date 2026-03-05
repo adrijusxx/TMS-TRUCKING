@@ -59,7 +59,7 @@ export default function DriverDeductionRulesTab({ driver }: DriverDeductionRules
     const { data: rulesData, isLoading } = useQuery({
         queryKey: ['deduction-rules', driver.id],
         queryFn: async () => {
-            const res = await fetch(apiUrl(`/api/deduction-rules?driverId=${driver.id}`));
+            const res = await fetch(apiUrl(`/api/deduction-rules?driverId=${driver.id}&isActive=true`));
             if (!res.ok) throw new Error('Failed to fetch rules');
             return res.json();
         },

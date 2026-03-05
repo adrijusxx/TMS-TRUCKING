@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, withPermission, handleApiError, successResponse } from '@/lib/api/route-helpers';
 import { prisma } from '@/lib/prisma';
 import { NotFoundError } from '@/lib/errors';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateInventoryItemSchema = z.object({
@@ -28,10 +29,14 @@ export const GET = withAuth(async (
   { params }: { params: Promise<{ id: string }> }
 ) => {
   const { id } = await params;
+  const resolved = await resolveEntityParam('inventory', id, session.user.companyId);
+  if (!resolved) {
+    throw new NotFoundError('Inventory item');
+  }
 
   const item = await prisma.inventoryItem.findFirst({
     where: {
-      id,
+      id: resolved.id,
       companyId: session.user.companyId,
       deletedAt: null,
     },
@@ -66,12 +71,17 @@ export const PATCH = withPermission('trucks.edit', async (
 ) => {
   try {
     const { id } = await params;
+    const resolved = await resolveEntityParam('inventory', id, session.user.companyId);
+    if (!resolved) {
+      throw new NotFoundError('Inventory item');
+    }
+
     const body = await request.json();
     const validatedData = updateInventoryItemSchema.parse(body);
 
     const existing = await prisma.inventoryItem.findFirst({
       where: {
-        id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -82,7 +92,7 @@ export const PATCH = withPermission('trucks.edit', async (
     }
 
     const item = await prisma.inventoryItem.update({
-      where: { id },
+      where: { id: resolved.id },
       data: validatedData,
       include: {
         preferredVendor: {
@@ -107,10 +117,14 @@ export const DELETE = withPermission('trucks.delete', async (
   { params }: { params: Promise<{ id: string }> }
 ) => {
   const { id } = await params;
+  const resolved = await resolveEntityParam('inventory', id, session.user.companyId);
+  if (!resolved) {
+    throw new NotFoundError('Inventory item');
+  }
 
   const item = await prisma.inventoryItem.findFirst({
     where: {
-      id,
+      id: resolved.id,
       companyId: session.user.companyId,
       deletedAt: null,
     },
@@ -121,7 +135,7 @@ export const DELETE = withPermission('trucks.delete', async (
   }
 
   await prisma.inventoryItem.update({
-    where: { id },
+    where: { id: resolved.id },
     data: { deletedAt: new Date() },
   });
 

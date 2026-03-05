@@ -8,7 +8,6 @@ import { DollarSign, User, Calendar } from 'lucide-react';
 
 interface SettlementBreakdownProps {
   settlement: any;
-  additionsData: any;
   isEditing: boolean;
   editedGrossPay: string;
   editedPeriodStart: string;
@@ -21,7 +20,6 @@ interface SettlementBreakdownProps {
 
 export default function SettlementBreakdown({
   settlement,
-  additionsData,
   isEditing,
   editedGrossPay,
   editedPeriodStart,
@@ -87,38 +85,19 @@ export default function SettlementBreakdown({
               }
             })()}
           </div>
+          {isEditing && (
+            <div className="mt-3 space-y-1">
+              <p className="text-sm text-muted-foreground">Gross Pay Override</p>
+              <Input
+                type="number"
+                step="0.01"
+                value={editedGrossPay}
+                onChange={(e) => onEditGrossPay(e.target.value)}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Escrow Information */}
-      {(settlement.driver?.escrowTargetAmount || settlement.driver?.escrowDeductionPerWeek) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Escrow / Holdings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {settlement.driver?.escrowTargetAmount && (
-              <div>
-                <p className="text-sm text-muted-foreground">Target Amount</p>
-                <p className="font-medium">{formatCurrency(settlement.driver.escrowTargetAmount)}</p>
-              </div>
-            )}
-            {settlement.driver?.escrowDeductionPerWeek && (
-              <div>
-                <p className="text-sm text-muted-foreground">Deduction Per Week</p>
-                <p className="font-medium">{formatCurrency(settlement.driver.escrowDeductionPerWeek)}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-sm text-muted-foreground">Current Balance</p>
-              <p className="font-medium">{formatCurrency(settlement.driver?.escrowBalance || 0)}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Period */}
       <Card>
@@ -149,72 +128,6 @@ export default function SettlementBreakdown({
             <div>
               <p className="text-sm text-muted-foreground">Paid Date</p>
               <p className="font-medium">{formatDate(settlement.paidDate)}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Financial Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Financial Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Gross Pay</span>
-            {isEditing ? (
-              <Input
-                type="number"
-                step="0.01"
-                className="w-32 text-right"
-                value={editedGrossPay}
-                onChange={(e) => onEditGrossPay(e.target.value)}
-              />
-            ) : (
-              <span className="font-medium">{formatCurrency(settlement.grossPay)}</span>
-            )}
-          </div>
-          <div className="flex justify-between items-center pt-2 border-t mt-2">
-            <span className="text-sm text-muted-foreground">Total Miles</span>
-            <span className="font-medium">
-              {settlement.loads?.reduce((sum: number, load: any) => sum + (load.totalMiles || load.loadedMiles || 0), 0).toLocaleString()} mi
-            </span>
-          </div>
-          <div className="flex justify-between items-center pb-2 border-b mb-2">
-            <span className="text-sm text-muted-foreground">Loaded Miles</span>
-            <span className="font-medium">
-              {settlement.loads?.reduce((sum: number, load: any) => sum + (load.loadedMiles || 0), 0).toLocaleString()} mi
-            </span>
-          </div>
-          {additionsData?.data && additionsData.data.length > 0 && (
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Additions</span>
-              <span className="font-medium text-green-600">
-                +{formatCurrency(additionsData.data.reduce((sum: number, a: any) => sum + a.amount, 0))}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-sm text-muted-foreground">Deductions</span>
-            <span className="font-medium text-red-600">-{formatCurrency(settlement.deductions)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-sm text-muted-foreground">Advances</span>
-            <span className="font-medium text-red-600">-{formatCurrency(settlement.advances)}</span>
-          </div>
-          <div className="flex justify-between pt-2 border-t">
-            <span className="font-semibold">Net Pay</span>
-            <span className="text-xl font-bold text-green-600">{formatCurrency(settlement.netPay)}</span>
-          </div>
-          {(settlement as any).carriedForwardAmount > 0 && (
-            <div className="flex justify-between pt-1 text-sm">
-              <span className="text-amber-600 font-medium">Carried Forward</span>
-              <span className="text-amber-600 font-medium">
-                -{formatCurrency((settlement as any).carriedForwardAmount)}
-              </span>
             </div>
           )}
         </CardContent>

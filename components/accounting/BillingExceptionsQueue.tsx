@@ -262,7 +262,7 @@ export function BillingExceptionsQueue() {
                   <TableRow key={load.id}>
                     <TableCell className="font-medium">
                       <Link
-                        href={`/dashboard/loads/${load.id}`}
+                        href={`/dashboard/loads/${load.loadNumber || load.id}`}
                         className="hover:underline text-primary"
                       >
                         {load.loadNumber}

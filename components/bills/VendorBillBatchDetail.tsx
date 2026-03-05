@@ -351,7 +351,7 @@ export default function VendorBillBatchDetail({ batchId }: VendorBillBatchDetail
                 <TableCell>{bill.vendor.name}</TableCell>
                 <TableCell>{bill.vendorInvoiceNumber || '-'}</TableCell>
                 <TableCell>{bill.load ? (
-                  <Link href={`/dashboard/loads/${bill.load.id}`} className="text-primary hover:underline">{bill.load.loadNumber}</Link>
+                  <Link href={`/dashboard/loads/${bill.load.loadNumber || bill.load.id}`} className="text-primary hover:underline">{bill.load.loadNumber}</Link>
                 ) : '-'}</TableCell>
                 <TableCell>{bill.truck?.truckNumber || '-'}</TableCell>
                 <TableCell>{billStatusBadge(bill.status)}</TableCell>

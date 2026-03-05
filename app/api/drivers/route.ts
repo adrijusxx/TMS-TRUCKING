@@ -223,6 +223,8 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(validated.password, 10);
     const licenseExpiry = validated.licenseExpiry instanceof Date ? validated.licenseExpiry : new Date(validated.licenseExpiry);
     const medicalCardExpiry = validated.medicalCardExpiry instanceof Date ? validated.medicalCardExpiry : new Date(validated.medicalCardExpiry);
+    const toDate = (v: string | Date | undefined | null) =>
+      v ? (v instanceof Date ? v : new Date(v)) : null;
 
     const user = await prisma.user.create({
       data: {
@@ -242,16 +244,43 @@ export async function POST(request: NextRequest) {
         userId: user.id, companyId: session.user.companyId,
         driverNumber: validated.driverNumber, licenseNumber: validated.licenseNumber,
         licenseState: validated.licenseState, licenseExpiry, medicalCardExpiry,
-        drugTestDate: validated.drugTestDate
-          ? (validated.drugTestDate instanceof Date ? validated.drugTestDate : new Date(validated.drugTestDate))
-          : null,
-        backgroundCheck: validated.backgroundCheck
-          ? (validated.backgroundCheck instanceof Date ? validated.backgroundCheck : new Date(validated.backgroundCheck))
-          : null,
+        drugTestDate: toDate(validated.drugTestDate),
+        backgroundCheck: toDate(validated.backgroundCheck),
         payType: finalPayType as any, payRate: finalPayRate,
         homeTerminal: validated.homeTerminal,
-        emergencyContact: validated.emergencyContact, emergencyPhone: validated.emergencyPhone,
+        emergencyContact: validated.emergencyContact || validated.emergencyContactName,
+        emergencyPhone: validated.emergencyPhone || validated.emergencyContactPhone,
         mcNumberId: assignedMcNumberId, status: 'AVAILABLE',
+        // Personal info
+        socialSecurityNumber: validated.socialSecurityNumber,
+        birthDate: toDate(validated.birthDate),
+        gender: validated.gender as any,
+        maritalStatus: validated.maritalStatus as any,
+        localDriver: validated.localDriver,
+        telegramNumber: validated.telegramNumber,
+        // Address
+        address1: validated.address1, address2: validated.address2,
+        city: validated.city, state: validated.state,
+        zipCode: validated.zipCode, country: validated.country,
+        // Emergency contact (detailed)
+        emergencyContactName: validated.emergencyContactName,
+        emergencyContactRelation: validated.emergencyContactRelation,
+        emergencyContactPhone: validated.emergencyContactPhone,
+        emergencyContactEmail: validated.emergencyContactEmail,
+        // Compliance
+        licenseIssueDate: toDate(validated.licenseIssueDate),
+        cdlExperience: validated.cdlExperience,
+        restrictions: validated.restrictions,
+        dlClass: validated.dlClass,
+        driverType: validated.driverType as any,
+        endorsements: validated.endorsements,
+        driverFacingCamera: validated.driverFacingCamera,
+        // Payroll
+        stopPayEnabled: validated.stopPayEnabled,
+        stopPayRate: validated.stopPayRate,
+        payTo: validated.payTo, notes: validated.notes,
+        escrowTargetAmount: validated.escrowTargetAmount,
+        escrowDeductionPerWeek: validated.escrowDeductionPerWeek,
       },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },

@@ -303,7 +303,7 @@ export default function InvoiceDetail({ invoice, isSheet = false }: InvoiceDetai
                       <TableRow key={load.id}>
                         <TableCell className="font-medium">
                           <Link
-                            href={`/dashboard/loads/${load.id}`}
+                            href={`/dashboard/loads/${load.loadNumber || load.id}`}
                             className="text-primary hover:underline"
                           >
                             {load.loadNumber}

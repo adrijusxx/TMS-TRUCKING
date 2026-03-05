@@ -127,7 +127,7 @@ export default function BillingSubscriptionCategory() {
             <div>
                 <h2 className="text-2xl font-bold mb-2">Billing & Subscription</h2>
                 <p className="text-muted-foreground">
-                    Manage your subscription plan and billing information
+                    View your subscription plan, usage limits, and payment history. Upgrade your plan or add premium modules to unlock additional features. Billing is managed securely through Stripe.
                 </p>
 
                 {/* Current Plan Banner */}

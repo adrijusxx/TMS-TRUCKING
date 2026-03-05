@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 export async function GET(
@@ -14,10 +15,14 @@ export async function GET(
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('salary-batches', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+        }
 
         const batch = await prisma.salaryBatch.findUnique({
             where: {
-                id,
+                id: resolved.id,
                 companyId: session.user.companyId,
             },
             include: {
@@ -90,6 +95,11 @@ export async function PATCH(
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('salary-batches', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+        }
+
         const body = await request.json();
 
         // Allow editing batch metadata fields
@@ -101,7 +111,7 @@ export async function PATCH(
 
         if (Object.keys(editableFields).length > 0 && body.status === undefined) {
             const updated = await prisma.salaryBatch.update({
-                where: { id, companyId: session.user.companyId },
+                where: { id: resolved.id, companyId: session.user.companyId },
                 data: editableFields,
             });
             return NextResponse.json({ success: true, data: updated });
@@ -111,7 +121,7 @@ export async function PATCH(
         if (body.status === 'POSTED') {
             // Validate current status
             const currentBatch = await prisma.salaryBatch.findUnique({
-                where: { id, companyId: session.user.companyId },
+                where: { id: resolved.id, companyId: session.user.companyId },
                 include: { settlements: true }
             });
 
@@ -121,23 +131,63 @@ export async function PATCH(
             // Update Batch AND Settlements
             const [updatedBatch] = await prisma.$transaction([
                 prisma.salaryBatch.update({
-                    where: { id },
+                    where: { id: resolved.id },
                     data: {
                         status: 'POSTED',
                         postedAt: new Date(),
                     }
                 }),
-                // Update all settlements to 'APPROVED' or 'PAID' depending on workflow
-                // For now, let's mark them APPROVED so they are locked? Or go straight to generated?
-                // The requirement said "Posted = Locked", so distinct from PAID.
                 prisma.settlement.updateMany({
-                    where: { salaryBatchId: id },
+                    where: { salaryBatchId: resolved.id },
                     data: {
                         status: 'APPROVED',
                         approvalStatus: 'APPROVED'
                     }
                 })
             ]);
+
+            // Update driver escrow balances for all ESCROW deductions in this batch
+            const escrowDeductions = await prisma.settlementDeduction.findMany({
+                where: {
+                    settlement: { salaryBatchId: resolved.id },
+                    deductionType: 'ESCROW',
+                    category: 'deduction',
+                },
+                include: { settlement: { select: { driverId: true } } },
+            });
+
+            if (escrowDeductions.length > 0) {
+                const driverEscrowMap = new Map<string, number>();
+                for (const item of escrowDeductions) {
+                    const current = driverEscrowMap.get(item.settlement.driverId) || 0;
+                    driverEscrowMap.set(item.settlement.driverId, current + item.amount);
+                }
+
+                for (const [driverId, amount] of driverEscrowMap) {
+                    await prisma.driver.update({
+                        where: { id: driverId },
+                        data: { escrowBalance: { increment: amount } },
+                    });
+                }
+            }
+
+            // Update goal amount balances for deduction rules
+            const allDeductions = await prisma.settlementDeduction.findMany({
+                where: {
+                    settlement: { salaryBatchId: resolved.id },
+                    category: 'deduction',
+                },
+            });
+
+            for (const item of allDeductions) {
+                const meta = item.metadata as Record<string, any> | null;
+                if (meta?.deductionRuleId) {
+                    await prisma.deductionRule.update({
+                        where: { id: meta.deductionRuleId },
+                        data: { currentAmount: { increment: item.amount } },
+                    });
+                }
+            }
 
             return NextResponse.json({ success: true, data: updatedBatch });
         }
@@ -161,10 +211,15 @@ export async function DELETE(
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('salary-batches', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+        }
 
-        // Verify batch exists and is OPEN (Can't delete POSTED batches easily)
+        // Only OPEN batches can be deleted — no escrow rollback needed since
+        // escrow balance is only updated when batch is POSTED
         const batch = await prisma.salaryBatch.findUnique({
-            where: { id, companyId: session.user.companyId },
+            where: { id: resolved.id, companyId: session.user.companyId },
         });
 
         if (!batch) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -176,7 +231,7 @@ export async function DELETE(
 
         // Step 1: Get all settlement IDs for this batch
         const settlements = await prisma.settlement.findMany({
-            where: { salaryBatchId: id },
+            where: { salaryBatchId: resolved.id },
             select: { id: true }
         });
         const settlementIds = settlements.map(s => s.id);
@@ -191,12 +246,12 @@ export async function DELETE(
 
         // Step 3: Delete settlements (SettlementDeduction has onDelete: Cascade)
         await prisma.settlement.deleteMany({
-            where: { salaryBatchId: id }
+            where: { salaryBatchId: resolved.id }
         });
 
         // Step 4: Delete the batch
         await prisma.salaryBatch.delete({
-            where: { id }
+            where: { id: resolved.id }
         });
 
         return NextResponse.json({ success: true });

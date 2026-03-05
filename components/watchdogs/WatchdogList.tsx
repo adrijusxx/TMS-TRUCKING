@@ -201,7 +201,7 @@ export default function WatchdogList() {
                             {sendingId === load.id ? 'Sending...' : 'Email Dispatcher'}
                           </Button>
                         ) : (
-                          <Link href={`/dashboard/loads/${load.id}`}>
+                          <Link href={`/dashboard/loads/${load.loadNumber || load.id}`}>
                             <Button variant="ghost" size="sm" className="text-muted-foreground">
                               Upload Manually <ExternalLink className="h-3 w-3 ml-1" />
                             </Button>
@@ -298,7 +298,7 @@ export default function WatchdogList() {
                         {formatCurrency(invoice.balance)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/dashboard/invoices/${invoice.id}`}>
+                        <Link href={`/dashboard/invoices/${invoice.invoiceNumber || invoice.id}`}>
                           <Button variant="ghost" size="sm">
                             View <ExternalLink className="h-3 w-3 ml-1" />
                           </Button>
@@ -343,7 +343,7 @@ export default function WatchdogList() {
                       <TableCell>
                         {payment.invoice ? (
                           <Link
-                            href={`/dashboard/invoices/${payment.invoice.id}`}
+                            href={`/dashboard/invoices/${payment.invoice.invoiceNumber || payment.invoice.id}`}
                             className="text-primary hover:underline"
                           >
                             {payment.invoice.invoiceNumber}
@@ -405,7 +405,7 @@ export default function WatchdogList() {
                         {formatCurrency(batch.totalAmount)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/dashboard/invoices/batches/${batch.id}`}>
+                        <Link href={`/dashboard/invoices/batches/${batch.batchNumber || batch.id}`}>
                           <Button variant="ghost" size="sm">
                             View <ExternalLink className="h-3 w-3 ml-1" />
                           </Button>

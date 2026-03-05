@@ -204,7 +204,7 @@ export default function AgingReport() {
                       {bucketData.invoices.slice(0, 5).map((invoice: any) => (
                         <div key={invoice.id} className="flex items-center justify-between p-2 border rounded">
                           <div>
-                            <Link href={`/dashboard/invoices/${invoice.id}`} className="font-medium text-primary hover:underline">
+                            <Link href={`/dashboard/invoices/${invoice.invoiceNumber || invoice.id}`} className="font-medium text-primary hover:underline">
                               {invoice.invoiceNumber}
                             </Link>
                             <p className="text-xs text-muted-foreground">{invoice.customer.name}</p>

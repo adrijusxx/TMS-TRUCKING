@@ -326,7 +326,7 @@ export default function PreventiveMaintenance() {
                           <Truck className="h-4 w-4 text-muted-foreground" />
                           <div>
                             <Link
-                              href={`/dashboard/trucks/${schedule.truck.id}`}
+                              href={`/dashboard/trucks/${schedule.truck.truckNumber || schedule.truck.id}`}
                               className="font-medium text-primary hover:underline"
                             >
                               #{schedule.truck.truckNumber}

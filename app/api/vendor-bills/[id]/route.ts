@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { handleApiError } from '@/lib/api/route-helpers';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 export async function GET(
   request: NextRequest,
@@ -14,8 +15,13 @@ export async function GET(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('vendor-bills', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+    }
+
     const bill = await prisma.vendorBill.findFirst({
-      where: { id, companyId: session.user.companyId },
+      where: { id: resolved.id, companyId: session.user.companyId },
       include: {
         vendor: true,
         load: { select: { id: true, loadNumber: true } },
@@ -47,17 +53,22 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('vendor-bills', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+    }
+
     const body = await request.json();
 
     const bill = await prisma.vendorBill.findFirst({
-      where: { id, companyId: session.user.companyId },
+      where: { id: resolved.id, companyId: session.user.companyId },
     });
     if (!bill) {
       return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
     }
 
     const updated = await prisma.vendorBill.update({
-      where: { id },
+      where: { id: resolved.id },
       data: {
         vendorInvoiceNumber: body.vendorInvoiceNumber ?? bill.vendorInvoiceNumber,
         description: body.description ?? bill.description,
@@ -85,8 +96,13 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('vendor-bills', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+    }
+
     const bill = await prisma.vendorBill.findFirst({
-      where: { id, companyId: session.user.companyId },
+      where: { id: resolved.id, companyId: session.user.companyId },
     });
     if (!bill) {
       return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
@@ -95,7 +111,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Cannot delete a paid bill' }, { status: 400 });
     }
 
-    await prisma.vendorBill.delete({ where: { id } });
+    await prisma.vendorBill.delete({ where: { id: resolved.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error);

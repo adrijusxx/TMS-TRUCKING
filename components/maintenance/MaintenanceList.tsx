@@ -281,7 +281,7 @@ export default function MaintenanceList() {
                     </TableCell>
                     <TableCell>
                       <Link
-                        href={`/dashboard/trucks/${record.truck.id}`}
+                        href={`/dashboard/trucks/${record.truck.truckNumber || record.truck.id}`}
                         className="font-medium hover:underline"
                       >
                         {record.truck.truckNumber}

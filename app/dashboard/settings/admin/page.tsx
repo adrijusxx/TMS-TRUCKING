@@ -7,14 +7,12 @@ import { usePermissions } from '@/hooks/usePermissions';
 import CompanyOrganizationCategory from '@/components/settings/categories/CompanyOrganizationCategory';
 import TeamUsersCategory from '@/components/settings/categories/TeamUsersCategory';
 import SystemConfigCategory from '@/components/settings/categories/SystemConfigCategory';
-import CustomizationsCategory from '@/components/settings/categories/CustomizationsCategory';
+
 import IntegrationsCategory from '@/components/settings/categories/IntegrationsCategory';
 import NotificationsCategory from '@/components/settings/categories/NotificationsCategory';
 import SecurityPrivacyCategory from '@/components/settings/categories/SecurityPrivacyCategory';
 import BillingSubscriptionCategory from '@/components/settings/categories/BillingSubscriptionCategory';
 import DataManagementCategory from '@/components/settings/categories/DataManagementCategory';
-import DeletedItemsCategory from '@/components/settings/categories/DeletedItemsCategory';
-import AuditHistoryCategory from '@/components/settings/categories/AuditHistoryCategory';
 import ScheduledJobsCategory from '@/components/settings/categories/ScheduledJobsCategory';
 
 import MyProfileCategory from '@/components/settings/categories/MyProfileCategory';
@@ -35,9 +33,9 @@ const tabMapping: Record<string, string> = {
   'appearance': 'system',
   'branding': 'company',
   'data-management': 'data-management',
-  'deleted-items': 'deleted-items',
-  'audit-history': 'audit-history',
-  'customizations': 'customizations',
+  'deleted-items': 'data-management',
+  'audit-history': 'data-management',
+
   'scheduled-jobs': 'scheduled-jobs',
 };
 
@@ -95,8 +93,7 @@ export default function AdminSettingsPage() {
         return <TeamUsersCategory />;
       case 'system':
         return <SystemConfigCategory />;
-      case 'customizations':
-        return <CustomizationsCategory />;
+
       case 'integrations':
         return <IntegrationsCategory />;
       case 'notifications':
@@ -107,10 +104,6 @@ export default function AdminSettingsPage() {
         return <BillingSubscriptionCategory />;
       case 'data-management':
         return <DataManagementCategory />;
-      case 'deleted-items':
-        return <DeletedItemsCategory />;
-      case 'audit-history':
-        return <AuditHistoryCategory />;
       case 'scheduled-jobs':
         return <ScheduledJobsCategory />;
       default:

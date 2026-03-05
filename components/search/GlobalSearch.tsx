@@ -240,7 +240,7 @@ export default function GlobalSearch() {
                   {results.loads.map((load: any) => (
                     <CommandItem
                       key={load.id}
-                      onSelect={() => handleSelect('loads', load.id)}
+                      onSelect={() => handleSelect('loads', load.loadNumber || load.id)}
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <Package className="h-4 w-4 flex-shrink-0" />
@@ -271,7 +271,7 @@ export default function GlobalSearch() {
                   {results.drivers.map((driver: any) => (
                     <CommandItem
                       key={driver.id}
-                      onSelect={() => handleSelect('drivers', driver.id)}
+                      onSelect={() => handleSelect('drivers', driver.driverNumber || driver.id)}
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <Users className="h-4 w-4 flex-shrink-0" />
@@ -295,7 +295,7 @@ export default function GlobalSearch() {
                   {results.trucks.map((truck: any) => (
                     <CommandItem
                       key={truck.id}
-                      onSelect={() => handleSelect('trucks', truck.id)}
+                      onSelect={() => handleSelect('trucks', truck.truckNumber || truck.id)}
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <Truck className="h-4 w-4 flex-shrink-0" />
@@ -319,7 +319,7 @@ export default function GlobalSearch() {
                   {results.customers.map((customer: any) => (
                     <CommandItem
                       key={customer.id}
-                      onSelect={() => handleSelect('customers', customer.id)}
+                      onSelect={() => handleSelect('customers', customer.customerNumber || customer.id)}
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <Building2 className="h-4 w-4 flex-shrink-0" />

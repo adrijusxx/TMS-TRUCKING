@@ -193,7 +193,7 @@ export default function IncidentList() {
                   </div>
 
                   <div className="flex gap-2 ml-4">
-                    <Link href={`/dashboard/safety/incidents/${incident.id}`}>
+                    <Link href={`/dashboard/safety/incidents/${incident.incidentNumber || incident.id}`}>
                       <Button variant="outline" size="sm">
                         <Eye className="h-4 w-4 mr-2" />
                         View

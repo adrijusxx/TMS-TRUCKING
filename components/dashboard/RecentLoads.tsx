@@ -88,7 +88,7 @@ export default function RecentLoads() {
             {loads.map((load) => (
               <Link
                 key={load.id}
-                href={`/dashboard/loads/${load.id}`}
+                href={`/dashboard/loads/${load.loadNumber || load.id}`}
                 prefetch={false}
                 className="block p-3 border rounded-lg hover:bg-muted transition-colors"
               >

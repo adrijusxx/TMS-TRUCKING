@@ -56,6 +56,18 @@ export class SettlementWorkflowManager {
                 }
             }
 
+            // Update driver escrow balance for ESCROW deductions
+            const escrowTotal = deductionItems
+                .filter(item => item.deductionType === 'ESCROW' && item.category === 'deduction')
+                .reduce((sum, item) => sum + item.amount, 0);
+
+            if (escrowTotal > 0) {
+                await tx.driver.update({
+                    where: { id: settlement.driverId },
+                    data: { escrowBalance: { increment: escrowTotal } },
+                });
+            }
+
             return settlement;
         });
     }

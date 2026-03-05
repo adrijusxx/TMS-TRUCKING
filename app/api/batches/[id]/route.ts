@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateBatchSchema = z.object({
@@ -25,9 +26,17 @@ export async function GET(
       );
     }
 
+    const resolved = await resolveEntityParam('invoice-batches', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Entity not found' } },
+        { status: 404 }
+      );
+    }
+
     const batch = await prisma.invoiceBatch.findFirst({
       where: {
-        id,
+        id: resolved.id,
         companyId: session.user.companyId,
       },
       include: {
@@ -195,12 +204,20 @@ export async function PATCH(
       );
     }
 
+    const resolved = await resolveEntityParam('invoice-batches', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Entity not found' } },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const validated = updateBatchSchema.parse(body);
 
     const batch = await prisma.invoiceBatch.findFirst({
       where: {
-        id: id,
+        id: resolved.id,
         companyId: session.user.companyId,
       },
     });
@@ -216,7 +233,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.invoiceBatch.update({
-      where: { id: id },
+      where: { id: resolved.id },
       data: {
         ...(validated.postStatus && { postStatus: validated.postStatus }),
         ...(validated.mcNumber !== undefined && { mcNumber: validated.mcNumber }),
@@ -310,9 +327,17 @@ export async function DELETE(
       );
     }
 
+    const resolved = await resolveEntityParam('invoice-batches', id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Entity not found' } },
+        { status: 404 }
+      );
+    }
+
     const batch = await prisma.invoiceBatch.findFirst({
       where: {
-        id,
+        id: resolved.id,
         companyId: session.user.companyId,
       },
     });
@@ -342,7 +367,7 @@ export async function DELETE(
     }
 
     await prisma.invoiceBatch.delete({
-      where: { id: id },
+      where: { id: resolved.id },
     });
 
     return NextResponse.json({

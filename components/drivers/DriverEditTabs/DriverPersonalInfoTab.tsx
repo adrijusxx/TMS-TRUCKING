@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { KeyRound, Copy, Check, Loader2, Eye, EyeOff } from 'lucide-react';
 import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
+import McNumberSelector from '@/components/mc-numbers/McNumberSelector';
 
 function generatePassword(length = 10): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -86,6 +87,7 @@ export default function DriverPersonalInfoTab({
       gender: driver.gender || '',
       maritalStatus: driver.maritalStatus || '',
       localDriver: driver.localDriver || false,
+      mcNumberId: driver.mcNumberId || '',
       // Address
       address1: driver.address1 || '',
       country: driver.country || 'United States',
@@ -118,6 +120,7 @@ export default function DriverPersonalInfoTab({
       maritalStatus: data.maritalStatus || undefined,
       localDriver: data.localDriver,
       telegramNumber: data.telegramNumber,
+      mcNumberId: data.mcNumberId || undefined,
       // Address
       address1: data.address1,
       address2: data.address2,
@@ -196,6 +199,11 @@ export default function DriverPersonalInfoTab({
                 <Label htmlFor="emailAddress">Email Address</Label>
                 <Input id="emailAddress" type="email" {...register('emailAddress')} />
               </div>
+
+              <McNumberSelector
+                value={watch('mcNumberId')}
+                onValueChange={(mcNumberId) => setValue('mcNumberId', mcNumberId)}
+              />
 
               <div className="space-y-2">
                 <Label htmlFor="socialSecurityNumber">Social Security Number</Label>

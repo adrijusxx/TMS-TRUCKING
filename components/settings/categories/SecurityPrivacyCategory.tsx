@@ -11,12 +11,14 @@ export default function SecurityPrivacyCategory() {
       <div>
         <h2 className="text-2xl font-bold mb-2">Security & Privacy</h2>
         <p className="text-muted-foreground">
-          Manage security settings, role permissions, and privacy controls
+          Set organization-wide password policies, session timeouts, login attempt limits, and audit log retention. These are default settings for all users. To configure security for individual users, go to Team &amp; Users and edit the user profile.
         </p>
       </div>
 
-      <div className="space-y-6">
-        <SecurityPrivacySettings />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <SecurityPrivacySettings />
+        </div>
 
         <Card>
           <CardHeader>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 import { z } from 'zod';
 
 const updateInspectionSchema = z.object({
@@ -48,9 +49,17 @@ export async function GET(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('inspections', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Inspection not found' } },
+        { status: 404 }
+      );
+    }
+
     const inspection = await prisma.inspection.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -126,13 +135,21 @@ export async function PATCH(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('inspections', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Inspection not found' } },
+        { status: 404 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = updateInspectionSchema.parse(body);
 
     // Verify inspection belongs to company
     const existing = await prisma.inspection.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -157,7 +174,7 @@ export async function PATCH(
     }
 
     const inspection = await prisma.inspection.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: updateData,
       include: {
         truck: {
@@ -237,9 +254,17 @@ export async function DELETE(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('inspections', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Inspection not found' } },
+        { status: 404 }
+      );
+    }
+
     const inspection = await prisma.inspection.findFirst({
       where: {
-        id: resolvedParams.id,
+        id: resolved.id,
         companyId: session.user.companyId,
         deletedAt: null,
       },
@@ -253,7 +278,7 @@ export async function DELETE(
     }
 
     await prisma.inspection.update({
-      where: { id: resolvedParams.id },
+      where: { id: resolved.id },
       data: { deletedAt: new Date() },
     });
 

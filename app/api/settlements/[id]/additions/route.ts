@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { DeductionType } from '@prisma/client';
+import { recalculateSettlementTotals } from '@/lib/utils/settlement-recalc';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 const createAdditionSchema = z.object({
-  deductionType: z.enum(['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT', 'OTHER']),
+  deductionType: z.nativeEnum(DeductionType),
   description: z.string().min(1, 'Description is required'),
   amount: z.number().positive('Amount must be positive'),
+  quantity: z.number().int().min(1).default(1),
 });
 
 // GET - List all additions for a settlement (additions saved as SettlementDeduction with addition types)
@@ -25,7 +29,14 @@ export async function GET(
     }
 
     const resolvedParams = await params;
-    const settlementId = resolvedParams.id;
+    const resolved = await resolveEntityParam('settlements', resolvedParams.id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Settlement not found' } },
+        { status: 404 }
+      );
+    }
+    const settlementId = resolved.id;
 
     // Verify settlement belongs to company
     const settlement = await prisma.settlement.findFirst({
@@ -90,7 +101,14 @@ export async function POST(
     }
 
     const resolvedParams = await params;
-    const settlementId = resolvedParams.id;
+    const resolved = await resolveEntityParam('settlements', resolvedParams.id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Settlement not found' } },
+        { status: 404 }
+      );
+    }
+    const settlementId = resolved.id;
 
     // Verify settlement belongs to company
     const settlement = await prisma.settlement.findFirst({
@@ -120,48 +138,15 @@ export async function POST(
       data: {
         settlementId,
         deductionType: validated.deductionType,
-        category: 'addition', // Explicitly mark as addition
+        category: 'addition',
         description: validated.description,
         amount: validated.amount,
+        quantity: validated.quantity,
       },
     });
 
-    // Recalculate settlement totals
-    // Get all deductions
-    const allDeductions = await prisma.settlementDeduction.findMany({
-      where: {
-        settlementId,
-        category: 'deduction',
-      },
-    });
-    const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
-
-    // Get all additions
-    const allAdditions = await prisma.settlementDeduction.findMany({
-      where: {
-        settlementId,
-        category: 'addition',
-      },
-    });
-    const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
-
-    // Get advances
-    const advances = await prisma.driverAdvance.findMany({
-      where: { settlementId },
-    });
-    const totalAdvances = advances.reduce((sum, a) => sum + a.amount, 0);
-
-    // CRITICAL FIX: netPay = grossPay + additions - deductions - advances
-    const netPay = settlement.grossPay + totalAdditions - totalDeductions - totalAdvances;
-
-    // Update settlement
-    await prisma.settlement.update({
-      where: { id: settlementId },
-      data: {
-        deductions: totalDeductions,
-        netPay: netPay < 0 ? 0 : netPay,
-      },
-    });
+    // Recalculate settlement totals (quantity-aware)
+    await recalculateSettlementTotals(settlementId);
 
     return NextResponse.json({
       success: true,
@@ -209,7 +194,14 @@ export async function DELETE(
     }
 
     const resolvedParams = await params;
-    const settlementId = resolvedParams.id;
+    const resolved = await resolveEntityParam('settlements', resolvedParams.id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Settlement not found' } },
+        { status: 404 }
+      );
+    }
+    const settlementId = resolved.id;
     const { searchParams } = new URL(request.url);
     const additionId = searchParams.get('additionId');
 
@@ -254,47 +246,8 @@ export async function DELETE(
       where: { id: additionId },
     });
 
-    // Recalculate settlement totals
-    const settlement = await prisma.settlement.findUnique({
-      where: { id: settlementId },
-    });
-
-    if (settlement) {
-      // Get all deductions
-      const allDeductions = await prisma.settlementDeduction.findMany({
-        where: {
-          settlementId,
-          category: 'deduction',
-        },
-      });
-      const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
-
-      // Get all additions
-      const allAdditions = await prisma.settlementDeduction.findMany({
-        where: {
-          settlementId,
-          category: 'addition',
-        },
-      });
-      const totalAdditions = allAdditions.reduce((sum, a) => sum + a.amount, 0);
-
-      // Get advances
-      const advances = await prisma.driverAdvance.findMany({
-        where: { settlementId },
-      });
-      const totalAdvances = advances.reduce((sum, a) => sum + a.amount, 0);
-
-      // CRITICAL FIX: netPay = grossPay + additions - deductions - advances
-      const netPay = settlement.grossPay + totalAdditions - totalDeductions - totalAdvances;
-
-      await prisma.settlement.update({
-        where: { id: settlementId },
-        data: {
-          deductions: totalDeductions,
-          netPay: netPay < 0 ? 0 : netPay,
-        },
-      });
-    }
+    // Recalculate settlement totals (quantity-aware)
+    await recalculateSettlementTotals(settlementId);
 
     return NextResponse.json({
       success: true,

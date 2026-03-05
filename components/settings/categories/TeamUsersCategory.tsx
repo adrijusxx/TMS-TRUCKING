@@ -35,7 +35,7 @@ export default function TeamUsersCategory() {
       <div>
         <h2 className="text-2xl font-bold mb-2">Team & Users</h2>
         <p className="text-muted-foreground">
-          Manage team members, roles, and permissions
+          Add team members, assign roles, and manage permissions. Each user can be scoped to specific MC numbers for multi-company operations. Use roles to control what each team member can see and do across the system.
         </p>
       </div>
 

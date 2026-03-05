@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 export async function GET(
   request: NextRequest,
@@ -13,9 +14,13 @@ export async function GET(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('incidents', id);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Incident not found' }, { status: 404 });
+    }
 
     const incident = await prisma.safetyIncident.findUnique({
-      where: { id },
+      where: { id: resolved.id },
       include: {
         driver: {
           include: {
@@ -74,11 +79,16 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('incidents', id);
+    if (!resolved) {
+      return NextResponse.json({ error: 'Incident not found' }, { status: 404 });
+    }
+
     const body = await request.json();
 
     // Verify incident belongs to company
     const existing = await prisma.safetyIncident.findUnique({
-      where: { id },
+      where: { id: resolved.id },
       select: { companyId: true }
     });
 
@@ -87,7 +97,7 @@ export async function PATCH(
     }
 
     const incident = await prisma.safetyIncident.update({
-      where: { id },
+      where: { id: resolved.id },
       data: {
         ...(body.incidentType && { incidentType: body.incidentType }),
         ...(body.severity && { severity: body.severity }),

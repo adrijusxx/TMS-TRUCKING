@@ -153,7 +153,7 @@ export function TruckRow({ truck, onMarkOOS }: { truck: TruckInventoryItem; onMa
             </Button>
           )}
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/dashboard/trucks/${truck.id}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
+            <Link href={`/dashboard/trucks/${truck.truckNumber || truck.id}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
           </Button>
         </div>
       </td>
@@ -176,7 +176,7 @@ export function TrailerRow({ trailer, onMarkOOS }: { trailer: TrailerInventoryIt
       </td>
       <td className="py-2 pr-3 text-xs">
         {trailer.assignedTruck ? (
-          <Link href={`/dashboard/trucks/${trailer.assignedTruck.id}`} className="text-primary hover:underline">
+          <Link href={`/dashboard/trucks/${trailer.assignedTruck.truckNumber || trailer.assignedTruck.id}`} className="text-primary hover:underline">
             {trailer.assignedTruck.truckNumber}
           </Link>
         ) : (
@@ -193,7 +193,7 @@ export function TrailerRow({ trailer, onMarkOOS }: { trailer: TrailerInventoryIt
             </Button>
           )}
           <Button variant="ghost" size="sm" asChild>
-            <Link href={`/dashboard/trailers/${trailer.id}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
+            <Link href={`/dashboard/trailers/${trailer.trailerNumber || trailer.id}`}><ExternalLink className="h-3.5 w-3.5" /></Link>
           </Button>
         </div>
       </td>

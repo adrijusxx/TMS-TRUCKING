@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import { inngest } from '@/lib/inngest/client';
 import { LeadAutoScoringManager } from '@/lib/managers/LeadAutoScoringManager';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -18,13 +19,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('leads', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+        }
 
         // Build MC filter
         const mcWhere = await buildMcNumberWhereClause(session, request);
 
         const lead = await prisma.lead.findFirst({
             where: {
-                id,
+                id: resolved.id,
                 ...mcWhere,
                 deletedAt: null,
             },
@@ -79,6 +84,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('leads', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+        }
+
         const body = await request.json();
 
         // HIRED status can only be set via the /hire endpoint (creates Driver + OnboardingChecklist)
@@ -95,7 +105,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         // Verify lead exists and user has access
         const existingLead = await prisma.lead.findFirst({
             where: {
-                id,
+                id: resolved.id,
                 ...mcWhere,
                 deletedAt: null,
             },
@@ -111,7 +121,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         // Update lead
         const lead = await prisma.lead.update({
-            where: { id },
+            where: { id: resolved.id },
             data: {
                 firstName: body.firstName,
                 lastName: body.lastName,
@@ -145,7 +155,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         if (statusChanged) {
             await prisma.leadActivity.create({
                 data: {
-                    leadId: id,
+                    leadId: resolved.id,
                     type: 'STATUS_CHANGE',
                     content: `Status changed from ${previousStatus} to ${body.status}`,
                     userId: session.user.id,
@@ -159,15 +169,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             // Fire-and-forget: Inngest events (non-critical, don't crash the update)
             try {
                 const shouldScore = await LeadAutoScoringManager.shouldScoreOnStatusChange(
-                    id, body.status, previousStatus
+                    resolved.id, body.status, previousStatus
                 );
                 if (shouldScore) {
-                    await inngest.send({ name: 'crm/auto-score-lead', data: { leadId: id } });
+                    await inngest.send({ name: 'crm/auto-score-lead', data: { leadId: resolved.id } });
                 }
                 await inngest.send({
                     name: 'automation/lead-event',
                     data: {
-                        leadId: id,
+                        leadId: resolved.id,
                         companyId: existingLead.companyId,
                         event: 'status_change',
                         metadata: { fromStatus: previousStatus, toStatus: body.status },
@@ -197,6 +207,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         }
 
         const { id } = await params;
+        const resolved = await resolveEntityParam('leads', id, session.user.companyId);
+        if (!resolved) {
+            return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+        }
 
         // Build MC filter
         const mcWhere = await buildMcNumberWhereClause(session, request);
@@ -204,7 +218,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         // Verify lead exists and user has access
         const existingLead = await prisma.lead.findFirst({
             where: {
-                id,
+                id: resolved.id,
                 ...mcWhere,
                 deletedAt: null,
             },
@@ -216,7 +230,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
         // Soft delete
         await prisma.lead.update({
-            where: { id },
+            where: { id: resolved.id },
             data: { deletedAt: new Date() },
         });
 

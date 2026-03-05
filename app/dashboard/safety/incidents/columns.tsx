@@ -95,7 +95,7 @@ export function createIncidentColumns(
       header: 'Incident #',
       cell: ({ row }) => (
         <Link
-          href={`/dashboard/safety/incidents/${row.original.id}`}
+          href={`/dashboard/safety/incidents/${row.original.incidentNumber || row.original.id}`}
           className="text-primary hover:underline font-medium"
         >
           {row.original.incidentNumber}

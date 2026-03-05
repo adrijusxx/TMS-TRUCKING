@@ -99,7 +99,7 @@ export default function CreateBreakdownForm() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['breakdowns'] });
       toast.success('Breakdown created successfully');
-      router.push(`/dashboard/breakdowns/${data.data.id}`);
+      router.push(`/dashboard/breakdowns/${data.data.breakdownNumber || data.data.id}`);
     },
     onError: (err: Error) => {
       setError(err.message);

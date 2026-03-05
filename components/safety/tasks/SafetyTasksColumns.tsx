@@ -195,7 +195,7 @@ export function createSafetyTaskColumns(actions?: SafetyTaskActions): ExtendedCo
       cell: ({ row }) => {
         const l = row.original.load;
         if (!l) return <span className="text-muted-foreground">-</span>;
-        return <Link href={`/dashboard/loads/${l.id}`} className="text-primary hover:underline">{l.loadNumber}</Link>;
+        return <Link href={`/dashboard/loads/${l.loadNumber || l.id}`} className="text-primary hover:underline">{l.loadNumber}</Link>;
       },
       defaultVisible: false,
     },

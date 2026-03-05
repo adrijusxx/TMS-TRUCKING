@@ -133,7 +133,7 @@ export function createRoadsideInspectionColumns(
         if (!truck) return <span className="text-muted-foreground">—</span>;
         return (
           <Link
-            href={`/dashboard/trucks/${truck.id}`}
+            href={`/dashboard/trucks/${truck.truckNumber || truck.id}`}
             className="text-primary hover:underline"
           >
             {truck.truckNumber}

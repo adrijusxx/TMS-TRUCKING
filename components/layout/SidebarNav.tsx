@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useQuery } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { Permission } from '@/lib/permissions';
 import { hasRouteAccess } from '@/lib/department-access';
@@ -131,11 +132,26 @@ export default function SidebarNav({ collapsed, onItemClick }: SidebarNavProps) 
   const role = session?.user?.role || 'CUSTOMER';
   const isSuperAdmin = role === 'SUPER_ADMIN';
 
+  const { data: onboardingData } = useQuery({
+    queryKey: ['onboarding-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/onboarding');
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data as { dismissed: boolean } | null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Filter groups by permissions
   const visibleGroups = navigationGroups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        // Hide Setup Guide when onboarding is complete
+        if (item.href === '/dashboard/onboarding' && onboardingData?.dismissed) {
+          return false;
+        }
         if (!item.permission) return true;
         const hasPermission = can(item.permission);
         const hasDeptAccess = hasRouteAccess(role, item.href);

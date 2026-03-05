@@ -8,6 +8,7 @@ import { LoadUpdateManager } from '@/lib/managers/LoadUpdateManager';
 import { hasPermission } from '@/lib/permissions';
 import { handleApiError } from '@/lib/api/route-helpers';
 import { NotFoundError, ForbiddenError, ValidationError } from '@/lib/errors';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 export async function GET(
   request: NextRequest,
@@ -24,7 +25,14 @@ export async function GET(
     }
 
     const resolvedParams = await params;
-    const loadId = resolvedParams.id;
+    const resolved = await resolveEntityParam('loads', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Load not found' } },
+        { status: 404 }
+      );
+    }
+    const loadId = resolved.id;
 
     const load = await prisma.load.findFirst({
       where: {
@@ -195,9 +203,16 @@ export async function PATCH(
     }
 
     const resolvedParams = await params;
+    const resolved = await resolveEntityParam('loads', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Load not found' } },
+        { status: 404 }
+      );
+    }
     const body = await request.json();
 
-    const { load, meta } = await LoadUpdateManager.updateLoad(resolvedParams.id, body, session);
+    const { load, meta } = await LoadUpdateManager.updateLoad(resolved.id, body, session);
 
     return NextResponse.json({
       success: true,
@@ -235,9 +250,15 @@ export async function DELETE(
       );
     }
 
-    // Handle Next.js 15+ params which can be a Promise
     const resolvedParams = await params;
-    const loadId = resolvedParams.id;
+    const resolved = await resolveEntityParam('loads', resolvedParams.id, session.user.companyId);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Load not found' } },
+        { status: 404 }
+      );
+    }
+    const loadId = resolved.id;
 
     // Verify load exists and belongs to company
     const existingLoad = await prisma.load.findFirst({

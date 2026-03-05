@@ -196,7 +196,7 @@ export default function FactoringDashboard() {
                 >
                   <div>
                     <Link
-                      href={`/dashboard/invoices/${invoice.id}`}
+                      href={`/dashboard/invoices/${invoice.invoiceNumber || invoice.id}`}
                       className="font-medium text-primary hover:underline"
                     >
                       {invoice.invoiceNumber}
@@ -211,7 +211,7 @@ export default function FactoringDashboard() {
                         ? formatDate(invoice.reserveReleaseDate.toString())
                         : 'N/A'}
                     </p>
-                    <Link href={`/dashboard/invoices/${invoice.id}`}>
+                    <Link href={`/dashboard/invoices/${invoice.invoiceNumber || invoice.id}`}>
                       <Button variant="outline" size="sm">
                         Release
                       </Button>
@@ -268,7 +268,7 @@ export default function FactoringDashboard() {
                   <TableRow key={invoice.id}>
                     <TableCell>
                       <Link
-                        href={`/dashboard/invoices/${invoice.id}`}
+                        href={`/dashboard/invoices/${invoice.invoiceNumber || invoice.id}`}
                         className="font-medium text-primary hover:underline"
                       >
                         {invoice.invoiceNumber}
@@ -331,7 +331,7 @@ export default function FactoringDashboard() {
                   <TableRow key={invoice.id}>
                     <TableCell>
                       <Link
-                        href={`/dashboard/invoices/${invoice.id}`}
+                        href={`/dashboard/invoices/${invoice.invoiceNumber || invoice.id}`}
                         className="font-medium text-primary hover:underline"
                       >
                         {invoice.invoiceNumber}
@@ -401,7 +401,7 @@ export default function FactoringDashboard() {
                   <TableRow key={invoice.id}>
                     <TableCell>
                       <Link
-                        href={`/dashboard/invoices/${invoice.id}`}
+                        href={`/dashboard/invoices/${invoice.invoiceNumber || invoice.id}`}
                         className="font-medium text-primary hover:underline"
                       >
                         {invoice.invoiceNumber}

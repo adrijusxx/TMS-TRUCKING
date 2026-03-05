@@ -196,7 +196,7 @@ export default function DispatchLoadsTable({
                                                 {formatCurrency(load.revenue)}
                                             </TableCell>
                                             <TableCell>
-                                                <Link href={`/dashboard/loads/${load.id}`}>
+                                                <Link href={`/dashboard/loads/${load.loadNumber || load.id}`}>
                                                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                                                         <ExternalLink className="h-3 w-3" />
                                                     </Button>

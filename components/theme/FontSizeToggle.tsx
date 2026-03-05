@@ -20,7 +20,7 @@ const fontSizeOptions: { value: FontSize; label: string; size: string }[] = [
 ];
 
 export function FontSizeToggle() {
-  const [fontSize, setFontSize] = useState<FontSize>('medium');
+  const [fontSize, setFontSize] = useState<FontSize>('extra-small');
   const [mounted, setMounted] = useState(false);
 
   // Load saved preference on mount

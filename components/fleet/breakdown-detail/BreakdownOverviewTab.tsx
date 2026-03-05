@@ -43,7 +43,7 @@ export default function BreakdownOverviewTab({ breakdown }: BreakdownOverviewTab
             <Label className="text-sm text-muted-foreground">Truck</Label>
             <div className="mt-1">
               <Link
-                href={`/dashboard/trucks/${breakdown.truck.id}`}
+                href={`/dashboard/trucks/${breakdown.truck.truckNumber || breakdown.truck.id}`}
                 className="font-medium text-primary hover:underline flex items-center gap-2"
               >
                 <Truck className="h-4 w-4" />
@@ -59,7 +59,7 @@ export default function BreakdownOverviewTab({ breakdown }: BreakdownOverviewTab
               <Label className="text-sm text-muted-foreground">Driver</Label>
               <div className="mt-1">
                 <Link
-                  href={`/dashboard/drivers/${breakdown.driver.id}`}
+                  href={`/dashboard/drivers/${breakdown.driver.driverNumber || breakdown.driver.id}`}
                   className="font-medium text-primary hover:underline flex items-center gap-2"
                 >
                   <User className="h-4 w-4" />

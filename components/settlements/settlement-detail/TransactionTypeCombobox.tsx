@@ -17,7 +17,7 @@ import { Check, ChevronsUpDown, Trash2 } from 'lucide-react';
 import { TRANSACTION_TYPES } from './types';
 
 interface TransactionFormProps {
-  transaction: { deductionType: string; description: string; amount: string };
+  transaction: { deductionType: string; description: string; amount: string; quantity: string };
   setTransaction: (t: any) => void;
   customTypes: any[];
   category: 'addition' | 'deduction';
@@ -126,16 +126,29 @@ export default function TransactionTypeCombobox({
           onChange={(e) => setTransaction({ ...transaction, description: e.target.value })}
         />
       </div>
-      <div className="space-y-2">
-        <Label>Amount *</Label>
-        <Input
-          type="number"
-          step="0.01"
-          min="0"
-          placeholder="0.00"
-          value={transaction.amount}
-          onChange={(e) => setTransaction({ ...transaction, amount: e.target.value })}
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Amount *</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            value={transaction.amount}
+            onChange={(e) => setTransaction({ ...transaction, amount: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Quantity</Label>
+          <Input
+            type="number"
+            step="1"
+            min="1"
+            placeholder="1"
+            value={transaction.quantity}
+            onChange={(e) => setTransaction({ ...transaction, quantity: e.target.value })}
+          />
+        </div>
       </div>
     </div>
   );

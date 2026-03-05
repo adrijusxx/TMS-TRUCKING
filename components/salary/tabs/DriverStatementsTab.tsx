@@ -16,8 +16,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Download, RefreshCw } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { apiUrl, formatCurrency } from '@/lib/utils';
+import { exportToCSV } from '@/lib/export';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import SettlementSheet from '@/components/settlements/SettlementSheet';
 
 interface SettlementRow {
   id: string;
@@ -30,13 +31,18 @@ interface SettlementRow {
   periodStart: string;
   periodEnd: string;
   paidDate: string | null;
+  createdAt: string;
   loadIds: string[];
+  totalRevenue: number;
+  totalLoadPay: number;
+  expense: number;
+  otherPay: number;
   driver: {
     id: string;
     driverNumber: string;
     user: { firstName: string; lastName: string };
-    mcNumber?: { mcNumber: string } | null;
-    assignedTruck?: { truckNumber: string } | null;
+    mcNumber?: { number: string } | null;
+    currentTruck?: { truckNumber: string } | null;
   };
   salaryBatch?: { id: string; batchNumber: string } | null;
 }
@@ -50,7 +56,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function DriverStatementsTab() {
   const queryClient = useQueryClient();
-  const router = useRouter();
+  const [selectedSettlementId, setSelectedSettlementId] = React.useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [fromDate, setFromDate] = React.useState(() =>
     format(startOfMonth(subMonths(new Date(), 2)), 'yyyy-MM-dd')
@@ -81,18 +88,22 @@ export default function DriverStatementsTab() {
   const settlements: SettlementRow[] = data?.data || [];
   const meta = data?.meta;
 
-  const totals = React.useMemo(() => {
+  // Page-level totals for revenue/loadPay/expense/otherPay (computed in enrichment, not in DB)
+  const pageTotals = React.useMemo(() => {
     return settlements.reduce(
       (acc, s) => ({
-        grossPay: acc.grossPay + s.grossPay,
-        deductions: acc.deductions + s.deductions,
-        advances: acc.advances + s.advances,
-        netPay: acc.netPay + s.netPay,
         trips: acc.trips + (s.loadIds?.length || 0),
+        totalRevenue: acc.totalRevenue + (s.totalRevenue || 0),
+        totalLoadPay: acc.totalLoadPay + (s.totalLoadPay || 0),
+        expense: acc.expense + (s.expense || 0),
+        otherPay: acc.otherPay + (s.otherPay || 0),
       }),
-      { grossPay: 0, deductions: 0, advances: 0, netPay: 0, trips: 0 }
+      { trips: 0, totalRevenue: 0, totalLoadPay: 0, expense: 0, otherPay: 0 }
     );
   }, [settlements]);
+
+  // API-level aggregate totals (across all pages)
+  const apiTotals = meta?.totals || { grossPay: 0, deductions: 0, advances: 0, netPay: 0 };
 
   return (
     <div className="space-y-4">
@@ -123,7 +134,32 @@ export default function DriverStatementsTab() {
         <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['driver-statements'] })}>
           <RefreshCw className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={() => {
+          if (!settlements.length) return;
+          exportToCSV(
+            settlements.map((s) => ({
+              Payee: `${s.driver.user.firstName} ${s.driver.user.lastName}`,
+              'Batch #': s.salaryBatch?.batchNumber || '',
+              'Settlement Date': s.createdAt ? format(new Date(s.createdAt), 'MM/dd/yyyy') : '',
+              Period: `${format(new Date(s.periodStart), 'MM/dd/yyyy')} - ${format(new Date(s.periodEnd), 'MM/dd/yyyy')}`,
+              'Settlement #': s.settlementNumber,
+              'MC Number': s.driver.mcNumber?.number || '',
+              Status: s.status,
+              Trips: s.loadIds?.length || 0,
+              Gross: s.totalRevenue || 0,
+              'Load Pay': s.totalLoadPay || 0,
+              Earnings: s.grossPay,
+              Expense: s.expense || 0,
+              Advances: s.advances,
+              Deductions: s.deductions,
+              'Other Pay': s.otherPay || 0,
+              'Net Pay': s.netPay,
+              Trucks: s.driver.currentTruck?.truckNumber || '',
+            })),
+            ['Payee', 'Batch #', 'Settlement Date', 'Period', 'Settlement #', 'MC Number', 'Status', 'Trips', 'Gross', 'Load Pay', 'Earnings', 'Expense', 'Advances', 'Deductions', 'Other Pay', 'Net Pay', 'Trucks'],
+            'driver-statements.csv'
+          );
+        }}>
           <Download className="h-4 w-4 mr-1" /> Export
         </Button>
       </div>
@@ -133,26 +169,30 @@ export default function DriverStatementsTab() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Settlement #</TableHead>
+              <TableHead>Payee</TableHead>
               <TableHead>Batch #</TableHead>
-              <TableHead>Driver</TableHead>
-              <TableHead>MC Number</TableHead>
-              <TableHead>Truck</TableHead>
+              <TableHead>Settlement Date</TableHead>
               <TableHead>Period</TableHead>
-              <TableHead className="text-center">Trips</TableHead>
+              <TableHead>Settlement #</TableHead>
+              <TableHead>MC Number</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Gross Pay</TableHead>
-              <TableHead className="text-right">Deductions</TableHead>
+              <TableHead className="text-center">Trips</TableHead>
+              <TableHead className="text-right">Gross</TableHead>
+              <TableHead className="text-right">Load Pay</TableHead>
+              <TableHead className="text-right">Earnings</TableHead>
+              <TableHead className="text-right">Expense</TableHead>
               <TableHead className="text-right">Advances</TableHead>
+              <TableHead className="text-right">Deductions</TableHead>
+              <TableHead className="text-right">Other Pay</TableHead>
               <TableHead className="text-right">Net Pay</TableHead>
-              <TableHead>Paid Date</TableHead>
+              <TableHead>Trucks</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                  {[...Array(13)].map((_, j) => (
+                  {[...Array(17)].map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-20" /></TableCell>
                   ))}
                 </TableRow>
@@ -163,44 +203,53 @@ export default function DriverStatementsTab() {
                   <TableRow
                     key={s.id}
                     className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => router.push(`/dashboard/accounting/salary?tab=statements&settlementId=${s.id}`)}
+                    onClick={() => { setSelectedSettlementId(s.id); setSheetOpen(true); }}
                   >
-                    <TableCell className="font-medium text-primary">{s.settlementNumber}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.salaryBatch?.batchNumber || '-'}</TableCell>
                     <TableCell>{s.driver.user.firstName} {s.driver.user.lastName}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.driver.mcNumber?.mcNumber || '-'}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.driver.assignedTruck?.truckNumber || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground">{s.salaryBatch?.batchNumber || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">
+                      {s.createdAt ? format(new Date(s.createdAt), 'M/d/yyyy') : '-'}
+                    </TableCell>
                     <TableCell className="text-muted-foreground whitespace-nowrap">
                       {format(new Date(s.periodStart), 'MMM d')} - {format(new Date(s.periodEnd), 'MMM d, yyyy')}
                     </TableCell>
-                    <TableCell className="text-center">{s.loadIds?.length || 0}</TableCell>
+                    <TableCell className="font-medium text-primary">{s.settlementNumber}</TableCell>
+                    <TableCell className="text-muted-foreground">{s.driver.mcNumber?.number || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={STATUS_COLORS[s.status] || ''}>
                         {s.status}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-center">{s.loadIds?.length || 0}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(s.totalRevenue || 0)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(s.totalLoadPay || 0)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(s.grossPay)}</TableCell>
-                    <TableCell className="text-right text-red-600">{formatCurrency(s.deductions)}</TableCell>
-                    <TableCell className="text-right text-red-600">{formatCurrency(s.advances)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(s.expense || 0)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(s.advances)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(s.deductions)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(s.otherPay || 0)}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(s.netPay)}</TableCell>
-                    <TableCell>{s.paidDate ? format(new Date(s.paidDate), 'MMM d, yyyy') : '-'}</TableCell>
+                    <TableCell className="text-muted-foreground">{s.driver.currentTruck?.truckNumber || '-'}</TableCell>
                   </TableRow>
                 ))}
-                {/* Totals row */}
+                {/* Totals row — uses API aggregates for grossPay/deductions/advances/netPay */}
                 <TableRow className="bg-muted/50 font-semibold border-t-2">
-                  <TableCell colSpan={6}>Totals ({settlements.length} settlements)</TableCell>
-                  <TableCell className="text-center">{totals.trips}</TableCell>
-                  <TableCell />
-                  <TableCell className="text-right">{formatCurrency(totals.grossPay)}</TableCell>
-                  <TableCell className="text-right text-red-600">{formatCurrency(totals.deductions)}</TableCell>
-                  <TableCell className="text-right text-red-600">{formatCurrency(totals.advances)}</TableCell>
-                  <TableCell className="text-right font-bold">{formatCurrency(totals.netPay)}</TableCell>
+                  <TableCell colSpan={7}>Totals ({meta?.total || settlements.length} settlements)</TableCell>
+                  <TableCell className="text-center">{pageTotals.trips}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(pageTotals.totalRevenue)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(pageTotals.totalLoadPay)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(apiTotals.grossPay)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(pageTotals.expense)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(apiTotals.advances)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(apiTotals.deductions)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(pageTotals.otherPay)}</TableCell>
+                  <TableCell className="text-right font-bold">{formatCurrency(apiTotals.netPay)}</TableCell>
                   <TableCell />
                 </TableRow>
               </>
             ) : (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={17} className="text-center py-8 text-muted-foreground">
                   No settlements found for the selected period
                 </TableCell>
               </TableRow>
@@ -219,6 +268,12 @@ export default function DriverStatementsTab() {
           </div>
         </div>
       )}
+      {/* Settlement Detail Sheet */}
+      <SettlementSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        settlementId={selectedSettlementId}
+      />
     </div>
   );
 }

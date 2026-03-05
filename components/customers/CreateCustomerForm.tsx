@@ -75,7 +75,7 @@ export default function CreateCustomerForm({
       if (onSuccess) {
         onSuccess(data.data.id);
       } else {
-        router.push(`/dashboard/customers/${data.data.id}`);
+        router.push(`/dashboard/customers/${data.data.customerNumber || data.data.id}`);
       }
     },
     onError: (err: Error) => {

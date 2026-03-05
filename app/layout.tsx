@@ -42,10 +42,17 @@ export default function RootLayout({
                     document.documentElement.classList.add('font-' + saved);
                     document.documentElement.style.setProperty('--base-font-size', sizes[saved]);
                   } else {
-                    document.documentElement.classList.add('font-medium');
+                    document.documentElement.classList.add('font-extra-small');
+                    document.documentElement.style.setProperty('--base-font-size', '0.75rem');
+                  }
+                  var compact = localStorage.getItem('compactMode');
+                  if (compact === null || compact === 'true') {
+                    document.documentElement.classList.add('compact-mode');
                   }
                 } catch (e) {
-                  document.documentElement.classList.add('font-medium');
+                  document.documentElement.classList.add('font-extra-small');
+                  document.documentElement.style.setProperty('--base-font-size', '0.75rem');
+                  document.documentElement.classList.add('compact-mode');
                 }
               })();
             `,

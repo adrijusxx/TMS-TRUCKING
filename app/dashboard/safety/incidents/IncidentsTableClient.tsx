@@ -91,7 +91,7 @@ export function IncidentsTableClient() {
 
   const rowActions = (row: IncidentData) => (
     <div className="flex items-center gap-2">
-      <Link href={`/dashboard/safety/incidents/${row.id}`}>
+      <Link href={`/dashboard/safety/incidents/${row.incidentNumber || row.id}`}>
         <Button variant="ghost" size="sm">
           <Eye className="h-4 w-4 mr-1" />
           View

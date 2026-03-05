@@ -315,10 +315,9 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                         <Text style={styles.sectionTitle}>Loads Summary ({loads.length} loads)</Text>
                         <View style={styles.table}>
                             <View style={styles.tableHeader}>
-                                <Text style={[styles.tableCell, { width: 60 }]}>Load #</Text>
-                                <Text style={[styles.tableCell, { flex: 2 }]}>Route</Text>
+                                <Text style={[styles.tableCell, { width: 75 }]}>Load #</Text>
+                                <Text style={[styles.tableCell, { flex: 3 }]}>Route</Text>
                                 <Text style={[styles.tableCellNumber, { width: 70, fontWeight: 'bold' }]}>Miles</Text>
-                                <Text style={[styles.tableCellNumber, { width: 80, fontWeight: 'bold' }]}>Revenue</Text>
                                 <Text style={[styles.tableCellNumber, { width: 80, fontWeight: 'bold' }]}>Driver Pay</Text>
                                 <Text style={[styles.tableCellNumber, { width: 65, fontWeight: 'bold' }]}>Pickup</Text>
                                 <Text style={[styles.tableCellNumber, { width: 65, fontWeight: 'bold' }]}>Delivery</Text>
@@ -326,15 +325,12 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                             </View>
                             {loads.map((load: any, index: number) => (
                                 <View key={load.id || index} style={styles.tableRow}>
-                                    <Text style={[styles.tableCell, { width: 60 }]}>{load.loadNumber || 'N/A'}</Text>
-                                    <Text style={[styles.tableCell, { flex: 2, fontSize: 8 }]}>
+                                    <Text style={[styles.tableCell, { width: 75 }]}>{load.loadNumber || 'N/A'}</Text>
+                                    <Text style={[styles.tableCell, { flex: 3, fontSize: 8 }]}>
                                         {load.pickupCity}, {load.pickupState} → {load.deliveryCity}, {load.deliveryState}
                                     </Text>
                                     <Text style={[styles.tableCellNumber, { width: 70 }]}>
                                         {load.totalMiles || load.loadedMiles || load.emptyMiles || 0}
-                                    </Text>
-                                    <Text style={[styles.tableCellNumber, { width: 80 }]}>
-                                        {formatCurrency(load.revenue || 0)}
                                     </Text>
                                     <Text style={[styles.tableCellNumber, { width: 80 }]}>
                                         {formatCurrency(load.driverPay || 0)}
@@ -371,7 +367,7 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                             {deductionItems.map((deduction: any, index: number) => (
                                 <View key={deduction.id || index} style={styles.tableRow}>
                                     <Text style={[styles.tableCell, { flex: 2 }]}>{deduction.description}</Text>
-                                    <Text style={[styles.tableCell, { width: 100 }]}>{deduction.deductionType}</Text>
+                                    <Text style={[styles.tableCell, { width: 100 }]}>{deduction.description || deduction.deductionType}</Text>
                                     <Text style={[styles.tableCellNumber, { width: 80 }]}>
                                         {formatCurrency(deduction.amount)}
                                     </Text>

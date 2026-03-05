@@ -18,6 +18,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 
 interface DriverExpandedEditProps {
   driverId: string;
+  initialTab?: string;
   onSave?: () => void;
   onCancel?: () => void;
 }
@@ -69,13 +70,13 @@ async function updateDriver(driverId: string, data: any) {
   return response.json();
 }
 
-export default function DriverExpandedEdit({ driverId, onSave, onCancel }: DriverExpandedEditProps) {
+export default function DriverExpandedEdit({ driverId, initialTab, onSave, onCancel }: DriverExpandedEditProps) {
   const queryClient = useQueryClient();
   const { can, isAdmin, isAccountant } = usePermissions();
   // Check permissions - assume HR or ADMIN can see financial/payroll
   const hasFinancialAccess = isAdmin || isAccountant || can('hr.view' as any) || can('hr.manage' as any) || can('financial.view' as any);
 
-  const [activeTab, setActiveTab] = useState('personal');
+  const [activeTab, setActiveTab] = useState(initialTab || 'personal');
   const [formDataRef, setFormDataRef] = useState<any>(null);
 
   // Fetch full driver data

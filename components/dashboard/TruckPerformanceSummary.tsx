@@ -137,7 +137,7 @@ export default function TruckPerformanceSummary() {
                   {performance.topPerformers.slice(0, 3).map((truck) => (
                     <Link
                       key={truck.id}
-                      href={`/dashboard/trucks/${truck.id}`}
+                      href={`/dashboard/trucks/${truck.truckNumber || truck.id}`}
                       className="flex items-center justify-between p-2 border rounded-lg hover:bg-muted transition-colors"
                     >
                       <div className="flex-1 min-w-0">

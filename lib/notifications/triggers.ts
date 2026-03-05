@@ -48,7 +48,7 @@ export async function notifyLoadAssigned(loadId: string, driverId: string) {
         type: 'LOAD_ASSIGNED',
         title: `Load ${load.loadNumber} Assigned`,
         message: `You have been assigned load ${load.loadNumber} from ${load.pickupCity}, ${load.pickupState} to ${load.deliveryCity}, ${load.deliveryState}`,
-        link: `/dashboard/loads/${load.id}`,
+        link: `/dashboard/loads/${load.loadNumber}`,
       },
     });
   } catch (error) {
@@ -96,7 +96,7 @@ export async function notifyLoadStatusChanged(
           type: 'LOAD_UPDATED',
           title: `Load ${load.loadNumber} Updated`,
           message: `Load ${load.loadNumber} status changed from ${oldStatus} to ${newStatus}`,
-          link: `/dashboard/loads/${load.id}`,
+          link: `/dashboard/loads/${load.loadNumber}`,
         },
       });
     }
@@ -122,7 +122,7 @@ export async function notifyLoadStatusChanged(
             type: 'LOAD_UPDATED',
             title: `Load ${load.loadNumber} Status Changed`,
             message: `Load ${load.loadNumber} status changed from ${oldStatus} to ${newStatus}`,
-            link: `/dashboard/loads/${load.id}`,
+            link: `/dashboard/loads/${load.loadNumber}`,
           },
         });
       }
@@ -169,7 +169,7 @@ export async function notifyHOSViolation(
         type: 'HOS_VIOLATION',
         title: 'HOS Violation Detected',
         message: `HOS violation detected: ${violationType}. ${details || ''}`,
-        link: `/dashboard/drivers/${driver.id}`,
+        link: `/dashboard/drivers/${driver.driverNumber}`,
       },
     });
 
@@ -190,7 +190,7 @@ export async function notifyHOSViolation(
           type: 'HOS_VIOLATION',
           title: `HOS Violation: ${driver.user?.firstName ?? ''} ${driver.user?.lastName ?? ''}`,
           message: `Driver ${driver.driverNumber} has an HOS violation: ${violationType}`,
-          link: `/dashboard/drivers/${driver.id}`,
+          link: `/dashboard/drivers/${driver.driverNumber}`,
         },
       });
     }
@@ -236,7 +236,7 @@ async function notifyMaintenanceDue(truckId: string, maintenanceType: string, du
           type: 'MAINTENANCE_DUE',
           title: `Maintenance Due: ${truck.truckNumber}`,
           message: `Truck ${truck.truckNumber} has ${maintenanceType} maintenance due on ${formattedDate}`,
-          link: `/dashboard/trucks/${truck.id}`,
+          link: `/dashboard/trucks/${truck.truckNumber}`,
         },
       });
     }
@@ -258,7 +258,7 @@ async function notifyMaintenanceDue(truckId: string, maintenanceType: string, du
           type: 'MAINTENANCE_DUE',
           title: `Maintenance Due: ${truck.truckNumber}`,
           message: `Truck ${truck.truckNumber} has ${maintenanceType} maintenance due on ${formattedDate}`,
-          link: `/dashboard/trucks/${truck.id}`,
+          link: `/dashboard/trucks/${truck.truckNumber}`,
         },
       });
     }
@@ -279,6 +279,7 @@ export async function notifyDocumentExpiring(
   try {
     const formattedDate = expiryDate.toLocaleDateString();
     let entityName = '';
+    let entityNumber = '';
     let companyId = '';
     let userIds: string[] = [];
 
@@ -293,6 +294,7 @@ export async function notifyDocumentExpiring(
       if (!driver || !driver.user) return;
 
       entityName = `${driver.user.firstName} ${driver.user.lastName}`;
+      entityNumber = driver.driverNumber;
       companyId = driver.companyId;
       userIds = driver.userId ? [driver.userId] : [];
     } else if (entityType === 'TRUCK') {
@@ -310,6 +312,7 @@ export async function notifyDocumentExpiring(
       if (!truck) return;
 
       entityName = truck.truckNumber;
+      entityNumber = truck.truckNumber;
       companyId = truck.companyId;
       userIds = truck.currentDrivers.filter(d => d.userId).map((d) => d.userId as string);
     }
@@ -329,7 +332,7 @@ export async function notifyDocumentExpiring(
           type: 'DOCUMENT_EXPIRING',
           title: `Document Expiring: ${documentType}`,
           message: `${documentType} for ${entityName} is expiring on ${formattedDate}`,
-          link: entityType === 'DRIVER' ? `/dashboard/drivers/${entityId}` : `/dashboard/trucks/${entityId}`,
+          link: entityType === 'DRIVER' ? `/dashboard/drivers/${entityNumber}` : `/dashboard/trucks/${entityNumber}`,
         },
       });
     }
@@ -351,7 +354,7 @@ export async function notifyDocumentExpiring(
           type: 'DOCUMENT_EXPIRING',
           title: `Document Expiring: ${documentType}`,
           message: `${documentType} for ${entityName} is expiring on ${formattedDate}`,
-          link: entityType === 'DRIVER' ? `/dashboard/drivers/${entityId}` : `/dashboard/trucks/${entityId}`,
+          link: entityType === 'DRIVER' ? `/dashboard/drivers/${entityNumber}` : `/dashboard/trucks/${entityNumber}`,
         },
       });
     }
@@ -399,7 +402,7 @@ export async function notifyInvoicePaid(invoiceId: string) {
           type: 'INVOICE_PAID',
           title: `Invoice ${invoice.invoiceNumber} Paid`,
           message: `Invoice ${invoice.invoiceNumber} for ${invoice.customer.name} has been marked as paid. Amount: $${invoice.total.toFixed(2)}`,
-          link: `/dashboard/invoices/${invoice.id}`,
+          link: `/dashboard/invoices/${invoice.invoiceNumber}`,
         },
       });
     }
@@ -435,7 +438,7 @@ export async function notifySettlementGenerated(settlementId: string) {
         type: 'SYSTEM_ALERT',
         title: `Settlement ${settlement.settlementNumber} Generated`,
         message: `Your settlement ${settlement.settlementNumber} has been generated. Net pay: $${settlement.netPay.toFixed(2)}`,
-        link: `/dashboard/settlements/${settlement.id}`,
+        link: `/dashboard/settlements/${settlement.settlementNumber}`,
       },
     });
 
@@ -456,7 +459,7 @@ export async function notifySettlementGenerated(settlementId: string) {
           type: 'SYSTEM_ALERT',
           title: `Settlement Generated: ${settlement.settlementNumber}`,
           message: `Settlement ${settlement.settlementNumber} for ${settlement.driver.user?.firstName ?? ''} ${settlement.driver.user?.lastName ?? ''} has been generated. Net pay: $${settlement.netPay.toFixed(2)}`,
-          link: `/dashboard/settlements/${settlement.id}`,
+          link: `/dashboard/settlements/${settlement.settlementNumber}`,
         },
       });
     }
@@ -508,7 +511,7 @@ export async function notifyDetentionDetected(params: {
           type: 'SYSTEM_ALERT',
           title: `Detention Detected: Load ${params.loadNumber}`,
           message: `Detention of ${params.detentionHours.toFixed(2)} hours detected at ${params.location} for load ${params.loadNumber}. Estimated charge: $${params.estimatedCharge.toFixed(2)}.${lateWarning}`,
-          link: `/dashboard/loads/${params.loadId}`,
+          link: `/dashboard/loads/${params.loadNumber}`,
         },
       });
     }
@@ -530,7 +533,7 @@ export async function notifyDetentionDetected(params: {
           type: params.requiresAttention ? 'SYSTEM_ALERT' : 'LOAD_UPDATED',
           title: `Detention Detected: Load ${params.loadNumber}${params.driverLate ? ' [DRIVER LATE]' : ''}`,
           message: `Detention of ${params.detentionHours.toFixed(2)} hours detected at ${params.location} for load ${params.loadNumber} (${params.customerName}). Estimated charge: $${params.estimatedCharge.toFixed(2)}.${lateWarning}`,
-          link: `/dashboard/loads/${params.loadId}`,
+          link: `/dashboard/loads/${params.loadNumber}`,
         },
       });
     }
@@ -584,7 +587,7 @@ export async function notifyBillingHold(params: {
           type: 'SYSTEM_ALERT',
           title: `Billing Hold: Load ${params.loadNumber}`,
           message: `Load ${params.loadNumber} (${load.customer.name}) is on billing hold. ${params.reason}${settlementNote}`,
-          link: `/dashboard/loads/${params.loadId}`,
+          link: `/dashboard/loads/${params.loadNumber}`,
         },
       });
     }

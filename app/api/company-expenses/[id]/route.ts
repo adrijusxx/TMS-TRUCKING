@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { hasPermission } from '@/lib/permissions';
 import { updateCompanyExpenseSchema } from '@/lib/validations/company-expense';
+import { resolveEntityParam } from '@/lib/utils/entity-resolver';
 
 const expenseInclude = {
   expenseType: { select: { id: true, name: true, color: true } },
@@ -31,8 +32,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('company-expenses', id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Company expense not found' } },
+        { status: 404 },
+      );
+    }
+
     const expense = await prisma.companyExpense.findFirst({
-      where: { id, companyId: session.user.companyId, deletedAt: null },
+      where: { id: resolved.id, companyId: session.user.companyId, deletedAt: null },
       include: expenseInclude,
     });
 
@@ -70,6 +79,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('company-expenses', id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Company expense not found' } },
+        { status: 404 },
+      );
+    }
+
     const body = await request.json();
     const validation = updateCompanyExpenseSchema.safeParse(body);
     if (!validation.success) {
@@ -80,7 +97,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const existing = await prisma.companyExpense.findFirst({
-      where: { id, companyId: session.user.companyId, deletedAt: null },
+      where: { id: resolved.id, companyId: session.user.companyId, deletedAt: null },
     });
     if (!existing) {
       return NextResponse.json(
@@ -93,7 +110,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (data.date) data.date = new Date(data.date);
 
     const updated = await prisma.companyExpense.update({
-      where: { id },
+      where: { id: resolved.id },
       data,
       include: expenseInclude,
     });
@@ -125,8 +142,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     const { id } = await params;
+    const resolved = await resolveEntityParam('company-expenses', id);
+    if (!resolved) {
+      return NextResponse.json(
+        { success: false, error: { code: 'NOT_FOUND', message: 'Company expense not found' } },
+        { status: 404 },
+      );
+    }
+
     const existing = await prisma.companyExpense.findFirst({
-      where: { id, companyId: session.user.companyId, deletedAt: null },
+      where: { id: resolved.id, companyId: session.user.companyId, deletedAt: null },
     });
     if (!existing) {
       return NextResponse.json(
@@ -136,7 +161,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     }
 
     await prisma.companyExpense.update({
-      where: { id },
+      where: { id: resolved.id },
       data: { deletedAt: new Date() },
     });
 

@@ -85,7 +85,7 @@ export const safetyNavItems: DepartmentNavItem[] = [
 // Accounting Department
 export const accountingNavItems: DepartmentNavItem[] = [
   { name: 'Invoices', href: '/dashboard/invoices', icon: FileText },
-  { name: 'Settlements', href: '/dashboard/settlements', icon: CreditCard },
+  { name: 'Settlements', href: '/dashboard/accounting/salary', icon: CreditCard },
   { name: 'Bills', href: '/dashboard/bills', icon: Receipt },
   { name: 'IFTA', href: '/dashboard/accounting/ifta', icon: Fuel },
   { name: 'Customers', href: '/dashboard/customers', icon: Users },

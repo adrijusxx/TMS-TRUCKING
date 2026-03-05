@@ -92,7 +92,7 @@ export class SettlementOrchestrator {
                 data: {
                     driverId,
                     settlementNumber,
-                    loadIds: loads.map((l) => l.id),
+                    loadIds: [...new Set(loads.map((l) => l.id))],
                     grossPay,
                     deductions: totalDeductions + negativeBalanceDeduction,
                     advances: totalAdvances,

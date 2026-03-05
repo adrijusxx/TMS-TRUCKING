@@ -341,7 +341,7 @@ export default function ActiveBreakdownsDashboard() {
                       <TableCell>{getPriorityBadge(breakdown.priority)}</TableCell>
                       <TableCell>
                         <Link
-                          href={`/dashboard/breakdowns/${breakdown.id}`}
+                          href={`/dashboard/breakdowns/${breakdown.breakdownNumber || breakdown.id}`}
                           className="font-mono text-sm font-semibold hover:underline"
                         >
                           {breakdown.breakdownNumber}
@@ -414,7 +414,7 @@ export default function ActiveBreakdownsDashboard() {
                               <Phone className="h-4 w-4" />
                             </Button>
                           )}
-                          <Link href={`/dashboard/breakdowns/${breakdown.id}`}>
+                          <Link href={`/dashboard/breakdowns/${breakdown.breakdownNumber || breakdown.id}`}>
                             <Button variant="ghost" size="sm" title="View Details">
                               View
                             </Button>

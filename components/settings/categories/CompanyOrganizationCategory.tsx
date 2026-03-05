@@ -31,7 +31,7 @@ export default function CompanyOrganizationCategory() {
       <div>
         <h2 className="text-2xl font-bold mb-2">Company & Organization</h2>
         <p className="text-muted-foreground">
-          Manage your company information, branding, and multi-MC configurations.
+          Manage your company details, branding, and MC number configurations. These settings appear on invoices, settlements, and customer-facing documents. Each MC number can have its own branding, address, and contact information.
         </p>
       </div>
 
@@ -58,9 +58,11 @@ export default function CompanyOrganizationCategory() {
           ))}
         </TabsList>
 
-        <TabsContent value="company" className="space-y-8 animate-in fade-in-50">
-          <CompanySettings />
-          <CompanyBrandingSettings />
+        <TabsContent value="company" className="animate-in fade-in-50">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <CompanySettings />
+            <CompanyBrandingSettings />
+          </div>
         </TabsContent>
 
         {mcNumbers.map((mc: any) => (
