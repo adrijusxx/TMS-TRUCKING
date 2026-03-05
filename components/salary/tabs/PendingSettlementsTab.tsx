@@ -13,6 +13,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -156,6 +158,30 @@ export default function PendingSettlementsTab() {
         });
     };
 
+    const [sorting, setSorting] = React.useState<SortingState>([]);
+
+    const columns = React.useMemo<ColumnDef<DraftSettlement>[]>(() => [
+        { id: 'select', enableSorting: false },
+        { id: 'driver', accessorFn: (row) => row.driver.name, header: 'Driver' },
+        { id: 'period', accessorFn: (row) => row.period.start, header: 'Period' },
+        { accessorKey: 'loadCount', header: 'Loads' },
+        { accessorKey: 'grossPay', header: 'Gross Pay' },
+        { accessorKey: 'totalAdditions', header: 'Additions' },
+        { accessorKey: 'totalDeductions', header: 'Deductions' },
+        { accessorKey: 'totalAdvances', header: 'Advances' },
+        { accessorKey: 'netPay', header: 'Net Pay' },
+        { id: 'actions', enableSorting: false },
+    ], []);
+
+    const table = useReactTable({
+        data: drafts || [],
+        columns,
+        state: { sorting },
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+    });
+
     if (error) {
         return (
             <div className="text-center py-8 text-destructive border rounded-lg bg-destructive/10">
@@ -232,14 +258,14 @@ export default function PendingSettlementsTab() {
                                     onCheckedChange={handleSelectAll}
                                 />
                             </TableHead>
-                            <TableHead className="font-medium">Driver</TableHead>
-                            <TableHead className="font-medium text-center">Period</TableHead>
-                            <TableHead className="font-medium text-center">Loads</TableHead>
-                            <TableHead className="font-medium text-right">Gross Pay</TableHead>
-                            <TableHead className="font-medium text-right text-green-600">Additions</TableHead>
-                            <TableHead className="font-medium text-right text-red-600">Deductions</TableHead>
-                            <TableHead className="font-medium text-right text-orange-600">Advances</TableHead>
-                            <TableHead className="font-medium text-right">Net Pay</TableHead>
+                            <SortableHeader column={table.getColumn('driver')!} className="font-medium">Driver</SortableHeader>
+                            <SortableHeader column={table.getColumn('period')!} className="font-medium text-center">Period</SortableHeader>
+                            <SortableHeader column={table.getColumn('loadCount')!} className="font-medium text-center">Loads</SortableHeader>
+                            <SortableHeader column={table.getColumn('grossPay')!} className="font-medium text-right">Gross Pay</SortableHeader>
+                            <SortableHeader column={table.getColumn('totalAdditions')!} className="font-medium text-right text-green-600">Additions</SortableHeader>
+                            <SortableHeader column={table.getColumn('totalDeductions')!} className="font-medium text-right text-red-600">Deductions</SortableHeader>
+                            <SortableHeader column={table.getColumn('totalAdvances')!} className="font-medium text-right text-orange-600">Advances</SortableHeader>
+                            <SortableHeader column={table.getColumn('netPay')!} className="font-medium text-right">Net Pay</SortableHeader>
                             <TableHead className="w-10">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -260,7 +286,9 @@ export default function PendingSettlementsTab() {
                                 </TableRow>
                             ))
                         ) : drafts && drafts.length > 0 ? (
-                            drafts.map((draft) => (
+                            table.getRowModel().rows.map((row) => {
+                                const draft = row.original;
+                                return (
                                 <TableRow
                                     key={draft.driver.id}
                                     className={`hover:bg-muted/50 cursor-pointer ${selectedDrivers.has(draft.driver.id) ? 'bg-muted/30' : ''}`}
@@ -314,7 +342,8 @@ export default function PendingSettlementsTab() {
                                         </Button>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                                );
+                            })
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">

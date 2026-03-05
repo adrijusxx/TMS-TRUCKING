@@ -5,8 +5,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table, TableBody, TableCell, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -54,6 +56,31 @@ export default function VendorStatementsTab() {
   const vendors = vendorsData?.data?.vendors || [];
   const statement = statementData?.data;
   const selectedVendor = vendors.find((v: any) => v.id === vendorId);
+
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  const statementBills = React.useMemo(() => statement?.bills || [], [statement]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { accessorKey: 'billNumber', header: 'Bill #' },
+    { accessorKey: 'billDate', header: 'Date' },
+    { accessorKey: 'dueDate', header: 'Due Date' },
+    { accessorKey: 'description', header: 'Description' },
+    { id: 'load', accessorFn: (row: any) => row.load?.loadNumber || '', header: 'Load' },
+    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: 'amount', header: 'Amount' },
+    { accessorKey: 'amountPaid', header: 'Paid' },
+    { accessorKey: 'balance', header: 'Balance' },
+  ], []);
+
+  const billsTable = useReactTable({
+    data: statementBills,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   return (
     <div className="space-y-4">
@@ -133,42 +160,45 @@ export default function VendorStatementsTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Bill #</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Load</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
+                  <SortableHeader column={billsTable.getColumn('billNumber')!}>Bill #</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('billDate')!}>Date</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('dueDate')!}>Due Date</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('description')!}>Description</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('load')!}>Load</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('status')!}>Status</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('amount')!} className="text-right">Amount</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('amountPaid')!} className="text-right">Paid</SortableHeader>
+                  <SortableHeader column={billsTable.getColumn('balance')!} className="text-right">Balance</SortableHeader>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {statement.bills.map((bill: any) => (
-                  <TableRow key={bill.id}>
-                    <TableCell className="font-medium">{bill.billNumber}</TableCell>
-                    <TableCell>{format(new Date(bill.billDate), 'MMM d, yyyy')}</TableCell>
-                    <TableCell>{format(new Date(bill.dueDate), 'MMM d, yyyy')}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{bill.description || '-'}</TableCell>
-                    <TableCell>{bill.load?.loadNumber || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={bill.status === 'PAID' ? 'default' : 'secondary'}>
-                        {bill.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(bill.amount)}</TableCell>
-                    <TableCell className="text-right text-green-600">{formatCurrency(bill.amountPaid)}</TableCell>
-                    <TableCell className="text-right text-red-600">{formatCurrency(bill.balance)}</TableCell>
-                  </TableRow>
-                ))}
-                {statement.bills.length === 0 && (
+                {billsTable.getRowModel().rows.map((row) => {
+                  const bill = row.original;
+                  return (
+                    <TableRow key={bill.id}>
+                      <TableCell className="font-medium">{bill.billNumber}</TableCell>
+                      <TableCell>{format(new Date(bill.billDate), 'MMM d, yyyy')}</TableCell>
+                      <TableCell>{format(new Date(bill.dueDate), 'MMM d, yyyy')}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{bill.description || '-'}</TableCell>
+                      <TableCell>{bill.load?.loadNumber || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={bill.status === 'PAID' ? 'default' : 'secondary'}>
+                          {bill.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(bill.amount)}</TableCell>
+                      <TableCell className="text-right text-green-600">{formatCurrency(bill.amountPaid)}</TableCell>
+                      <TableCell className="text-right text-red-600">{formatCurrency(bill.balance)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                {statementBills.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No bills found for this period</TableCell>
                   </TableRow>
                 )}
                 {/* Totals row */}
-                {statement.bills.length > 0 && (
+                {statementBills.length > 0 && (
                   <TableRow className="bg-muted/50 font-semibold">
                     <TableCell colSpan={6}>Total</TableCell>
                     <TableCell className="text-right">{formatCurrency(statement.totalBilled)}</TableCell>

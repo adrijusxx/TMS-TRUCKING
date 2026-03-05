@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
@@ -36,6 +38,7 @@ export default function DriverOneTimeChargesTab() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
 
   // Form state
   const [driverId, setDriverId] = React.useState('');
@@ -73,6 +76,30 @@ export default function DriverOneTimeChargesTab() {
     if (driver) return `${driver.user?.firstName || ''} ${driver.user?.lastName || ''}`.trim();
     return rule.driverId ? 'Unknown' : 'Company-wide';
   };
+
+  const enrichedRules = React.useMemo(() => oneTimeRules.map((rule: any) => ({
+    ...rule,
+    driverName: getDriverName(rule),
+  })), [oneTimeRules, drivers]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { accessorKey: 'driverName', header: 'Driver' },
+    { accessorKey: 'name', header: 'Name' },
+    { id: 'type', accessorFn: (row: any) => row.isAddition ? 'Addition' : 'Deduction', header: 'Type' },
+    { accessorKey: 'deductionType', header: 'Category' },
+    { accessorKey: 'amount', header: 'Amount' },
+    { id: 'status', accessorFn: (row: any) => row.isActive ? 'Active' : 'Inactive', header: 'Status' },
+    { id: 'actions', enableSorting: false },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedRules,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleCreate = async () => {
     if (!amount || !name) {
@@ -212,41 +239,44 @@ export default function DriverOneTimeChargesTab() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Driver</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Status</TableHead>
+              <SortableHeader column={table.getColumn('driverName')!}>Driver</SortableHeader>
+              <SortableHeader column={table.getColumn('name')!}>Name</SortableHeader>
+              <SortableHeader column={table.getColumn('type')!}>Type</SortableHeader>
+              <SortableHeader column={table.getColumn('deductionType')!}>Category</SortableHeader>
+              <SortableHeader column={table.getColumn('amount')!} className="text-right">Amount</SortableHeader>
+              <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
               <TableHead className="w-16">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {oneTimeRules.map((rule: any) => (
-              <TableRow key={rule.id}>
-                <TableCell>{getDriverName(rule)}</TableCell>
-                <TableCell className="font-medium">{rule.name}</TableCell>
-                <TableCell>
-                  <Badge variant={rule.isAddition ? 'default' : 'secondary'}>
-                    {rule.isAddition ? 'Addition' : 'Deduction'}
-                  </Badge>
-                </TableCell>
-                <TableCell>{typeLabel(rule.deductionType)}</TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(rule.amount || 0)}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={rule.isActive ? 'default' : 'outline'}>
-                    {rule.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(rule.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const rule = row.original;
+              return (
+                <TableRow key={rule.id}>
+                  <TableCell>{rule.driverName}</TableCell>
+                  <TableCell className="font-medium">{rule.name}</TableCell>
+                  <TableCell>
+                    <Badge variant={rule.isAddition ? 'default' : 'secondary'}>
+                      {rule.isAddition ? 'Addition' : 'Deduction'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{typeLabel(rule.deductionType)}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(rule.amount || 0)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={rule.isActive ? 'default' : 'outline'}>
+                      {rule.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(rule.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {oneTimeRules.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">

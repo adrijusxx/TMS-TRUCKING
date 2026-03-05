@@ -12,6 +12,8 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Download, RefreshCw } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -58,6 +60,7 @@ export default function DriverStatementsTab() {
   const queryClient = useQueryClient();
   const [selectedSettlementId, setSelectedSettlementId] = React.useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [fromDate, setFromDate] = React.useState(() =>
     format(startOfMonth(subMonths(new Date(), 2)), 'yyyy-MM-dd')
@@ -104,6 +107,44 @@ export default function DriverStatementsTab() {
 
   // API-level aggregate totals (across all pages)
   const apiTotals = meta?.totals || { grossPay: 0, deductions: 0, advances: 0, netPay: 0 };
+
+  const enrichedSettlements = React.useMemo(() => settlements.map((s) => ({
+    ...s,
+    payee: `${s.driver.user.firstName} ${s.driver.user.lastName}`,
+    batchNumber: s.salaryBatch?.batchNumber || '',
+    mcNumber: s.driver.mcNumber?.number || '',
+    trips: s.loadIds?.length || 0,
+    truck: s.driver.currentTruck?.truckNumber || '',
+  })), [settlements]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { accessorKey: 'payee', header: 'Payee' },
+    { accessorKey: 'batchNumber', header: 'Batch #' },
+    { accessorKey: 'createdAt', header: 'Settlement Date' },
+    { accessorKey: 'periodStart', header: 'Period' },
+    { accessorKey: 'settlementNumber', header: 'Settlement #' },
+    { accessorKey: 'mcNumber', header: 'MC Number' },
+    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: 'trips', header: 'Trips' },
+    { accessorKey: 'totalRevenue', header: 'Gross' },
+    { accessorKey: 'totalLoadPay', header: 'Load Pay' },
+    { accessorKey: 'grossPay', header: 'Earnings' },
+    { accessorKey: 'expense', header: 'Expense' },
+    { accessorKey: 'advances', header: 'Advances' },
+    { accessorKey: 'deductions', header: 'Deductions' },
+    { accessorKey: 'otherPay', header: 'Other Pay' },
+    { accessorKey: 'netPay', header: 'Net Pay' },
+    { accessorKey: 'truck', header: 'Trucks' },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedSettlements,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   return (
     <div className="space-y-4">
@@ -169,23 +210,23 @@ export default function DriverStatementsTab() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Payee</TableHead>
-              <TableHead>Batch #</TableHead>
-              <TableHead>Settlement Date</TableHead>
-              <TableHead>Period</TableHead>
-              <TableHead>Settlement #</TableHead>
-              <TableHead>MC Number</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-center">Trips</TableHead>
-              <TableHead className="text-right">Gross</TableHead>
-              <TableHead className="text-right">Load Pay</TableHead>
-              <TableHead className="text-right">Earnings</TableHead>
-              <TableHead className="text-right">Expense</TableHead>
-              <TableHead className="text-right">Advances</TableHead>
-              <TableHead className="text-right">Deductions</TableHead>
-              <TableHead className="text-right">Other Pay</TableHead>
-              <TableHead className="text-right">Net Pay</TableHead>
-              <TableHead>Trucks</TableHead>
+              <TableHead><SortableHeader column={table.getColumn('payee')!}>Payee</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('batchNumber')!}>Batch #</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('createdAt')!}>Settlement Date</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('periodStart')!}>Period</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('settlementNumber')!}>Settlement #</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('mcNumber')!}>MC Number</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('status')!}>Status</SortableHeader></TableHead>
+              <TableHead className="text-center"><SortableHeader column={table.getColumn('trips')!}>Trips</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('totalRevenue')!}>Gross</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('totalLoadPay')!}>Load Pay</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('grossPay')!}>Earnings</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('expense')!}>Expense</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('advances')!}>Advances</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('deductions')!}>Deductions</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('otherPay')!}>Other Pay</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('netPay')!}>Net Pay</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('truck')!}>Trucks</SortableHeader></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -199,39 +240,42 @@ export default function DriverStatementsTab() {
               ))
             ) : settlements.length > 0 ? (
               <>
-                {settlements.map((s) => (
-                  <TableRow
-                    key={s.id}
-                    className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => { setSelectedSettlementId(s.id); setSheetOpen(true); }}
-                  >
-                    <TableCell>{s.driver.user.firstName} {s.driver.user.lastName}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.salaryBatch?.batchNumber || '-'}</TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap">
-                      {s.createdAt ? format(new Date(s.createdAt), 'M/d/yyyy') : '-'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap">
-                      {format(new Date(s.periodStart), 'MMM d')} - {format(new Date(s.periodEnd), 'MMM d, yyyy')}
-                    </TableCell>
-                    <TableCell className="font-medium text-primary">{s.settlementNumber}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.driver.mcNumber?.number || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={STATUS_COLORS[s.status] || ''}>
-                        {s.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">{s.loadIds?.length || 0}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.totalRevenue || 0)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.totalLoadPay || 0)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.grossPay)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.expense || 0)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.advances)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.deductions)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(s.otherPay || 0)}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(s.netPay)}</TableCell>
-                    <TableCell className="text-muted-foreground">{s.driver.currentTruck?.truckNumber || '-'}</TableCell>
-                  </TableRow>
-                ))}
+                {table.getRowModel().rows.map((row) => {
+                  const s = row.original;
+                  return (
+                    <TableRow
+                      key={s.id}
+                      className="hover:bg-muted/50 cursor-pointer"
+                      onClick={() => { setSelectedSettlementId(s.id); setSheetOpen(true); }}
+                    >
+                      <TableCell>{s.driver.user.firstName} {s.driver.user.lastName}</TableCell>
+                      <TableCell className="text-muted-foreground">{s.salaryBatch?.batchNumber || '-'}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">
+                        {s.createdAt ? format(new Date(s.createdAt), 'M/d/yyyy') : '-'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">
+                        {format(new Date(s.periodStart), 'MMM d')} - {format(new Date(s.periodEnd), 'MMM d, yyyy')}
+                      </TableCell>
+                      <TableCell className="font-medium text-primary">{s.settlementNumber}</TableCell>
+                      <TableCell className="text-muted-foreground">{s.driver.mcNumber?.number || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={STATUS_COLORS[s.status] || ''}>
+                          {s.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">{s.loadIds?.length || 0}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(s.totalRevenue || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(s.totalLoadPay || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(s.grossPay)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(s.expense || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(s.advances)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(s.deductions)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(s.otherPay || 0)}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(s.netPay)}</TableCell>
+                      <TableCell className="text-muted-foreground">{s.driver.currentTruck?.truckNumber || '-'}</TableCell>
+                    </TableRow>
+                  );
+                })}
                 {/* Totals row — uses API aggregates for grossPay/deductions/advances/netPay */}
                 <TableRow className="bg-muted/50 font-semibold border-t-2">
                   <TableCell colSpan={7}>Totals ({meta?.total || settlements.length} settlements)</TableCell>

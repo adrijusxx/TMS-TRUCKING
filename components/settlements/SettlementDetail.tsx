@@ -35,6 +35,7 @@ import AddTripsDialog from './settlement-detail/AddTripsDialog';
 interface SettlementDetailProps {
   settlementId: string;
   onOpenDriver?: (driverId: string) => void;
+  onOpenLoad?: (loadId: string) => void;
   batchSettlementIds?: string[];
   onSettlementChange?: (id: string) => void;
 }
@@ -58,7 +59,7 @@ const DRIVER_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function SettlementDetail({
-  settlementId, onOpenDriver, batchSettlementIds, onSettlementChange,
+  settlementId, onOpenDriver, onOpenLoad, batchSettlementIds, onSettlementChange,
 }: SettlementDetailProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SettlementStatus | ''>('');
@@ -364,6 +365,7 @@ export default function SettlementDetail({
             onAddTrips={() => setAddTripsOpen(true)}
             onDeleteLoads={handleDeleteLoads}
             isDeleting={isModifyingLoads}
+            onOpenLoad={onOpenLoad}
           />
 
           <AddTripsDialog

@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -217,6 +219,42 @@ export default function VendorBillBatchDetail({ batchId }: VendorBillBatchDetail
     { amount: 0, paid: 0, balance: 0 }
   );
 
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  const enrichedBills = React.useMemo(() => filteredBills.map(b => ({
+    ...b,
+    vendorName: b.vendor.name,
+    loadNumber: b.load?.loadNumber || '',
+    truckNumber: b.truck?.truckNumber || '',
+    payments: b._count.payments,
+  })), [filteredBills]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { id: 'select', enableSorting: false },
+    { accessorKey: 'billNumber', header: 'Bill #' },
+    { accessorKey: 'vendorName', header: 'Vendor' },
+    { accessorKey: 'vendorInvoiceNumber', header: 'Vendor Inv #' },
+    { accessorKey: 'loadNumber', header: 'Load #' },
+    { accessorKey: 'truckNumber', header: 'Truck' },
+    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: 'billDate', header: 'Bill Date' },
+    { accessorKey: 'dueDate', header: 'Due Date' },
+    { accessorKey: 'amount', header: 'Amount' },
+    { accessorKey: 'amountPaid', header: 'Paid' },
+    { accessorKey: 'balance', header: 'Balance' },
+    { accessorKey: 'description', header: 'Description' },
+    { accessorKey: 'payments', header: 'Payments' },
+  ], []);
+
+  const billsTable = useReactTable({
+    data: enrichedBills,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   const isEditing = editNotes !== null;
 
   return (
@@ -343,42 +381,45 @@ export default function VendorBillBatchDetail({ batchId }: VendorBillBatchDetail
               <TableHead className="w-10">
                 <Checkbox checked={allFilteredSelected} onCheckedChange={(c) => toggleAll(!!c)} />
               </TableHead>
-              <TableHead>Bill #</TableHead>
-              <TableHead>Vendor</TableHead>
-              <TableHead>Vendor Inv #</TableHead>
-              <TableHead>Load #</TableHead>
-              <TableHead>Truck</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Bill Date</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Paid</TableHead>
-              <TableHead className="text-right">Balance</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Payments</TableHead>
+              <SortableHeader column={billsTable.getColumn('billNumber')!}>Bill #</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('vendorName')!}>Vendor</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('vendorInvoiceNumber')!}>Vendor Inv #</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('loadNumber')!}>Load #</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('truckNumber')!}>Truck</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('status')!}>Status</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('billDate')!}>Bill Date</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('dueDate')!}>Due Date</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('amount')!} className="text-right">Amount</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('amountPaid')!} className="text-right">Paid</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('balance')!} className="text-right">Balance</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('description')!}>Description</SortableHeader>
+              <SortableHeader column={billsTable.getColumn('payments')!} className="text-right">Payments</SortableHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredBills.map((bill) => (
-              <TableRow key={bill.id}>
-                <TableCell><Checkbox checked={selectedIds.has(bill.id)} onCheckedChange={() => toggleSelect(bill.id)} /></TableCell>
-                <TableCell className="font-medium text-primary">{bill.billNumber}</TableCell>
-                <TableCell>{bill.vendor.name}</TableCell>
-                <TableCell>{bill.vendorInvoiceNumber || '-'}</TableCell>
-                <TableCell>{bill.load ? (
-                  <Link href={`/dashboard/loads/${bill.load.loadNumber || bill.load.id}`} className="text-primary hover:underline">{bill.load.loadNumber}</Link>
-                ) : '-'}</TableCell>
-                <TableCell>{bill.truck?.truckNumber || '-'}</TableCell>
-                <TableCell>{billStatusBadge(bill.status)}</TableCell>
-                <TableCell>{format(new Date(bill.billDate), 'MMM d, yyyy')}</TableCell>
-                <TableCell>{bill.dueDate ? format(new Date(bill.dueDate), 'MMM d, yyyy') : '-'}</TableCell>
-                <TableCell className="text-right font-medium">{formatCurrency(bill.amount)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(bill.amountPaid)}</TableCell>
-                <TableCell className="text-right text-red-600 font-medium">{formatCurrency(bill.balance)}</TableCell>
-                <TableCell className="max-w-[150px] truncate">{bill.description || '-'}</TableCell>
-                <TableCell className="text-right">{bill._count.payments}</TableCell>
-              </TableRow>
-            ))}
+            {billsTable.getRowModel().rows.map((row) => {
+              const bill = row.original;
+              return (
+                <TableRow key={bill.id}>
+                  <TableCell><Checkbox checked={selectedIds.has(bill.id)} onCheckedChange={() => toggleSelect(bill.id)} /></TableCell>
+                  <TableCell className="font-medium text-primary">{bill.billNumber}</TableCell>
+                  <TableCell>{bill.vendor.name}</TableCell>
+                  <TableCell>{bill.vendorInvoiceNumber || '-'}</TableCell>
+                  <TableCell>{bill.load ? (
+                    <Link href={`/dashboard/loads/${bill.load.loadNumber || bill.load.id}`} className="text-primary hover:underline">{bill.load.loadNumber}</Link>
+                  ) : '-'}</TableCell>
+                  <TableCell>{bill.truck?.truckNumber || '-'}</TableCell>
+                  <TableCell>{billStatusBadge(bill.status)}</TableCell>
+                  <TableCell>{format(new Date(bill.billDate), 'MMM d, yyyy')}</TableCell>
+                  <TableCell>{bill.dueDate ? format(new Date(bill.dueDate), 'MMM d, yyyy') : '-'}</TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(bill.amount)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(bill.amountPaid)}</TableCell>
+                  <TableCell className="text-right text-red-600 font-medium">{formatCurrency(bill.balance)}</TableCell>
+                  <TableCell className="max-w-[150px] truncate">{bill.description || '-'}</TableCell>
+                  <TableCell className="text-right">{bill._count.payments}</TableCell>
+                </TableRow>
+              );
+            })}
             {filteredBills.length === 0 && (
               <TableRow>
                 <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">No bills found</TableCell>

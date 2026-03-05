@@ -18,6 +18,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, flexRender, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -202,6 +204,35 @@ export default function SalaryBatchesTab() {
         router.push(`/dashboard/accounting/salary/batches/${id}`);
     };
 
+    const [sorting, setSorting] = React.useState<SortingState>([]);
+
+    const columns = React.useMemo<ColumnDef<SalaryBatch>[]>(() => [
+        { id: 'select', enableSorting: false },
+        { accessorKey: 'batchNumber', header: 'Batch #' },
+        { accessorKey: 'mcNumber', header: 'MC Number' },
+        { accessorKey: 'status', header: 'Status' },
+        { accessorKey: 'payCompany', header: 'Pay Company' },
+        { id: 'createdBy', accessorFn: (row) => `${row.createdBy?.firstName} ${row.createdBy?.lastName}`, header: 'Created by' },
+        { accessorKey: 'createdAt', header: 'Created date' },
+        { accessorKey: 'checkDate', header: 'Check Date' },
+        { accessorKey: 'periodStart', header: 'Start Date' },
+        { accessorKey: 'periodEnd', header: 'End Date' },
+        { accessorKey: 'settlementCount', header: 'Settlements' },
+        { accessorKey: 'totalAmount', header: 'Amount' },
+        { accessorKey: 'notes', header: 'Notes' },
+        { id: 'weekNumber', accessorFn: (row) => getWeek(new Date(row.periodStart)), header: 'Week #' },
+        { id: 'actions', enableSorting: false },
+    ], []);
+
+    const table = useReactTable({
+        data: batches || [],
+        columns,
+        state: { sorting },
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+    });
+
     if (error) {
         return (
             <div className="text-center py-8 text-destructive">
@@ -319,19 +350,19 @@ export default function SalaryBatchesTab() {
                                     onCheckedChange={toggleSelectAll}
                                 />
                             </TableHead>
-                            <TableHead className="font-medium">Batch #</TableHead>
-                            <TableHead className="font-medium">MC Number</TableHead>
-                            <TableHead className="font-medium">Status</TableHead>
-                            <TableHead className="font-medium">Pay Company</TableHead>
-                            <TableHead className="font-medium">Created by</TableHead>
-                            <TableHead className="font-medium">Created date</TableHead>
-                            <TableHead className="font-medium">Check Date</TableHead>
-                            <TableHead className="font-medium">Start Date</TableHead>
-                            <TableHead className="font-medium">End Date</TableHead>
-                            <TableHead className="font-medium text-center">Settlements</TableHead>
-                            <TableHead className="font-medium text-right">Amount</TableHead>
-                            <TableHead className="font-medium">Notes</TableHead>
-                            <TableHead className="font-medium text-center">Week #</TableHead>
+                            <SortableHeader column={table.getColumn('batchNumber')!}>Batch #</SortableHeader>
+                            <SortableHeader column={table.getColumn('mcNumber')!}>MC Number</SortableHeader>
+                            <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
+                            <SortableHeader column={table.getColumn('payCompany')!}>Pay Company</SortableHeader>
+                            <SortableHeader column={table.getColumn('createdBy')!}>Created by</SortableHeader>
+                            <SortableHeader column={table.getColumn('createdAt')!}>Created date</SortableHeader>
+                            <SortableHeader column={table.getColumn('checkDate')!}>Check Date</SortableHeader>
+                            <SortableHeader column={table.getColumn('periodStart')!}>Start Date</SortableHeader>
+                            <SortableHeader column={table.getColumn('periodEnd')!}>End Date</SortableHeader>
+                            <SortableHeader column={table.getColumn('settlementCount')!} className="text-center">Settlements</SortableHeader>
+                            <SortableHeader column={table.getColumn('totalAmount')!} className="text-right">Amount</SortableHeader>
+                            <SortableHeader column={table.getColumn('notes')!}>Notes</SortableHeader>
+                            <SortableHeader column={table.getColumn('weekNumber')!} className="text-center">Week #</SortableHeader>
                             <TableHead className="w-10" />
                         </TableRow>
                     </TableHeader>
@@ -356,8 +387,10 @@ export default function SalaryBatchesTab() {
                                     <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                                 </TableRow>
                             ))
-                        ) : batches && batches.length > 0 ? (
-                            batches.map((batch) => (
+                        ) : table.getRowModel().rows.length > 0 ? (
+                            table.getRowModel().rows.map((row) => {
+                                const batch = row.original;
+                                return (
                                 <TableRow
                                     key={batch.id}
                                     className="hover:bg-muted/50 cursor-pointer"
@@ -412,7 +445,8 @@ export default function SalaryBatchesTab() {
                                         </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                                );
+                            })
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={15} className="h-24 text-center text-muted-foreground">

@@ -22,6 +22,7 @@ interface SettlementLoadsProps {
   onAddTrips?: () => void;
   onDeleteLoads?: (loadIds: string[]) => void;
   isDeleting?: boolean;
+  onOpenLoad?: (loadId: string) => void;
 }
 
 const ALL_COLUMNS = [
@@ -50,7 +51,7 @@ const DEFAULT_VISIBLE = new Set<ColumnId>([
   'loadedMiles', 'emptyMiles', 'totalMiles', 'rate',
 ]);
 
-export default function SettlementLoads({ loads, hideRevenue = false, onAddCharges, onAddTrips, onDeleteLoads, isDeleting }: SettlementLoadsProps) {
+export default function SettlementLoads({ loads, hideRevenue = false, onAddCharges, onAddTrips, onDeleteLoads, isDeleting, onOpenLoad }: SettlementLoadsProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [visibleCols, setVisibleCols] = useState<Set<ColumnId>>(DEFAULT_VISIBLE);
 
@@ -161,9 +162,18 @@ export default function SettlementLoads({ loads, hideRevenue = false, onAddCharg
                     {show('trip') && <TableCell>{load.tripId || '-'}</TableCell>}
                     {show('loadId') && (
                       <TableCell>
-                        <Link href={`/dashboard/loads/${load.loadNumber || load.id}`} className="text-primary hover:underline font-medium">
-                          {load.loadNumber}
-                        </Link>
+                        {onOpenLoad ? (
+                          <button
+                            className="text-primary hover:underline font-medium text-left"
+                            onClick={(e) => { e.stopPropagation(); onOpenLoad(load.id); }}
+                          >
+                            {load.loadNumber}
+                          </button>
+                        ) : (
+                          <Link href={`/dashboard/loads/${load.loadNumber || load.id}`} className="text-primary hover:underline font-medium">
+                            {load.loadNumber}
+                          </Link>
+                        )}
                       </TableCell>
                     )}
                     {show('truck') && <TableCell>{load.truck?.truckNumber || '-'}</TableCell>}

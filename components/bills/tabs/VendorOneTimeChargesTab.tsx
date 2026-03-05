@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
@@ -55,6 +57,33 @@ export default function VendorOneTimeChargesTab() {
 
   const vendors = vendorsData?.data?.vendors || [];
   const bills = (data?.data || []).filter((b: any) => !b.batch);
+
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  const enrichedBills = React.useMemo(() => bills.map((b: any) => ({
+    ...b,
+    vendorName: b.vendor?.name || '',
+  })), [bills]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { accessorKey: 'billNumber', header: 'Bill #' },
+    { accessorKey: 'vendorName', header: 'Vendor' },
+    { accessorKey: 'description', header: 'Description' },
+    { accessorKey: 'billDate', header: 'Date' },
+    { accessorKey: 'dueDate', header: 'Due Date' },
+    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: 'amount', header: 'Amount' },
+    { accessorKey: 'balance', header: 'Balance' },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedBills,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleCreate = async () => {
     if (!vendorId || !amount) {
@@ -149,29 +178,32 @@ export default function VendorOneTimeChargesTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Bill #</TableHead>
-              <TableHead>Vendor</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Balance</TableHead>
+              <SortableHeader column={table.getColumn('billNumber')!}>Bill #</SortableHeader>
+              <SortableHeader column={table.getColumn('vendorName')!}>Vendor</SortableHeader>
+              <SortableHeader column={table.getColumn('description')!}>Description</SortableHeader>
+              <SortableHeader column={table.getColumn('billDate')!}>Date</SortableHeader>
+              <SortableHeader column={table.getColumn('dueDate')!}>Due Date</SortableHeader>
+              <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
+              <SortableHeader column={table.getColumn('amount')!} className="text-right">Amount</SortableHeader>
+              <SortableHeader column={table.getColumn('balance')!} className="text-right">Balance</SortableHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bills.map((bill: any) => (
-              <TableRow key={bill.id}>
-                <TableCell className="font-medium">{bill.billNumber}</TableCell>
-                <TableCell>{bill.vendor?.name}</TableCell>
-                <TableCell className="max-w-[200px] truncate">{bill.description || '-'}</TableCell>
-                <TableCell>{format(new Date(bill.billDate), 'MMM d, yyyy')}</TableCell>
-                <TableCell>{format(new Date(bill.dueDate), 'MMM d, yyyy')}</TableCell>
-                <TableCell><Badge variant="secondary">{bill.status}</Badge></TableCell>
-                <TableCell className="text-right font-medium">{formatCurrency(bill.amount)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(bill.balance)}</TableCell>
-              </TableRow>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const bill = row.original;
+              return (
+                <TableRow key={bill.id}>
+                  <TableCell className="font-medium">{bill.billNumber}</TableCell>
+                  <TableCell>{bill.vendor?.name}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{bill.description || '-'}</TableCell>
+                  <TableCell>{format(new Date(bill.billDate), 'MMM d, yyyy')}</TableCell>
+                  <TableCell>{format(new Date(bill.dueDate), 'MMM d, yyyy')}</TableCell>
+                  <TableCell><Badge variant="secondary">{bill.status}</Badge></TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(bill.amount)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(bill.balance)}</TableCell>
+                </TableRow>
+              );
+            })}
             {bills.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No unbatched charges</TableCell>

@@ -6,7 +6,6 @@ import { PageShell } from '@/components/layout/PageShell';
 import SalaryNavigation, { type SalaryTabId } from './SalaryNavigation';
 
 // Lazy load tab components for better performance
-const PendingSettlementsTab = React.lazy(() => import('./tabs/PendingSettlementsTab'));
 const SalaryBatchesTab = React.lazy(() => import('./tabs/SalaryBatchesTab'));
 const DriverStatementsTab = React.lazy(() => import('./tabs/DriverStatementsTab'));
 const SalaryReportTab = React.lazy(() => import('./tabs/SalaryReportTab'));
@@ -21,7 +20,6 @@ export default function SalaryModuleLayout() {
     const activeTab = (searchParams.get('tab') as SalaryTabId) || 'batches';
 
     const TAB_CONTENT: Record<SalaryTabId, React.ReactNode> = {
-        pending: <PendingSettlementsTab />,
         batches: <SalaryBatchesTab />,
         statements: <DriverStatementsTab />,
         report: <SalaryReportTab />,

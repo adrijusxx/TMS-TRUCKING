@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
@@ -40,6 +42,7 @@ const statusBadge = (status: string) => {
 export default function DispatcherSalaryTab() {
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [sorting, setSorting] = React.useState<SortingState>([]);
   const [fromDate, setFromDate] = React.useState(() =>
     format(startOfMonth(subMonths(new Date(), 1)), 'yyyy-MM-dd')
   );
@@ -88,6 +91,33 @@ export default function DispatcherSalaryTab() {
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [commissions]);
+
+  const enrichedCommissions = React.useMemo(() => commissions.map(c => ({
+    ...c,
+    dispatcherName: `${c.dispatcher.firstName} ${c.dispatcher.lastName}`,
+    loadNumber: c.load.loadNumber,
+    revenue: c.load.revenue,
+  })), [commissions]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { id: 'select', enableSorting: false },
+    { accessorKey: 'dispatcherName', header: 'Dispatcher' },
+    { accessorKey: 'loadNumber', header: 'Load' },
+    { accessorKey: 'revenue', header: 'Revenue' },
+    { accessorKey: 'commissionType', header: 'Commission Type' },
+    { accessorKey: 'amount', header: 'Amount' },
+    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: 'createdAt', header: 'Date' },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedCommissions,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleApprove = async () => {
     if (selectedIds.size === 0) return;
@@ -189,37 +219,40 @@ export default function DispatcherSalaryTab() {
                   }}
                 />
               </TableHead>
-              <TableHead>Dispatcher</TableHead>
-              <TableHead>Load</TableHead>
-              <TableHead>Revenue</TableHead>
-              <TableHead>Commission Type</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
+              <SortableHeader column={table.getColumn('dispatcherName')!}>Dispatcher</SortableHeader>
+              <SortableHeader column={table.getColumn('loadNumber')!}>Load</SortableHeader>
+              <SortableHeader column={table.getColumn('revenue')!}>Revenue</SortableHeader>
+              <SortableHeader column={table.getColumn('commissionType')!}>Commission Type</SortableHeader>
+              <SortableHeader column={table.getColumn('amount')!} className="text-right">Amount</SortableHeader>
+              <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
+              <SortableHeader column={table.getColumn('createdAt')!}>Date</SortableHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {commissions.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell>
-                  {c.status === 'PENDING' && (
-                    <input type="checkbox" className="rounded"
-                      checked={selectedIds.has(c.id)}
-                      onChange={() => toggleSelect(c.id)}
-                    />
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">{c.dispatcher.firstName} {c.dispatcher.lastName}</TableCell>
-                <TableCell>{c.load.loadNumber}</TableCell>
-                <TableCell>{formatCurrency(c.load.revenue)}</TableCell>
-                <TableCell>
-                  {c.commissionType === 'PERCENTAGE' ? `${c.percentage}%` : formatCurrency(c.flatAmount || 0)}
-                </TableCell>
-                <TableCell className="text-right font-bold">{formatCurrency(c.amount)}</TableCell>
-                <TableCell>{statusBadge(c.status)}</TableCell>
-                <TableCell>{format(new Date(c.createdAt), 'MMM d, yyyy')}</TableCell>
-              </TableRow>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const c = row.original;
+              return (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    {c.status === 'PENDING' && (
+                      <input type="checkbox" className="rounded"
+                        checked={selectedIds.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{c.dispatcher.firstName} {c.dispatcher.lastName}</TableCell>
+                  <TableCell>{c.load.loadNumber}</TableCell>
+                  <TableCell>{formatCurrency(c.load.revenue)}</TableCell>
+                  <TableCell>
+                    {c.commissionType === 'PERCENTAGE' ? `${c.percentage}%` : formatCurrency(c.flatAmount || 0)}
+                  </TableCell>
+                  <TableCell className="text-right font-bold">{formatCurrency(c.amount)}</TableCell>
+                  <TableCell>{statusBadge(c.status)}</TableCell>
+                  <TableCell>{format(new Date(c.createdAt), 'MMM d, yyyy')}</TableCell>
+                </TableRow>
+              );
+            })}
             {commissions.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No dispatcher commissions found</TableCell>

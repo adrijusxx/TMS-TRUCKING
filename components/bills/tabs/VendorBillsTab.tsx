@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
@@ -86,6 +88,40 @@ export default function VendorBillsTab() {
   const bills: VendorBill[] = data?.data || [];
   const pagination = data?.pagination;
   const vendors = vendorsData?.data?.vendors || [];
+
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  const enrichedBills = React.useMemo(() => bills.map(b => ({
+    ...b,
+    vendorName: b.vendor.name,
+    loadNumber: b.load?.loadNumber || '',
+    truckNumber: b.truck?.truckNumber || '',
+    batchNumber: b.batch?.batchNumber || '',
+  })), [bills]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { accessorKey: 'billNumber', header: 'Bill #' },
+    { accessorKey: 'vendorName', header: 'Vendor' },
+    { accessorKey: 'vendorInvoiceNumber', header: 'Vendor Invoice' },
+    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: 'billDate', header: 'Bill Date' },
+    { accessorKey: 'dueDate', header: 'Due Date' },
+    { accessorKey: 'amount', header: 'Amount' },
+    { accessorKey: 'balance', header: 'Balance' },
+    { accessorKey: 'loadNumber', header: 'Load' },
+    { accessorKey: 'truckNumber', header: 'Truck' },
+    { accessorKey: 'batchNumber', header: 'Batch' },
+    { accessorKey: 'description', header: 'Description' },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedBills,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleCreate = async () => {
     if (!formVendorId || !formAmount || !formDueDate) {
@@ -210,22 +246,24 @@ export default function VendorBillsTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Bill #</TableHead>
-              <TableHead>Vendor</TableHead>
-              <TableHead>Vendor Invoice</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Bill Date</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Balance</TableHead>
-              <TableHead>Load</TableHead>
-              <TableHead>Truck</TableHead>
-              <TableHead>Batch</TableHead>
-              <TableHead>Description</TableHead>
+              <TableHead><SortableHeader column={table.getColumn('billNumber')!}>Bill #</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('vendorName')!}>Vendor</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('vendorInvoiceNumber')!}>Vendor Invoice</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('status')!}>Status</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('billDate')!}>Bill Date</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('dueDate')!}>Due Date</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('amount')!}>Amount</SortableHeader></TableHead>
+              <TableHead className="text-right"><SortableHeader column={table.getColumn('balance')!}>Balance</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('loadNumber')!}>Load</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('truckNumber')!}>Truck</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('batchNumber')!}>Batch</SortableHeader></TableHead>
+              <TableHead><SortableHeader column={table.getColumn('description')!}>Description</SortableHeader></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bills.map((bill) => (
+            {table.getRowModel().rows.map((row) => {
+              const bill = row.original;
+              return (
               <TableRow key={bill.id}>
                 <TableCell className="font-medium text-primary">{bill.billNumber}</TableCell>
                 <TableCell>{bill.vendor.name}</TableCell>
@@ -240,7 +278,8 @@ export default function VendorBillsTab() {
                 <TableCell>{bill.batch?.batchNumber || '-'}</TableCell>
                 <TableCell className="max-w-[150px] truncate">{bill.description || '-'}</TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {bills.length === 0 && (
               <TableRow>
                 <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No vendor bills found</TableCell>

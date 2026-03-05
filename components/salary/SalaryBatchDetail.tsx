@@ -11,6 +11,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import {
+  useReactTable, getCoreRowModel, getSortedRowModel, flexRender,
+  type SortingState, type ColumnDef,
+} from '@tanstack/react-table';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -26,6 +31,7 @@ import { apiUrl, formatCurrency } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import SettlementSheet from '@/components/settlements/SettlementSheet';
+import DriverSheet from '@/components/drivers/DriverSheet';
 import SalaryNavigation from './SalaryNavigation';
 
 interface SalaryBatchDetailProps {
@@ -67,9 +73,12 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
 
   const [statusTab, setStatusTab] = React.useState<string>('All');
   const [driverTypeFilter, setDriverTypeFilter] = React.useState<string>('all');
+  const [sorting, setSorting] = React.useState<SortingState>([]);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [selectedSettlementId, setSelectedSettlementId] = React.useState<string | null>(null);
+  const [driverSheetOpen, setDriverSheetOpen] = React.useState(false);
+  const [editingDriverId, setEditingDriverId] = React.useState<string | null>(null);
 
   // Editable batch fields
   const [editNotes, setEditNotes] = React.useState('');
@@ -120,6 +129,48 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
       otherPay: acc.otherPay + (s.deductionItems?.filter((d: any) => d.category === 'addition').reduce((sum: number, d: any) => sum + d.amount, 0) || 0),
     }), { grossPay: 0, advances: 0, deductions: 0, netPay: 0, trips: 0, expenses: 0, otherPay: 0 });
   }, [settlements]);
+
+  // Enrich settlements with computed fields for sorting
+  const enrichedSettlements = React.useMemo(() => settlements.map((s: any) => ({
+    ...s,
+    driverName: s.driver?.user ? `${s.driver.user.firstName} ${s.driver.user.lastName}` : '',
+    driverType: s.driver?.driverType || '',
+    truckNumber: s.driver?.currentTruck?.truckNumber || '',
+    trips: s.loadIds?.length || 0,
+    _expenses: s.deductionItems?.filter((d: any) => d.loadExpenseId).reduce((sum: number, d: any) => sum + d.amount, 0) || 0,
+    _otherPay: s.deductionItems?.filter((d: any) => d.category === 'addition').reduce((sum: number, d: any) => sum + d.amount, 0) || 0,
+  })), [settlements]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { id: 'select', header: '', enableSorting: false },
+    { accessorKey: 'settlementNumber', header: 'ID' },
+    { accessorKey: 'driverType', header: 'Driver Type' },
+    { accessorKey: 'truckNumber', header: 'Assigned Truck' },
+    { accessorKey: 'driverName', header: 'Payee' },
+    { accessorKey: 'status', header: 'Status' },
+    { accessorKey: 'trips', header: 'Trips' },
+    { id: 'paymentTariff', header: 'Payment Tariff', enableSorting: false },
+    { accessorKey: 'pickupDate', header: 'Pickup Date' },
+    { accessorKey: 'deliveryDate', header: 'Delivery Date' },
+    { accessorKey: 'grossPay', header: 'Pay' },
+    { id: 'driverGross', accessorFn: (row: any) => row.grossPay, header: 'Driver Gross' },
+    { id: 'trucks', header: 'Trucks', enableSorting: false },
+    { id: 'note', accessorKey: 'notes', header: 'Note' },
+    { accessorKey: 'advances', header: 'Advances' },
+    { accessorKey: '_expenses', header: 'Expenses' },
+    { accessorKey: 'deductions', header: 'Deductions' },
+    { accessorKey: '_otherPay', header: 'Other Pay' },
+    { accessorKey: 'netPay', header: 'Net Pay' },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedSettlements,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleSaveBatch = async () => {
     setIsSaving(true);
@@ -260,7 +311,7 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
   return (
     <div className="space-y-4 p-4 md:p-6">
       {/* Salary module navigation */}
-      <SalaryNavigation activeTab="batches" hideGenerate />
+      <SalaryNavigation activeTab="batches" />
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -382,30 +433,29 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
           <TableHeader>
             <TableRow className="bg-muted/50 text-xs">
               <TableHead className="w-8"><Checkbox checked={settlements.length > 0 && selectedIds.size === settlements.length} onCheckedChange={toggleAll} /></TableHead>
-              <TableHead>ID</TableHead>
-              <TableHead>Driver Type</TableHead>
-              <TableHead>Assigned Truck</TableHead>
-              <TableHead>Payee</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-center">Trips</TableHead>
+              <SortableHeader column={table.getColumn('settlementNumber')!}>ID</SortableHeader>
+              <SortableHeader column={table.getColumn('driverType')!}>Driver Type</SortableHeader>
+              <SortableHeader column={table.getColumn('truckNumber')!}>Assigned Truck</SortableHeader>
+              <SortableHeader column={table.getColumn('driverName')!}>Payee</SortableHeader>
+              <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
+              <SortableHeader column={table.getColumn('trips')!} className="text-center">Trips</SortableHeader>
               <TableHead>Payment Tariff</TableHead>
-              <TableHead>Pickup Date</TableHead>
-              <TableHead>Delivery Date</TableHead>
-              <TableHead className="text-right">Pay</TableHead>
-              <TableHead className="text-right">Driver Gross</TableHead>
+              <SortableHeader column={table.getColumn('pickupDate')!}>Pickup Date</SortableHeader>
+              <SortableHeader column={table.getColumn('deliveryDate')!}>Delivery Date</SortableHeader>
+              <SortableHeader column={table.getColumn('grossPay')!} className="text-right">Pay</SortableHeader>
+              <SortableHeader column={table.getColumn('driverGross')!} className="text-right">Driver Gross</SortableHeader>
               <TableHead>Trucks</TableHead>
-              <TableHead>Note</TableHead>
-              <TableHead className="text-right">Advances</TableHead>
-              <TableHead className="text-right">Expenses</TableHead>
-              <TableHead className="text-right">Deductions</TableHead>
-              <TableHead className="text-right">Other Pay</TableHead>
-              <TableHead className="text-right">Net Pay</TableHead>
+              <SortableHeader column={table.getColumn('note')!}>Note</SortableHeader>
+              <SortableHeader column={table.getColumn('advances')!} className="text-right">Advances</SortableHeader>
+              <SortableHeader column={table.getColumn('_expenses')!} className="text-right">Expenses</SortableHeader>
+              <SortableHeader column={table.getColumn('deductions')!} className="text-right">Deductions</SortableHeader>
+              <SortableHeader column={table.getColumn('_otherPay')!} className="text-right">Other Pay</SortableHeader>
+              <SortableHeader column={table.getColumn('netPay')!} className="text-right">Net Pay</SortableHeader>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {settlements.map((s: any) => {
-              const expenses = s.deductionItems?.filter((d: any) => d.loadExpenseId).reduce((sum: number, d: any) => sum + d.amount, 0) || 0;
-              const otherPay = s.deductionItems?.filter((d: any) => d.category === 'addition').reduce((sum: number, d: any) => sum + d.amount, 0) || 0;
+            {table.getRowModel().rows.map((row) => {
+              const s = row.original;
               return (
                 <TableRow
                   key={s.id}
@@ -416,9 +466,16 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
                   <TableCell className="font-medium text-primary">{s.settlementNumber}</TableCell>
                   <TableCell>{DRIVER_TYPE_LABELS[s.driver?.driverType] || '-'}</TableCell>
                   <TableCell>{s.driver?.currentTruck?.truckNumber || '-'}</TableCell>
-                  <TableCell className="text-primary">{s.driver?.user?.firstName} {s.driver?.user?.lastName}</TableCell>
+                  <TableCell>
+                    <button
+                      className="text-primary hover:underline font-medium text-left"
+                      onClick={(e) => { e.stopPropagation(); setEditingDriverId(s.driver?.id); setDriverSheetOpen(true); }}
+                    >
+                      {s.driver?.user?.firstName} {s.driver?.user?.lastName}
+                    </button>
+                  </TableCell>
                   <TableCell><Badge variant="outline" className={`text-[10px] ${STATUS_COLORS[s.status] || ''}`}>{s.status}</Badge></TableCell>
-                  <TableCell className="text-center">{s.loadIds?.length || 0}</TableCell>
+                  <TableCell className="text-center">{s.trips}</TableCell>
                   <TableCell className="whitespace-nowrap">{formatPaymentTariff(s.driver)}</TableCell>
                   <TableCell className="text-xs">{s.pickupDate ? format(new Date(s.pickupDate), 'MM/dd/yyyy') : '-'}</TableCell>
                   <TableCell className="text-xs">{s.deliveryDate ? format(new Date(s.deliveryDate), 'MM/dd/yyyy') : '-'}</TableCell>
@@ -427,9 +484,9 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
                   <TableCell>{s.driver?.currentTruck?.truckNumber || '-'}</TableCell>
                   <TableCell className="max-w-[80px] truncate">{s.notes || '-'}</TableCell>
                   <TableCell className="text-right">{formatCurrency(s.advances)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(expenses)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(s._expenses)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(s.deductions)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(otherPay)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(s._otherPay)}</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(s.netPay)}</TableCell>
                 </TableRow>
               );
@@ -466,6 +523,13 @@ export default function SalaryBatchDetail({ batchId }: SalaryBatchDetailProps) {
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ['salary-batch', batchId] })}
         batchSettlementIds={batch?.settlements?.map((s: any) => s.id) || []}
         onSettlementChange={(id: string) => setSelectedSettlementId(id)}
+      />
+
+      <DriverSheet
+        open={driverSheetOpen}
+        onOpenChange={(open) => { setDriverSheetOpen(open); if (!open) setEditingDriverId(null); }}
+        mode="edit"
+        driverId={editingDriverId}
       />
     </div>
   );

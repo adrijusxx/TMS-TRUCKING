@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import SettlementDetail from './SettlementDetail';
 import DriverSheet from '@/components/drivers/DriverSheet';
+import LoadSheet from '@/components/loads/LoadSheet';
 import { FileText } from 'lucide-react';
 
 interface SettlementSheetProps {
@@ -20,6 +21,8 @@ interface SettlementSheetProps {
 export default function SettlementSheet({ open, onOpenChange, settlementId, onSuccess, batchSettlementIds, onSettlementChange }: SettlementSheetProps) {
     const [driverSheetOpen, setDriverSheetOpen] = useState(false);
     const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
+    const [loadSheetOpen, setLoadSheetOpen] = useState(false);
+    const [editingLoadId, setEditingLoadId] = useState<string | null>(null);
 
     const handleOpenDriver = (driverId: string) => {
         setEditingDriverId(driverId);
@@ -32,6 +35,20 @@ export default function SettlementSheet({ open, onOpenChange, settlementId, onSu
         if (!isOpen) {
             onOpenChange(true);
             setEditingDriverId(null);
+        }
+    };
+
+    const handleOpenLoad = (loadId: string) => {
+        setEditingLoadId(loadId);
+        onOpenChange(false);
+        setLoadSheetOpen(true);
+    };
+
+    const handleLoadSheetClose = (isOpen: boolean) => {
+        setLoadSheetOpen(isOpen);
+        if (!isOpen) {
+            onOpenChange(true);
+            setEditingLoadId(null);
         }
     };
 
@@ -59,6 +76,7 @@ export default function SettlementSheet({ open, onOpenChange, settlementId, onSu
                             <SettlementDetail
                                 settlementId={settlementId}
                                 onOpenDriver={handleOpenDriver}
+                                onOpenLoad={handleOpenLoad}
                                 batchSettlementIds={batchSettlementIds}
                                 onSettlementChange={onSettlementChange}
                             />
@@ -76,6 +94,13 @@ export default function SettlementSheet({ open, onOpenChange, settlementId, onSu
                 onOpenChange={handleDriverSheetClose}
                 mode="edit"
                 driverId={editingDriverId}
+            />
+
+            <LoadSheet
+                open={loadSheetOpen}
+                onOpenChange={handleLoadSheetClose}
+                mode="view"
+                loadId={editingLoadId}
             />
         </>
     );

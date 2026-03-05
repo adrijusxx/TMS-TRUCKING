@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
@@ -78,6 +80,34 @@ export default function VendorScheduledPaymentsTab() {
 
   const vendors = vendorsData?.data?.vendors || [];
   const scheduled: ScheduledPayment[] = data?.data || [];
+
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  const enrichedScheduled = React.useMemo(() => scheduled.map(sp => ({
+    ...sp,
+    vendorName: sp.vendor.name,
+  })), [scheduled]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { accessorKey: 'vendorName', header: 'Vendor' },
+    { accessorKey: 'description', header: 'Description' },
+    { accessorKey: 'amount', header: 'Amount' },
+    { accessorKey: 'frequency', header: 'Frequency' },
+    { accessorKey: 'nextPaymentDate', header: 'Next Payment' },
+    { accessorKey: 'startDate', header: 'Start Date' },
+    { accessorKey: 'endDate', header: 'End Date' },
+    { id: 'status', accessorFn: (row: any) => row.isActive ? 'Active' : 'Paused', header: 'Status' },
+    { id: 'actions', enableSorting: false },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedScheduled,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleCreate = async () => {
     if (!vendorId || !amount || !description) {
@@ -218,41 +248,44 @@ export default function VendorScheduledPaymentsTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Vendor</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Frequency</TableHead>
-              <TableHead>Next Payment</TableHead>
-              <TableHead>Start Date</TableHead>
-              <TableHead>End Date</TableHead>
-              <TableHead>Status</TableHead>
+              <SortableHeader column={table.getColumn('vendorName')!}>Vendor</SortableHeader>
+              <SortableHeader column={table.getColumn('description')!}>Description</SortableHeader>
+              <SortableHeader column={table.getColumn('amount')!} className="text-right">Amount</SortableHeader>
+              <SortableHeader column={table.getColumn('frequency')!}>Frequency</SortableHeader>
+              <SortableHeader column={table.getColumn('nextPaymentDate')!}>Next Payment</SortableHeader>
+              <SortableHeader column={table.getColumn('startDate')!}>Start Date</SortableHeader>
+              <SortableHeader column={table.getColumn('endDate')!}>End Date</SortableHeader>
+              <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
               <TableHead className="w-20">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {scheduled.map((sp) => (
-              <TableRow key={sp.id} className={!sp.isActive ? 'opacity-50' : ''}>
-                <TableCell>{sp.vendor.name}</TableCell>
-                <TableCell>{sp.description}</TableCell>
-                <TableCell className="text-right font-medium">{formatCurrency(sp.amount)}</TableCell>
-                <TableCell>{frequencyLabel[sp.frequency] || sp.frequency}</TableCell>
-                <TableCell>{sp.nextPaymentDate ? format(new Date(sp.nextPaymentDate), 'MMM d, yyyy') : '-'}</TableCell>
-                <TableCell>{format(new Date(sp.startDate), 'MMM d, yyyy')}</TableCell>
-                <TableCell>{sp.endDate ? format(new Date(sp.endDate), 'MMM d, yyyy') : 'Ongoing'}</TableCell>
-                <TableCell>
-                  <Badge variant={sp.isActive ? 'default' : 'secondary'}>
-                    {sp.isActive ? 'Active' : 'Paused'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleActive(sp.id, sp.isActive)}>
-                      {sp.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+            {table.getRowModel().rows.map((row) => {
+              const sp = row.original;
+              return (
+                <TableRow key={sp.id} className={!sp.isActive ? 'opacity-50' : ''}>
+                  <TableCell>{sp.vendor.name}</TableCell>
+                  <TableCell>{sp.description}</TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(sp.amount)}</TableCell>
+                  <TableCell>{frequencyLabel[sp.frequency] || sp.frequency}</TableCell>
+                  <TableCell>{sp.nextPaymentDate ? format(new Date(sp.nextPaymentDate), 'MMM d, yyyy') : '-'}</TableCell>
+                  <TableCell>{format(new Date(sp.startDate), 'MMM d, yyyy')}</TableCell>
+                  <TableCell>{sp.endDate ? format(new Date(sp.endDate), 'MMM d, yyyy') : 'Ongoing'}</TableCell>
+                  <TableCell>
+                    <Badge variant={sp.isActive ? 'default' : 'secondary'}>
+                      {sp.isActive ? 'Active' : 'Paused'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleActive(sp.id, sp.isActive)}>
+                        {sp.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {scheduled.length === 0 && (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No scheduled payments</TableCell>

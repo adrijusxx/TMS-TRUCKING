@@ -3,14 +3,12 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
-  FileText, Users, BarChart3, Wallet, Clock, UserCheck, Plus, CreditCard, CalendarClock, HelpCircle,
+  FileText, Users, BarChart3, Wallet, UserCheck, CreditCard, CalendarClock, HelpCircle,
 } from 'lucide-react';
 
 const SALARY_TABS = [
   { id: 'batches', label: 'Batches', icon: FileText },
-  { id: 'pending', label: 'Pending', icon: Clock },
   { id: 'statements', label: 'All Settlements', icon: Users },
   { id: 'report', label: 'Reports', icon: BarChart3 },
   { id: 'balances', label: 'Balances', icon: Wallet },
@@ -27,11 +25,9 @@ const SALARY_PATHS = ['/dashboard/settlements', '/dashboard/accounting/salary'] 
 interface SalaryNavigationProps {
   /** Override the active tab (e.g. 'batches' when on a batch detail page) */
   activeTab?: SalaryTabId;
-  /** Hide the "Generate Settlement" button */
-  hideGenerate?: boolean;
 }
 
-export default function SalaryNavigation({ activeTab: activeTabProp, hideGenerate }: SalaryNavigationProps) {
+export default function SalaryNavigation({ activeTab: activeTabProp }: SalaryNavigationProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -65,14 +61,6 @@ export default function SalaryNavigation({ activeTab: activeTabProp, hideGenerat
           );
         })}
       </nav>
-      {!hideGenerate && (
-        <Link href="/dashboard/settlements/generate" className="shrink-0 ml-auto pl-4">
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Generate Settlement
-          </Button>
-        </Link>
-      )}
     </div>
   );
 }

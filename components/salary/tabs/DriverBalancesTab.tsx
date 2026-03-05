@@ -9,10 +9,11 @@ import {
     Table,
     TableBody,
     TableCell,
-    TableHead,
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -284,19 +285,47 @@ function AdvancesTable({
     advances?: DriverAdvance[];
     isLoading: boolean;
 }) {
+    const [sorting, setSorting] = React.useState<SortingState>([]);
+
+    const enrichedAdvances = React.useMemo(() => (advances || []).map(a => ({
+        ...a,
+        driverName: `${a.driver.user.firstName} ${a.driver.user.lastName}`,
+        driverNumber: a.driver.driverNumber,
+    })), [advances]);
+
+    const columns = React.useMemo<ColumnDef<any>[]>(() => [
+        { accessorKey: 'advanceNumber', header: 'Advance #' },
+        { accessorKey: 'driverName', header: 'Driver' },
+        { accessorKey: 'driverNumber', header: 'Driver #' },
+        { accessorKey: 'amount', header: 'Amount' },
+        { accessorKey: 'requestDate', header: 'Request Date' },
+        { accessorKey: 'approvalStatus', header: 'Status' },
+        { accessorKey: 'approvedAt', header: 'Approved Date' },
+        { accessorKey: 'notes', header: 'Notes' },
+    ], []);
+
+    const table = useReactTable({
+        data: enrichedAdvances,
+        columns,
+        state: { sorting },
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+    });
+
     return (
         <div className="border rounded-lg overflow-hidden">
             <Table>
                 <TableHeader>
                     <TableRow className="bg-muted/50">
-                        <TableHead>Advance #</TableHead>
-                        <TableHead>Driver</TableHead>
-                        <TableHead>Driver #</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead>Request Date</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Approved Date</TableHead>
-                        <TableHead>Notes</TableHead>
+                        <SortableHeader column={table.getColumn('advanceNumber')!}>Advance #</SortableHeader>
+                        <SortableHeader column={table.getColumn('driverName')!}>Driver</SortableHeader>
+                        <SortableHeader column={table.getColumn('driverNumber')!}>Driver #</SortableHeader>
+                        <SortableHeader column={table.getColumn('amount')!} className="text-right">Amount</SortableHeader>
+                        <SortableHeader column={table.getColumn('requestDate')!}>Request Date</SortableHeader>
+                        <SortableHeader column={table.getColumn('approvalStatus')!}>Status</SortableHeader>
+                        <SortableHeader column={table.getColumn('approvedAt')!}>Approved Date</SortableHeader>
+                        <SortableHeader column={table.getColumn('notes')!}>Notes</SortableHeader>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -314,32 +343,35 @@ function AdvancesTable({
                             </TableRow>
                         ))
                     ) : advances && advances.length > 0 ? (
-                        advances.map((adv) => (
-                            <TableRow key={adv.id} className="hover:bg-muted/50">
-                                <TableCell className="font-medium">{adv.advanceNumber || '-'}</TableCell>
-                                <TableCell>
-                                    {adv.driver.user.firstName} {adv.driver.user.lastName}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                    {adv.driver.driverNumber}
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                    {formatCurrency(adv.amount)}
-                                </TableCell>
-                                <TableCell>
-                                    {format(new Date(adv.requestDate), 'MMM d, yyyy')}
-                                </TableCell>
-                                <TableCell>
-                                    <StatusBadge status={adv.approvalStatus} />
-                                </TableCell>
-                                <TableCell>
-                                    {adv.approvedAt ? format(new Date(adv.approvedAt), 'MMM d, yyyy') : '-'}
-                                </TableCell>
-                                <TableCell className="max-w-[200px] truncate">
-                                    {adv.notes || '-'}
-                                </TableCell>
-                            </TableRow>
-                        ))
+                        table.getRowModel().rows.map((row) => {
+                            const adv = row.original;
+                            return (
+                                <TableRow key={adv.id} className="hover:bg-muted/50">
+                                    <TableCell className="font-medium">{adv.advanceNumber || '-'}</TableCell>
+                                    <TableCell>
+                                        {adv.driver.user.firstName} {adv.driver.user.lastName}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {adv.driver.driverNumber}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">
+                                        {formatCurrency(adv.amount)}
+                                    </TableCell>
+                                    <TableCell>
+                                        {format(new Date(adv.requestDate), 'MMM d, yyyy')}
+                                    </TableCell>
+                                    <TableCell>
+                                        <StatusBadge status={adv.approvalStatus} />
+                                    </TableCell>
+                                    <TableCell>
+                                        {adv.approvedAt ? format(new Date(adv.approvedAt), 'MMM d, yyyy') : '-'}
+                                    </TableCell>
+                                    <TableCell className="max-w-[200px] truncate">
+                                        {adv.notes || '-'}
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })
                     ) : (
                         <TableRow>
                             <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
@@ -361,17 +393,37 @@ function BalancesTable({
     balances: DriverBalance[];
     isLoading: boolean;
 }) {
+    const [sorting, setSorting] = React.useState<SortingState>([]);
+
+    const columns = React.useMemo<ColumnDef<DriverBalance>[]>(() => [
+        { accessorKey: 'driverName', header: 'Driver' },
+        { accessorKey: 'driverNumber', header: 'Driver #' },
+        { accessorKey: 'pendingAdvances', header: 'Pending Advances' },
+        { accessorKey: 'approvedAdvances', header: 'Approved Advances' },
+        { accessorKey: 'negativeBalance', header: 'Negative Balance' },
+        { accessorKey: 'totalOwed', header: 'Total Owed' },
+    ], []);
+
+    const table = useReactTable({
+        data: balances,
+        columns,
+        state: { sorting },
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+    });
+
     return (
         <div className="border rounded-lg overflow-hidden">
             <Table>
                 <TableHeader>
                     <TableRow className="bg-muted/50">
-                        <TableHead>Driver</TableHead>
-                        <TableHead>Driver #</TableHead>
-                        <TableHead className="text-right">Pending Advances</TableHead>
-                        <TableHead className="text-right">Approved Advances</TableHead>
-                        <TableHead className="text-right">Negative Balance</TableHead>
-                        <TableHead className="text-right">Total Owed</TableHead>
+                        <SortableHeader column={table.getColumn('driverName')!}>Driver</SortableHeader>
+                        <SortableHeader column={table.getColumn('driverNumber')!}>Driver #</SortableHeader>
+                        <SortableHeader column={table.getColumn('pendingAdvances')!} className="text-right">Pending Advances</SortableHeader>
+                        <SortableHeader column={table.getColumn('approvedAdvances')!} className="text-right">Approved Advances</SortableHeader>
+                        <SortableHeader column={table.getColumn('negativeBalance')!} className="text-right">Negative Balance</SortableHeader>
+                        <SortableHeader column={table.getColumn('totalOwed')!} className="text-right">Total Owed</SortableHeader>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -387,26 +439,29 @@ function BalancesTable({
                             </TableRow>
                         ))
                     ) : balances.length > 0 ? (
-                        balances.map((balance) => (
-                            <TableRow key={balance.driverId} className="hover:bg-muted/50">
-                                <TableCell className="font-medium">{balance.driverName}</TableCell>
-                                <TableCell className="text-muted-foreground">
-                                    {balance.driverNumber}
-                                </TableCell>
-                                <TableCell className="text-right text-orange-500">
-                                    {formatCurrency(balance.pendingAdvances)}
-                                </TableCell>
-                                <TableCell className="text-right text-green-600">
-                                    {formatCurrency(balance.approvedAdvances)}
-                                </TableCell>
-                                <TableCell className="text-right text-destructive">
-                                    {formatCurrency(balance.negativeBalance)}
-                                </TableCell>
-                                <TableCell className="text-right font-bold">
-                                    {formatCurrency(balance.totalOwed)}
-                                </TableCell>
-                            </TableRow>
-                        ))
+                        table.getRowModel().rows.map((row) => {
+                            const balance = row.original;
+                            return (
+                                <TableRow key={balance.driverId} className="hover:bg-muted/50">
+                                    <TableCell className="font-medium">{balance.driverName}</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {balance.driverNumber}
+                                    </TableCell>
+                                    <TableCell className="text-right text-orange-500">
+                                        {formatCurrency(balance.pendingAdvances)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-green-600">
+                                        {formatCurrency(balance.approvedAdvances)}
+                                    </TableCell>
+                                    <TableCell className="text-right text-destructive">
+                                        {formatCurrency(balance.negativeBalance)}
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold">
+                                        {formatCurrency(balance.totalOwed)}
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })
                     ) : (
                         <TableRow>
                             <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">

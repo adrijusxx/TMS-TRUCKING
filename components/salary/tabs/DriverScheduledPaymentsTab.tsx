@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle, DialogTrigger,
@@ -50,6 +52,7 @@ export default function DriverScheduledPaymentsTab() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
 
   // Form state
   const [driverId, setDriverId] = React.useState('');
@@ -100,6 +103,35 @@ export default function DriverScheduledPaymentsTab() {
     if (rule.driverType) return typeLabel(rule.driverType);
     return 'Company-wide';
   };
+
+  const enrichedRules = React.useMemo(() => scheduledRules.map((rule: any) => ({
+    ...rule,
+    driverName: getDriverName(rule),
+    scope: getScope(rule),
+    freq: rule.frequency || rule.deductionFrequency,
+  })), [scheduledRules, drivers]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { accessorKey: 'driverName', header: 'Driver' },
+    { accessorKey: 'name', header: 'Name' },
+    { id: 'type', accessorFn: (row: any) => row.isAddition ? 'Addition' : 'Deduction', header: 'Type' },
+    { accessorKey: 'deductionType', header: 'Category' },
+    { id: 'calculation', accessorFn: (row: any) => row.amount || row.percentage || row.perMileRate || 0, header: 'Calculation' },
+    { accessorKey: 'freq', header: 'Frequency' },
+    { id: 'goal', accessorFn: (row: any) => row.goalAmount || 0, header: 'Goal / Current' },
+    { accessorKey: 'scope', header: 'Scope' },
+    { id: 'status', accessorFn: (row: any) => row.isActive ? 'Active' : 'Paused', header: 'Status' },
+    { id: 'actions', enableSorting: false },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedRules,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleCreate = async () => {
     if (!name) { toast.error('Name is required'); return; }
@@ -284,20 +316,21 @@ export default function DriverScheduledPaymentsTab() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Driver</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Calculation</TableHead>
-              <TableHead>Frequency</TableHead>
-              <TableHead>Goal / Current</TableHead>
-              <TableHead>Scope</TableHead>
-              <TableHead>Status</TableHead>
+              <SortableHeader column={table.getColumn('driverName')!}>Driver</SortableHeader>
+              <SortableHeader column={table.getColumn('name')!}>Name</SortableHeader>
+              <SortableHeader column={table.getColumn('type')!}>Type</SortableHeader>
+              <SortableHeader column={table.getColumn('deductionType')!}>Category</SortableHeader>
+              <SortableHeader column={table.getColumn('calculation')!}>Calculation</SortableHeader>
+              <SortableHeader column={table.getColumn('freq')!}>Frequency</SortableHeader>
+              <SortableHeader column={table.getColumn('goal')!}>Goal / Current</SortableHeader>
+              <SortableHeader column={table.getColumn('scope')!}>Scope</SortableHeader>
+              <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
               <TableHead className="w-16">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {scheduledRules.map((rule: any) => {
+            {table.getRowModel().rows.map((row) => {
+              const rule = row.original;
               const freq = rule.frequency || rule.deductionFrequency;
               return (
                 <TableRow key={rule.id} className={!rule.isActive ? 'opacity-50' : ''}>

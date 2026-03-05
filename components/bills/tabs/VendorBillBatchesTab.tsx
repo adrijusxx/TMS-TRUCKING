@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { SortableHeader } from '@/components/ui/sortable-header';
+import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -144,6 +146,39 @@ export default function VendorBillBatchesTab() {
 
   const totalAmount = batches.reduce((s, b) => s + b.totalAmount, 0);
 
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+
+  const enrichedBatches = React.useMemo(() => batches.map(b => ({
+    ...b,
+    createdByName: `${b.createdBy.firstName} ${b.createdBy.lastName}`,
+  })), [batches]);
+
+  const columns = React.useMemo<ColumnDef<any>[]>(() => [
+    { id: 'select', enableSorting: false },
+    { accessorKey: 'batchNumber', header: 'Batch ID' },
+    { accessorKey: 'vendorCount', header: 'Vendors' },
+    { accessorKey: 'mcNumber', header: 'MC Number' },
+    { accessorKey: 'postStatus', header: 'Post Status' },
+    { accessorKey: 'createdByName', header: 'Created By' },
+    { accessorKey: 'createdAt', header: 'Created Date' },
+    { accessorKey: 'periodStart', header: 'Period' },
+    { accessorKey: 'billCount', header: 'Bills Count' },
+    { accessorKey: 'totalAmount', header: 'Total Bill Due' },
+    { accessorKey: 'truckCount', header: 'Trucks' },
+    { accessorKey: 'tripCount', header: 'Trips' },
+    { accessorKey: 'notes', header: 'Notes' },
+    { id: 'actions', enableSorting: false },
+  ], []);
+
+  const table = useReactTable({
+    data: enrichedBatches,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -204,23 +239,25 @@ export default function VendorBillBatchesTab() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-10"><Checkbox checked={selectedIds.size === batches.length && batches.length > 0} onCheckedChange={(c) => setSelectedIds(c ? new Set(batches.map(b => b.id)) : new Set())} /></TableHead>
-              <TableHead>Batch ID</TableHead>
-              <TableHead>Vendors</TableHead>
-              <TableHead>MC Number</TableHead>
-              <TableHead>Post Status</TableHead>
-              <TableHead>Created By</TableHead>
-              <TableHead>Created Date</TableHead>
-              <TableHead>Period</TableHead>
-              <TableHead className="text-right">Bills Count</TableHead>
-              <TableHead className="text-right">Total Bill Due</TableHead>
-              <TableHead className="text-right">Trucks</TableHead>
-              <TableHead className="text-right">Trips</TableHead>
-              <TableHead>Notes</TableHead>
+              <SortableHeader column={table.getColumn('batchNumber')!}>Batch ID</SortableHeader>
+              <SortableHeader column={table.getColumn('vendorCount')!}>Vendors</SortableHeader>
+              <SortableHeader column={table.getColumn('mcNumber')!}>MC Number</SortableHeader>
+              <SortableHeader column={table.getColumn('postStatus')!}>Post Status</SortableHeader>
+              <SortableHeader column={table.getColumn('createdByName')!}>Created By</SortableHeader>
+              <SortableHeader column={table.getColumn('createdAt')!}>Created Date</SortableHeader>
+              <SortableHeader column={table.getColumn('periodStart')!}>Period</SortableHeader>
+              <SortableHeader column={table.getColumn('billCount')!} className="text-right">Bills Count</SortableHeader>
+              <SortableHeader column={table.getColumn('totalAmount')!} className="text-right">Total Bill Due</SortableHeader>
+              <SortableHeader column={table.getColumn('truckCount')!} className="text-right">Trucks</SortableHeader>
+              <SortableHeader column={table.getColumn('tripCount')!} className="text-right">Trips</SortableHeader>
+              <SortableHeader column={table.getColumn('notes')!}>Notes</SortableHeader>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {batches.map((batch) => (
+            {table.getRowModel().rows.map((row) => {
+              const batch = row.original;
+              return (
               <TableRow key={batch.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/dashboard/bills/batches/${batch.batchNumber || batch.id}`)}>
                 <TableCell onClick={(e) => e.stopPropagation()}><Checkbox checked={selectedIds.has(batch.id)} onCheckedChange={() => toggleSelect(batch.id)} /></TableCell>
                 <TableCell className="font-medium text-primary">{batch.batchNumber}</TableCell>
@@ -257,7 +294,8 @@ export default function VendorBillBatchesTab() {
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {batches.length === 0 && (
               <TableRow>
                 <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">No bill batches found</TableCell>
