@@ -59,17 +59,38 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Auto-detect team ID from the bot's teams
+        // Auto-detect team ID and ensure bot is a team member
         let teamId: string | null = null;
         try {
             const cleanUrl = serverUrl.replace(/\/+$/, '');
-            const teamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, {
-                headers: { Authorization: `Bearer ${botToken}` },
-            });
-            if (teamsRes.ok) {
-                const teams = await teamsRes.json();
-                if (Array.isArray(teams) && teams.length > 0) {
-                    teamId = teams[0].id;
+            const authHeaders = { Authorization: `Bearer ${botToken}` };
+
+            // Try bot's own teams first
+            const myTeamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, { headers: authHeaders });
+            if (myTeamsRes.ok) {
+                const myTeams = await myTeamsRes.json();
+                if (Array.isArray(myTeams) && myTeams.length > 0) {
+                    teamId = myTeams[0].id;
+                }
+            }
+
+            // Fall back to all teams and add bot to the first one
+            if (!teamId) {
+                const allTeamsRes = await fetch(`${cleanUrl}/api/v4/teams`, { headers: authHeaders });
+                if (allTeamsRes.ok) {
+                    const allTeams = await allTeamsRes.json();
+                    if (Array.isArray(allTeams) && allTeams.length > 0) {
+                        teamId = allTeams[0].id;
+                        const meRes = await fetch(`${cleanUrl}/api/v4/users/me`, { headers: authHeaders });
+                        if (meRes.ok) {
+                            const me = await meRes.json();
+                            await fetch(`${cleanUrl}/api/v4/teams/${teamId}/members`, {
+                                method: 'POST',
+                                headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ team_id: teamId, user_id: me.id }),
+                            });
+                        }
+                    }
                 }
             }
         } catch {

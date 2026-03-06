@@ -33,28 +33,68 @@ export async function GET(request: NextRequest) {
         // Auto-detect teamId if not stored
         let teamId = settings.teamId;
         if (!teamId) {
-            const teamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, { headers });
-            if (teamsRes.ok) {
-                const teams = await teamsRes.json();
-                if (Array.isArray(teams) && teams.length > 0) {
-                    teamId = teams[0].id;
-                    await prisma.mattermostSettings.update({
-                        where: { companyId },
-                        data: { teamId },
-                    });
+            // Try bot's own teams first
+            const myTeamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, { headers });
+            if (myTeamsRes.ok) {
+                const myTeams = await myTeamsRes.json();
+                if (Array.isArray(myTeams) && myTeams.length > 0) {
+                    teamId = myTeams[0].id;
+                }
+            }
+            // Fall back to listing all teams (works if bot has admin/system_admin role)
+            if (!teamId) {
+                const allTeamsRes = await fetch(`${cleanUrl}/api/v4/teams`, { headers });
+                if (allTeamsRes.ok) {
+                    const allTeams = await allTeamsRes.json();
+                    if (Array.isArray(allTeams) && allTeams.length > 0) {
+                        teamId = allTeams[0].id;
+                        // Add bot to this team so future calls work
+                        const meRes = await fetch(`${cleanUrl}/api/v4/users/me`, { headers });
+                        if (meRes.ok) {
+                            const me = await meRes.json();
+                            await fetch(`${cleanUrl}/api/v4/teams/${teamId}/members`, {
+                                method: 'POST',
+                                headers: { ...headers, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ team_id: teamId, user_id: me.id }),
+                            });
+                        }
+                    }
                 }
             }
             if (!teamId) {
                 return NextResponse.json(
-                    { error: 'No Mattermost teams found for this bot' },
+                    { error: 'No Mattermost teams found' },
                     { status: 400 }
                 );
             }
+            // Save for future calls
+            await prisma.mattermostSettings.update({
+                where: { companyId },
+                data: { teamId },
+            });
         }
 
-        // Fetch channels directly from Mattermost API
+        // Fetch public channels for this team
         const res = await fetch(`${cleanUrl}/api/v4/teams/${teamId}/channels`, { headers });
         if (!res.ok) {
+            // If bot isn't on the team, try to join and retry
+            if (res.status === 403) {
+                const meRes = await fetch(`${cleanUrl}/api/v4/users/me`, { headers });
+                if (meRes.ok) {
+                    const me = await meRes.json();
+                    await fetch(`${cleanUrl}/api/v4/teams/${teamId}/members`, {
+                        method: 'POST',
+                        headers: { ...headers, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ team_id: teamId, user_id: me.id }),
+                    });
+                    // Retry
+                    const retryRes = await fetch(`${cleanUrl}/api/v4/teams/${teamId}/channels`, { headers });
+                    if (retryRes.ok) {
+                        const channels = await retryRes.json();
+                        return NextResponse.json({ success: true, data: channels });
+                    }
+                }
+            }
             const errorText = await res.text().catch(() => '');
             throw new Error(`Mattermost API error ${res.status}: ${errorText}`);
         }

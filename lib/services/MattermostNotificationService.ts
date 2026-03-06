@@ -5,7 +5,6 @@
  * Falls back to `notificationChannelId` when a category channel is not configured.
  */
 
-import { getMattermostService } from './MattermostService';
 import { prisma } from '@/lib/prisma';
 
 type AlertCategory = 'dispatch' | 'safety' | 'maintenance' | 'accounting' | 'fleet';
@@ -29,14 +28,26 @@ export class MattermostNotificationService {
   }
 
   private async postToChannel(category: AlertCategory, message: string): Promise<void> {
-    const service = getMattermostService();
-    if (!service.isClientConnected()) return;
+    const settings = await prisma.mattermostSettings.findFirst();
+    if (!settings?.serverUrl || !settings?.botToken) return;
 
     const channelId = await this.getChannelId(category);
     if (!channelId) return;
 
     try {
-      await service.sendMessage(channelId, message);
+      const cleanUrl = settings.serverUrl.replace(/\/+$/, '');
+      const res = await fetch(`${cleanUrl}/api/v4/posts`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${settings.botToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ channel_id: channelId, message }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        console.error(`[Mattermost] Failed to post to ${category}: ${res.status} ${errorText}`);
+      }
     } catch (error) {
       console.error(`[Mattermost] Failed to send ${category} notification:`, error);
     }
