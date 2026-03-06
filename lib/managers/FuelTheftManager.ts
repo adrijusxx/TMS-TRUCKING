@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getSamsaraVehicleLocations } from '@/lib/integrations/samsara';
 import { haversineDistance } from '@/lib/utils/distance';
-import { getTelegramNotificationService } from '@/lib/services/TelegramNotificationService';
+import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 
 export class FuelTheftManager {
     /**
@@ -75,7 +75,7 @@ export class FuelTheftManager {
         });
 
         // Notify via Telegram
-        const notificationService = getTelegramNotificationService();
+        const notificationService = getMattermostNotificationService();
         await notificationService.notifyFuelTheft({
             truckNumber: entry.truck.truckNumber,
             driverName: `${entry.driver?.user?.firstName || ''} ${entry.driver?.user?.lastName || ''}`.trim() || 'Unknown Driver',

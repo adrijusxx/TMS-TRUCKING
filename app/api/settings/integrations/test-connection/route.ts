@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
                 return await testSamsaraConnection(companyId, mcNumberId, apiToken);
             case 'TELEGRAM':
                 return await testTelegramConnection(companyId);
+            case 'MATTERMOST':
+                return await testMattermostConnection(companyId);
             case 'QUICKBOOKS':
                 return await testQuickBooksConnection(companyId);
             case 'NETSAPIENS':
@@ -195,6 +197,54 @@ async function testTelegramConnection(companyId: string) {
             success: false,
             connected: false,
             message: `Telegram check error: ${error.message}`,
+            details: { error: error.message }
+        });
+    }
+}
+
+async function testMattermostConnection(companyId: string) {
+    try {
+        const settings = await prisma.mattermostSettings.findUnique({
+            where: { companyId },
+        });
+
+        if (!settings?.serverUrl || !settings?.botToken) {
+            return NextResponse.json({
+                success: false,
+                connected: false,
+                message: 'Mattermost not configured — server URL or bot token missing',
+                details: { hasServerUrl: !!settings?.serverUrl, hasBotToken: !!settings?.botToken }
+            });
+        }
+
+        const { getMattermostService } = await import('@/lib/services/MattermostService');
+        const service = getMattermostService();
+        const result = await service.testConnection(settings.serverUrl, settings.botToken);
+
+        if (result.success) {
+            return NextResponse.json({
+                success: true,
+                connected: true,
+                message: 'Mattermost connection verified',
+                details: {
+                    botUsername: result.botUsername,
+                    serverUrl: settings.serverUrl,
+                    testedAt: new Date().toISOString(),
+                }
+            });
+        }
+
+        return NextResponse.json({
+            success: false,
+            connected: false,
+            message: `Mattermost connection failed: ${result.error}`,
+            details: { serverUrl: settings.serverUrl, error: result.error }
+        });
+    } catch (error: any) {
+        return NextResponse.json({
+            success: false,
+            connected: false,
+            message: `Mattermost check error: ${error.message}`,
             details: { error: error.message }
         });
     }

@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { getMattermostService } from '@/lib/services/MattermostService';
+
+/**
+ * GET /api/mattermost/connection
+ * Get Mattermost connection status
+ */
+export async function GET() {
+    try {
+        const session = await auth();
+        if (!session?.user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const service = getMattermostService();
+        const status = await service.getConnectionStatus();
+
+        return NextResponse.json({ data: status });
+    } catch (error: any) {
+        console.error('[API] Error fetching Mattermost status:', error);
+        return NextResponse.json(
+            { error: error.message || 'Failed to fetch status' },
+            { status: 500 }
+        );
+    }
+}
+
+/**
+ * POST /api/mattermost/connection
+ * Connect to Mattermost with serverUrl + botToken
+ */
+export async function POST(request: NextRequest) {
+    try {
+        const session = await auth();
+        if (!session?.user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const companyId = (session.user as any).companyId;
+        const { serverUrl, botToken } = await request.json();
+
+        if (!serverUrl || !botToken) {
+            return NextResponse.json(
+                { error: 'serverUrl and botToken are required' },
+                { status: 400 }
+            );
+        }
+
+        // Test connection first
+        const service = getMattermostService();
+        const testResult = await service.testConnection(serverUrl, botToken);
+
+        if (!testResult.success) {
+            return NextResponse.json(
+                { error: testResult.error || 'Connection failed' },
+                { status: 400 }
+            );
+        }
+
+        // Save settings
+        await prisma.mattermostSettings.upsert({
+            where: { companyId },
+            create: {
+                companyId,
+                serverUrl,
+                botToken,
+                botUsername: testResult.botUsername || null,
+                connectionError: null,
+            },
+            update: {
+                serverUrl,
+                botToken,
+                botUsername: testResult.botUsername || null,
+                connectionError: null,
+            },
+        });
+
+        // Connect
+        await service.connect({ serverUrl, botToken });
+
+        return NextResponse.json({
+            success: true,
+            data: { botUsername: testResult.botUsername },
+        });
+    } catch (error: any) {
+        console.error('[API] Error connecting to Mattermost:', error);
+        return NextResponse.json(
+            { error: error.message || 'Failed to connect' },
+            { status: 500 }
+        );
+    }
+}
+
+/**
+ * DELETE /api/mattermost/connection
+ * Disconnect from Mattermost
+ */
+export async function DELETE() {
+    try {
+        const session = await auth();
+        if (!session?.user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const service = getMattermostService();
+        await service.disconnect();
+
+        return NextResponse.json({
+            success: true,
+            message: 'Disconnected successfully',
+        });
+    } catch (error: any) {
+        console.error('[API] Error disconnecting Mattermost:', error);
+        return NextResponse.json(
+            { error: error.message || 'Failed to disconnect' },
+            { status: 500 }
+        );
+    }
+}

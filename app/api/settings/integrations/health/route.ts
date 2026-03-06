@@ -41,15 +41,16 @@ export async function GET(request: NextRequest) {
 
     const companyId = session.user.companyId;
 
-    const [samsara, quickbooks, telegram, stripe, googleMaps] = await Promise.all([
+    const [samsara, quickbooks, telegram, mattermost, stripe, googleMaps] = await Promise.all([
       checkSamsaraHealth(companyId),
       checkQuickBooksHealth(companyId),
       checkTelegramHealth(companyId),
+      checkMattermostHealth(companyId),
       checkStripeHealth(companyId),
       checkGoogleMapsHealth(),
     ]);
 
-    const integrations: IntegrationHealth[] = [samsara, quickbooks, telegram, stripe, googleMaps];
+    const integrations: IntegrationHealth[] = [samsara, quickbooks, telegram, mattermost, stripe, googleMaps];
 
     return NextResponse.json({ success: true, data: integrations });
   } catch (error) {
@@ -200,6 +201,38 @@ async function checkTelegramHealth(companyId: string): Promise<IntegrationHealth
     };
   } catch {
     return { provider: 'TELEGRAM', label: 'Telegram', status: 'disconnected', errorCount: 1 };
+  }
+}
+
+async function checkMattermostHealth(companyId: string): Promise<IntegrationHealth> {
+  try {
+    const settings = await prisma.mattermostSettings.findUnique({
+      where: { companyId },
+      select: { serverUrl: true, botToken: true, botUsername: true, connectionError: true, updatedAt: true },
+    });
+
+    if (!settings?.serverUrl || !settings?.botToken) {
+      return { provider: 'MATTERMOST', label: 'Mattermost', status: 'unconfigured' };
+    }
+
+    if (settings.connectionError) {
+      return {
+        provider: 'MATTERMOST',
+        label: 'Mattermost',
+        status: 'degraded',
+        details: { error: settings.connectionError, serverUrl: settings.serverUrl },
+      };
+    }
+
+    return {
+      provider: 'MATTERMOST',
+      label: 'Mattermost',
+      status: 'connected',
+      lastSyncAt: settings.updatedAt?.toISOString() ?? null,
+      details: { botUsername: settings.botUsername, serverUrl: settings.serverUrl },
+    };
+  } catch {
+    return { provider: 'MATTERMOST', label: 'Mattermost', status: 'disconnected', errorCount: 1 };
   }
 }
 

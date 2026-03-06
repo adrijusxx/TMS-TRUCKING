@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { KnowledgeBaseService } from '@/lib/services/KnowledgeBaseService';
-import { getTelegramService } from '@/lib/services/TelegramService';
+import { getMattermostService } from '@/lib/services/MattermostService';
 import OpenAI from 'openai';
 
 /**
  * Conversation Knowledge Manager
- * Handles syncing Telegram conversations into the AI Knowledge Base
+ * Handles syncing Mattermost conversations into the AI Knowledge Base
  */
 export class ConversationKnowledgeManager {
     private companyId: string;
@@ -21,38 +21,47 @@ export class ConversationKnowledgeManager {
     }
 
     /**
-     * Sync recent Telegram conversations to Knowledge Base
-     * Fetches messages directly from Telegram API
+     * Sync recent Mattermost conversations to Knowledge Base
+     * Fetches messages directly from Mattermost API
      */
     async syncConversationsToKB(lookbackDays: number = 7): Promise<number> {
         try {
-            const telegramService = getTelegramService();
+            const mattermostService = getMattermostService();
 
-            // Check if Telegram is connected
-            const isConnected = await telegramService.autoConnect();
+            // Check if Mattermost is connected
+            const isConnected = await mattermostService.autoConnect();
             if (!isConnected) {
-                console.log(`[ConvKnowledge] Telegram not connected for company ${this.companyId}. Skipping.`);
+                console.log(`[ConvKnowledge] Mattermost not connected for company ${this.companyId}. Skipping.`);
                 return 0;
             }
 
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
 
-            // 1. Get all dialogs (conversations)
-            console.log(`[ConvKnowledge] Fetching Telegram dialogs...`);
-            const dialogs = await telegramService.getDialogs(50);
-
-            if (dialogs.length === 0) {
-                console.log(`[ConvKnowledge] No Telegram dialogs found.`);
+            // Load teamId from Mattermost settings
+            const settings = await prisma.mattermostSettings.findFirst({
+                where: { companyId: this.companyId },
+            });
+            if (!settings?.teamId) {
+                console.log(`[ConvKnowledge] No Mattermost teamId configured for company ${this.companyId}. Skipping.`);
                 return 0;
             }
 
-            console.log(`[ConvKnowledge] Found ${dialogs.length} dialogs. Processing...`);
+            // 1. Get all channels (conversations)
+            console.log(`[ConvKnowledge] Fetching Mattermost channels...`);
+            const channels = await mattermostService.getChannels(settings.teamId);
+
+            if (channels.length === 0) {
+                console.log(`[ConvKnowledge] No Mattermost channels found.`);
+                return 0;
+            }
+
+            console.log(`[ConvKnowledge] Found ${channels.length} channels. Processing...`);
 
             // Get today's date for deduplication
             const today = new Date().toISOString().split('T')[0];
 
-            // Check which dialogs were already synced today
+            // Check which channels were already synced today
             const existingDocs = await prisma.knowledgeBaseDocument.findMany({
                 where: {
                     companyId: this.companyId,
@@ -65,28 +74,22 @@ export class ConversationKnowledgeManager {
 
             let ingestedCount = 0;
 
-            // 2. Process each dialog
-            for (const dialog of dialogs) {
+            // 2. Process each channel
+            for (const channel of channels) {
                 try {
-                    // Skip channels and groups for now (focus on 1:1 chats)
-                    if (dialog.isChannel || dialog.isGroup) continue;
-
-                    // Skip if last message is older than cutoff
-                    if (dialog.lastMessageDate && dialog.lastMessageDate < cutoffDate) continue;
-
                     // Skip if already synced today
-                    const expectedTitle = `Telegram: ${dialog.title} - ${today}`;
+                    const expectedTitle = `Mattermost: ${channel.title} - ${today}`;
                     if (syncedTitles.has(expectedTitle)) continue;
 
-                    // 3. Fetch messages from this chat
-                    const messages = await telegramService.getMessages(dialog.id, 100);
+                    // 3. Fetch posts from this channel
+                    const posts = await mattermostService.getChannelPosts(channel.id);
 
                     // Filter to messages within lookback period
-                    const recentMessages = messages.filter(
+                    const recentMessages = posts.filter(
                         (m: any) => m.date && m.date >= cutoffDate
                     );
 
-                    if (recentMessages.length < 3) continue; // Skip chats with too few messages
+                    if (recentMessages.length < 3) continue; // Skip channels with too few messages
 
                     // 4. Format messages for summarization
                     const formattedMessages = recentMessages.map((m: any) => ({
@@ -96,8 +99,8 @@ export class ConversationKnowledgeManager {
                     }));
 
                     // 5. Summarize and classify conversation
-                    const result = await this.summarizeTelegramConversation(
-                        dialog.title,
+                    const result = await this.summarizeConversation(
+                        channel.title,
                         formattedMessages
                     );
 
@@ -105,22 +108,22 @@ export class ConversationKnowledgeManager {
                         // 6. Store in Knowledge Base with dated title and category
                         await this.kbService.processTextSegment(
                             result.summary,
-                            `Telegram: ${dialog.title} - ${today}`,
+                            `Mattermost: ${channel.title} - ${today}`,
                             {
-                                type: 'TELEGRAM_SYNC',
+                                type: 'MATTERMOST_SYNC',
                                 category: result.category,
-                                chatId: dialog.id,
-                                chatTitle: dialog.title,
+                                chatId: channel.id,
+                                chatTitle: channel.title,
                                 syncedAt: new Date().toISOString(),
                                 messageCount: recentMessages.length
                             }
                         );
                         ingestedCount++;
-                        console.log(`[ConvKnowledge] Synced [${result.category}]: ${dialog.title}`);
+                        console.log(`[ConvKnowledge] Synced [${result.category}]: ${channel.title}`);
                     }
-                } catch (dialogError) {
-                    console.error(`[ConvKnowledge] Error processing dialog ${dialog.title}:`, dialogError);
-                    // Continue with other dialogs
+                } catch (channelError) {
+                    console.error(`[ConvKnowledge] Error processing channel ${channel.title}:`, channelError);
+                    // Continue with other channels
                 }
             }
 
@@ -134,9 +137,9 @@ export class ConversationKnowledgeManager {
     }
 
     /**
-     * Use AI to clean and classify Telegram conversation
+     * Use AI to clean and classify Mattermost conversation
      */
-    private async summarizeTelegramConversation(
+    private async summarizeConversation(
         contactName: string,
         messages: Array<{ role: string; content: string; date: Date }>
     ): Promise<{ summary: string; category: string } | null> {
@@ -145,7 +148,7 @@ export class ConversationKnowledgeManager {
             .join('\n');
 
         const prompt = `
-You are a TMS Knowledge Curator. Review the following Telegram conversation.
+You are a TMS Knowledge Curator. Review the following Mattermost conversation.
 Your goal is to create a CLEAN, SEARCHABLE TRANSCRIPT for AI training.
 DO NOT SUMMARIZE. Preserve the exact instructions, addresses, codes, and operational details.
 

@@ -3,16 +3,16 @@
  *
  * Unified notification orchestrator that routes messages to the
  * appropriate channel(s) based on user preferences and notification type.
- * Channels: Email (Resend), Telegram, In-App (ActivityLog).
+ * Channels: Email (Resend), Mattermost, In-App (ActivityLog).
  */
 
 import { prisma } from '@/lib/prisma';
 import { EmailService } from '@/lib/services/EmailService';
-import { TelegramNotificationService } from '@/lib/services/TelegramNotificationService';
+import { MattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 import { logger } from '@/lib/utils/logger';
 import type { UserRole } from '@prisma/client';
 
-type NotificationChannel = 'email' | 'telegram' | 'in_app';
+type NotificationChannel = 'email' | 'mattermost' | 'in_app';
 
 type NotificationCategory =
   | 'load_status'
@@ -49,7 +49,7 @@ interface NotificationResult {
 }
 
 export class NotificationManager {
-  private static telegramService = new TelegramNotificationService();
+  private static mattermostService = new MattermostNotificationService();
 
   /**
    * Send a notification via all applicable channels.
@@ -69,9 +69,9 @@ export class NotificationManager {
             await this.sendEmail(payload);
             result.sent.push('email');
             break;
-          case 'telegram':
-            await this.sendTelegram(payload);
-            result.sent.push('telegram');
+          case 'mattermost':
+            await this.sendMattermost(payload);
+            result.sent.push('mattermost');
             break;
         }
       } catch (error) {
@@ -151,22 +151,22 @@ export class NotificationManager {
   }
 
   /**
-   * Send Telegram notification.
+   * Send Mattermost notification.
    */
-  private static async sendTelegram(payload: NotificationPayload): Promise<void> {
-    const settings = await prisma.telegramSettings.findFirst({
+  private static async sendMattermost(payload: NotificationPayload): Promise<void> {
+    const settings = await prisma.mattermostSettings.findFirst({
       where: { companyId: payload.companyId },
     });
 
     if (!settings?.adminChatId) return;
 
-    const { getTelegramService } = await import('@/lib/services/TelegramService');
-    const telegram = getTelegramService();
-    if (!telegram.isClientConnected()) return;
+    const { getMattermostService } = await import('@/lib/services/MattermostService');
+    const mattermost = getMattermostService();
+    if (!mattermost.isClientConnected()) return;
 
     const linkText = payload.link ? `\n[View](${payload.link})` : '';
     const message = `*${payload.title}*\n${payload.message}${linkText}`;
 
-    await telegram.sendMessage(settings.adminChatId, message, { parseMode: 'markdown' });
+    await mattermost.sendMessage(settings.adminChatId, message, { parseMode: 'markdown' });
   }
 }

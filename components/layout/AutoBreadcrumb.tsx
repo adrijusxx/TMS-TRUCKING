@@ -95,6 +95,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   quickbooks: 'QuickBooks',
   samsara: 'Samsara',
   telegram: 'Telegram',
+  mattermost: 'Mattermost',
+  messaging: 'Messaging',
   admin: 'Admin',
   employee: 'Employee',
   'import-audit': 'Import Audit',

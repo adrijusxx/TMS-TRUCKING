@@ -11,7 +11,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { notifyDetentionDetected, notifyBillingHold } from '@/lib/notifications/triggers';
-import { getTelegramNotificationService } from '../services/TelegramNotificationService';
+import { getMattermostNotificationService } from '../services/MattermostNotificationService';
 
 interface DetentionCheckResult {
   detentionDetected: boolean;
@@ -326,8 +326,8 @@ export class DetentionManager {
       }
     });
 
-    // Notify via Telegram
-    const notificationService = getTelegramNotificationService();
+    // Notify via Mattermost
+    const notificationService = getMattermostNotificationService();
     const driverName = `${stop.load.driver?.user?.firstName || ''} ${stop.load.driver?.user?.lastName || ''}`.trim();
 
     await notificationService.notifyDetentionStart({

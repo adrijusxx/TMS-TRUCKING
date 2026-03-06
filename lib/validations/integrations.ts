@@ -94,7 +94,7 @@ export type NetsapiensVoipConfigInput = z.infer<typeof netsapiensVoipConfigSchem
 // ============================================
 
 export const testConnectionSchema = z.object({
-    provider: z.enum(['SAMSARA', 'TELEGRAM', 'QUICKBOOKS', 'NETSAPIENS']),
+    provider: z.enum(['SAMSARA', 'TELEGRAM', 'MATTERMOST', 'QUICKBOOKS', 'NETSAPIENS']),
     mcNumberId: z.string().optional(),
     apiToken: z.string().optional(), // Allow testing unsaved tokens
 });

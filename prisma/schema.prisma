@@ -91,6 +91,8 @@ model User {
   reviewedSamsaraDevices     SamsaraDeviceQueue[]
   resolvedTelegramReviewItems TelegramReviewItem[] @relation("TelegramReviewResolver")
   telegramIgnoredContacts    TelegramIgnoredContact[] @relation("TelegramIgnoredBy")
+  resolvedMessagingReviewItems MessagingReviewItem[] @relation("MessagingReviewResolver")
+  messagingIgnoredContacts    MessagingIgnoredContact[] @relation("MessagingIgnoredBy")
   resolvedFaults             TruckFaultHistory[]
   financialLockedLoads       Load[]                 @relation("LoadFinancialLockedBy")
   createdLedgerEntries       LedgerEntry[]          @relation("LedgerEntryCreatedBy")
@@ -417,6 +419,8 @@ model Company {
   aiAgents               AIAgent[]
   telegramReviewItems    TelegramReviewItem[]
   telegramIgnoredContacts TelegramIgnoredContact[]
+  messagingReviewItems    MessagingReviewItem[]
+  messagingIgnoredContacts MessagingIgnoredContact[]
   apiKeys                ApiKeyConfig[]
   salaryBatches          SalaryBatch[]
   vendorBillBatches      VendorBillBatch[]
@@ -1117,9 +1121,12 @@ model Driver {
   citations                 Citation[]
   insuranceClaims           InsuranceClaim[]
   iftaEntries               IFTAEntry[]
-  telegramMapping           TelegramDriverMapping? // Telegram integration
+  telegramMapping           TelegramDriverMapping? // Telegram integration (legacy)
   telegramReviewItems       TelegramReviewItem[]      @relation("TelegramReviewItems")
   telegramSuggestedReviews  TelegramReviewItem[]      @relation("TelegramSuggestedDriver")
+  mattermostMapping         MattermostDriverMapping? // Mattermost integration
+  messagingReviewItems      MessagingReviewItem[]     @relation("MessagingReviewItems")
+  messagingSuggestedReviews MessagingReviewItem[]     @relation("MessagingSuggestedDriver")
   recruitingLead            Lead?                     @relation("RecruitingLead")
   onboardingChecklist       OnboardingChecklist?
 
@@ -1770,8 +1777,10 @@ model Breakdown {
   // Payments
   payments Payment[]
 
-  // Telegram review queue
+  // Telegram review queue (legacy)
   telegramReviewItems TelegramReviewItem[]
+  // Messaging review queue
+  messagingReviewItems MessagingReviewItem[]
 
   // Migration metadata - stores unmapped fields from source TMS
   metadata Json?
@@ -1870,8 +1879,10 @@ model Communication {
   // Contact Information
   fromNumber     String? // Phone number (for calls/SMS)
   toNumber       String? // Phone number (for calls/SMS)
-  telegramId     String? // Telegram user ID or username
-  telegramChatId String? // Telegram chat ID for the conversation
+  telegramId     String? // Telegram user ID or username (legacy)
+  telegramChatId String? // Telegram chat ID for the conversation (legacy)
+  mattermostPostId    String? // Mattermost post ID
+  mattermostChannelId String? // Mattermost channel ID
   emailAddress   String? // Email address
 
   // Content
@@ -1909,6 +1920,7 @@ model Communication {
   // Relations
   aiResponseLogs    AIResponseLog[] // AI analysis logs for this communication
   telegramReviewItem TelegramReviewItem?
+  messagingReviewItem MessagingReviewItem?
   telegramMessageId Int? // Telegram message ID for tracking
 
   @@unique([companyId, ticketNumber])
@@ -1920,13 +1932,15 @@ model Communication {
   @@index([direction])
   @@index([createdAt])
   @@index([telegramChatId])
+  @@index([mattermostChannelId])
   @@index([ticketNumber])
 }
 
 enum CommunicationChannel {
   SIP // Phone calls via SIP provider
   SMS // Text messages
-  TELEGRAM // Telegram messaging
+  TELEGRAM // Telegram messaging (legacy)
+  MATTERMOST // Mattermost messaging
   EMAIL // Email
   MOBILE_APP // Driver mobile app
 }
@@ -7791,6 +7805,150 @@ model TelegramIgnoredContact {
   createdAt       DateTime @default(now())
 
   @@unique([companyId, telegramChatId])
+  @@index([companyId])
+}
+
+// ============================================
+// MATTERMOST INTEGRATION
+// ============================================
+
+// Mattermost integration settings (per company)
+model MattermostSettings {
+  id        String @id @default(cuid())
+  companyId String @unique
+
+  // Connection
+  serverUrl    String // Mattermost server URL (e.g., https://chat.yourcompany.com)
+  botToken     String // Bot account personal access token
+  botUsername   String? // Bot username for display
+  teamId       String? // Default Mattermost team ID
+  connectionError String? @db.Text
+
+  // Notification channel
+  notificationChannelId String? // Channel ID for automated alerts
+
+  // Feature toggles
+  autoCreateCases      Boolean @default(true)
+  aiAutoResponse       Boolean @default(false)
+  requireStaffApproval Boolean @default(true)
+
+  // AI configuration
+  confidenceThreshold Float  @default(0.8)
+  aiProvider          String @default("OPENAI")
+
+  // Business hours
+  businessHoursOnly  Boolean @default(false)
+  businessHoursStart String?
+  businessHoursEnd   String?
+  timezone           String  @default("America/Chicago")
+
+  // Emergency keywords
+  emergencyKeywords String[] @default(["accident", "injured", "fire", "police", "emergency", "crash", "hurt"])
+
+  // Auto-response templates
+  autoAckMessage         String? @default("We received your message. Our team will respond shortly.")
+  caseCreatedMessage     String? @default("Case #{caseNumber} created. We'll contact you soon.")
+  afterHoursMessage      String? @default("We received your message after hours. On-call staff will respond within 15 minutes.")
+  emergencyContactNumber String?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+// Map drivers to Mattermost user IDs
+model MattermostDriverMapping {
+  id               String   @id @default(cuid())
+  driverId         String?  @unique
+  driver           Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  aiAutoReply      Boolean  @default(false)
+  mattermostUserId String   @unique // Mattermost user ID
+  username         String? // Mattermost username
+  email            String? // Mattermost email
+  firstName        String?
+  lastName         String?
+  registeredAt     DateTime @default(now())
+  isActive         Boolean  @default(true)
+
+  @@index([driverId])
+  @@index([mattermostUserId])
+  @@index([email])
+}
+
+// ============================================
+// MESSAGING REVIEW QUEUE (platform-agnostic)
+// ============================================
+
+model MessagingReviewItem {
+  id              String                @id @default(cuid())
+  companyId       String
+  company         Company               @relation(fields: [companyId], references: [id])
+
+  platform        String                @default("MATTERMOST") // MATTERMOST | TELEGRAM
+  type            MessagingReviewType
+  status          MessagingReviewStatus  @default(PENDING)
+
+  externalChatId  String // Channel ID (Mattermost) or Chat ID (Telegram)
+  channelName     String?
+  senderName      String?
+  messageContent  String                @db.Text
+  messageDate     DateTime
+
+  aiCategory      String?
+  aiConfidence    Float?
+  aiUrgency       String?
+  aiAnalysis      Json?
+
+  communicationId String?               @unique
+  communication   Communication?        @relation(fields: [communicationId], references: [id])
+  driverId        String?
+  driver          Driver?               @relation("MessagingReviewItems", fields: [driverId], references: [id])
+
+  suggestedDriverId String?
+  suggestedDriver   Driver?             @relation("MessagingSuggestedDriver", fields: [suggestedDriverId], references: [id])
+  matchConfidence   Float?
+  matchMethod       String?
+
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedBy      User?                 @relation("MessagingReviewResolver", fields: [resolvedById], references: [id])
+  resolvedNote    String?
+
+  breakdownId     String?
+  breakdown       Breakdown?            @relation(fields: [breakdownId], references: [id])
+
+  createdAt       DateTime              @default(now())
+
+  @@index([companyId, status])
+  @@index([externalChatId])
+  @@index([status])
+}
+
+enum MessagingReviewType {
+  CASE_APPROVAL
+  DRIVER_LINK_NEEDED
+}
+
+enum MessagingReviewStatus {
+  PENDING
+  APPROVED
+  DISMISSED
+}
+
+// Permanently ignored contacts (platform-agnostic)
+model MessagingIgnoredContact {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  platform     String   @default("MATTERMOST") // MATTERMOST | TELEGRAM
+  externalId   String // Mattermost user ID or Telegram chat ID
+  senderName   String?
+  reason       String?
+  ignoredById  String
+  ignoredBy    User     @relation("MessagingIgnoredBy", fields: [ignoredById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@unique([companyId, externalId])
   @@index([companyId])
 }
 
