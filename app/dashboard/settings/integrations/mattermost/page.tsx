@@ -69,14 +69,6 @@ export default function MattermostIntegrationPage() {
         );
     }
 
-    if (!settings) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <p className="text-muted-foreground">Failed to load settings</p>
-            </div>
-        );
-    }
-
     return (
         <div className="space-y-4">
             <div>
@@ -91,56 +83,58 @@ export default function MattermostIntegrationPage() {
 
             <MattermostConnectionCard status={status} />
 
-            <Tabs defaultValue="general">
-                <TabsList>
-                    <TabsTrigger value="general" className="gap-1.5 text-xs">
-                        <Settings className="h-3.5 w-3.5" />General
-                    </TabsTrigger>
-                    <TabsTrigger value="ai" className="gap-1.5 text-xs">
-                        <Bot className="h-3.5 w-3.5" />AI
-                    </TabsTrigger>
-                    <TabsTrigger value="channels" className="gap-1.5 text-xs">
-                        <Hash className="h-3.5 w-3.5" />Channels
-                    </TabsTrigger>
-                    <TabsTrigger value="templates" className="gap-1.5 text-xs">
-                        <MessageSquare className="h-3.5 w-3.5" />Templates
-                    </TabsTrigger>
-                </TabsList>
+            {settings && (
+                <Tabs defaultValue="general">
+                    <TabsList>
+                        <TabsTrigger value="general" className="gap-1.5 text-xs">
+                            <Settings className="h-3.5 w-3.5" />General
+                        </TabsTrigger>
+                        <TabsTrigger value="ai" className="gap-1.5 text-xs">
+                            <Bot className="h-3.5 w-3.5" />AI
+                        </TabsTrigger>
+                        <TabsTrigger value="channels" className="gap-1.5 text-xs">
+                            <Hash className="h-3.5 w-3.5" />Channels
+                        </TabsTrigger>
+                        <TabsTrigger value="templates" className="gap-1.5 text-xs">
+                            <MessageSquare className="h-3.5 w-3.5" />Templates
+                        </TabsTrigger>
+                    </TabsList>
 
-                <TabsContent value="general" className="mt-3">
-                    <MattermostGeneralSettings
-                        settings={settings}
-                        onToggle={handleToggle}
-                        onUpdate={handleUpdate}
-                    />
-                </TabsContent>
+                    <TabsContent value="general" className="mt-3">
+                        <MattermostGeneralSettings
+                            settings={settings}
+                            onToggle={handleToggle}
+                            onUpdate={handleUpdate}
+                        />
+                    </TabsContent>
 
-                <TabsContent value="ai" className="mt-3">
-                    <MattermostAISettings
-                        confidenceThreshold={settings.confidenceThreshold}
-                        emergencyKeywords={settings.emergencyKeywords}
-                        aiProvider={settings.aiProvider}
-                        onUpdate={handleUpdate}
-                    />
-                </TabsContent>
+                    <TabsContent value="ai" className="mt-3">
+                        <MattermostAISettings
+                            confidenceThreshold={settings.confidenceThreshold}
+                            emergencyKeywords={settings.emergencyKeywords}
+                            aiProvider={settings.aiProvider}
+                            onUpdate={handleUpdate}
+                        />
+                    </TabsContent>
 
-                <TabsContent value="channels" className="mt-3">
-                    <MattermostChannelSettings
-                        settings={settings}
-                        onUpdate={handleUpdate}
-                    />
-                </TabsContent>
+                    <TabsContent value="channels" className="mt-3">
+                        <MattermostChannelSettings
+                            settings={settings}
+                            onUpdate={handleUpdate}
+                        />
+                    </TabsContent>
 
-                <TabsContent value="templates" className="mt-3">
-                    <MattermostTemplateSettings
-                        autoAckMessage={settings.autoAckMessage}
-                        caseCreatedMessage={settings.caseCreatedMessage}
-                        afterHoursMessage={settings.afterHoursMessage}
-                        emergencyContactNumber={settings.emergencyContactNumber}
-                        onSave={handleSaveTemplate}
-                    />
-                </TabsContent>
-            </Tabs>
+                    <TabsContent value="templates" className="mt-3">
+                        <MattermostTemplateSettings
+                            autoAckMessage={settings.autoAckMessage}
+                            caseCreatedMessage={settings.caseCreatedMessage}
+                            afterHoursMessage={settings.afterHoursMessage}
+                            emergencyContactNumber={settings.emergencyContactNumber}
+                            onSave={handleSaveTemplate}
+                        />
+                    </TabsContent>
+                </Tabs>
+            )}
         </div>
     );
 }
