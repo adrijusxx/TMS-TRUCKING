@@ -98,6 +98,7 @@ export class MattermostService {
     if (!this.config) return;
 
     const wsUrl = this.config.serverUrl
+      .replace(/\/+$/, '')
       .replace('https://', 'wss://')
       .replace('http://', 'ws://');
 
@@ -298,7 +299,7 @@ export class MattermostService {
   }
 
   async downloadFile(fileId: string): Promise<Buffer> {
-    const url = `${this.config!.serverUrl}/api/v4/files/${fileId}`;
+    const url = `${this.config!.serverUrl.replace(/\/+$/, '')}/api/v4/files/${fileId}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${this.config!.botToken}` },
     });
@@ -321,7 +322,7 @@ export class MattermostService {
       fileName,
     );
 
-    const url = `${this.config!.serverUrl}/api/v4/files`;
+    const url = `${this.config!.serverUrl.replace(/\/+$/, '')}/api/v4/files`;
     const response = await fetch(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.config!.botToken}` },
@@ -434,7 +435,7 @@ export class MattermostService {
     botToken: string,
   ): Promise<{ success: boolean; botUsername?: string; error?: string }> {
     try {
-      const response = await fetch(`${serverUrl}/api/v4/users/me`, {
+      const response = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/v4/users/me`, {
         headers: { Authorization: `Bearer ${botToken}` },
       });
       if (!response.ok) {
@@ -475,7 +476,7 @@ export class MattermostService {
     if (!this.config)
       throw new Error('Mattermost not configured');
 
-    const url = `${this.config.serverUrl}/api/v4${path}`;
+    const url = `${this.config.serverUrl.replace(/\/+$/, '')}/api/v4${path}`;
     const response = await fetch(url, {
       method,
       headers: {
