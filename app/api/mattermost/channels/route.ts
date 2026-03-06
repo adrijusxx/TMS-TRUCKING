@@ -18,18 +18,44 @@ export async function GET(request: NextRequest) {
 
         const settings = await prisma.mattermostSettings.findUnique({
             where: { companyId },
-            select: { teamId: true },
+            select: { teamId: true, serverUrl: true, botToken: true },
         });
 
-        if (!settings?.teamId) {
+        if (!settings?.serverUrl || !settings?.botToken) {
             return NextResponse.json(
-                { error: 'Mattermost team not configured' },
+                { error: 'Mattermost not connected' },
                 { status: 400 }
             );
         }
 
+        // Auto-detect teamId if not stored
+        let teamId = settings.teamId;
+        if (!teamId) {
+            const cleanUrl = settings.serverUrl.replace(/\/+$/, '');
+            const teamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, {
+                headers: { Authorization: `Bearer ${settings.botToken}` },
+            });
+            if (teamsRes.ok) {
+                const teams = await teamsRes.json();
+                if (Array.isArray(teams) && teams.length > 0) {
+                    teamId = teams[0].id;
+                    // Save it for future calls
+                    await prisma.mattermostSettings.update({
+                        where: { companyId },
+                        data: { teamId },
+                    });
+                }
+            }
+            if (!teamId) {
+                return NextResponse.json(
+                    { error: 'No Mattermost teams found for this bot' },
+                    { status: 400 }
+                );
+            }
+        }
+
         const queryService = getMattermostQueryService();
-        const dialogs = await queryService.getDialogs(settings.teamId);
+        const dialogs = await queryService.getDialogs(teamId);
 
         return NextResponse.json({ success: true, data: dialogs });
     } catch (error: any) {

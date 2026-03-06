@@ -59,6 +59,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Auto-detect team ID from the bot's teams
+        let teamId: string | null = null;
+        try {
+            const cleanUrl = serverUrl.replace(/\/+$/, '');
+            const teamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, {
+                headers: { Authorization: `Bearer ${botToken}` },
+            });
+            if (teamsRes.ok) {
+                const teams = await teamsRes.json();
+                if (Array.isArray(teams) && teams.length > 0) {
+                    teamId = teams[0].id;
+                }
+            }
+        } catch {
+            // Non-fatal — teamId will remain null
+        }
+
         // Save settings
         await prisma.mattermostSettings.upsert({
             where: { companyId },
@@ -67,12 +84,14 @@ export async function POST(request: NextRequest) {
                 serverUrl,
                 botToken,
                 botUsername: testResult.botUsername || null,
+                teamId,
                 connectionError: null,
             },
             update: {
                 serverUrl,
                 botToken,
                 botUsername: testResult.botUsername || null,
+                teamId,
                 connectionError: null,
             },
         });
