@@ -19,21 +19,9 @@ export async function GET() {
             where: { companyId },
         });
 
-        // Create default settings if not exists
+        // Return null if not configured yet (settings are created via connection flow)
         if (!settings) {
-            settings = await prisma.mattermostSettings.create({
-                data: {
-                    companyId,
-                    autoCreateCases: true,
-                    aiAutoResponse: false,
-                    requireStaffApproval: true,
-                    confidenceThreshold: 0.8,
-                    aiProvider: 'OPENAI',
-                    businessHoursOnly: false,
-                    timezone: 'America/Chicago',
-                    emergencyKeywords: ['accident', 'injured', 'fire', 'police', 'emergency', 'crash', 'hurt'],
-                },
-            });
+            return NextResponse.json({ data: null });
         }
 
         return NextResponse.json({ data: settings });
@@ -64,9 +52,15 @@ export async function PUT(request: NextRequest) {
         const companyId = (session.user as any).companyId;
         const body = await request.json();
 
-        const settings = await prisma.mattermostSettings.upsert({
+        // Settings must already exist (created via connection flow)
+        const existing = await prisma.mattermostSettings.findUnique({ where: { companyId } });
+        if (!existing) {
+            return NextResponse.json({ error: 'Mattermost not connected. Connect first.' }, { status: 400 });
+        }
+
+        const settings = await prisma.mattermostSettings.update({
             where: { companyId },
-            update: {
+            data: {
                 autoCreateCases: body.autoCreateCases,
                 aiAutoResponse: body.aiAutoResponse,
                 requireStaffApproval: body.requireStaffApproval,
@@ -77,25 +71,6 @@ export async function PUT(request: NextRequest) {
                 businessHoursEnd: body.businessHoursEnd,
                 timezone: body.timezone,
                 emergencyKeywords: body.emergencyKeywords,
-                autoAckMessage: body.autoAckMessage,
-                caseCreatedMessage: body.caseCreatedMessage,
-                afterHoursMessage: body.afterHoursMessage,
-                emergencyContactNumber: body.emergencyContactNumber,
-                teamId: body.teamId,
-                notificationChannelId: body.notificationChannelId,
-            },
-            create: {
-                companyId,
-                autoCreateCases: body.autoCreateCases ?? true,
-                aiAutoResponse: body.aiAutoResponse ?? false,
-                requireStaffApproval: body.requireStaffApproval ?? true,
-                confidenceThreshold: body.confidenceThreshold ?? 0.8,
-                aiProvider: body.aiProvider ?? 'OPENAI',
-                businessHoursOnly: body.businessHoursOnly ?? false,
-                businessHoursStart: body.businessHoursStart,
-                businessHoursEnd: body.businessHoursEnd,
-                timezone: body.timezone ?? 'America/Chicago',
-                emergencyKeywords: body.emergencyKeywords ?? ['accident', 'injured', 'fire', 'police', 'emergency', 'crash', 'hurt'],
                 autoAckMessage: body.autoAckMessage,
                 caseCreatedMessage: body.caseCreatedMessage,
                 afterHoursMessage: body.afterHoursMessage,

@@ -84,8 +84,9 @@ export class MattermostMessageProcessor {
     const isIgnored =
       await prisma.messagingIgnoredContact.findUnique({
         where: {
-          companyId_externalId: {
+          companyId_platform_externalId: {
             companyId: this.companyId,
+            platform: 'MATTERMOST',
             externalId: senderId,
           },
         },

@@ -158,15 +158,15 @@ export class NotificationManager {
       where: { companyId: payload.companyId },
     });
 
-    if (!settings?.adminChatId) return;
+    if (!settings?.notificationChannelId) return;
 
     const { getMattermostService } = await import('@/lib/services/MattermostService');
     const mattermost = getMattermostService();
     if (!mattermost.isClientConnected()) return;
 
     const linkText = payload.link ? `\n[View](${payload.link})` : '';
-    const message = `*${payload.title}*\n${payload.message}${linkText}`;
+    const message = `**${payload.title}**\n${payload.message}${linkText}`;
 
-    await mattermost.sendMessage(settings.adminChatId, message, { parseMode: 'markdown' });
+    await mattermost.sendMessage(settings.notificationChannelId, message);
   }
 }

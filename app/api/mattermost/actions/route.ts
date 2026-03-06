@@ -36,13 +36,13 @@ export async function POST(request: NextRequest) {
         // Route action to appropriate handler
         if (action === 'driver:current_load' && mapping?.driverId) {
             const load = await prisma.load.findFirst({
-                where: { driverId: mapping.driverId, status: { in: ['DISPATCHED', 'IN_TRANSIT'] } },
-                select: { loadNumber: true, status: true, origin: true, destination: true },
+                where: { driverId: mapping.driverId, status: { in: ['EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY'] } },
+                select: { loadNumber: true, status: true, pickupCity: true, pickupState: true, deliveryCity: true, deliveryState: true },
                 orderBy: { createdAt: 'desc' },
             });
 
             const text = load
-                ? `**Current Load: ${load.loadNumber}**\nStatus: ${load.status}\nOrigin: ${load.origin}\nDestination: ${load.destination}`
+                ? `**Current Load: ${load.loadNumber}**\nStatus: ${load.status}\nOrigin: ${load.pickupCity}, ${load.pickupState}\nDestination: ${load.deliveryCity}, ${load.deliveryState}`
                 : 'No active loads assigned.';
 
             await service.sendMessage(channelId, text);

@@ -31,7 +31,7 @@ export async function GET() {
                     },
                 },
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { registeredAt: 'desc' },
         });
 
         return NextResponse.json({ data: mappings });

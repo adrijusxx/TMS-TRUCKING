@@ -317,7 +317,7 @@ export class MattermostService {
     formData.append('channel_id', channelId);
     formData.append(
       'files',
-      new Blob([fileBuffer]),
+      new Blob([new Uint8Array(fileBuffer)]),
       fileName,
     );
 

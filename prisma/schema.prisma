@@ -7948,7 +7948,7 @@ model MessagingIgnoredContact {
   ignoredBy    User     @relation("MessagingIgnoredBy", fields: [ignoredById], references: [id])
   createdAt    DateTime @default(now())
 
-  @@unique([companyId, externalId])
+  @@unique([companyId, platform, externalId])
   @@index([companyId])
 }
 
