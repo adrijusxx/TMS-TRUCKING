@@ -9,6 +9,7 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
 import { FleetMonitoringManager } from '@/lib/managers/fleet-monitoring/FleetMonitoringManager';
+import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 
 export const checkFleetDormancy = inngest.createFunction(
   {
@@ -77,6 +78,13 @@ export const checkFleetDormancy = inngest.createFunction(
               link: linkPath,
             })),
           });
+
+          // Post to Mattermost #fleet channel
+          await getMattermostNotificationService().notifyDormantEquipment({
+            type: eq.type,
+            number: eq.number,
+            daysSinceLastLoad: eq.daysSinceLastLoad,
+          });
           count++;
         }
 
@@ -102,6 +110,13 @@ export const checkFleetDormancy = inngest.createFunction(
               message: `${driver.driverName} (#${driver.driverNumber}) has been without a load for ${Math.round(driver.idleHours)}h.`,
               link: linkPath,
             })),
+          });
+
+          // Post to Mattermost #fleet channel
+          await getMattermostNotificationService().notifyDriverIdle({
+            driverName: driver.driverName,
+            driverNumber: driver.driverNumber,
+            idleHours: driver.idleHours,
           });
           count++;
         }

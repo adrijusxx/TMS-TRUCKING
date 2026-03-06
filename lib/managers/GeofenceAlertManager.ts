@@ -14,6 +14,7 @@ import {
   isWithinRadius,
 } from '@/lib/utils/haversine';
 import { getSamsaraVehicleLocations } from '@/lib/integrations/samsara';
+import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -285,6 +286,17 @@ export class GeofenceAlertManager {
         statusSuggestion: suggestion.suggestedStatus
           ? suggestion
           : null,
+      });
+
+      // Post to Mattermost #dispatch channel
+      const loadForNotify = activeLoad
+        ? await prisma.load.findUnique({ where: { id: activeLoad.id }, select: { loadNumber: true } })
+        : null;
+      await getMattermostNotificationService().notifyGeofenceArrival({
+        truckNumber: truck.truckNumber,
+        geofenceName: firstEntry.geofenceName,
+        geofenceType: firstEntry.geofenceType,
+        loadNumber: loadForNotify?.loadNumber,
       });
     }
 

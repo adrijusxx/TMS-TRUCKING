@@ -2,13 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Settings, Bot, MessageSquare, Link as LinkIcon } from 'lucide-react';
+import { Loader2, Settings, Bot, MessageSquare, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import MattermostConnectionCard from '@/components/mattermost/MattermostConnectionCard';
 import MattermostGeneralSettings from '@/components/mattermost/MattermostGeneralSettings';
 import MattermostAISettings from '@/components/mattermost/MattermostAISettings';
 import MattermostTemplateSettings from '@/components/mattermost/MattermostTemplateSettings';
+import MattermostChannelSettings from '@/components/mattermost/MattermostChannelSettings';
 
 async function fetchSettings() {
     const res = await fetch(apiUrl('/api/mattermost/settings'));
@@ -98,6 +99,9 @@ export default function MattermostIntegrationPage() {
                     <TabsTrigger value="ai" className="gap-1.5 text-xs">
                         <Bot className="h-3.5 w-3.5" />AI
                     </TabsTrigger>
+                    <TabsTrigger value="channels" className="gap-1.5 text-xs">
+                        <Hash className="h-3.5 w-3.5" />Channels
+                    </TabsTrigger>
                     <TabsTrigger value="templates" className="gap-1.5 text-xs">
                         <MessageSquare className="h-3.5 w-3.5" />Templates
                     </TabsTrigger>
@@ -116,6 +120,13 @@ export default function MattermostIntegrationPage() {
                         confidenceThreshold={settings.confidenceThreshold}
                         emergencyKeywords={settings.emergencyKeywords}
                         aiProvider={settings.aiProvider}
+                        onUpdate={handleUpdate}
+                    />
+                </TabsContent>
+
+                <TabsContent value="channels" className="mt-3">
+                    <MattermostChannelSettings
+                        settings={settings}
                         onUpdate={handleUpdate}
                     />
                 </TabsContent>

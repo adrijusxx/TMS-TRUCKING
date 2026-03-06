@@ -8,6 +8,7 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
 import { FleetMaintenanceService } from '@/lib/services/FleetMaintenanceService';
+import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 
 export const samsaraFaultSync = inngest.createFunction(
   {
@@ -63,6 +64,18 @@ export const samsaraFaultSync = inngest.createFunction(
           newFaults: result.newFaults,
           resolvedFaults: result.resolvedFaults,
         });
+
+        // Post to Mattermost #maintenance for new faults
+        if (result.newFaults > 0) {
+          await step.run(`notify-faults-${company.id}`, async () => {
+            await getMattermostNotificationService().notifyFaultCode({
+              truckNumber: `${result.newFaults} truck(s)`,
+              faultCode: `${result.newFaults} new`,
+              description: `${result.newFaults} new fault code(s) detected across ${result.trucksProcessed} trucks for ${result.company}`,
+              severity: result.newFaults >= 3 ? 'CRITICAL' : 'WARNING',
+            });
+          });
+        }
       } else {
         companiesSkipped++;
       }

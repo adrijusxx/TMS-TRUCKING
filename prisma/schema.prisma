@@ -7824,8 +7824,13 @@ model MattermostSettings {
   teamId       String? // Default Mattermost team ID
   connectionError String? @db.Text
 
-  // Notification channel
-  notificationChannelId String? // Channel ID for automated alerts
+  // Notification channels (per-category routing, falls back to notificationChannelId)
+  notificationChannelId String? // Default/fallback channel for automated alerts
+  dispatchChannelId     String? // #dispatch — load assignments, status changes, geofence
+  safetyChannelId       String? // #safety — HOS violations, incidents, compliance
+  maintenanceChannelId  String? // #maintenance — breakdowns, fault codes, SLA alerts
+  accountingChannelId   String? // #accounting — invoices, settlements, billing holds
+  fleetChannelId        String? // #fleet — dormant equipment, idle drivers
 
   // Feature toggles
   autoCreateCases      Boolean @default(true)

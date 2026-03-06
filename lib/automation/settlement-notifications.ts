@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/utils/logger';
+import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 
 /**
  * Send notification to driver about a new settlement.
@@ -22,6 +23,14 @@ export async function sendDriverNotification(driverId: string, settlementId: str
         title: 'New Settlement Available',
         message: `Your settlement ${settlement.settlementNumber} for $${settlement.netPay.toFixed(2)} is ready for review.`,
       },
+    });
+
+    // Post to Mattermost #accounting channel
+    const driverName = `${settlement.driver.user?.firstName ?? ''} ${settlement.driver.user?.lastName ?? ''}`;
+    await getMattermostNotificationService().notifySettlementReady({
+      settlementNumber: settlement.settlementNumber,
+      driverName,
+      netPay: Number(settlement.netPay),
     });
 
     logger.info(`Settlement notification sent to driver ${settlement.driver.driverNumber}`);

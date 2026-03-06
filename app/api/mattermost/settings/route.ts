@@ -77,6 +77,11 @@ export async function PUT(request: NextRequest) {
                 emergencyContactNumber: body.emergencyContactNumber,
                 teamId: body.teamId,
                 notificationChannelId: body.notificationChannelId,
+                dispatchChannelId: body.dispatchChannelId,
+                safetyChannelId: body.safetyChannelId,
+                maintenanceChannelId: body.maintenanceChannelId,
+                accountingChannelId: body.accountingChannelId,
+                fleetChannelId: body.fleetChannelId,
             },
         });
 

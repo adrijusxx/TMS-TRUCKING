@@ -7,6 +7,7 @@
 import { sendNotificationEmail, emailTemplates } from './email';
 import { prisma } from '../prisma';
 import { LoadStatus } from '@prisma/client';
+import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 
 /**
  * Send notification when a load is assigned to a driver
@@ -50,6 +51,17 @@ export async function notifyLoadAssigned(loadId: string, driverId: string) {
         message: `You have been assigned load ${load.loadNumber} from ${load.pickupCity}, ${load.pickupState} to ${load.deliveryCity}, ${load.deliveryState}`,
         link: `/dashboard/loads/${load.loadNumber}`,
       },
+    });
+
+    // Post to Mattermost #dispatch channel
+    const driverName = `${load.driver.user?.firstName ?? ''} ${load.driver.user?.lastName ?? ''}`;
+    await getMattermostNotificationService().notifyLoadAssigned({
+      loadNumber: load.loadNumber,
+      driverName,
+      pickupCity: load.pickupCity || 'N/A',
+      pickupState: load.pickupState || '',
+      deliveryCity: load.deliveryCity || 'N/A',
+      deliveryState: load.deliveryState || '',
     });
   } catch (error) {
     console.error('Error sending load assigned notification:', error);
@@ -127,6 +139,17 @@ export async function notifyLoadStatusChanged(
         });
       }
     }
+
+    // Post to Mattermost #dispatch channel
+    const driverName = load.driver?.user
+      ? `${load.driver.user.firstName} ${load.driver.user.lastName}`
+      : undefined;
+    await getMattermostNotificationService().notifyLoadStatusChanged({
+      loadNumber: load.loadNumber,
+      oldStatus,
+      newStatus,
+      driverName,
+    });
   } catch (error) {
     console.error('Error sending load status change notification:', error);
   }
@@ -194,6 +217,13 @@ export async function notifyHOSViolation(
         },
       });
     }
+
+    // Post to Mattermost #safety channel
+    await getMattermostNotificationService().notifyHOSViolation({
+      driverName: `${driver.user.firstName} ${driver.user.lastName}`,
+      driverNumber: driver.driverNumber,
+      violationType,
+    });
   } catch (error) {
     console.error('Error sending HOS violation notification:', error);
   }
@@ -358,6 +388,14 @@ export async function notifyDocumentExpiring(
         },
       });
     }
+
+    // Post to Mattermost #safety channel
+    await getMattermostNotificationService().notifyDocumentExpiring({
+      entityType,
+      entityName,
+      documentType,
+      expiryDate: formattedDate,
+    });
   } catch (error) {
     console.error('Error sending document expiring notification:', error);
   }
@@ -406,6 +444,13 @@ export async function notifyInvoicePaid(invoiceId: string) {
         },
       });
     }
+
+    // Post to Mattermost #accounting channel
+    await getMattermostNotificationService().notifyInvoicePaid({
+      invoiceNumber: invoice.invoiceNumber,
+      customerName: invoice.customer.name,
+      amount: Number(invoice.total),
+    });
   } catch (error) {
     console.error('Error sending invoice paid notification:', error);
   }
@@ -463,6 +508,13 @@ export async function notifySettlementGenerated(settlementId: string) {
         },
       });
     }
+
+    // Post to Mattermost #accounting channel
+    await getMattermostNotificationService().notifySettlementReady({
+      settlementNumber: settlement.settlementNumber,
+      driverName: `${settlement.driver.user?.firstName ?? ''} ${settlement.driver.user?.lastName ?? ''}`,
+      netPay: Number(settlement.netPay),
+    });
   } catch (error) {
     console.error('Error sending settlement generated notification:', error);
   }
@@ -537,6 +589,16 @@ export async function notifyDetentionDetected(params: {
         },
       });
     }
+
+    // Post to Mattermost #dispatch channel
+    await getMattermostNotificationService().notifyDetentionDetected({
+      loadNumber: params.loadNumber,
+      location: params.location,
+      customerName: params.customerName,
+      detentionHours: params.detentionHours,
+      estimatedCharge: params.estimatedCharge,
+      driverLate: params.driverLate,
+    });
   } catch (error) {
     console.error('Error sending detention detected notification:', error);
   }
@@ -591,6 +653,13 @@ export async function notifyBillingHold(params: {
         },
       });
     }
+
+    // Post to Mattermost #accounting channel
+    await getMattermostNotificationService().notifyBillingHold({
+      loadNumber: params.loadNumber,
+      customerName: load.customer.name,
+      reason: params.reason,
+    });
   } catch (error) {
     console.error('Error sending billing hold notification:', error);
   }
