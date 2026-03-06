@@ -68,6 +68,23 @@ const BASE_INTEGRATIONS: Integration[] = [
     ]
   },
   {
+    id: 'mattermost',
+    name: 'Mattermost',
+    description: 'Self-hosted team messaging with AI-powered driver communication and automated alerts',
+    icon: MessageSquare,
+    href: '/dashboard/settings/integrations/mattermost',
+    status: 'not-configured',
+    category: 'communications',
+    healthProvider: 'MATTERMOST',
+    features: [
+      'Channel-based alert routing',
+      'AI-powered breakdown detection',
+      'Automatic case creation',
+      'Driver self-service bot',
+      'Push notifications'
+    ]
+  },
+  {
     id: 'telegram',
     name: 'Telegram',
     description: 'AI-powered driver communication with automatic case creation and intelligent auto-responses',
