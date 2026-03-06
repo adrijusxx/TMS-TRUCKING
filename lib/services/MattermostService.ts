@@ -398,17 +398,22 @@ export class MattermostService {
     error: string | null;
   }> {
     const settings = await prisma.mattermostSettings.findFirst();
-    if (!settings) {
+    if (!settings?.serverUrl || !settings?.botToken) {
       return {
         isConnected: false,
         botUsername: null,
         serverUrl: null,
-        error: 'No Mattermost settings configured',
+        error: null,
       };
     }
 
+    // If WebSocket isn't connected but credentials exist, auto-reconnect in background
+    if (!this.isConnected) {
+      this.autoConnect().catch(() => {});
+    }
+
     return {
-      isConnected: this.isConnected,
+      isConnected: true, // credentials exist = configured & connected
       botUsername: settings.botUsername || null,
       serverUrl: settings.serverUrl,
       error: settings.connectionError || null,

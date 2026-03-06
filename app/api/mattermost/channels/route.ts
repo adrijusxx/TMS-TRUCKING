@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { getMattermostQueryService } from '@/lib/services/MattermostQueryService';
 
 /**
  * GET /api/mattermost/channels
- * List all channels (conversations) from Mattermost
+ * List all channels from Mattermost (direct API call, no singleton dependency)
  */
 export async function GET(request: NextRequest) {
     try {
@@ -28,18 +27,17 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        const cleanUrl = settings.serverUrl.replace(/\/+$/, '');
+        const headers = { Authorization: `Bearer ${settings.botToken}` };
+
         // Auto-detect teamId if not stored
         let teamId = settings.teamId;
         if (!teamId) {
-            const cleanUrl = settings.serverUrl.replace(/\/+$/, '');
-            const teamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, {
-                headers: { Authorization: `Bearer ${settings.botToken}` },
-            });
+            const teamsRes = await fetch(`${cleanUrl}/api/v4/users/me/teams`, { headers });
             if (teamsRes.ok) {
                 const teams = await teamsRes.json();
                 if (Array.isArray(teams) && teams.length > 0) {
                     teamId = teams[0].id;
-                    // Save it for future calls
                     await prisma.mattermostSettings.update({
                         where: { companyId },
                         data: { teamId },
@@ -54,10 +52,15 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        const queryService = getMattermostQueryService();
-        const dialogs = await queryService.getDialogs(teamId);
+        // Fetch channels directly from Mattermost API
+        const res = await fetch(`${cleanUrl}/api/v4/teams/${teamId}/channels`, { headers });
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => '');
+            throw new Error(`Mattermost API error ${res.status}: ${errorText}`);
+        }
+        const channels = await res.json();
 
-        return NextResponse.json({ success: true, data: dialogs });
+        return NextResponse.json({ success: true, data: channels });
     } catch (error: any) {
         console.error('[API] Error fetching channels:', error);
         return NextResponse.json(
