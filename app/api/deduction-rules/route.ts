@@ -225,10 +225,7 @@ export async function GET(request: NextRequest) {
       });
       where.OR = [
         { driverId }, // Driver-specific rules
-        // Company-wide rules (no driver or driverType restriction)
-        { driverId: null, driverType: null },
-        // Rules matching this driver's type
-        ...(driver?.driverType ? [{ driverId: null, driverType: driver.driverType }] : []),
+        { driverId: null }, // MC-wide (global) rules
       ];
       // Also scope by MC number
       if (driver?.mcNumberId) {

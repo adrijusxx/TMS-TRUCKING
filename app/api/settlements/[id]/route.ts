@@ -74,6 +74,7 @@ export async function GET(
             escrowBalance: true,
             escrowTargetAmount: true,
             escrowDeductionPerWeek: true,
+            mcNumberId: true,
           },
         },
         deductionItems: {
@@ -150,16 +151,24 @@ export async function GET(
       },
     });
 
-    // Fetch deduction rules that apply to this driver
-    // Note: Only filter by driverType since driverId column doesn't exist in database
+    // Fetch deduction rules applicable to this driver
+    // Three-tier scoping: company-wide → driver-type → driver-specific + MC number
     const deductionRules = await prisma.deductionRule.findMany({
       where: {
         companyId: settlement.driver.companyId,
         isActive: true,
         OR: [
-          { driverType: null }, // Company-wide rules for all driver types
-          { driverType: settlement.driver.driverType }, // Rules for this driver's type
+          { mcNumberId: null },
+          ...(settlement.driver.mcNumberId
+            ? [{ mcNumberId: settlement.driver.mcNumberId }]
+            : []),
         ],
+        AND: {
+          OR: [
+            { driverId: null },
+            { driverId: settlement.driver.id },
+          ],
+        },
       },
       select: {
         id: true,
@@ -173,10 +182,11 @@ export async function GET(
         minGrossPay: true,
         maxAmount: true,
         driverType: true,
+        driverId: true,
         notes: true,
         isAddition: true,
         goalAmount: true,
-        currentAmount: true, // Needed to distinguish additions from deductions
+        currentAmount: true,
       },
       orderBy: {
         createdAt: 'desc',

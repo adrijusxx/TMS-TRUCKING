@@ -41,7 +41,6 @@ export default function DriverOneTimeChargesTab() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   // Form state
-  const [driverId, setDriverId] = React.useState('');
   const [isAddition, setIsAddition] = React.useState(false);
   const [deductionType, setDeductionType] = React.useState('OTHER');
   const [amount, setAmount] = React.useState('');
@@ -74,7 +73,7 @@ export default function DriverOneTimeChargesTab() {
   const getDriverName = (rule: any) => {
     const driver = drivers.find((d: any) => d.id === rule.driverId);
     if (driver) return `${driver.user?.firstName || ''} ${driver.user?.lastName || ''}`.trim();
-    return rule.driverId ? 'Unknown' : 'Company-wide';
+    return rule.driverId ? 'Unknown' : 'MC-Wide';
   };
 
   const enrichedRules = React.useMemo(() => oneTimeRules.map((rule: any) => ({
@@ -115,7 +114,6 @@ export default function DriverOneTimeChargesTab() {
           name,
           deductionType,
           isAddition,
-          driverId: driverId || undefined,
           calculationType: 'FIXED',
           amount: parseFloat(amount),
           frequency: 'ONE_TIME',
@@ -149,7 +147,6 @@ export default function DriverOneTimeChargesTab() {
   };
 
   const resetForm = () => {
-    setDriverId('');
     setIsAddition(false);
     setDeductionType('OTHER');
     setAmount('');
@@ -166,7 +163,7 @@ export default function DriverOneTimeChargesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          One-time driver charges and bonuses applied once during settlement
+          MC-wide one-time charges and bonuses applied once to all drivers during settlement
         </p>
         <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -178,19 +175,6 @@ export default function DriverOneTimeChargesTab() {
               <DialogDescription>Create a one-time deduction or addition for a driver.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label>Driver (optional — leave blank for company-wide)</Label>
-                <Select value={driverId} onValueChange={setDriverId}>
-                  <SelectTrigger><SelectValue placeholder="Select driver" /></SelectTrigger>
-                  <SelectContent>
-                    {drivers.map((d: any) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.user?.firstName} {d.user?.lastName} ({d.driverNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="grid gap-2">
                 <Label>Name</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Sign-on bonus" />

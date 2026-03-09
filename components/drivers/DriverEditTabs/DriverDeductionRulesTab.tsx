@@ -46,8 +46,7 @@ function formatRuleAmount(rule: any): string {
 
 function getScopeLabel(rule: any, driverId: string): string {
     if (rule.driverId === driverId) return 'Driver-specific';
-    if (rule.driverType) return `All ${rule.driverType.replace('_', ' ').toLowerCase()}s`;
-    return 'Company-wide';
+    return 'MC-Wide';
 }
 
 export default function DriverDeductionRulesTab({ driver }: DriverDeductionRulesTabProps) {

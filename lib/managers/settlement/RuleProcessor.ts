@@ -77,19 +77,16 @@ export class SettlementRuleProcessor {
                     ],
                     AND: {
                         OR: [
-                            { driverType: null, driverId: null },
-                            { driverType: driver.driverType, driverId: null },
+                            { driverId: null },
                             { driverId },
                         ],
                     },
                 },
             });
 
-            for (const rule of additionRules) {
-                if (this.shouldSkipRule(rule, driver)) {
-                    console.log(`[RuleProcessor] Skipping addition rule "${rule.name}" (id: ${rule.id}) — driver number mismatch`);
-                    continue;
-                }
+            const effectiveAdditionRules = this.applyDriverOverrides(additionRules, driverId);
+
+            for (const rule of effectiveAdditionRules) {
                 if (rule.minGrossPay && grossPay < rule.minGrossPay) {
                     console.log(`[RuleProcessor] Skipping addition rule "${rule.name}" — grossPay ${grossPay} < minGrossPay ${rule.minGrossPay}`);
                     continue;
@@ -149,16 +146,16 @@ export class SettlementRuleProcessor {
                 ],
                 AND: {
                     OR: [
-                        { driverType: null, driverId: null },
-                        { driverType: driver.driverType, driverId: null },
+                        { driverId: null },
                         { driverId },
                     ],
                 },
             },
         });
 
-        for (const rule of rules) {
-            if (this.shouldSkipRule(rule, driver)) continue;
+        const effectiveRules = this.applyDriverOverrides(rules, driverId);
+
+        for (const rule of effectiveRules) {
             if (rule.minGrossPay && grossPay < rule.minGrossPay) continue;
             if (await this.wasAlreadyAppliedInFrequencyWindow(rule, driverId, periodStart, periodEnd)) continue;
 
@@ -181,16 +178,17 @@ export class SettlementRuleProcessor {
         return deductions;
     }
 
-    private shouldSkipRule(rule: any, driver: any): boolean {
-        // If rule is already scoped to a specific driver via driverId, the query already handles it
-        if (rule.driverId) return false;
-        // Only use name-based driver matching for company-wide rules without a specific driverId
-        const driverNumberPattern = /DRV-[A-Z]{2}-[A-Z]+-\d+/g;
-        const matchedDriverNumbers = rule.name.match(driverNumberPattern);
-        if (matchedDriverNumbers && matchedDriverNumbers.length > 0) {
-            return !matchedDriverNumbers.some((num: string) => num === driver.driverNumber);
-        }
-        return false;
+    /**
+     * Driver-specific rules override MC-wide rules of the same deductionType.
+     * If a driver has a specific INSURANCE rule, the global INSURANCE rule is skipped.
+     */
+    private applyDriverOverrides(rules: any[], driverId: string): any[] {
+        const driverSpecificTypes = new Set(
+            rules.filter(r => r.driverId === driverId).map(r => r.deductionType)
+        );
+        return rules.filter(r =>
+            r.driverId === driverId || !driverSpecificTypes.has(r.deductionType)
+        );
     }
 
     private calculateAmount(rule: any, grossPay: number, loads: any[]): number {

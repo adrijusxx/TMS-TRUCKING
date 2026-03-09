@@ -90,20 +90,6 @@ export default function AssetDetailCard({ asset, position, onClose }: AssetDetai
     return data;
   };
 
-  // DEBUG: Log truckData and sensors to trace data flow (remove after fix)
-  console.log('[AssetDetailCard] Debug:', {
-    truckNumber: truckData?.truckNumber || loadData?.loadNumber,
-    hasTruckData: !!truckData,
-    hasLoadData: !!loadData,
-    hasSensors: !!sensors,
-    rawFuelPercent: sensors?.fuelPercent,
-    rawFuelPercentType: typeof sensors?.fuelPercent,
-    rawEngineState: sensors?.engineState,
-    rawEngineStateType: typeof sensors?.engineState,
-    rawSpeed: sensors?.speed,
-    locationAddress: truckData?.location?.address,
-  });
-
 
   // Get fuel percent with proper extraction (handles arrays, objects, and numbers)
   const fuelPercent = (() => {

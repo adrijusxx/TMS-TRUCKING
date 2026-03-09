@@ -323,7 +323,7 @@ function LeadCard({ lead, isDragging, onDragStart, onClick, onCall, onNoteAdded 
                     {lead.firstName} {lead.lastName}
                 </span>
 
-                {lead.aiSummary && (
+                {lead.aiSummary && typeof lead.aiSummary === 'string' && !lead.aiSummary.includes('[object Object]') && (
                     <p className="text-[11px] text-muted-foreground line-clamp-2 italic leading-tight">
                         {lead.aiSummary}
                     </p>

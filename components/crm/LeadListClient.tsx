@@ -220,7 +220,7 @@ export default function LeadListClient() {
                                     <TableCell className="font-medium">
                                         <div>
                                             {lead.firstName} {lead.lastName}
-                                            {lead.aiSummary && (
+                                            {lead.aiSummary && typeof lead.aiSummary === 'string' && !lead.aiSummary.includes('[object Object]') && (
                                                 <p className="text-xs text-muted-foreground font-normal line-clamp-1 mt-0.5">
                                                     {lead.aiSummary}
                                                 </p>

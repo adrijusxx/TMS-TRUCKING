@@ -27,6 +27,11 @@ const frequencyLabel: Record<string, string> = {
   ONE_TIME: 'One Time',
 };
 
+const scopeLabel = (rule: any): { label: string; variant: 'default' | 'secondary' | 'outline' } => {
+  if (rule.driverId) return { label: 'Driver-specific', variant: 'default' };
+  return { label: 'MC-Wide', variant: 'outline' };
+};
+
 const calcDisplay = (rule: any): string => {
   if (rule.calculationType === 'FIXED') return formatCurrency(rule.amount || 0);
   if (rule.calculationType === 'PERCENTAGE') return `${rule.percentage || 0}%`;
@@ -38,6 +43,12 @@ export default function DeductionTariffDialog({ deductionRules, driverId }: Dedu
   const rules = deductionRules || [];
   const deductions = rules.filter((r) => !r.isAddition);
   const additions = rules.filter((r) => r.isAddition);
+
+  // Compute which global rules are overridden by driver-specific rules of the same type
+  const driverSpecificTypes = new Set(
+    rules.filter(r => r.driverId).map(r => r.deductionType)
+  );
+  const isOverridden = (rule: any) => !rule.driverId && driverSpecificTypes.has(rule.deductionType);
 
   return (
     <Dialog>
@@ -60,22 +71,25 @@ export default function DeductionTariffDialog({ deductionRules, driverId }: Dedu
             {deductions.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium mb-2">Deductions ({deductions.length})</h4>
-                <RulesTable rules={deductions} />
+                <RulesTable rules={deductions} isOverridden={isOverridden} />
               </div>
             )}
 
             {additions.length > 0 && (
               <div className="mt-4">
                 <h4 className="text-sm font-medium mb-2">Additions ({additions.length})</h4>
-                <RulesTable rules={additions} />
+                <RulesTable rules={additions} isOverridden={isOverridden} />
               </div>
             )}
           </>
         )}
 
-        <div className="flex justify-end mt-4">
+        <div className="flex justify-between mt-4">
+          <Link href="/dashboard/accounting/salary?tab=scheduled">
+            <Button variant="outline" size="sm">MC-Wide Rules</Button>
+          </Link>
           <Link href={`/dashboard/drivers/${driverId}?tab=payroll`}>
-            <Button variant="outline" size="sm">Manage Rules</Button>
+            <Button variant="outline" size="sm">Driver Rules</Button>
           </Link>
         </div>
       </DialogContent>
@@ -83,13 +97,14 @@ export default function DeductionTariffDialog({ deductionRules, driverId }: Dedu
   );
 }
 
-function RulesTable({ rules }: { rules: any[] }) {
+function RulesTable({ rules, isOverridden }: { rules: any[]; isOverridden: (rule: any) => boolean }) {
   return (
     <div className="border rounded-lg overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
             <TableHead>Name</TableHead>
+            <TableHead>Scope</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Amount</TableHead>
             <TableHead>Frequency</TableHead>
@@ -99,8 +114,13 @@ function RulesTable({ rules }: { rules: any[] }) {
         </TableHeader>
         <TableBody>
           {rules.map((rule) => (
-            <TableRow key={rule.id}>
+            <TableRow key={rule.id} className={isOverridden(rule) ? 'opacity-50' : ''}>
               <TableCell className="font-medium">{rule.name}</TableCell>
+              <TableCell>
+                <Badge variant={scopeLabel(rule).variant}>
+                  {scopeLabel(rule).label}
+                </Badge>
+              </TableCell>
               <TableCell>{typeLabel(rule.deductionType)}</TableCell>
               <TableCell>{calcDisplay(rule)}</TableCell>
               <TableCell>{frequencyLabel[rule.frequency] || rule.frequency}</TableCell>
@@ -110,9 +130,13 @@ function RulesTable({ rules }: { rules: any[] }) {
                   : '-'}
               </TableCell>
               <TableCell>
-                <Badge variant={rule.isActive ? 'default' : 'outline'}>
-                  {rule.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+                {isOverridden(rule) ? (
+                  <Badge variant="outline">Overridden</Badge>
+                ) : (
+                  <Badge variant={rule.isActive ? 'default' : 'outline'}>
+                    {rule.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                )}
               </TableCell>
             </TableRow>
           ))}

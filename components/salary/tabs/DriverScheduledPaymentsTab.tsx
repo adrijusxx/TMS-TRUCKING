@@ -55,7 +55,6 @@ export default function DriverScheduledPaymentsTab() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   // Form state
-  const [driverId, setDriverId] = React.useState('');
   const [name, setName] = React.useState('');
   const [isAddition, setIsAddition] = React.useState(false);
   const [deductionType, setDeductionType] = React.useState('OTHER');
@@ -95,13 +94,12 @@ export default function DriverScheduledPaymentsTab() {
   const getDriverName = (rule: any) => {
     const driver = drivers.find((d: any) => d.id === rule.driverId);
     if (driver) return `${driver.user?.firstName || ''} ${driver.user?.lastName || ''}`.trim();
-    return rule.driverId ? 'Unknown' : 'Company-wide';
+    return rule.driverId ? 'Unknown' : 'MC-Wide';
   };
 
   const getScope = (rule: any): string => {
     if (rule.driverId) return 'Driver-specific';
-    if (rule.driverType) return typeLabel(rule.driverType);
-    return 'Company-wide';
+    return 'MC-Wide';
   };
 
   const enrichedRules = React.useMemo(() => scheduledRules.map((rule: any) => ({
@@ -148,7 +146,6 @@ export default function DriverScheduledPaymentsTab() {
           name,
           deductionType,
           isAddition,
-          driverId: driverId || undefined,
           calculationType,
           amount: calculationType === 'FIXED' ? parseFloat(amount) : undefined,
           percentage: calculationType === 'PERCENTAGE' ? parseFloat(percentage) : undefined,
@@ -189,7 +186,7 @@ export default function DriverScheduledPaymentsTab() {
   };
 
   const resetForm = () => {
-    setDriverId(''); setName(''); setIsAddition(false); setDeductionType('OTHER');
+    setName(''); setIsAddition(false); setDeductionType('OTHER');
     setCalculationType('FIXED'); setAmount(''); setPercentage(''); setPerMileRate('');
     setFrequency('PER_SETTLEMENT'); setGoalAmount('');
   };
@@ -204,7 +201,7 @@ export default function DriverScheduledPaymentsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Recurring driver deductions and additions applied per settlement
+          MC-wide recurring deductions and additions applied to all drivers per settlement
         </p>
         <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -216,19 +213,6 @@ export default function DriverScheduledPaymentsTab() {
               <DialogDescription>Set up a recurring deduction or addition for drivers.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label>Driver (optional — leave blank for company-wide)</Label>
-                <Select value={driverId} onValueChange={setDriverId}>
-                  <SelectTrigger><SelectValue placeholder="Select driver" /></SelectTrigger>
-                  <SelectContent>
-                    {drivers.map((d: any) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.user?.firstName} {d.user?.lastName} ({d.driverNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="grid gap-2">
                 <Label>Name</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Weekly insurance" />

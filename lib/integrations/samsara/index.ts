@@ -7,3 +7,4 @@ export * from './client';
 export * from './fleet';
 export * from './hos';
 export * from './telematics';
+export * from './geofences';

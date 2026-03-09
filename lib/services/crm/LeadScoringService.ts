@@ -100,9 +100,18 @@ Output a plain text 1-2 sentence brief. No JSON, no formatting.`;
             systemPrompt: 'You produce concise, factual summaries of trucking driver candidates. Output only the summary text.',
             temperature: 0.3,
             maxTokens: 100,
+            jsonMode: false,
         });
 
-        const summary = typeof result.data === 'string' ? result.data : String(result.data);
+        let summary: string;
+        if (typeof result.data === 'string') {
+            summary = result.data;
+        } else if (result.data && typeof result.data === 'object') {
+            const values = Object.values(result.data as Record<string, unknown>);
+            summary = String(values.find(v => typeof v === 'string') || values[0] || '');
+        } else {
+            summary = String(result.data ?? '');
+        }
 
         await prisma.lead.update({
             where: { id: leadId },
