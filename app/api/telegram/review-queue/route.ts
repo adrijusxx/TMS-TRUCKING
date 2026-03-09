@@ -55,12 +55,34 @@ export async function GET(request: NextRequest) {
             where: { companyId },
             select: { generalSettings: true },
         });
-        const cleanupDays = (companySettings?.generalSettings as any)?.telegram?.dismissedAutoCleanupDays || 0;
+        const telegramSettings = (companySettings?.generalSettings as any)?.telegram || {};
+        const cleanupDays = telegramSettings.dismissedAutoCleanupDays || 0;
         if (cleanupDays > 0) {
             const cleanupThreshold = new Date(Date.now() - cleanupDays * 24 * 60 * 60 * 1000);
             await prisma.telegramReviewItem.deleteMany({
                 where: { companyId, status: 'DISMISSED', resolvedAt: { lt: cleanupThreshold } },
             });
+        }
+
+        // Count-based auto-cleanup: keep at most N dismissed items
+        const dismissedCountLimit = telegramSettings.dismissedCountLimit ?? 250;
+        if (dismissedCountLimit > 0) {
+            const totalDismissed = await prisma.telegramReviewItem.count({
+                where: { companyId, status: 'DISMISSED' },
+            });
+            if (totalDismissed > dismissedCountLimit) {
+                const oldest = await prisma.telegramReviewItem.findMany({
+                    where: { companyId, status: 'DISMISSED' },
+                    orderBy: { resolvedAt: 'asc' },
+                    take: totalDismissed - dismissedCountLimit,
+                    select: { id: true },
+                });
+                if (oldest.length > 0) {
+                    await prisma.telegramReviewItem.deleteMany({
+                        where: { id: { in: oldest.map((r: { id: string }) => r.id) } },
+                    });
+                }
+            }
         }
 
         const [rawItems, total, counts, ignoredCount] = await Promise.all([

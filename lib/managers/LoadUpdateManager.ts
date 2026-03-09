@@ -4,7 +4,7 @@ import { hasPermission } from '@/lib/permissions';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 import { calculateOperatingCosts } from '@/lib/utils/calculateOperatingCosts';
 import { resolveMpg } from '@/lib/utils/resolveMpg';
-import { notifyLoadStatusChanged, notifyLoadAssigned } from '@/lib/notifications/triggers';
+import { notifyLoadStatusChanged, notifyLoadAssigned, notifyLoadDelivered, notifyLoadCancelled } from '@/lib/notifications';
 import { emitLoadStatusChanged, emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
 import { LoadCompletionManager } from '@/lib/managers/LoadCompletionManager';
 import { FinancialLockManager } from '@/lib/managers/FinancialLockManager';
@@ -271,6 +271,14 @@ export class LoadUpdateManager {
             await notifyLoadStatusChanged(load.id, existingLoad.status, validated.status, session.user.id);
             emitLoadStatusChanged(load.id, validated.status, load);
             emitDispatchUpdated({ type: 'load_status_changed', loadId: load.id, status: validated.status });
+
+            // Trigger specific notifications for key status transitions
+            if (validated.status === 'DELIVERED' && existingLoad.status !== 'DELIVERED') {
+                notifyLoadDelivered(load.id).catch(e => logger.error('Failed to send load delivered notification', { error: e instanceof Error ? e.message : String(e) }));
+            }
+            if (validated.status === 'CANCELLED' && existingLoad.status !== 'CANCELLED') {
+                notifyLoadCancelled(load.id).catch(e => logger.error('Failed to send load cancelled notification', { error: e instanceof Error ? e.message : String(e) }));
+            }
 
             // Emit Inngest event for async automation (invoice, settlement readiness)
             try {

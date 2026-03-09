@@ -8,7 +8,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { inngest } from '@/lib/inngest/client';
-import { notifyBillingHold } from '@/lib/notifications/triggers';
+import { notifyBillingHold } from '@/lib/notifications';
 import { LoadStatus } from '@prisma/client';
 import { logger } from '@/lib/utils/logger';
 

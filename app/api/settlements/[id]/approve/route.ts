@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { SettlementManager } from '@/lib/managers/SettlementManager';
+import { notifySettlementApproved } from '@/lib/notifications';
 import { z } from 'zod';
 
 const approvalSchema = z.object({
@@ -102,6 +103,9 @@ export async function PATCH(
         session.user.id,
         validated.notes || undefined
       );
+
+      // Send approval notification (non-blocking)
+      notifySettlementApproved(settlementId).catch(console.error);
 
       // Update payment details if provided
       if (validated.paymentMethod || validated.paymentReference) {

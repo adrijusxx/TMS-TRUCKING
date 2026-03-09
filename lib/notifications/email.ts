@@ -50,10 +50,19 @@ async function shouldSendEmail(
   const typeMap: Record<string, keyof typeof preferences> = {
     LOAD_ASSIGNED: 'loadAssigned',
     LOAD_UPDATED: 'loadUpdated',
+    LOAD_DELIVERED: 'loadDelivered',
+    LOAD_CANCELLED: 'loadCancelled',
     MAINTENANCE_DUE: 'maintenanceDue',
+    MAINTENANCE_COMPLETED: 'maintenanceCompleted',
     HOS_VIOLATION: 'hosViolation',
     DOCUMENT_EXPIRING: 'documentExpiring',
     INVOICE_PAID: 'invoicePaid',
+    INVOICE_CREATED: 'invoiceCreated',
+    INVOICE_OVERDUE: 'invoiceOverdue',
+    SETTLEMENT_APPROVED: 'settlementApproved',
+    SETTLEMENT_PAID: 'settlementPaid',
+    TRUCK_OUT_OF_SERVICE: 'truckOutOfService',
+    RATE_CON_MISSING: 'rateConMissing',
     SYSTEM_ALERT: 'systemAlert',
   };
 
@@ -196,6 +205,122 @@ export const emailTemplates = {
       </div>
     `,
     text: `System Alert: ${title} - ${message}`,
+  }),
+
+  loadDelivered: (loadNumber: string, deliveryCity: string, deliveryState: string) => ({
+    subject: `Load ${loadNumber} Delivered`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">Load Delivered</h2>
+        <p>Load <strong>${loadNumber}</strong> has been delivered to <strong>${deliveryCity}, ${deliveryState}</strong>.</p>
+      </div>
+    `,
+    text: `Load ${loadNumber} delivered to ${deliveryCity}, ${deliveryState}`,
+  }),
+
+  loadCancelled: (loadNumber: string) => ({
+    subject: `Load ${loadNumber} Cancelled`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">Load Cancelled</h2>
+        <p>Load <strong>${loadNumber}</strong> has been cancelled.</p>
+      </div>
+    `,
+    text: `Load ${loadNumber} has been cancelled`,
+  }),
+
+  invoiceCreated: (invoiceNumber: string, customerName: string, amount: number) => ({
+    subject: `Invoice ${invoiceNumber} Created`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Invoice Created</h2>
+        <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p><strong>Invoice:</strong> ${invoiceNumber}</p>
+          <p><strong>Customer:</strong> ${customerName}</p>
+          <p><strong>Amount:</strong> $${amount.toFixed(2)}</p>
+        </div>
+      </div>
+    `,
+    text: `Invoice ${invoiceNumber} created for ${customerName}: $${amount.toFixed(2)}`,
+  }),
+
+  invoiceOverdue: (invoiceNumber: string, customerName: string, amount: number, daysPastDue: number) => ({
+    subject: `Invoice ${invoiceNumber} Overdue`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">Invoice Overdue</h2>
+        <div style="background: #fee2e2; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p><strong>Invoice:</strong> ${invoiceNumber}</p>
+          <p><strong>Customer:</strong> ${customerName}</p>
+          <p><strong>Amount:</strong> $${amount.toFixed(2)}</p>
+          <p><strong>Days Past Due:</strong> ${daysPastDue}</p>
+        </div>
+      </div>
+    `,
+    text: `Invoice ${invoiceNumber} overdue by ${daysPastDue} days: $${amount.toFixed(2)}`,
+  }),
+
+  settlementApproved: (settlementNumber: string, netPay: number) => ({
+    subject: `Settlement ${settlementNumber} Approved`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">Settlement Approved</h2>
+        <p>Settlement <strong>${settlementNumber}</strong> has been approved.</p>
+        <div style="background: #d1fae5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p><strong>Net Pay:</strong> $${netPay.toFixed(2)}</p>
+        </div>
+      </div>
+    `,
+    text: `Settlement ${settlementNumber} approved. Net pay: $${netPay.toFixed(2)}`,
+  }),
+
+  settlementPaid: (settlementNumber: string, amount: number) => ({
+    subject: `Settlement ${settlementNumber} Paid`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">Settlement Paid</h2>
+        <p>Settlement <strong>${settlementNumber}</strong> has been paid.</p>
+        <div style="background: #d1fae5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p><strong>Amount:</strong> $${amount.toFixed(2)}</p>
+        </div>
+      </div>
+    `,
+    text: `Settlement ${settlementNumber} paid: $${amount.toFixed(2)}`,
+  }),
+
+  truckOutOfService: (truckNumber: string, reason?: string) => ({
+    subject: `Truck ${truckNumber} Out of Service`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">Truck Out of Service</h2>
+        <p>Truck <strong>${truckNumber}</strong> has been marked out of service.</p>
+        ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+      </div>
+    `,
+    text: `Truck ${truckNumber} out of service${reason ? `: ${reason}` : ''}`,
+  }),
+
+  rateConMissing: (loadNumber: string, customerName: string) => ({
+    subject: `Rate Con Missing: Load ${loadNumber}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #f59e0b;">Rate Confirmation Missing</h2>
+        <p>Load <strong>${loadNumber}</strong> (${customerName}) was delivered but has no rate confirmation document uploaded.</p>
+        <p>Please upload the rate confirmation as soon as possible.</p>
+      </div>
+    `,
+    text: `Rate con missing for load ${loadNumber} (${customerName})`,
+  }),
+
+  maintenanceCompleted: (truckNumber: string, maintenanceType: string) => ({
+    subject: `Maintenance Completed: ${truckNumber}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">Maintenance Completed</h2>
+        <p>${maintenanceType} maintenance on truck <strong>${truckNumber}</strong> has been completed.</p>
+      </div>
+    `,
+    text: `Maintenance completed: ${maintenanceType} on truck ${truckNumber}`,
   }),
 };
 

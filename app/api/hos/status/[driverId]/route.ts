@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { notifyHOSViolation } from '@/lib/notifications/triggers';
+import { notifyHOSViolation } from '@/lib/notifications';
 
 export async function GET(
   request: NextRequest,

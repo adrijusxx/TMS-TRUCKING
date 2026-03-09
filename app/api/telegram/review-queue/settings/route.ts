@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const settingsSchema = z.object({
-    dismissedAutoCleanupDays: z.number().min(0).max(365),
+    dismissedAutoCleanupDays: z.number().min(0).max(365).optional(),
+    dismissedCountLimit: z.number().min(0).max(10000).optional(),
 });
 
 /**
@@ -27,7 +28,10 @@ export async function GET() {
         const general = (settings?.generalSettings as any) || {};
         return NextResponse.json({
             success: true,
-            data: { dismissedAutoCleanupDays: general?.telegram?.dismissedAutoCleanupDays || 0 },
+            data: {
+                dismissedAutoCleanupDays: general?.telegram?.dismissedAutoCleanupDays || 0,
+                dismissedCountLimit: general?.telegram?.dismissedCountLimit ?? 250,
+            },
         });
     } catch (error) {
         console.error('[API] Error fetching review queue settings:', error);
@@ -61,7 +65,10 @@ export async function PATCH(request: NextRequest) {
         const existing = await prisma.companySettings.findUnique({ where: { companyId } });
         const general = (existing?.generalSettings as any) || {};
         const telegram = general.telegram || {};
-        telegram.dismissedAutoCleanupDays = parsed.data.dismissedAutoCleanupDays;
+        if (parsed.data.dismissedAutoCleanupDays !== undefined)
+            telegram.dismissedAutoCleanupDays = parsed.data.dismissedAutoCleanupDays;
+        if (parsed.data.dismissedCountLimit !== undefined)
+            telegram.dismissedCountLimit = parsed.data.dismissedCountLimit;
 
         await prisma.companySettings.upsert({
             where: { companyId },

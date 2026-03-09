@@ -5,7 +5,7 @@
  */
 
 import { prisma } from '../prisma';
-import { notifyDocumentExpiring } from '../notifications/triggers';
+import { notifyDocumentExpiring } from '../notifications';
 
 /**
  * Check for expiring driver documents

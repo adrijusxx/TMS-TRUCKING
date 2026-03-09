@@ -7,7 +7,7 @@ import { geocodeAddress } from '@/lib/maps/google-maps';
 import { haversineDistanceMiles } from '@/lib/utils/geo';
 
 const ACTIVE_STATUSES = [
-  'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY',
+  'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY',
 ] as const;
 
 const MAX_BATCH_SIZE = 50;
@@ -82,9 +82,16 @@ export async function GET(request: NextRequest) {
     const trackingCutoff = new Date();
     trackingCutoff.setDate(trackingCutoff.getDate() - 7);
 
+    const deliveryCutoff = new Date();
+    deliveryCutoff.setDate(deliveryCutoff.getDate() - 1);
+
     const recentLoads = loads.filter((load) => {
       const pickupStop = load.stops.find(s => s.stopType === 'PICKUP');
       if (pickupStop?.earliestArrival && new Date(pickupStop.earliestArrival) < trackingCutoff) {
+        return false;
+      }
+      const deliveryStop = [...load.stops].reverse().find(s => s.stopType === 'DELIVERY');
+      if (deliveryStop?.earliestArrival && new Date(deliveryStop.earliestArrival) < deliveryCutoff) {
         return false;
       }
       return true;

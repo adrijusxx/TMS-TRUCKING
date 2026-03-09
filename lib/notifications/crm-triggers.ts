@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '../prisma';
+import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
 
 /**
  * Get CRM notification preferences for a company.
@@ -56,6 +57,12 @@ export async function notifyFollowUpDue(
                 link: `/dashboard/crm/leads?search=${leadNumber}`,
             },
         });
+
+        await getMattermostNotificationService().notifyFollowUpDue({
+            leadName,
+            leadNumber,
+            note: followUpNote || undefined,
+        });
     } catch (error) {
         console.error('[CRM Notification] Follow-up due error:', error);
     }
@@ -94,6 +101,14 @@ export async function notifyLeadSLABreach(
                 },
             });
         }
+
+        await getMattermostNotificationService().notifyLeadSLABreach({
+            leadName,
+            leadNumber,
+            status,
+            daysSinceEntry,
+            threshold,
+        });
     } catch (error) {
         console.error('[CRM Notification] SLA breach error:', error);
     }
@@ -133,6 +148,11 @@ export async function notifyNewApplication(
         if (notifications.length > 0) {
             await prisma.notification.createMany({ data: notifications });
         }
+
+        await getMattermostNotificationService().notifyNewApplication({
+            leadName,
+            leadNumber,
+        });
     } catch (error) {
         console.error('[CRM Notification] New application error:', error);
     }

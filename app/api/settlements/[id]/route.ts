@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { recalculateSettlementTotals } from '@/lib/utils/settlement-recalc';
 import { resolveEntityParam } from '@/lib/utils/entity-resolver';
+import { notifySettlementPaid } from '@/lib/notifications';
 
 const updateSettlementSchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'PAID', 'DISPUTED']).optional(),
@@ -314,6 +315,11 @@ export async function PATCH(
       where: { id: resolved.id },
       data: updateData,
     });
+
+    // Send notification when settlement is marked as PAID
+    if (validated.status === 'PAID' && existing.status !== 'PAID') {
+      notifySettlementPaid(resolved.id).catch(console.error);
+    }
 
     // Recalculate totals when grossPay or loads change
     if (validated.grossPay !== undefined || validated.addLoadIds?.length || validated.removeLoadIds?.length) {

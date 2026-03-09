@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/prisma';
 
-type AlertCategory = 'dispatch' | 'safety' | 'maintenance' | 'accounting' | 'fleet';
+type AlertCategory = 'dispatch' | 'safety' | 'maintenance' | 'accounting' | 'fleet' | 'recruiting';
 
 export class MattermostNotificationService {
   // ── Channel routing ────────────────────────────────────────────
@@ -22,6 +22,7 @@ export class MattermostNotificationService {
       maintenance: settings.maintenanceChannelId,
       accounting: settings.accountingChannelId,
       fleet: settings.fleetChannelId,
+      recruiting: settings.recruitingChannelId,
     };
 
     return channelMap[category] || settings.notificationChannelId || null;
@@ -300,6 +301,200 @@ export class MattermostNotificationService {
       `**Idle:** ${Math.round(driver.idleHours)} hours without a load`;
 
     await this.postToChannel('fleet', message);
+  }
+
+  async notifyTruckOutOfService(truck: {
+    truckNumber: string;
+    reason?: string;
+  }): Promise<void> {
+    const message =
+      `### :no_entry: TRUCK OUT OF SERVICE\n\n` +
+      `**Truck:** ${truck.truckNumber}` +
+      (truck.reason ? `\n**Reason:** ${truck.reason}` : '');
+
+    await this.postToChannel('fleet', message);
+  }
+
+  // ── New dispatch alerts ──────────────────────────────────────
+
+  async notifyLoadDelivered(load: {
+    loadNumber: string;
+    customerName: string;
+    deliveryCity: string;
+    deliveryState: string;
+    driverName?: string;
+  }): Promise<void> {
+    const message =
+      `### :white_check_mark: LOAD DELIVERED\n\n` +
+      `**Load:** #${load.loadNumber}\n` +
+      `**Customer:** ${load.customerName}\n` +
+      `**Delivered to:** ${load.deliveryCity}, ${load.deliveryState}` +
+      (load.driverName ? `\n**Driver:** ${load.driverName}` : '');
+
+    await this.postToChannel('dispatch', message);
+  }
+
+  async notifyLoadCancelled(load: {
+    loadNumber: string;
+    customerName: string;
+    driverName?: string;
+  }): Promise<void> {
+    const message =
+      `### :x: LOAD CANCELLED\n\n` +
+      `**Load:** #${load.loadNumber}\n` +
+      `**Customer:** ${load.customerName}` +
+      (load.driverName ? `\n**Driver:** ${load.driverName}` : '');
+
+    await this.postToChannel('dispatch', message);
+  }
+
+  async notifyRateConMissing(load: {
+    loadNumber: string;
+    customerName: string;
+  }): Promise<void> {
+    const message =
+      `### :warning: RATE CON MISSING\n\n` +
+      `**Load:** #${load.loadNumber}\n` +
+      `**Customer:** ${load.customerName}\n\n` +
+      `Load delivered but no Rate Confirmation document uploaded.`;
+
+    await this.postToChannel('dispatch', message);
+  }
+
+  // ── New accounting alerts ────────────────────────────────────
+
+  async notifyInvoiceCreated(invoice: {
+    invoiceNumber: string;
+    customerName: string;
+    amount: number;
+  }): Promise<void> {
+    const message =
+      `### :receipt: INVOICE CREATED\n\n` +
+      `**Invoice:** ${invoice.invoiceNumber}\n` +
+      `**Customer:** ${invoice.customerName}\n` +
+      `**Amount:** $${invoice.amount.toFixed(2)}`;
+
+    await this.postToChannel('accounting', message);
+  }
+
+  async notifyInvoiceOverdue(invoice: {
+    invoiceNumber: string;
+    customerName: string;
+    amount: number;
+    daysPastDue: number;
+  }): Promise<void> {
+    const message =
+      `### :warning: INVOICE OVERDUE\n\n` +
+      `**Invoice:** ${invoice.invoiceNumber}\n` +
+      `**Customer:** ${invoice.customerName}\n` +
+      `**Amount:** $${invoice.amount.toFixed(2)}\n` +
+      `**Days Past Due:** ${invoice.daysPastDue}`;
+
+    await this.postToChannel('accounting', message);
+  }
+
+  async notifySettlementApproved(settlement: {
+    settlementNumber: string;
+    driverName: string;
+    netPay: number;
+  }): Promise<void> {
+    const message =
+      `### :white_check_mark: SETTLEMENT APPROVED\n\n` +
+      `**Settlement:** ${settlement.settlementNumber}\n` +
+      `**Driver:** ${settlement.driverName}\n` +
+      `**Net Pay:** $${settlement.netPay.toFixed(2)}`;
+
+    await this.postToChannel('accounting', message);
+  }
+
+  async notifySettlementPaid(settlement: {
+    settlementNumber: string;
+    driverName: string;
+    netPay: number;
+  }): Promise<void> {
+    const message =
+      `### :moneybag: SETTLEMENT PAID\n\n` +
+      `**Settlement:** ${settlement.settlementNumber}\n` +
+      `**Driver:** ${settlement.driverName}\n` +
+      `**Amount:** $${settlement.netPay.toFixed(2)}`;
+
+    await this.postToChannel('accounting', message);
+  }
+
+  // ── New maintenance alerts ───────────────────────────────────
+
+  async notifyMaintenanceDue(truck: {
+    truckNumber: string;
+    maintenanceType: string;
+    dueDate: string;
+  }): Promise<void> {
+    const message =
+      `### :wrench: MAINTENANCE DUE\n\n` +
+      `**Truck:** ${truck.truckNumber}\n` +
+      `**Type:** ${truck.maintenanceType}\n` +
+      `**Due:** ${truck.dueDate}`;
+
+    await this.postToChannel('maintenance', message);
+  }
+
+  async notifyMaintenanceCompleted(truck: {
+    truckNumber: string;
+    maintenanceType: string;
+  }): Promise<void> {
+    const message =
+      `### :white_check_mark: MAINTENANCE COMPLETED\n\n` +
+      `**Truck:** ${truck.truckNumber}\n` +
+      `**Type:** ${truck.maintenanceType}`;
+
+    await this.postToChannel('maintenance', message);
+  }
+
+  // ── Recruiting alerts ────────────────────────────────────────
+
+  async notifyFollowUpDue(lead: {
+    leadName: string;
+    leadNumber: string;
+    note?: string;
+  }): Promise<void> {
+    const message =
+      `### :bell: FOLLOW-UP DUE\n\n` +
+      `**Lead:** ${lead.leadName} (${lead.leadNumber})` +
+      (lead.note ? `\n**Note:** ${lead.note}` : '');
+
+    await this.postToChannel('recruiting', message);
+  }
+
+  async notifyLeadSLABreach(lead: {
+    leadName: string;
+    leadNumber: string;
+    status: string;
+    daysSinceEntry: number;
+    threshold: number;
+  }): Promise<void> {
+    const message =
+      `### :rotating_light: SLA BREACH\n\n` +
+      `**Lead:** ${lead.leadName} (${lead.leadNumber})\n` +
+      `**Stage:** ${lead.status.replace(/_/g, ' ')}\n` +
+      `**Days in Stage:** ${lead.daysSinceEntry} (SLA: ${lead.threshold})`;
+
+    await this.postToChannel('recruiting', message);
+  }
+
+  async notifyNewApplication(lead: {
+    leadName: string;
+    leadNumber: string;
+  }): Promise<void> {
+    const message =
+      `### :new: NEW DRIVER APPLICATION\n\n` +
+      `**Applicant:** ${lead.leadName}\n` +
+      `**Lead #:** ${lead.leadNumber}`;
+
+    await this.postToChannel('recruiting', message);
+  }
+
+  /** Post a custom digest message to a specific channel category */
+  async postDigest(category: AlertCategory, message: string): Promise<void> {
+    await this.postToChannel(category, message);
   }
 }
 

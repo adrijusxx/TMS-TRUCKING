@@ -1,58 +1,26 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-    ClipboardCheck, Loader2, MessageSquare, AlertTriangle, Wrench,
-    ShieldAlert, UserX, Clock, CheckCircle2, XCircle, Timer,
-    Phone, MapPin, Truck, Search, Ban,
+    ClipboardCheck, Loader2, AlertTriangle, Clock,
+    XCircle, Search, Ban, Archive, Zap,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
 import { apiUrl } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
-import ReviewItemActions from './ReviewItemActions';
+import { toast } from 'sonner';
+import ReviewItemRow from './ReviewItemRow';
+import type { ReviewItem } from './ReviewItemRow';
 import DismissedAdminControls from './DismissedAdminControls';
 import TelegramIgnoredContacts from './TelegramIgnoredContacts';
-
-interface ReviewItem {
-    id: string;
-    type: string;
-    status: string;
-    telegramChatId: string;
-    chatTitle?: string;
-    senderName?: string;
-    messageContent: string;
-    messageDate: string;
-    aiCategory?: string;
-    aiConfidence?: number;
-    aiUrgency?: string;
-    aiAnalysis?: any;
-    driverId?: string;
-    driver?: {
-        id: string;
-        user: { firstName: string; lastName: string; phone?: string };
-        currentTruck?: { id: string; truckNumber: string; currentLocation?: string };
-    };
-    suggestedDriverId?: string;
-    suggestedDriver?: {
-        id: string;
-        user: { firstName: string; lastName: string; phone?: string };
-        currentTruck?: { id: string; truckNumber: string };
-    };
-    matchConfidence?: number;
-    matchMethod?: string;
-    breakdown?: { id: string; breakdownNumber: string; status: string };
-    resolvedBy?: { firstName: string; lastName: string };
-    resolvedNote?: string;
-    resolvedAt?: string;
-    createdAt: string;
-}
 
 interface ReviewData {
     items: ReviewItem[];
@@ -60,21 +28,17 @@ interface ReviewData {
     pagination: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
-const URGENCY_COLORS: Record<string, string> = {
-    CRITICAL: 'bg-red-500/10 text-red-600 border-red-500/30',
-    HIGH: 'bg-orange-500/10 text-orange-600 border-orange-500/30',
-    MEDIUM: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30',
-    LOW: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
-};
-
-const CATEGORY_CONFIG: Record<string, { icon: typeof MessageSquare; color: string; bg: string }> = {
-    BREAKDOWN: { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-500/10 border-red-500/30' },
-    MAINTENANCE: { icon: Wrench, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/30' },
-    SAFETY: { icon: ShieldAlert, color: 'text-orange-500', bg: 'bg-orange-500/10 border-orange-500/30' },
+const STATUS_LABELS: Record<string, string> = {
+    PENDING: 'pending',
+    APPROVED: 'processed',
+    DISMISSED: 'dismissed',
+    IGNORED: 'ignored',
 };
 
 export default function TelegramReviewQueue() {
     const queryClient = useQueryClient();
+    const { data: session } = useSession();
+    const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes((session?.user as any)?.role);
     const [statusFilter, setStatusFilter] = useState<string>('PENDING');
     const [page, setPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState('');
@@ -93,7 +57,6 @@ export default function TelegramReviewQueue() {
         refetchInterval: 15000,
     });
 
-    // Fetch dialogs to resolve chat names (shares cache with TelegramFullWidget)
     const { data: dialogsData } = useQuery<{ success: boolean; data: { id: string; title: string; firstName?: string | null; lastName?: string | null }[] }>({
         queryKey: ['telegram-dialogs-full'],
         queryFn: async () => {
@@ -104,7 +67,37 @@ export default function TelegramReviewQueue() {
         staleTime: 60_000,
     });
 
-    // Build chatId → display name lookup from dialogs
+    // Auto-approve toggle state
+    const { data: telegramSettings } = useQuery({
+        queryKey: ['telegram-settings'],
+        queryFn: async () => {
+            const res = await fetch(apiUrl('/api/telegram/settings'));
+            if (!res.ok) return null;
+            return (await res.json()).data;
+        },
+        enabled: isAdmin,
+        staleTime: 30_000,
+    });
+
+    const requiresApproval = telegramSettings?.requireStaffApproval ?? true;
+
+    const toggleApprovalMutation = useMutation({
+        mutationFn: async (requireStaffApproval: boolean) => {
+            const res = await fetch(apiUrl('/api/telegram/settings'), {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...telegramSettings, requireStaffApproval }),
+            });
+            if (!res.ok) throw new Error('Failed to update');
+            return res.json();
+        },
+        onSuccess: (_, requireStaffApproval) => {
+            queryClient.invalidateQueries({ queryKey: ['telegram-settings'] });
+            toast.success(requireStaffApproval ? 'Manual review enabled' : 'Auto-approve enabled — cases will create without review');
+        },
+        onError: () => toast.error('Failed to update setting'),
+    });
+
     const chatNameMap = useMemo(() => {
         const map: Record<string, string> = {};
         for (const d of dialogsData?.data || []) {
@@ -136,6 +129,25 @@ export default function TelegramReviewQueue() {
                         <ClipboardCheck className="h-5 w-5" />
                         Telegram Review Queue
                     </CardTitle>
+                    {isAdmin && (
+                        <div className="flex items-center gap-2">
+                            <Switch
+                                checked={!requiresApproval}
+                                onCheckedChange={(checked) => toggleApprovalMutation.mutate(!checked)}
+                                disabled={toggleApprovalMutation.isPending}
+                                className="data-[state=checked]:bg-amber-500"
+                            />
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Zap className="h-3 w-3" />
+                                Auto-approve
+                                {!requiresApproval && (
+                                    <Badge variant="outline" className="ml-1 text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                        ON
+                                    </Badge>
+                                )}
+                            </span>
+                        </div>
+                    )}
                 </div>
                 <div className="relative max-w-sm">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -153,7 +165,7 @@ export default function TelegramReviewQueue() {
                             {counts.pending > 0 && <Badge variant="destructive" className="ml-1 h-5 text-[10px]">{counts.pending}</Badge>}
                         </TabsTrigger>
                         <TabsTrigger value="APPROVED" className="gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Approved
+                            <Archive className="h-3.5 w-3.5" /> Processed
                             {counts.approved > 0 && <Badge variant="secondary" className="ml-1 h-5 text-[10px]">{counts.approved}</Badge>}
                         </TabsTrigger>
                         <TabsTrigger value="DISMISSED" className="gap-1.5">
@@ -179,11 +191,28 @@ export default function TelegramReviewQueue() {
                                 onDeleted={() => queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] })}
                             />
                         )}
+
+                        {/* Auto-approve warning banner */}
+                        {statusFilter === 'PENDING' && !requiresApproval && (
+                            <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-700 dark:text-amber-400">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                <span>Auto-approve is ON. High-confidence messages create cases automatically without staff review.</span>
+                            </div>
+                        )}
+
+                        {/* Processed tab description */}
+                        {statusFilter === 'APPROVED' && (
+                            <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/20 text-xs text-muted-foreground">
+                                <Archive className="h-3.5 w-3.5 shrink-0" />
+                                <span>History of handled messages — cases were created or items were manually approved.</span>
+                            </div>
+                        )}
+
                         <ScrollArea className="h-[500px]">
                             {items.length === 0 ? (
                                 <div className="text-center py-12 text-muted-foreground">
                                     <ClipboardCheck className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                                    <p className="text-sm">No {statusFilter.toLowerCase()} items</p>
+                                    <p className="text-sm">No {STATUS_LABELS[statusFilter] || statusFilter.toLowerCase()} items</p>
                                 </div>
                             ) : (
                                 <div className="divide-y">
@@ -194,7 +223,6 @@ export default function TelegramReviewQueue() {
                             )}
                         </ScrollArea>
 
-                        {/* Pagination */}
                         {pagination && pagination.totalPages > 1 && (
                             <div className="flex items-center justify-between px-4 py-2 border-t">
                                 <span className="text-xs text-muted-foreground">
@@ -212,150 +240,5 @@ export default function TelegramReviewQueue() {
                 )}
             </CardContent>
         </Card>
-    );
-}
-
-function ExpiryTimer({ createdAt }: { createdAt: string }) {
-    const [remaining, setRemaining] = useState('');
-    const [isUrgent, setIsUrgent] = useState(false);
-
-    useEffect(() => {
-        function update() {
-            const expiresAt = new Date(createdAt).getTime() + 24 * 60 * 60 * 1000;
-            const diff = expiresAt - Date.now();
-            if (diff <= 0) {
-                setRemaining('Expired');
-                setIsUrgent(true);
-                return;
-            }
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            setRemaining(`${hours}h ${minutes}m`);
-            setIsUrgent(hours < 4);
-        }
-        update();
-        const interval = setInterval(update, 60_000);
-        return () => clearInterval(interval);
-    }, [createdAt]);
-
-    return (
-        <span className={`inline-flex items-center gap-1 text-[10px] ${isUrgent ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
-            <Timer className="h-3 w-3" />
-            {remaining}
-        </span>
-    );
-}
-
-function ReviewItemRow({ item, isPending, chatNameMap }: { item: ReviewItem; isPending: boolean; chatNameMap: Record<string, string> }) {
-    const queryClient = useQueryClient();
-    const catConfig = CATEGORY_CONFIG[item.aiCategory || ''];
-    const CategoryIcon = catConfig?.icon || MessageSquare;
-    const catColor = catConfig?.color || 'text-muted-foreground';
-    const catBg = catConfig?.bg || 'bg-muted/50 border-muted-foreground/20';
-    const urgencyClass = URGENCY_COLORS[item.aiUrgency || ''] || URGENCY_COLORS.LOW;
-    const displayName = item.senderName || item.chatTitle || chatNameMap[item.telegramChatId] || `Chat ${item.telegramChatId}`;
-    const isAutoCreated = item.resolvedNote?.startsWith('Auto-created');
-
-    return (
-        <div className="p-4 hover:bg-muted/30 transition-colors">
-            {/* Top row: type badge, sender, time */}
-            <div className="flex items-start justify-between gap-3 mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                    <Badge variant={item.type === 'DRIVER_LINK_NEEDED' ? 'destructive' : 'default'} className="text-[10px] shrink-0">
-                        {item.type === 'DRIVER_LINK_NEEDED' ? (
-                            <><UserX className="h-3 w-3 mr-0.5" /> No Driver</>
-                        ) : (
-                            <><ClipboardCheck className="h-3 w-3 mr-0.5" /> Needs Approval</>
-                        )}
-                    </Badge>
-                    <span className="font-medium text-sm truncate">
-                        {displayName}
-                    </span>
-                    {item.driver && (
-                        <>
-                            <Badge variant="outline" className="text-[10px] shrink-0">
-                                {item.driver.user.firstName} {item.driver.user.lastName}
-                            </Badge>
-                            {item.driver.user.phone && (
-                                <a href={`tel:${item.driver.user.phone}`} className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-primary shrink-0">
-                                    <Phone className="h-2.5 w-2.5" />
-                                    {item.driver.user.phone}
-                                </a>
-                            )}
-                        </>
-                    )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    {isPending && <ExpiryTimer createdAt={item.createdAt} />}
-                    <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
-                    </span>
-                </div>
-            </div>
-
-            {/* Message preview */}
-            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{item.messageContent}</p>
-
-            {/* AI badges + truck info */}
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <Badge variant="outline" className={`text-[10px] gap-1 border ${catBg}`}>
-                    <CategoryIcon className={`h-3 w-3 ${catColor}`} />
-                    <span className={catColor}>{item.aiCategory || 'Unknown'}</span>
-                </Badge>
-                {item.aiUrgency && (
-                    <Badge className={`text-[10px] border ${urgencyClass}`}>
-                        {item.aiUrgency}
-                    </Badge>
-                )}
-                {item.aiConfidence != null && (
-                    <span className="text-[10px] text-muted-foreground">
-                        {Math.round(item.aiConfidence * 100)}% confidence
-                    </span>
-                )}
-                {item.driver?.currentTruck && (
-                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <Truck className="h-2.5 w-2.5" />
-                        {item.driver.currentTruck.truckNumber}
-                        {item.driver.currentTruck.currentLocation && (
-                            <>
-                                <MapPin className="h-2.5 w-2.5 ml-1" />
-                                <span className="max-w-[200px] truncate">{item.driver.currentTruck.currentLocation}</span>
-                            </>
-                        )}
-                    </span>
-                )}
-            </div>
-
-            {/* Actions or resolution info */}
-            {isPending ? (
-                <ReviewItemActions
-                    item={item}
-                    onResolved={() => queryClient.invalidateQueries({ queryKey: ['telegram-review-queue'] })}
-                />
-            ) : (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                    {item.status === 'APPROVED' && item.breakdown && (
-                        <Badge variant="secondary" className="text-[10px]">
-                            Case {item.breakdown.breakdownNumber}
-                        </Badge>
-                    )}
-                    {isAutoCreated && (
-                        <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/30 gap-0.5">
-                            <CheckCircle2 className="h-2.5 w-2.5" />
-                            {item.resolvedNote?.includes('emergency') ? 'Emergency Auto-created' : 'Auto-created'}
-                        </Badge>
-                    )}
-                    {item.resolvedBy && !isAutoCreated && (
-                        <span>by {item.resolvedBy.firstName} {item.resolvedBy.lastName}</span>
-                    )}
-                    {item.resolvedAt && (
-                        <span>{formatDistanceToNow(new Date(item.resolvedAt), { addSuffix: true })}</span>
-                    )}
-                    {item.resolvedNote && !isAutoCreated && (
-                        <span className="italic">— {item.resolvedNote}</span>
-                    )}
-                </div>
-            )}
-        </div>
     );
 }

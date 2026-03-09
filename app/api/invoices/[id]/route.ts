@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { notifyInvoicePaid } from '@/lib/notifications/triggers';
+import { notifyInvoicePaid } from '@/lib/notifications';
 import { hasPermission } from '@/lib/permissions';
 import {
   INVOICE_DETAIL_SELECT,

@@ -5,6 +5,7 @@ import { updateTruckSchema } from '@/lib/validations/truck';
 import { z } from 'zod';
 import { hasPermission } from '@/lib/permissions';
 import { resolveEntityParam } from '@/lib/utils/entity-resolver';
+import { notifyTruckOutOfService } from '@/lib/notifications';
 
 export async function GET(
   request: NextRequest,
@@ -175,6 +176,12 @@ export async function PATCH(
         : new Date(validated.inspectionExpiry);
     }
 
+    // Fetch existing truck to detect status transition
+    const existingTruck = await prisma.truck.findUnique({
+      where: { id: resolved.id },
+      select: { status: true, truckNumber: true, companyId: true },
+    });
+
     const truck = await prisma.truck.update({
       where: { id: resolved.id },
       data: updateData,
@@ -193,6 +200,15 @@ export async function PATCH(
         },
       },
     });
+
+    // Notify when truck goes out of service
+    if (validated.status === 'OUT_OF_SERVICE' && existingTruck?.status !== 'OUT_OF_SERVICE') {
+      notifyTruckOutOfService({
+        truckId: resolved.id,
+        truckNumber: truck.truckNumber,
+        companyId: truck.companyId,
+      }).catch(console.error);
+    }
 
     return NextResponse.json({
       success: true,

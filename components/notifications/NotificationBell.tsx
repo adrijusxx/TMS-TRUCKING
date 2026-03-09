@@ -13,13 +13,16 @@ import {
   Bell,
   Truck,
   FileText,
-  Shield,
   DollarSign,
   AlertTriangle,
   Users,
   Wrench,
   Clock,
   ExternalLink,
+  CheckCircle2,
+  XCircle,
+  Receipt,
+  Ban,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime, apiUrl } from '@/lib/utils';
@@ -30,13 +33,22 @@ import { cn } from '@/lib/utils';
 const CATEGORY_MAP: Record<string, string> = {
   LOAD_ASSIGNED: 'loads',
   LOAD_UPDATED: 'loads',
+  LOAD_DELIVERED: 'loads',
+  LOAD_CANCELLED: 'loads',
   DETENTION_DETECTED: 'loads',
   BILLING_HOLD: 'loads',
+  RATE_CON_MISSING: 'loads',
   INVOICE_PAID: 'accounting',
+  INVOICE_CREATED: 'accounting',
+  INVOICE_OVERDUE: 'accounting',
   SETTLEMENT_GENERATED: 'accounting',
+  SETTLEMENT_APPROVED: 'accounting',
+  SETTLEMENT_PAID: 'accounting',
   MAINTENANCE_DUE: 'fleet',
+  MAINTENANCE_COMPLETED: 'fleet',
   DORMANT_EQUIPMENT: 'fleet',
   DRIVER_IDLE_ALERT: 'fleet',
+  TRUCK_OUT_OF_SERVICE: 'fleet',
   HOS_VIOLATION: 'safety',
   DOCUMENT_EXPIRING: 'safety',
   SYSTEM_ALERT: 'system',
@@ -64,13 +76,28 @@ function getTypeIcon(type: string) {
     case 'DETENTION_DETECTED':
     case 'BILLING_HOLD':
       return <Truck className="h-4 w-4 text-blue-500" />;
+    case 'LOAD_DELIVERED':
+      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case 'LOAD_CANCELLED':
+      return <XCircle className="h-4 w-4 text-red-500" />;
+    case 'RATE_CON_MISSING':
+      return <FileText className="h-4 w-4 text-amber-500" />;
     case 'INVOICE_PAID':
     case 'SETTLEMENT_GENERATED':
+    case 'SETTLEMENT_APPROVED':
+    case 'SETTLEMENT_PAID':
       return <DollarSign className="h-4 w-4 text-green-500" />;
+    case 'INVOICE_CREATED':
+      return <Receipt className="h-4 w-4 text-blue-500" />;
+    case 'INVOICE_OVERDUE':
+      return <DollarSign className="h-4 w-4 text-red-500" />;
     case 'MAINTENANCE_DUE':
+    case 'MAINTENANCE_COMPLETED':
     case 'DORMANT_EQUIPMENT':
     case 'DRIVER_IDLE_ALERT':
       return <Wrench className="h-4 w-4 text-orange-500" />;
+    case 'TRUCK_OUT_OF_SERVICE':
+      return <Ban className="h-4 w-4 text-red-500" />;
     case 'HOS_VIOLATION':
       return <Clock className="h-4 w-4 text-red-500" />;
     case 'DOCUMENT_EXPIRING':
@@ -254,7 +281,13 @@ export default function NotificationBell() {
                         )}
                       </div>
                     </div>
-                    {!notification.read && (
+                    {notification.priority === 'CRITICAL' && !notification.read && (
+                      <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse mt-1 flex-shrink-0" />
+                    )}
+                    {notification.priority === 'WARNING' && !notification.read && (
+                      <div className="h-2 w-2 rounded-full bg-amber-500 mt-1 flex-shrink-0" />
+                    )}
+                    {(!notification.priority || notification.priority === 'INFO') && !notification.read && (
                       <div className="h-2 w-2 rounded-full bg-blue-600 mt-1 flex-shrink-0" />
                     )}
                   </div>
@@ -263,6 +296,19 @@ export default function NotificationBell() {
             </div>
           )}
         </ScrollArea>
+        <div className="border-t p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-8 text-xs text-muted-foreground"
+            onClick={() => {
+              router.push('/dashboard/notifications');
+              setIsOpen(false);
+            }}
+          >
+            View All Notifications
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

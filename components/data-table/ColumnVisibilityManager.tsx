@@ -11,29 +11,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { Settings2, RotateCcw, Sparkles, Truck, DollarSign, Minimize2, Maximize2, Users, ShieldCheck, Wrench, Building2, Link, Headphones, Container } from 'lucide-react';
+import { Settings2, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 import type { ExtendedColumnDef, UserColumnPreferences } from './types';
 import type { VisibilityState } from '@tanstack/react-table';
-import { getPresetsForEntity, type ColumnPreset } from '@/lib/config/column-presets';
 
 import { visibilityStateToPreferences, columnOrderToPreferences } from '@/lib/utils/column-preferences';
-
-// Icon mapping for presets
-const iconMap: Record<string, React.ReactNode> = {
-  Truck: <Truck className="h-4 w-4 mr-2" />,
-  DollarSign: <DollarSign className="h-4 w-4 mr-2" />,
-  Minimize2: <Minimize2 className="h-4 w-4 mr-2" />,
-  Maximize2: <Maximize2 className="h-4 w-4 mr-2" />,
-  Users: <Users className="h-4 w-4 mr-2" />,
-  ShieldCheck: <ShieldCheck className="h-4 w-4 mr-2" />,
-  Wrench: <Wrench className="h-4 w-4 mr-2" />,
-  Building2: <Building2 className="h-4 w-4 mr-2" />,
-  Link: <Link className="h-4 w-4 mr-2" />,
-  Headphones: <Headphones className="h-4 w-4 mr-2" />,
-  Container: <Container className="h-4 w-4 mr-2" />,
-};
 
 interface ColumnVisibilityManagerProps<TData extends Record<string, any>> {
   columns: ExtendedColumnDef<TData>[];
@@ -57,10 +41,6 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
   columnOrder,
 }: ColumnVisibilityManagerProps<TData>) {
   const [isSaving, setIsSaving] = React.useState(false);
-  const [activePreset, setActivePreset] = React.useState<string | null>(null);
-
-  // Get presets for this entity
-  const presets = getPresetsForEntity(entityType);
 
   // Filter out columns that cannot be hidden
   const toggleableColumns = columns.filter(
@@ -70,38 +50,6 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
   const handleToggleColumn = async (columnId: string, visible: boolean) => {
     const newVisibility = { ...columnVisibility, [columnId]: visible };
     onColumnVisibilityChange(newVisibility);
-    setActivePreset(null); // Clear preset when manually toggling
-
-    if (savePreferences) {
-      await saveVisibilityPreferences(newVisibility);
-    }
-  };
-
-  const handleApplyPreset = async (preset: ColumnPreset) => {
-    // Build visibility state from preset
-    const newVisibility: VisibilityState = {};
-    const presetColumnsSet = new Set(preset.columns);
-
-    columns.forEach((col) => {
-      const columnId = col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : '');
-      if (columnId && col.required !== true) {
-        newVisibility[columnId] = presetColumnsSet.has(columnId);
-      }
-    });
-
-    onColumnVisibilityChange(newVisibility);
-
-    // Update column order if handler provided
-    if (onColumnOrderChange) {
-      const otherCols = columns
-        .map((col) => col.id || (typeof col.accessorKey === 'string' ? col.accessorKey : ''))
-        .filter((id) => id && !presetColumnsSet.has(id));
-
-      onColumnOrderChange([...preset.columns, ...otherCols]);
-    }
-
-    setActivePreset(preset.id);
-    toast.success(`Applied "${preset.name}" preset`);
 
     if (savePreferences) {
       await saveVisibilityPreferences(newVisibility);
@@ -120,7 +68,6 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
         preferences = columnOrderToPreferences(columnOrder, preferences);
       } else {
         // Fallback: simple visibility object if helpers fail or no order
-        // (Though visibilityStateToPreferences should work)
         if (Object.keys(preferences).length === 0) {
           const fallback: UserColumnPreferences = {};
           Object.keys(visibility).forEach((colId) => {
@@ -151,7 +98,6 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
     }
 
     onColumnVisibilityChange(defaultVisibility);
-    setActivePreset(null);
 
     if (savePreferences) {
       try {
@@ -181,32 +127,6 @@ export function ColumnVisibilityManager<TData extends Record<string, any>>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        {/* Presets Section */}
-        {presets.length > 0 && (
-          <>
-            <DropdownMenuLabel className="flex items-center gap-1">
-              <Sparkles className="h-3 w-3" />
-              Quick Presets
-            </DropdownMenuLabel>
-            {presets.map((preset) => (
-              <DropdownMenuItem
-                key={preset.id}
-                onClick={() => handleApplyPreset(preset)}
-                className={activePreset === preset.id ? 'bg-accent' : ''}
-              >
-                {preset.icon && iconMap[preset.icon]}
-                <div className="flex-1">
-                  <div className="font-medium">{preset.name}</div>
-                  {preset.description && (
-                    <div className="text-xs text-muted-foreground">{preset.description}</div>
-                  )}
-                </div>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-          </>
-        )}
-
         {/* Column Toggles */}
         <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
         <DropdownMenuSeparator />

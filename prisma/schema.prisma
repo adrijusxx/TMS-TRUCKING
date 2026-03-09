@@ -3720,16 +3720,23 @@ model AuditLog {
   @@index([createdAt])
 }
 
+enum NotificationPriority {
+  CRITICAL
+  WARNING
+  INFO
+}
+
 model Notification {
-  id        String           @id @default(cuid())
+  id        String               @id @default(cuid())
   userId    String
   type      NotificationType
+  priority  NotificationPriority @default(INFO)
   title     String
   message   String
   link      String?
-  read      Boolean          @default(false)
+  read      Boolean              @default(false)
   readAt    DateTime?
-  createdAt DateTime         @default(now())
+  createdAt DateTime             @default(now())
 
   @@index([userId])
   @@index([read])
@@ -3738,16 +3745,25 @@ model Notification {
 enum NotificationType {
   LOAD_ASSIGNED
   LOAD_UPDATED
+  LOAD_DELIVERED
+  LOAD_CANCELLED
   MAINTENANCE_DUE
+  MAINTENANCE_COMPLETED
   HOS_VIOLATION
   DOCUMENT_EXPIRING
   INVOICE_PAID
+  INVOICE_CREATED
+  INVOICE_OVERDUE
+  SETTLEMENT_APPROVED
+  SETTLEMENT_PAID
   SYSTEM_ALERT
   LEAD_FOLLOW_UP_DUE
   LEAD_SLA_ALERT
   LEAD_NEW_APPLICATION
   DORMANT_EQUIPMENT
   DRIVER_IDLE_ALERT
+  TRUCK_OUT_OF_SERVICE
+  RATE_CON_MISSING
 }
 
 model NotificationPreferences {
@@ -3759,13 +3775,22 @@ model NotificationPreferences {
   pushEnabled  Boolean @default(true)
 
   // Notification Type Preferences
-  loadAssigned     Boolean @default(true)
-  loadUpdated      Boolean @default(true)
-  maintenanceDue   Boolean @default(true)
-  hosViolation     Boolean @default(true)
-  documentExpiring Boolean @default(true)
-  invoicePaid      Boolean @default(true)
-  systemAlert      Boolean @default(true)
+  loadAssigned          Boolean @default(true)
+  loadUpdated           Boolean @default(true)
+  loadDelivered         Boolean @default(true)
+  loadCancelled         Boolean @default(true)
+  maintenanceDue        Boolean @default(true)
+  maintenanceCompleted  Boolean @default(true)
+  hosViolation          Boolean @default(true)
+  documentExpiring      Boolean @default(true)
+  invoicePaid           Boolean @default(true)
+  invoiceCreated        Boolean @default(true)
+  invoiceOverdue        Boolean @default(true)
+  settlementApproved    Boolean @default(true)
+  settlementPaid        Boolean @default(true)
+  truckOutOfService     Boolean @default(true)
+  rateConMissing        Boolean @default(true)
+  systemAlert           Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7831,6 +7856,7 @@ model MattermostSettings {
   maintenanceChannelId  String? // #maintenance — breakdowns, fault codes, SLA alerts
   accountingChannelId   String? // #accounting — invoices, settlements, billing holds
   fleetChannelId        String? // #fleet — dormant equipment, idle drivers
+  recruitingChannelId   String? // #recruiting — CRM leads, applications, SLA
 
   // Feature toggles
   autoCreateCases      Boolean @default(true)

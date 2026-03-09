@@ -11,6 +11,7 @@ import { InvoiceStatus, LoadStatus } from '@prisma/client';
 import { createActivityLog } from '../activity-log';
 import { logger } from '../utils/logger';
 import { ConsolidatedBillingManager } from '../managers/ConsolidatedBillingManager';
+import { notifyInvoiceCreated } from '../notifications';
 
 interface AutoInvoiceResult {
   success: boolean;
@@ -150,6 +151,9 @@ export async function autoGenerateInvoices(companyId: string): Promise<AutoInvoi
             ...factoringData,
           },
         });
+
+        // Send invoice created notification (non-blocking)
+        notifyInvoiceCreated(invoice.id).catch(e => logger.error('Failed to send invoice created notification', { error: e instanceof Error ? e.message : String(e) }));
 
         // Mark load as invoiced and ready for settlement
         const now = new Date();

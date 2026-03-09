@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { calculateDriverPay } from '@/lib/utils/calculateDriverPay';
 import { emitLoadAssigned, emitDispatchUpdated } from '@/lib/realtime/emitEvent';
-import { notifyLoadAssigned } from '@/lib/notifications/triggers';
+import { notifyLoadAssigned } from '@/lib/notifications';
 
 const assignLoadSchema = z.object({
   driverId: z.string().min(1, 'Driver is required').optional(),

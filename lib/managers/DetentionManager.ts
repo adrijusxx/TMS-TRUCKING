@@ -10,7 +10,7 @@
  * after running the migration to add detentionFreeTimeHours and detentionRate to Customer model.
  */
 import { prisma } from '@/lib/prisma';
-import { notifyDetentionDetected, notifyBillingHold } from '@/lib/notifications/triggers';
+import { notifyDetentionDetected, notifyBillingHold } from '@/lib/notifications';
 import { getMattermostNotificationService } from '../services/MattermostNotificationService';
 
 interface DetentionCheckResult {

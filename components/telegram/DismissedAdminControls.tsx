@@ -7,7 +7,7 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Trash2, Loader2, Settings2 } from 'lucide-react';
+import { Trash2, Loader2, Settings2, Database } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
 
@@ -23,7 +23,7 @@ export default function DismissedAdminControls({ dismissedCount, onDeleted }: Pr
         queryKey: ['telegram-review-cleanup-settings'],
         queryFn: async () => {
             const res = await fetch(apiUrl('/api/telegram/review-queue/settings'));
-            if (!res.ok) return { dismissedAutoCleanupDays: 0 };
+            if (!res.ok) return { dismissedAutoCleanupDays: 0, dismissedCountLimit: 250 };
             const json = await res.json();
             return json.data;
         },
@@ -44,26 +44,27 @@ export default function DismissedAdminControls({ dismissedCount, onDeleted }: Pr
     });
 
     const settingsMutation = useMutation({
-        mutationFn: async (days: number) => {
+        mutationFn: async (updates: { dismissedAutoCleanupDays?: number; dismissedCountLimit?: number }) => {
             const res = await fetch(apiUrl('/api/telegram/review-queue/settings'), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ dismissedAutoCleanupDays: days }),
+                body: JSON.stringify(updates),
             });
             if (!res.ok) throw new Error('Failed to save');
             return res.json();
         },
         onSuccess: () => {
-            toast.success('Auto-cleanup setting saved');
+            toast.success('Setting saved');
             queryClient.invalidateQueries({ queryKey: ['telegram-review-cleanup-settings'] });
         },
         onError: () => toast.error('Failed to save setting'),
     });
 
     const currentDays = settingsData?.dismissedAutoCleanupDays || 0;
+    const currentLimit = settingsData?.dismissedCountLimit ?? 250;
 
     return (
-        <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30">
+        <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 flex-wrap">
             <AlertDialog>
                 <AlertDialogTrigger asChild>
                     <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" disabled={dismissedCount === 0}>
@@ -89,26 +90,48 @@ export default function DismissedAdminControls({ dismissedCount, onDeleted }: Pr
                 </AlertDialogContent>
             </AlertDialog>
 
-            <div className="flex items-center gap-1.5 ml-auto">
-                <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Auto-delete after:</span>
-                <Select
-                    value={String(currentDays)}
-                    onValueChange={(v) => settingsMutation.mutate(Number(v))}
-                    disabled={settingsMutation.isPending}
-                >
-                    <SelectTrigger className="h-7 w-[100px] text-xs">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="0">Never</SelectItem>
-                        <SelectItem value="7">7 days</SelectItem>
-                        <SelectItem value="14">14 days</SelectItem>
-                        <SelectItem value="30">30 days</SelectItem>
-                        <SelectItem value="60">60 days</SelectItem>
-                        <SelectItem value="90">90 days</SelectItem>
-                    </SelectContent>
-                </Select>
+            <div className="flex items-center gap-4 ml-auto flex-wrap">
+                <div className="flex items-center gap-1.5">
+                    <Database className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Max stored:</span>
+                    <Select
+                        value={String(currentLimit)}
+                        onValueChange={(v) => settingsMutation.mutate({ dismissedCountLimit: Number(v) })}
+                        disabled={settingsMutation.isPending}
+                    >
+                        <SelectTrigger className="h-7 w-[100px] text-xs">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="0">Unlimited</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                            <SelectItem value="250">250</SelectItem>
+                            <SelectItem value="500">500</SelectItem>
+                            <SelectItem value="1000">1000</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Auto-delete after:</span>
+                    <Select
+                        value={String(currentDays)}
+                        onValueChange={(v) => settingsMutation.mutate({ dismissedAutoCleanupDays: Number(v) })}
+                        disabled={settingsMutation.isPending}
+                    >
+                        <SelectTrigger className="h-7 w-[100px] text-xs">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="0">Never</SelectItem>
+                            <SelectItem value="7">7 days</SelectItem>
+                            <SelectItem value="14">14 days</SelectItem>
+                            <SelectItem value="30">30 days</SelectItem>
+                            <SelectItem value="60">60 days</SelectItem>
+                            <SelectItem value="90">90 days</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
         </div>
     );

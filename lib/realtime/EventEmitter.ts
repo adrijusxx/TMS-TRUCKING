@@ -78,13 +78,18 @@ export const EventTypes = {
   LOAD_STATUS_CHANGED: 'load:status:changed',
   LOAD_ASSIGNED: 'load:assigned',
   LOAD_DELIVERED: 'load:delivered',
+  LOAD_CANCELLED: 'load:cancelled',
   DRIVER_LOCATION_UPDATED: 'driver:location:updated',
   DISPATCH_UPDATED: 'dispatch:updated',
   BREAKDOWN_REPORTED: 'breakdown:reported',
   BREAKDOWN_RESOLVED: 'breakdown:resolved',
   INVOICE_CREATED: 'invoice:created',
   INVOICE_PAID: 'invoice:paid',
+  INVOICE_OVERDUE: 'invoice:overdue',
   SETTLEMENT_GENERATED: 'settlement:generated',
+  SETTLEMENT_APPROVED: 'settlement:approved',
+  SETTLEMENT_PAID: 'settlement:paid',
+  TRUCK_OUT_OF_SERVICE: 'truck:out_of_service',
   NOTIFICATION: 'notification',
 } as const;
 

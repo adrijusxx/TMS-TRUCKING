@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest) {
         }
 
         // Check if user is admin
-        if ((session.user as any).role !== 'ADMIN') {
+        if (!['ADMIN', 'SUPER_ADMIN'].includes((session.user as any).role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 

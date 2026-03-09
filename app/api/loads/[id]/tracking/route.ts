@@ -7,7 +7,7 @@ import { geocodeAddress } from '@/lib/maps/google-maps';
 import { haversineDistanceMiles } from '@/lib/utils/geo';
 
 const ACTIVE_STATUSES = [
-  'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY',
+  'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY',
 ] as const;
 
 /**
@@ -71,6 +71,16 @@ export async function GET(
       cutoff.setDate(cutoff.getDate() - 7);
       if (new Date(pickupStop.earliestArrival) < cutoff) {
         return NextResponse.json({ success: true, data: noData('OUTSIDE_TRACKING_WINDOW') });
+      }
+    }
+
+    // Safety net: stop tracking 1 day after delivery date
+    const deliveryStop = [...load.stops].reverse().find(s => s.stopType === 'DELIVERY');
+    if (deliveryStop?.earliestArrival) {
+      const deliveryCutoff = new Date();
+      deliveryCutoff.setDate(deliveryCutoff.getDate() - 1);
+      if (new Date(deliveryStop.earliestArrival) < deliveryCutoff) {
+        return NextResponse.json({ success: true, data: noData('PAST_DELIVERY_CUTOFF') });
       }
     }
 

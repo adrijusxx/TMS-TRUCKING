@@ -244,6 +244,7 @@ const columns: ExtendedColumnDef<LoadData>[] = [
         loadId={row.original.id}
         loadStatus={row.original.status}
         pickupDate={row.original.pickupDate}
+        deliveryDate={row.original.deliveryDate}
         compact
       />
     ),
@@ -652,15 +653,12 @@ export const loadsTableConfig = createEntityTableConfig<LoadData>({
     'loadNumber',
     'status',
     'route',
-    'driver',
-    'truck',
-    'trailer',
-    'pickupDate',
-    'deliveryDate',
+    'customer',
+    'revenue',
     'rpmLoaded',
     'miles',
-    'dispatcher',
-    'mcNumber',
+    'pickupDate',
+    'deliveryDate',
   ],
   requiredColumns: ['loadNumber'],
   bulkEditFields,

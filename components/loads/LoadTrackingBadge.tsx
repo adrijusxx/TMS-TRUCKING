@@ -9,7 +9,7 @@ import { useLoadTracking, LoadTrackingData } from '@/hooks/useLoadTracking';
 const TRACKING_TOOLTIP = 'Live GPS via Samsara, updates every 30s. ETA based on current speed and distance. Green = On Time, Amber = At Risk, Red = Late.';
 
 const ACTIVE_STATUSES = new Set([
-  'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY', 'AT_DELIVERY',
+  'ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY',
 ]);
 
 const DEFAULT_TRACKING_WINDOW_DAYS = 7;
@@ -117,12 +117,20 @@ export default function LoadTrackingBadge({ tracking, isLoading, loadStatus, com
  * Self-fetching variant: accepts a loadId and fetches tracking data via the hook.
  * Used in table columns and dispatch board cards where data isn't pre-fetched.
  */
+function isPastDeliveryCutoff(deliveryDate: Date | string): boolean {
+  const delivery = new Date(deliveryDate);
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 1);
+  return delivery < cutoff;
+}
+
 export function SelfFetchingTrackingBadge({
-  loadId, loadStatus, pickupDate, compact,
-}: { loadId: string; loadStatus?: string; pickupDate?: Date | string | null; compact?: boolean }) {
+  loadId, loadStatus, pickupDate, deliveryDate, compact,
+}: { loadId: string; loadStatus?: string; pickupDate?: Date | string | null; deliveryDate?: Date | string | null; compact?: boolean }) {
   const isActive = !loadStatus || ACTIVE_STATUSES.has(loadStatus);
   const isRecent = !pickupDate || isWithinTrackingWindow(pickupDate);
-  const shouldTrack = isActive && isRecent;
+  const isNotPastDelivery = !deliveryDate || !isPastDeliveryCutoff(deliveryDate);
+  const shouldTrack = isActive && isRecent && isNotPastDelivery;
   const { data, isLoading } = useLoadTracking(loadId, shouldTrack);
 
   if (!shouldTrack) {
@@ -144,6 +152,13 @@ export function SelfFetchingTrackingBadge({
       return (
         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
           <Circle className="h-3 w-3" /> Pending
+        </span>
+      );
+    }
+    if (loadStatus === 'AT_DELIVERY') {
+      return (
+        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <MapPin className="h-3 w-3" /> At delivery
         </span>
       );
     }
