@@ -7,7 +7,6 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, Settings, Bot, MessageSquare, Shield, AlertTriangle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
-import { useMcFilter } from '@/lib/contexts/McFilterContext';
 import TelegramConnectionCard from '@/components/telegram/TelegramConnectionCard';
 import TelegramGeneralSettings from '@/components/telegram/TelegramGeneralSettings';
 import TelegramAISettings from '@/components/telegram/TelegramAISettings';
@@ -17,15 +16,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function TelegramIntegrationPage() {
     const queryClient = useQueryClient();
-    const { selectedMc } = useMcFilter();
 
     const { data: settingsData, isLoading: settingsLoading } = useQuery({
-        queryKey: ['telegram-settings', selectedMc?.id],
+        queryKey: ['telegram-settings'],
         queryFn: async () => {
-            const url = selectedMc?.id
-                ? apiUrl(`/api/telegram/settings?mcNumberId=${selectedMc.id}`)
-                : apiUrl('/api/telegram/settings');
-            const res = await fetch(url);
+            const res = await fetch(apiUrl('/api/telegram/settings'));
             if (!res.ok) throw new Error('Failed to fetch settings');
             return res.json();
         },
@@ -98,11 +93,11 @@ export default function TelegramIntegrationPage() {
                 onScopeChange={(scope) => updateMutation.mutate({ telegramScope: scope })}
             />
 
-            {scopeMode === 'MC' && selectedMc && (
+            {scopeMode === 'MC' && (
                 <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription className="text-xs">
-                        Viewing settings for <strong>{selectedMc.number || selectedMc.companyName}</strong>. Switch MC numbers using the top navigation to manage other connections.
+                        Per-MC mode is active. Settings and connection are scoped to your currently selected MC number. Switch MC numbers using the top navigation to manage other connections.
                     </AlertDescription>
                 </Alert>
             )}
