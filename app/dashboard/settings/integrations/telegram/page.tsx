@@ -50,8 +50,12 @@ export default function TelegramIntegrationPage() {
             if (!res.ok) throw new Error('Failed to update settings');
             return res.json();
         },
-        onSuccess: () => {
+        onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({ queryKey: ['telegram-settings'] });
+            // When scope changes, connection status may differ — refetch it
+            if (variables.telegramScope) {
+                queryClient.invalidateQueries({ queryKey: ['telegram-status'] });
+            }
             toast.success('Settings updated');
         },
         onError: (err: Error) => toast.error(err.message),

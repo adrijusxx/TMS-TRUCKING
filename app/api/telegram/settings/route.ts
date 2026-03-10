@@ -64,6 +64,45 @@ export async function PUT(request: NextRequest) {
 
         const user = session.user as any;
         const body = await request.json();
+
+        // telegramScope changes always target the company-level row directly
+        if (body.telegramScope) {
+            const companyWhere = { companyId: user.companyId, mcNumberId: null };
+            const existing = await prisma.telegramSettings.findFirst({ where: companyWhere });
+            if (existing) {
+                await prisma.telegramSettings.update({
+                    where: { id: existing.id },
+                    data: { telegramScope: body.telegramScope },
+                });
+            } else {
+                await prisma.telegramSettings.create({
+                    data: {
+                        ...companyWhere,
+                        telegramScope: body.telegramScope,
+                        autoCreateCases: true,
+                        aiAutoResponse: false,
+                        requireStaffApproval: true,
+                        confidenceThreshold: 0.8,
+                        aiProvider: 'OPENAI',
+                        timezone: 'America/Chicago',
+                        emergencyKeywords: DEFAULT_KEYWORDS,
+                    },
+                });
+            }
+            // Re-resolve scope with new preference and return updated settings
+            const newScope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+            let scopedSettings = await prisma.telegramSettings.findFirst({
+                where: buildTelegramScopeWhere(newScope),
+            });
+            // If MC-level settings don't exist yet, fall back to company-level row
+            if (!scopedSettings && newScope.mcNumberId) {
+                scopedSettings = await prisma.telegramSettings.findFirst({
+                    where: { companyId: user.companyId, mcNumberId: null },
+                });
+            }
+            return NextResponse.json({ data: { ...scopedSettings, scopeMode: newScope.mode } });
+        }
+
         const mcNumberId = body.mcNumberId || user.mcNumberId;
         const scope = await resolveTelegramScope(user.companyId, mcNumberId);
         const scopeWhere = buildTelegramScopeWhere(scope);
@@ -84,11 +123,6 @@ export async function PUT(request: NextRequest) {
             afterHoursMessage: body.afterHoursMessage,
             emergencyContactNumber: body.emergencyContactNumber,
         };
-
-        // telegramScope preference is only settable on the company-level row
-        if (body.telegramScope && !scope.mcNumberId) {
-            updateData.telegramScope = body.telegramScope;
-        }
 
         // Find existing or create
         const existing = await prisma.telegramSettings.findFirst({ where: scopeWhere });
@@ -114,7 +148,7 @@ export async function PUT(request: NextRequest) {
             });
         }
 
-        return NextResponse.json({ data: settings });
+        return NextResponse.json({ data: { ...settings, scopeMode: scope.mode } });
     } catch (error) {
         console.error('[API] Error updating Telegram settings:', error);
         return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
