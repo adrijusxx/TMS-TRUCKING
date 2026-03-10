@@ -9,7 +9,7 @@
 import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
 import { FleetMonitoringManager } from '@/lib/managers/fleet-monitoring/FleetMonitoringManager';
-import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
+import { routeDormantEquipment, routeDriverIdle } from '@/lib/notifications/mattermost-router';
 
 export const checkFleetDormancy = inngest.createFunction(
   {
@@ -80,7 +80,7 @@ export const checkFleetDormancy = inngest.createFunction(
           });
 
           // Post to Mattermost #fleet channel
-          await getMattermostNotificationService().notifyDormantEquipment({
+          await routeDormantEquipment({
             type: eq.type,
             number: eq.number,
             daysSinceLastLoad: eq.daysSinceLastLoad,
@@ -113,7 +113,7 @@ export const checkFleetDormancy = inngest.createFunction(
           });
 
           // Post to Mattermost #fleet channel
-          await getMattermostNotificationService().notifyDriverIdle({
+          await routeDriverIdle({
             driverName: driver.driverName,
             driverNumber: driver.driverNumber,
             idleHours: driver.idleHours,

@@ -6,7 +6,7 @@
  */
 
 import { prisma } from '../prisma';
-import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
+import { routeFollowUpDue, routeLeadSLABreach, routeNewApplication } from './mattermost-router';
 
 /**
  * Get CRM notification preferences for a company.
@@ -58,7 +58,7 @@ export async function notifyFollowUpDue(
             },
         });
 
-        await getMattermostNotificationService().notifyFollowUpDue({
+        await routeFollowUpDue({
             leadName,
             leadNumber,
             note: followUpNote || undefined,
@@ -102,7 +102,7 @@ export async function notifyLeadSLABreach(
             });
         }
 
-        await getMattermostNotificationService().notifyLeadSLABreach({
+        await routeLeadSLABreach({
             leadName,
             leadNumber,
             status,
@@ -149,7 +149,7 @@ export async function notifyNewApplication(
             await prisma.notification.createMany({ data: notifications });
         }
 
-        await getMattermostNotificationService().notifyNewApplication({
+        await routeNewApplication({
             leadName,
             leadNumber,
         });

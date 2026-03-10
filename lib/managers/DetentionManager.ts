@@ -11,7 +11,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { notifyDetentionDetected, notifyBillingHold } from '@/lib/notifications';
-import { getMattermostNotificationService } from '../services/MattermostNotificationService';
+import { routeDetentionStart } from '@/lib/notifications/mattermost-router';
 
 interface DetentionCheckResult {
   detentionDetected: boolean;
@@ -326,11 +326,10 @@ export class DetentionManager {
       }
     });
 
-    // Notify via Mattermost
-    const notificationService = getMattermostNotificationService();
+    // Notify via Mattermost (batched)
     const driverName = `${stop.load.driver?.user?.firstName || ''} ${stop.load.driver?.user?.lastName || ''}`.trim();
 
-    await notificationService.notifyDetentionStart({
+    await routeDetentionStart({
       loadNumber: stop.load.loadNumber,
       location: stop.company || stop.address,
       driverName: driverName || 'Unknown Driver'

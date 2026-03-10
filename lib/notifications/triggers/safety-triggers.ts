@@ -7,7 +7,7 @@
 import { sendNotificationEmail, emailTemplates } from '../email';
 import { createNotification, notifyUsersByRole } from '../helpers';
 import { prisma } from '../../prisma';
-import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
+import { routeHOSViolation, routeDocumentExpiring } from '../mattermost-router';
 
 /** Notify when an HOS violation is detected */
 export async function notifyHOSViolation(
@@ -50,7 +50,7 @@ export async function notifyHOSViolation(
       link: `/dashboard/drivers/${driver.driverNumber}`,
     });
 
-    await getMattermostNotificationService().notifyHOSViolation({
+    await routeHOSViolation({
       driverName,
       driverNumber: driver.driverNumber,
       violationType,
@@ -132,7 +132,7 @@ export async function notifyDocumentExpiring(
         : `/dashboard/trucks/${entityNumber}`,
     });
 
-    await getMattermostNotificationService().notifyDocumentExpiring({
+    await routeDocumentExpiring({
       entityType,
       entityName,
       documentType,

@@ -7,7 +7,7 @@
 import { sendNotificationEmail, emailTemplates } from '../email';
 import { createNotification, notifyUsersByRole } from '../helpers';
 import { prisma } from '../../prisma';
-import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
+import { routeMaintenanceDue, routeMaintenanceCompleted, routeTruckOutOfService } from '../mattermost-router';
 
 /** Notify when maintenance is due for a truck */
 export async function notifyMaintenanceDue(truckId: string, maintenanceType: string, dueDate: Date) {
@@ -49,8 +49,7 @@ export async function notifyMaintenanceDue(truckId: string, maintenanceType: str
       link: `/dashboard/trucks/${truck.truckNumber}`,
     });
 
-    // Previously missing Mattermost notification — now included
-    await getMattermostNotificationService().notifyMaintenanceDue({
+    await routeMaintenanceDue({
       truckNumber: truck.truckNumber,
       maintenanceType,
       dueDate: formattedDate,
@@ -77,7 +76,7 @@ export async function notifyMaintenanceCompleted(params: {
       link: `/dashboard/trucks/${params.truckNumber}`,
     });
 
-    await getMattermostNotificationService().notifyMaintenanceCompleted({
+    await routeMaintenanceCompleted({
       truckNumber: params.truckNumber,
       maintenanceType: params.maintenanceType,
     });
@@ -104,7 +103,7 @@ export async function notifyTruckOutOfService(params: {
       link: `/dashboard/trucks/${params.truckNumber}`,
     });
 
-    await getMattermostNotificationService().notifyTruckOutOfService({
+    await routeTruckOutOfService({
       truckNumber: params.truckNumber,
       reason: params.reason,
     });

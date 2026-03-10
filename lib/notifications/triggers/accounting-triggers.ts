@@ -8,7 +8,11 @@
 import { sendNotificationEmail, emailTemplates } from '../email';
 import { createNotification, notifyUsersByRole } from '../helpers';
 import { prisma } from '../../prisma';
-import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
+import {
+  routeInvoicePaid, routeInvoiceCreated, routeInvoiceOverdue,
+  routeSettlementReady, routeSettlementApproved, routeSettlementPaid,
+  routeDetentionDetected, routeBillingHold,
+} from '../mattermost-router';
 
 /** Notify when an invoice is paid */
 export async function notifyInvoicePaid(invoiceId: string) {
@@ -43,7 +47,7 @@ export async function notifyInvoicePaid(invoiceId: string) {
       });
     }
 
-    await getMattermostNotificationService().notifyInvoicePaid({
+    await routeInvoicePaid({
       invoiceNumber: invoice.invoiceNumber,
       customerName: invoice.customer.name,
       amount: Number(invoice.total),
@@ -72,7 +76,7 @@ export async function notifyInvoiceCreated(invoiceId: string) {
       link: `/dashboard/invoices/${invoice.invoiceNumber}`,
     });
 
-    await getMattermostNotificationService().notifyInvoiceCreated({
+    await routeInvoiceCreated({
       invoiceNumber: invoice.invoiceNumber,
       customerName: invoice.customer.name,
       amount: Number(invoice.total),
@@ -106,7 +110,7 @@ export async function notifyInvoiceOverdue(invoiceId: string) {
       link: `/dashboard/invoices/${invoice.invoiceNumber}`,
     });
 
-    await getMattermostNotificationService().notifyInvoiceOverdue({
+    await routeInvoiceOverdue({
       invoiceNumber: invoice.invoiceNumber,
       customerName: invoice.customer.name,
       amount: Number(invoice.total),
@@ -146,7 +150,7 @@ export async function notifySettlementGenerated(settlementId: string) {
       link: `/dashboard/settlements/${settlement.settlementNumber}`,
     });
 
-    await getMattermostNotificationService().notifySettlementReady({
+    await routeSettlementReady({
       settlementNumber: settlement.settlementNumber,
       driverName,
       netPay: Number(settlement.netPay),
@@ -187,7 +191,7 @@ export async function notifySettlementApproved(settlementId: string) {
       link: `/dashboard/settlements/${settlement.settlementNumber}`,
     });
 
-    await getMattermostNotificationService().notifySettlementApproved({
+    await routeSettlementApproved({
       settlementNumber: settlement.settlementNumber,
       driverName,
       netPay: Number(settlement.netPay),
@@ -228,7 +232,7 @@ export async function notifySettlementPaid(settlementId: string) {
       link: `/dashboard/settlements/${settlement.settlementNumber}`,
     });
 
-    await getMattermostNotificationService().notifySettlementPaid({
+    await routeSettlementPaid({
       settlementNumber: settlement.settlementNumber,
       driverName,
       netPay: Number(settlement.netPay),
@@ -284,7 +288,7 @@ export async function notifyDetentionDetected(params: {
       link: `/dashboard/loads/${params.loadNumber}`,
     });
 
-    await getMattermostNotificationService().notifyDetentionDetected({
+    await routeDetentionDetected({
       loadNumber: params.loadNumber,
       location: params.location,
       customerName: params.customerName,
@@ -329,7 +333,7 @@ export async function notifyBillingHold(params: {
       link: `/dashboard/loads/${params.loadNumber}`,
     });
 
-    await getMattermostNotificationService().notifyBillingHold({
+    await routeBillingHold({
       loadNumber: params.loadNumber,
       customerName: load.customer.name,
       reason: params.reason,

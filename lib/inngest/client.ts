@@ -130,6 +130,17 @@ export type InngestEvents = {
   'fleet/check-dormancy': {
     data: Record<string, never>;
   };
+
+  // Mattermost Batching Events
+  'mattermost/notification.queued': {
+    data: {
+      companyId?: string;
+      category: 'dispatch' | 'safety' | 'maintenance' | 'accounting' | 'fleet' | 'recruiting';
+      icon: string;
+      title: string;
+      lines: string[];
+    };
+  };
 };
 
 // Create the Inngest client

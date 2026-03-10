@@ -68,6 +68,7 @@ import { weeklyAutomation } from './weekly-automation';
 import { samsaraFaultSync } from './samsara-faults';
 import { checkTrialExpiration } from './check-trial-expiration';
 import { dailyDigest } from './daily-digest';
+import { mattermostBatchNotify } from './mattermost-batch';
 
 export { syncCrmLeads } from './sync-crm-leads';
 export { checkLeadFollowUps } from './check-lead-follow-ups';
@@ -88,6 +89,7 @@ export { weeklyAutomation } from './weekly-automation';
 export { samsaraFaultSync } from './samsara-faults';
 export { checkTrialExpiration } from './check-trial-expiration';
 export { dailyDigest } from './daily-digest';
+export { mattermostBatchNotify } from './mattermost-batch';
 
 export const allFunctions = [
   // Settlements
@@ -134,5 +136,7 @@ export const allFunctions = [
   checkTrialExpiration,
   // Daily Digest
   dailyDigest,
+  // Mattermost Batching
+  mattermostBatchNotify,
 ];
 

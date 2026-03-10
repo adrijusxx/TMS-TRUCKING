@@ -7,7 +7,10 @@
 import { sendNotificationEmail, emailTemplates } from '../email';
 import { createNotification, notifyUsersByRole } from '../helpers';
 import { prisma } from '../../prisma';
-import { getMattermostNotificationService } from '@/lib/services/MattermostNotificationService';
+import {
+  routeLoadAssigned, routeLoadStatusChanged, routeLoadDelivered,
+  routeLoadCancelled, routeRateConMissing,
+} from '../mattermost-router';
 
 /** Notify when a load is assigned to a driver */
 export async function notifyLoadAssigned(loadId: string, driverId: string) {
@@ -42,7 +45,7 @@ export async function notifyLoadAssigned(loadId: string, driverId: string) {
     });
 
     const driverName = `${load.driver.user?.firstName ?? ''} ${load.driver.user?.lastName ?? ''}`;
-    await getMattermostNotificationService().notifyLoadAssigned({
+    await routeLoadAssigned({
       loadNumber: load.loadNumber,
       driverName,
       pickupCity: load.pickupCity || 'N/A',
@@ -104,7 +107,7 @@ export async function notifyLoadStatusChanged(
     const driverName = load.driver?.user
       ? `${load.driver.user.firstName} ${load.driver.user.lastName}`
       : undefined;
-    await getMattermostNotificationService().notifyLoadStatusChanged({
+    await routeLoadStatusChanged({
       loadNumber: load.loadNumber,
       oldStatus,
       newStatus,
@@ -151,7 +154,7 @@ export async function notifyLoadDelivered(loadId: string) {
     const driverName = load.driver?.user
       ? `${load.driver.user.firstName} ${load.driver.user.lastName}`
       : undefined;
-    await getMattermostNotificationService().notifyLoadDelivered({
+    await routeLoadDelivered({
       loadNumber: load.loadNumber,
       customerName: load.customer.name,
       deliveryCity: load.deliveryCity || 'N/A',
@@ -211,7 +214,7 @@ export async function notifyLoadCancelled(loadId: string) {
     const driverName = load.driver?.user
       ? `${load.driver.user.firstName} ${load.driver.user.lastName}`
       : undefined;
-    await getMattermostNotificationService().notifyLoadCancelled({
+    await routeLoadCancelled({
       loadNumber: load.loadNumber,
       customerName: load.customer.name,
       driverName,
@@ -239,7 +242,7 @@ export async function notifyRateConMissing(
       link: `/dashboard/loads/${loadNumber}`,
     });
 
-    await getMattermostNotificationService().notifyRateConMissing({
+    await routeRateConMissing({
       loadNumber,
       customerName,
     });
