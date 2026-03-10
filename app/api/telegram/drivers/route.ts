@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * GET /api/telegram/drivers
@@ -13,13 +14,13 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const companyId = (session.user as any).companyId;
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
 
         const mappings = await prisma.telegramDriverMapping.findMany({
             where: {
-                driver: {
-                    companyId,
-                },
+                companyId: scope.companyId,
+                mcNumberId: scope.mcNumberId,
             },
             include: {
                 driver: {
@@ -75,9 +76,12 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+
         // Check if mapping already exists — update it if no driver linked yet, or if relinking
-        const existing = await prisma.telegramDriverMapping.findUnique({
-            where: { telegramId },
+        const existing = await prisma.telegramDriverMapping.findFirst({
+            where: { telegramId, companyId: scope.companyId, mcNumberId: scope.mcNumberId },
         });
 
         if (existing && existing.driverId && existing.driverId !== driverId) {
@@ -87,27 +91,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const driverInclude = { driver: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } } };
+
         const mapping = existing
             ? await prisma.telegramDriverMapping.update({
-                where: { telegramId },
+                where: { id: existing.id },
                 data: { driverId, username, phoneNumber, firstName, lastName, isActive: true },
-                include: {
-                    driver: {
-                        include: {
-                            user: { select: { firstName: true, lastName: true, phone: true } },
-                        },
-                    },
-                },
+                include: driverInclude,
             })
             : await prisma.telegramDriverMapping.create({
-                data: { driverId, telegramId, username, phoneNumber, firstName, lastName, isActive: true },
-                include: {
-                    driver: {
-                        include: {
-                            user: { select: { firstName: true, lastName: true, phone: true } },
-                        },
-                    },
+                data: {
+                    driverId, telegramId, username, phoneNumber, firstName, lastName, isActive: true,
+                    companyId: scope.companyId, mcNumberId: scope.mcNumberId,
                 },
+                include: driverInclude,
             });
 
         // Auto-unignore: if this contact was previously ignored, remove from ignore list

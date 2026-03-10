@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
         amount: validated.amount,
         percentage: validated.percentage,
         perMileRate: validated.perMileRate,
-        frequency: validated.frequency,
+        deductionFrequency: validated.frequency,
         goalAmount: validated.goalAmount,
         minGrossPay: validated.minGrossPay,
         maxAmount: validated.maxAmount,

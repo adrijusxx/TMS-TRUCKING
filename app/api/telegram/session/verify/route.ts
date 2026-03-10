@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getTelegramService } from '@/lib/services/TelegramService';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * POST /api/telegram/session/verify
@@ -27,7 +28,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const telegramService = getTelegramService();
+        const scope = await resolveTelegramScope((session.user as any).companyId, (session.user as any).mcNumberId);
+        const telegramService = getTelegramService(scope);
         await telegramService.verifyCode(code, phoneNumber);
 
         return NextResponse.json({

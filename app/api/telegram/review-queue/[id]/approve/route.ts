@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { TelegramCaseCreator } from '@/lib/managers/telegram/TelegramCaseCreator';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * POST /api/telegram/review-queue/[id]/approve
@@ -37,15 +38,24 @@ export async function POST(
 
         // Step 1: Link driver if needed
         if (item.type === 'DRIVER_LINK_NEEDED' && driverId) {
-            await prisma.telegramDriverMapping.upsert({
-                where: { telegramId: item.telegramChatId },
-                create: {
-                    telegramId: item.telegramChatId,
-                    driverId,
-                    isActive: true,
-                },
-                update: { driverId, isActive: true },
+            const user = session.user as any;
+            const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+            const existing = await prisma.telegramDriverMapping.findFirst({
+                where: { telegramId: item.telegramChatId, companyId: scope.companyId, mcNumberId: scope.mcNumberId },
             });
+            if (existing) {
+                await prisma.telegramDriverMapping.update({
+                    where: { id: existing.id },
+                    data: { driverId, isActive: true },
+                });
+            } else {
+                await prisma.telegramDriverMapping.create({
+                    data: {
+                        telegramId: item.telegramChatId, driverId, isActive: true,
+                        companyId: scope.companyId, mcNumberId: scope.mcNumberId,
+                    },
+                });
+            }
             linkedDriverId = driverId;
         }
 

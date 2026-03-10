@@ -11,7 +11,6 @@
  */
 
 import { prisma } from '../prisma';
-import { createActivityLog } from '../activity-log';
 import { LoadStatus } from '@prisma/client';
 
 /** Max days past pickup date before we consider a load stale and stop auto-updating */
@@ -27,135 +26,129 @@ export async function autoUpdateLoadStatuses(companyId: string) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Loads eligible for date-based auto-updates
+  // Only select fields needed for status determination — no joins
   const loadsToUpdate = await prisma.load.findMany({
     where: {
       companyId,
       deletedAt: null,
-      // Must have a driver assigned — unassigned loads shouldn't auto-progress
       driverId: { not: null },
       status: {
         in: ['ASSIGNED', 'EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED', 'EN_ROUTE_DELIVERY'],
       },
     },
-    include: {
-      driver: true,
-      truck: true,
+    select: {
+      id: true,
+      status: true,
+      loadNumber: true,
+      pickupDate: true,
+      deliveryDate: true,
+      pickupCity: true,
+      pickupState: true,
+      deliveryCity: true,
+      deliveryState: true,
+      createdAt: true,
     },
   });
 
-  const updates: Array<{ id: string; oldStatus: LoadStatus; newStatus: LoadStatus }> = [];
+  // Determine which loads need status changes (pure logic, no DB calls)
+  const pending: Array<{
+    id: string;
+    loadNumber: string;
+    oldStatus: LoadStatus;
+    newStatus: LoadStatus;
+    location: string;
+  }> = [];
 
   for (const load of loadsToUpdate) {
-    // Skip loads without required dates
     if (!load.pickupDate || !load.deliveryDate) continue;
 
     const pickupDate = new Date(load.pickupDate);
     const deliveryDate = new Date(load.deliveryDate);
-    const pickupDateOnly = new Date(
-      pickupDate.getFullYear(),
-      pickupDate.getMonth(),
-      pickupDate.getDate()
-    );
-    const deliveryDateOnly = new Date(
-      deliveryDate.getFullYear(),
-      deliveryDate.getMonth(),
-      deliveryDate.getDate()
-    );
+    const pickupDateOnly = new Date(pickupDate.getFullYear(), pickupDate.getMonth(), pickupDate.getDate());
+    const deliveryDateOnly = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate());
 
-    // Guard: Skip loads with stale pickup dates (> STALE_THRESHOLD_DAYS in the past)
-    // These are likely historical loads that shouldn't be auto-updated
     const daysSincePickup = Math.floor(
       (today.getTime() - pickupDateOnly.getTime()) / (1000 * 60 * 60 * 24)
     );
     if (daysSincePickup > STALE_THRESHOLD_DAYS) continue;
 
-    // Guard: Skip recently imported loads (give user time to review/correct)
     const hoursSinceCreation = (now.getTime() - new Date(load.createdAt).getTime()) / (1000 * 60 * 60);
     if (hoursSinceCreation < IMPORT_COOLDOWN_HOURS) continue;
 
-    // Guard: Delivery date must be >= pickup date (sanity check)
     if (deliveryDateOnly < pickupDateOnly) continue;
 
-    let newStatus: LoadStatus | null = null;
+    const newStatus = determineNewStatus(load.status as LoadStatus, pickupDateOnly, deliveryDateOnly, today);
+    if (!newStatus) continue;
 
-    // Auto-update based on dates — one step at a time
-    if (load.status === 'ASSIGNED') {
-      // If pickup date is today or past, mark as en route to pickup
-      if (pickupDateOnly <= today) {
-        newStatus = 'EN_ROUTE_PICKUP';
-      }
-    } else if (load.status === 'EN_ROUTE_PICKUP') {
-      // If pickup date is past, mark as at pickup
-      if (pickupDateOnly < today) {
-        newStatus = 'AT_PICKUP';
-      }
-    } else if (load.status === 'AT_PICKUP') {
-      // If pickup date is past, assume loaded
-      if (pickupDateOnly < today) {
-        newStatus = 'LOADED';
-      }
-    } else if (load.status === 'LOADED') {
-      // If delivery date is today or past, mark as en route to delivery
-      if (deliveryDateOnly <= today) {
-        newStatus = 'EN_ROUTE_DELIVERY';
-      }
-    } else if (load.status === 'EN_ROUTE_DELIVERY') {
-      // If delivery date is past, mark as at delivery
-      if (deliveryDateOnly < today) {
-        newStatus = 'AT_DELIVERY';
-      }
-    }
+    const isPickupPhase = ['EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED'].includes(newStatus);
+    const location = isPickupPhase
+      ? `${load.pickupCity}, ${load.pickupState}`
+      : `${load.deliveryCity}, ${load.deliveryState}`;
 
-    if (newStatus && newStatus !== load.status) {
-      await prisma.load.update({
-        where: { id: load.id },
-        data: { status: newStatus },
-      });
+    pending.push({ id: load.id, loadNumber: load.loadNumber, oldStatus: load.status as LoadStatus, newStatus, location });
+  }
 
-      // Use the correct location based on the status phase
-      const isPickupPhase = ['EN_ROUTE_PICKUP', 'AT_PICKUP', 'LOADED'].includes(newStatus);
-      const location = isPickupPhase
-        ? `${load.pickupCity}, ${load.pickupState}`
-        : `${load.deliveryCity}, ${load.deliveryState}`;
+  if (pending.length === 0) {
+    return { updated: 0, updates: [] };
+  }
 
-      // Create status history
-      await prisma.loadStatusHistory.create({
+  // Batch all writes in a single transaction to minimize DB round-trips
+  await prisma.$transaction(
+    pending.flatMap((p) => [
+      prisma.load.update({ where: { id: p.id }, data: { status: p.newStatus } }),
+      prisma.loadStatusHistory.create({
         data: {
-          loadId: load.id,
-          status: newStatus,
-          location,
+          loadId: p.id,
+          status: p.newStatus,
+          location: p.location,
           notes: 'Automated status update based on dates',
           createdBy: 'system',
         },
-      });
-
-      // Create activity log
-      await createActivityLog({
-        companyId,
-        action: 'STATUS_CHANGE',
-        entityType: 'Load',
-        entityId: load.id,
-        description: `Load ${load.loadNumber} status automatically updated from ${load.status} to ${newStatus}`,
-        metadata: {
-          oldStatus: load.status,
-          newStatus,
-          reason: 'automated_date_based_update',
+      }),
+      prisma.activityLog.create({
+        data: {
+          companyId,
+          action: 'STATUS_CHANGE',
+          entityType: 'Load',
+          entityId: p.id,
+          description: `Load ${p.loadNumber} status automatically updated from ${p.oldStatus} to ${p.newStatus}`,
+          metadata: {
+            oldStatus: p.oldStatus,
+            newStatus: p.newStatus,
+            reason: 'automated_date_based_update',
+          },
         },
-      });
-
-      updates.push({
-        id: load.id,
-        oldStatus: load.status,
-        newStatus,
-      });
-    }
-  }
+      }),
+    ])
+  );
 
   return {
-    updated: updates.length,
-    updates,
+    updated: pending.length,
+    updates: pending.map((p) => ({ id: p.id, oldStatus: p.oldStatus, newStatus: p.newStatus })),
   };
+}
+
+/** Determine the next status based on current status and dates */
+function determineNewStatus(
+  status: LoadStatus,
+  pickupDate: Date,
+  deliveryDate: Date,
+  today: Date
+): LoadStatus | null {
+  switch (status) {
+    case 'ASSIGNED':
+      return pickupDate <= today ? 'EN_ROUTE_PICKUP' : null;
+    case 'EN_ROUTE_PICKUP':
+      return pickupDate < today ? 'AT_PICKUP' : null;
+    case 'AT_PICKUP':
+      return pickupDate < today ? 'LOADED' : null;
+    case 'LOADED':
+      return deliveryDate <= today ? 'EN_ROUTE_DELIVERY' : null;
+    case 'EN_ROUTE_DELIVERY':
+      return deliveryDate < today ? 'AT_DELIVERY' : null;
+    default:
+      return null;
+  }
 }
 
 /**

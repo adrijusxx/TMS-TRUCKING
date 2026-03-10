@@ -224,8 +224,8 @@ When unsure set requiresHumanReview=true.`;
      * Get Telegram settings for the company
      */
     private async getSettings() {
-        let settings = await prisma.telegramSettings.findUnique({
-            where: { companyId: this.companyId },
+        let settings = await prisma.telegramSettings.findFirst({
+            where: { companyId: this.companyId, mcNumberId: null },
         });
 
         // Create default settings if not exists

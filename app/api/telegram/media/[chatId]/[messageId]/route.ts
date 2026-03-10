@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getTelegramService } from '@/lib/services/TelegramService';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * GET /api/telegram/media/[chatId]/[messageId]
@@ -18,7 +19,9 @@ export async function GET(
 
         const { chatId, messageId } = await params;
 
-        const telegramService = getTelegramService();
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+        const telegramService = getTelegramService(scope);
         const buffer = await telegramService.downloadMedia(chatId, parseInt(messageId));
 
         // Return the media file

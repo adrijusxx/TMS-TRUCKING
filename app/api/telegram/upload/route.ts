@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getTelegramService } from '@/lib/services/TelegramService';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * POST /api/telegram/upload
@@ -29,7 +30,9 @@ export async function POST(request: NextRequest) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        const telegramService = getTelegramService();
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+        const telegramService = getTelegramService(scope);
         const message = await telegramService.sendPhoto(chatId, buffer, caption || undefined);
 
         return NextResponse.json({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * DELETE /api/telegram/drivers/[telegramId]
@@ -17,18 +18,19 @@ export async function DELETE(
         }
 
         const { telegramId } = await params;
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
 
-        const existing = await prisma.telegramDriverMapping.findUnique({
-            where: { telegramId },
+        const existing = await prisma.telegramDriverMapping.findFirst({
+            where: { telegramId, companyId: scope.companyId, mcNumberId: scope.mcNumberId },
         });
 
         if (!existing) {
             return NextResponse.json({ error: 'Mapping not found' }, { status: 404 });
         }
 
-        // Clear the driver link but keep the mapping record (for AI toggle state etc.)
         await prisma.telegramDriverMapping.update({
-            where: { telegramId },
+            where: { id: existing.id },
             data: { driverId: null },
         });
 

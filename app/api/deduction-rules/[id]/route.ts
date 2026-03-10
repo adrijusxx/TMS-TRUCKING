@@ -104,7 +104,7 @@ export async function PATCH(
         amount: validated.amount,
         percentage: validated.percentage,
         perMileRate: validated.perMileRate,
-        frequency: validated.frequency,
+        deductionFrequency: validated.frequency,
         minGrossPay: validated.minGrossPay,
         maxAmount: validated.maxAmount,
         isActive: validated.isActive,

@@ -5,141 +5,194 @@ const styles = StyleSheet.create({
     page: {
         flexDirection: 'column',
         backgroundColor: '#FFFFFF',
-        padding: 40,
+        padding: 35,
         fontSize: 10,
         fontFamily: 'Helvetica',
     },
     header: {
-        marginBottom: 30,
-        borderBottom: '2 solid #000000',
-        paddingBottom: 15,
+        marginBottom: 20,
+        borderBottom: '2 solid #1F2937',
+        paddingBottom: 12,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
     },
     companyInfo: {
-        marginBottom: 20,
+        flex: 1,
     },
     companyName: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
-        marginBottom: 5,
+        color: '#111827',
+        marginBottom: 3,
+    },
+    companyDetail: {
+        fontSize: 8,
+        color: '#6B7280',
+        marginBottom: 1,
     },
     logo: {
-        width: 120,
-        height: 60,
-        marginBottom: 10,
+        width: 100,
+        height: 50,
         objectFit: 'contain',
     },
     settlementTitle: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: 'bold',
         textAlign: 'right',
-        marginBottom: 10,
+        color: '#111827',
     },
-    section: {
+    settlementNumber: {
+        fontSize: 10,
+        textAlign: 'right',
+        color: '#6B7280',
+        marginTop: 2,
+    },
+    // Info grid (settlement + driver side by side)
+    infoGrid: {
+        flexDirection: 'row',
         marginBottom: 20,
+        gap: 20,
+    },
+    infoBox: {
+        flex: 1,
+        padding: 10,
+        backgroundColor: '#F9FAFB',
+        borderRadius: 4,
+    },
+    infoBoxTitle: {
+        fontSize: 9,
+        fontWeight: 'bold',
+        color: '#6B7280',
+        textTransform: 'uppercase',
+        marginBottom: 6,
+        letterSpacing: 0.5,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        marginBottom: 3,
+    },
+    infoLabel: {
+        width: 70,
+        fontSize: 8,
+        color: '#6B7280',
+    },
+    infoValue: {
+        flex: 1,
+        fontSize: 9,
+        color: '#111827',
+    },
+    // Section
+    section: {
+        marginBottom: 16,
     },
     sectionTitle: {
-        fontSize: 14,
+        fontSize: 11,
         fontWeight: 'bold',
-        marginBottom: 10,
-        borderBottom: '1 solid #000000',
-        paddingBottom: 5,
+        color: '#374151',
+        marginBottom: 6,
+        borderBottom: '1 solid #E5E7EB',
+        paddingBottom: 4,
     },
-    row: {
-        flexDirection: 'row',
-        marginBottom: 5,
-    },
-    label: {
-        width: 150,
-        fontWeight: 'bold',
-    },
-    value: {
-        flex: 1,
-    },
+    // Table
     table: {
-        marginTop: 10,
-        marginBottom: 20,
+        marginBottom: 8,
     },
     tableHeader: {
         flexDirection: 'row',
         backgroundColor: '#F3F4F6',
-        padding: 8,
+        padding: 6,
         fontWeight: 'bold',
-        borderBottom: '1 solid #000000',
+        borderBottom: '1 solid #D1D5DB',
     },
     tableRow: {
         flexDirection: 'row',
-        padding: 8,
-        borderBottom: '1 solid #E5E7EB',
+        padding: 5,
+        borderBottom: '1 solid #F3F4F6',
+    },
+    tableRowAlt: {
+        flexDirection: 'row',
+        padding: 5,
+        borderBottom: '1 solid #F3F4F6',
+        backgroundColor: '#FAFAFA',
     },
     tableCell: {
-        flex: 1,
-        fontSize: 9,
-    },
-    tableCellNumber: {
-        width: 80,
-        textAlign: 'right',
-        fontSize: 9,
-    },
-    headersCellNumber: {
-        width: 80,
-        textAlign: 'right',
-        fontSize: 9,
-        fontWeight: 'bold',
-    },
-    tableCellSmall: {
-        width: 60,
         fontSize: 8,
+        color: '#374151',
     },
+    tableCellHeader: {
+        fontSize: 8,
+        fontWeight: 'bold',
+        color: '#374151',
+    },
+    tableCellRight: {
+        fontSize: 8,
+        color: '#374151',
+        textAlign: 'right',
+    },
+    tableCellHeaderRight: {
+        fontSize: 8,
+        fontWeight: 'bold',
+        color: '#374151',
+        textAlign: 'right',
+    },
+    // Financial summary
     totals: {
-        marginTop: 20,
         alignItems: 'flex-end',
+        marginTop: 15,
     },
     totalRow: {
         flexDirection: 'row',
-        width: 250,
-        marginBottom: 5,
-        padding: 5,
+        width: 220,
+        marginBottom: 3,
+        paddingVertical: 3,
+        paddingHorizontal: 8,
     },
     totalLabel: {
         flex: 1,
-        fontWeight: 'bold',
+        fontSize: 10,
+        color: '#374151',
     },
     totalValue: {
-        width: 100,
+        width: 90,
         textAlign: 'right',
+        fontSize: 10,
     },
     grandTotal: {
         flexDirection: 'row',
-        width: 250,
-        marginTop: 10,
+        width: 220,
+        marginTop: 6,
         padding: 10,
-        backgroundColor: '#F3F4F6',
-        borderTop: '2 solid #000000',
-        borderBottom: '2 solid #000000',
+        backgroundColor: '#ECFDF5',
+        borderRadius: 4,
+        border: '1 solid #10B981',
     },
     grandTotalLabel: {
         flex: 1,
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: 'bold',
+        color: '#059669',
     },
     grandTotalValue: {
-        width: 100,
+        width: 90,
         textAlign: 'right',
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: 'bold',
     },
     footer: {
-        marginTop: 40,
-        paddingTop: 20,
+        marginTop: 'auto',
+        paddingTop: 10,
         borderTop: '1 solid #E5E7EB',
-        fontSize: 8,
-        color: '#6B7280',
+        fontSize: 7,
+        color: '#9CA3AF',
     },
-    negative: {
-        color: '#DC2626',
-    },
-    positive: {
-        color: '#16A34A',
+    negative: { color: '#DC2626' },
+    positive: { color: '#059669' },
+    badge: {
+        fontSize: 7,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 2,
+        color: '#FFFFFF',
     },
 });
 
@@ -154,43 +207,64 @@ interface SettlementPDFProps {
 }
 
 export function SettlementPDF({ settlement, company, driver, loads, deductionItems, advances, deductionRules }: SettlementPDFProps) {
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-        }).format(amount);
-    };
+    const fmt = (amount: number) =>
+        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
-    const formatDate = (date: Date | string) => {
-        return new Date(date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        });
-    };
+    const fmtDate = (date: Date | string) =>
+        new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-    const formatPayType = (payType: string, payRate: number) => {
+    const fmtShortDate = (date: Date | string) =>
+        new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    const fmtPayType = (payType: string, payRate: number) => {
         switch (payType) {
-            case 'PER_MILE':
-                return `${formatCurrency(payRate)}/mile`;
-            case 'PERCENTAGE':
-                return `${payRate}% of revenue`;
-            case 'PER_LOAD':
-                return `${formatCurrency(payRate)}/load`;
-            case 'HOURLY':
-                return `${formatCurrency(payRate)}/hour`;
-            default:
-                return 'N/A';
+            case 'PER_MILE': return `${fmt(payRate)}/mile`;
+            case 'PERCENTAGE': return `${payRate}%`;
+            case 'PER_LOAD': return `${fmt(payRate)}/load`;
+            case 'HOURLY': return `${fmt(payRate)}/hr`;
+            default: return 'N/A';
         }
     };
 
-    const totalMiles = loads.reduce((sum: number, load: any) => {
-        return sum + (load.totalMiles || load.loadedMiles || load.emptyMiles || 0);
-    }, 0);
+    const totalMiles = loads.reduce((s, l) => s + (l.totalMiles || l.loadedMiles || l.emptyMiles || 0), 0);
+    const loadedMiles = loads.reduce((s, l) => s + (l.loadedMiles || 0), 0);
 
-    const loadedMiles = loads.reduce((sum: number, load: any) => {
-        return sum + (load.loadedMiles || 0);
-    }, 0);
+    // Separate deduction rules into deductions vs additions
+    const recurringDeductions = deductionRules.filter((r: any) => !r.isAddition);
+    const recurringAdditions = deductionRules.filter((r: any) => r.isAddition);
+
+    // Separate deduction items into actual deductions vs additions
+    const actualDeductions = deductionItems.filter((d: any) => d.category !== 'addition');
+    const actualAdditions = deductionItems.filter((d: any) => d.category === 'addition');
+
+    const freqMap: Record<string, string> = {
+        WEEKLY: 'Weekly', MONTHLY: 'Monthly', BIWEEKLY: 'Bi-Weekly',
+        PER_SETTLEMENT: 'Per Settlement', ONE_TIME: 'One Time',
+    };
+
+    const typeLabel = (t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+    const renderRuleRow = (rule: any, index: number) => {
+        let amountDisplay = '';
+        if (rule.calculationType === 'FIXED' && rule.amount) amountDisplay = fmt(rule.amount);
+        else if (rule.calculationType === 'PERCENTAGE') amountDisplay = `${rule.percentage}%`;
+        else if (rule.calculationType === 'PER_MILE') amountDisplay = `${fmt(rule.perMileRate || 0)}/mi`;
+
+        const cleanName = rule.name.replace(/^Driver .*? - /, '');
+        const display = rule.deductionType === 'OTHER' ? cleanName : typeLabel(rule.deductionType);
+        const freq = freqMap[rule.deductionFrequency || rule.frequency] || rule.frequency || '';
+        const balance = rule.goalAmount
+            ? `${fmt(rule.currentAmount || 0)} / ${fmt(rule.goalAmount)}`
+            : '';
+
+        return (
+            <View key={rule.id || index} style={index % 2 ? styles.tableRowAlt : styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 2.5 }]}>{display}</Text>
+                <Text style={[styles.tableCell, { flex: 2 }]}>{balance || freq}</Text>
+                <Text style={[styles.tableCellRight, { flex: 1.5 }]}>{amountDisplay} / {freq}</Text>
+            </View>
+        );
+    };
 
     return (
         <Document>
@@ -198,181 +272,178 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.companyInfo}>
-                        {company && (
-                            <>
-                                {company.logoUrl && (
-                                    <Image style={styles.logo} src={company.logoUrl} />
-                                )}
-                                {!company.hideName && (
-                                    <Text style={styles.companyName}>{company.name || 'Trucking Company'}</Text>
-                                )}
-                                {company.address && <Text>{company.address}</Text>}
-                                {company.city && company.state && (
-                                    <Text>
-                                        {company.city}, {company.state} {company.zip}
-                                    </Text>
-                                )}
-                                {company.phone && <Text>Phone: {company.phone}</Text>}
-                                {company.email && <Text>Email: {company.email}</Text>}
-                            </>
+                        {company?.logoUrl && <Image style={styles.logo} src={company.logoUrl} />}
+                        {company && !company.hideName && (
+                            <Text style={styles.companyName}>{company.name || 'Trucking Company'}</Text>
+                        )}
+                        {company?.address && <Text style={styles.companyDetail}>{company.address}</Text>}
+                        {company?.city && company?.state && (
+                            <Text style={styles.companyDetail}>{company.city}, {company.state} {company.zip}</Text>
+                        )}
+                        {company?.phone && <Text style={styles.companyDetail}>{company.phone}</Text>}
+                    </View>
+                    <View>
+                        <Text style={styles.settlementTitle}>SETTLEMENT</Text>
+                        <Text style={styles.settlementNumber}>{settlement.settlementNumber}</Text>
+                    </View>
+                </View>
+
+                {/* Settlement + Driver Info Side by Side */}
+                <View style={styles.infoGrid}>
+                    <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxTitle}>Settlement</Text>
+                        <View style={styles.infoRow}>
+                            <Text style={styles.infoLabel}>Period:</Text>
+                            <Text style={styles.infoValue}>{fmtShortDate(settlement.periodStart)} - {fmtShortDate(settlement.periodEnd)}</Text>
+                        </View>
+                        <View style={styles.infoRow}>
+                            <Text style={styles.infoLabel}>Status:</Text>
+                            <Text style={styles.infoValue}>{settlement.status}</Text>
+                        </View>
+                        {settlement.paidDate && (
+                            <View style={styles.infoRow}>
+                                <Text style={styles.infoLabel}>Paid:</Text>
+                                <Text style={styles.infoValue}>{fmtDate(settlement.paidDate)}</Text>
+                            </View>
                         )}
                     </View>
-                    <Text style={styles.settlementTitle}>DRIVER SETTLEMENT</Text>
-                </View>
-
-                {/* Settlement Information */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Settlement Information</Text>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Settlement Number:</Text>
-                        <Text style={styles.value}>{settlement.settlementNumber}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Period:</Text>
-                        <Text style={styles.value}>
-                            {formatDate(settlement.periodStart)} - {formatDate(settlement.periodEnd)}
-                        </Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Status:</Text>
-                        <Text style={styles.value}>{settlement.status}</Text>
-                    </View>
-                    {settlement.paidDate && (
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Paid Date:</Text>
-                            <Text style={styles.value}>{formatDate(settlement.paidDate)}</Text>
+                    <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxTitle}>Driver</Text>
+                        <View style={styles.infoRow}>
+                            <Text style={styles.infoLabel}>Name:</Text>
+                            <Text style={styles.infoValue}>{driver.user.firstName} {driver.user.lastName}</Text>
                         </View>
-                    )}
-                </View>
-
-                {/* Driver Information */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Driver Information</Text>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Driver Name:</Text>
-                        <Text style={styles.value}>
-                            {driver.user.firstName} {driver.user.lastName}
-                        </Text>
-                    </View>
-                    {/* Driver Number hidden per request */}
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Email:</Text>
-                        <Text style={styles.value}>{driver.user.email}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Pay Rate:</Text>
-                        <Text style={styles.value}>{formatPayType(driver.payType, driver.payRate)}</Text>
-                    </View>
-                </View>
-
-                {/* Recurring Deductions Status */}
-                {deductionRules && deductionRules.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Recurring Deductions Status</Text>
-                        <View style={styles.table}>
-                            <View style={styles.tableHeader}>
-                                <Text style={[styles.tableCell, { flex: 2 }]}>Type</Text>
-                                <Text style={[styles.tableCell, { flex: 2 }]}>Balance / Limit</Text>
-                                <Text style={[styles.tableCellNumber, { flex: 1.5, textAlign: 'right', fontWeight: 'bold' }]}>Amount</Text>
+                        <View style={styles.infoRow}>
+                            <Text style={styles.infoLabel}>Pay Rate:</Text>
+                            <Text style={styles.infoValue}>{fmtPayType(driver.payType, driver.payRate)}</Text>
+                        </View>
+                        {driver.user.email && (
+                            <View style={styles.infoRow}>
+                                <Text style={styles.infoLabel}>Email:</Text>
+                                <Text style={styles.infoValue}>{driver.user.email}</Text>
                             </View>
-                            {deductionRules.map((rule: any, index: number) => {
-                                let amountDisplay = '';
-                                if (rule.calculationType === 'FIXED' && rule.amount) amountDisplay = formatCurrency(rule.amount);
-                                else if (rule.calculationType === 'PERCENTAGE') amountDisplay = `${rule.percentage}%`;
-                                else if (rule.calculationType === 'PER_MILE') amountDisplay = `${formatCurrency(rule.perMileRate)}/mi`;
-
-                                const cleanName = rule.name.replace(/^Driver .*? - /, '');
-                                const typeDisplay = rule.deductionType === 'OTHER' ? cleanName : rule.deductionType;
-
-                                const frequencyMap: Record<string, string> = {
-                                    WEEKLY: 'Weekly',
-                                    MONTHLY: 'Monthly',
-                                    BIWEEKLY: 'Bi-Weekly',
-                                    PER_SETTLEMENT: 'Per Settlement',
-                                    ONE_TIME: 'One Time'
-                                };
-                                const freqLabel = frequencyMap[rule.frequency] || rule.frequency || 'N/A';
-                                const balanceDisplay = rule.goalAmount ? `${formatCurrency(rule.currentAmount || 0)} / ${formatCurrency(rule.goalAmount)}` : freqLabel;
-                                const finalAmountDisplay = `${amountDisplay} / ${freqLabel}`;
-
-                                return (
-                                    <View key={rule.id || index} style={styles.tableRow}>
-                                        <Text style={[styles.tableCell, { flex: 2 }]}>{typeDisplay}</Text>
-                                        <Text style={[styles.tableCell, { flex: 2 }]}>{balanceDisplay}</Text>
-                                        <Text style={[styles.tableCellNumber, { flex: 1.5, textAlign: 'right' }]}>
-                                            {finalAmountDisplay}
-                                        </Text>
-                                    </View>
-                                );
-                            })}
-                        </View>
+                        )}
                     </View>
-                )}
+                </View>
 
                 {/* Loads Summary */}
-                {loads && loads.length > 0 && (
+                {loads.length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Loads Summary ({loads.length} loads)</Text>
                         <View style={styles.table}>
                             <View style={styles.tableHeader}>
-                                <Text style={[styles.tableCell, { width: 75 }]}>Load #</Text>
-                                <Text style={[styles.tableCell, { flex: 3 }]}>Route</Text>
-                                <Text style={[styles.tableCellNumber, { width: 70, fontWeight: 'bold' }]}>Miles</Text>
-                                <Text style={[styles.tableCellNumber, { width: 80, fontWeight: 'bold' }]}>Driver Pay</Text>
-                                <Text style={[styles.tableCellNumber, { width: 65, fontWeight: 'bold' }]}>Pickup</Text>
-                                <Text style={[styles.tableCellNumber, { width: 65, fontWeight: 'bold' }]}>Delivery</Text>
-                                <Text style={[styles.tableCellNumber, { width: 70, fontWeight: 'bold' }]}>Delivered</Text>
+                                <Text style={[styles.tableCellHeader, { width: 65 }]}>Load #</Text>
+                                <Text style={[styles.tableCellHeader, { flex: 2 }]}>Route</Text>
+                                <Text style={[styles.tableCellHeaderRight, { width: 50 }]}>Miles</Text>
+                                <Text style={[styles.tableCellHeaderRight, { width: 65 }]}>Driver Pay</Text>
+                                <Text style={[styles.tableCellHeaderRight, { width: 55 }]}>Pickup</Text>
+                                <Text style={[styles.tableCellHeaderRight, { width: 55 }]}>Delivery</Text>
+                                <Text style={[styles.tableCellHeaderRight, { width: 55 }]}>Delivered</Text>
                             </View>
-                            {loads.map((load: any, index: number) => (
-                                <View key={load.id || index} style={styles.tableRow}>
-                                    <Text style={[styles.tableCell, { width: 75 }]}>{load.loadNumber || 'N/A'}</Text>
-                                    <Text style={[styles.tableCell, { flex: 3, fontSize: 8 }]}>
+                            {loads.map((load: any, i: number) => (
+                                <View key={load.id || i} style={i % 2 ? styles.tableRowAlt : styles.tableRow} wrap={false}>
+                                    <Text style={[styles.tableCell, { width: 65, fontSize: 7 }]}>{load.loadNumber || 'N/A'}</Text>
+                                    <Text style={[styles.tableCell, { flex: 2, fontSize: 7 }]}>
                                         {load.pickupCity}, {load.pickupState} → {load.deliveryCity}, {load.deliveryState}
                                     </Text>
-                                    <Text style={[styles.tableCellNumber, { width: 70 }]}>
-                                        {load.totalMiles || load.loadedMiles || load.emptyMiles || 0}
+                                    <Text style={[styles.tableCellRight, { width: 50 }]}>
+                                        {(load.totalMiles || load.loadedMiles || load.emptyMiles || 0).toLocaleString()}
                                     </Text>
-                                    <Text style={[styles.tableCellNumber, { width: 80 }]}>
-                                        {formatCurrency(load.driverPay || 0)}
+                                    <Text style={[styles.tableCellRight, { width: 65 }]}>{fmt(load.driverPay || 0)}</Text>
+                                    <Text style={[styles.tableCellRight, { width: 55, fontSize: 7 }]}>
+                                        {load.pickupDate ? fmtShortDate(load.pickupDate) : '-'}
                                     </Text>
-                                    <Text style={[styles.tableCellNumber, { width: 65, fontSize: 7 }]}>
-                                        {load.pickupDate ? formatDate(load.pickupDate) : 'N/A'}
+                                    <Text style={[styles.tableCellRight, { width: 55, fontSize: 7 }]}>
+                                        {load.deliveryDate ? fmtShortDate(load.deliveryDate) : '-'}
                                     </Text>
-                                    <Text style={[styles.tableCellNumber, { width: 65, fontSize: 7 }]}>
-                                        {load.deliveryDate ? formatDate(load.deliveryDate) : 'N/A'}
-                                    </Text>
-                                    <Text style={[styles.tableCellNumber, { width: 70, fontSize: 8 }]}>
-                                        {load.deliveredAt ? formatDate(load.deliveredAt) : 'N/A'}
+                                    <Text style={[styles.tableCellRight, { width: 55, fontSize: 7 }]}>
+                                        {load.deliveredAt ? fmtShortDate(load.deliveredAt) : '-'}
                                     </Text>
                                 </View>
                             ))}
                         </View>
-                        <View style={styles.row}>
-                            <Text style={styles.label}>Total Miles:</Text>
-                            <Text style={styles.value}>{totalMiles.toLocaleString()} miles (Loaded: {loadedMiles.toLocaleString()})</Text>
+                        <Text style={{ fontSize: 8, color: '#6B7280' }}>
+                            Total: {totalMiles.toLocaleString()} miles (Loaded: {loadedMiles.toLocaleString()})
+                        </Text>
+                    </View>
+                )}
+
+                {/* Additions */}
+                {actualAdditions.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Additions</Text>
+                        <View style={styles.table}>
+                            <View style={styles.tableHeader}>
+                                <Text style={[styles.tableCellHeader, { flex: 3 }]}>Description</Text>
+                                <Text style={[styles.tableCellHeader, { flex: 2 }]}>Type</Text>
+                                <Text style={[styles.tableCellHeaderRight, { width: 80 }]}>Amount</Text>
+                            </View>
+                            {actualAdditions.map((item: any, i: number) => (
+                                <View key={item.id || i} style={i % 2 ? styles.tableRowAlt : styles.tableRow}>
+                                    <Text style={[styles.tableCell, { flex: 3 }]}>
+                                        {(item.description || '').replace(/^Driver .*? - /, '')}
+                                    </Text>
+                                    <Text style={[styles.tableCell, { flex: 2 }]}>{typeLabel(item.deductionType || '')}</Text>
+                                    <Text style={[styles.tableCellRight, { width: 80 }, styles.positive]}>
+                                        +{fmt(item.amount)}
+                                    </Text>
+                                </View>
+                            ))}
                         </View>
                     </View>
                 )}
 
                 {/* Deductions */}
-                {deductionItems && deductionItems.length > 0 && (
+                {actualDeductions.length > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Deductions</Text>
                         <View style={styles.table}>
                             <View style={styles.tableHeader}>
-                                <Text style={[styles.tableCell, { flex: 2 }]}>Description</Text>
-                                <Text style={[styles.tableCell, { width: 100 }]}>Type</Text>
-                                <Text style={[styles.tableCellNumber, { width: 80, fontWeight: 'bold' }]}>Amount</Text>
+                                <Text style={[styles.tableCellHeader, { flex: 3 }]}>Description</Text>
+                                <Text style={[styles.tableCellHeader, { flex: 2 }]}>Type</Text>
+                                <Text style={[styles.tableCellHeaderRight, { width: 80 }]}>Amount</Text>
                             </View>
-                            {deductionItems.map((deduction: any, index: number) => (
-                                <View key={deduction.id || index} style={styles.tableRow}>
-                                    <Text style={[styles.tableCell, { flex: 2 }]}>{deduction.description}</Text>
-                                    <Text style={[styles.tableCell, { width: 100 }]}>{deduction.description || deduction.deductionType}</Text>
-                                    <Text style={[styles.tableCellNumber, { width: 80 }]}>
-                                        {formatCurrency(deduction.amount)}
+                            {actualDeductions.map((item: any, i: number) => (
+                                <View key={item.id || i} style={i % 2 ? styles.tableRowAlt : styles.tableRow}>
+                                    <Text style={[styles.tableCell, { flex: 3 }]}>
+                                        {(item.description || '').replace(/^Driver .*? - /, '')}
+                                    </Text>
+                                    <Text style={[styles.tableCell, { flex: 2 }]}>{typeLabel(item.deductionType || '')}</Text>
+                                    <Text style={[styles.tableCellRight, { width: 80 }, styles.negative]}>
+                                        -{fmt(item.amount)}
                                     </Text>
                                 </View>
                             ))}
+                        </View>
+                    </View>
+                )}
+
+                {/* Recurring Deductions Status */}
+                {recurringDeductions.length > 0 && (
+                    <View style={styles.section} wrap={false}>
+                        <Text style={styles.sectionTitle}>Recurring Deductions</Text>
+                        <View style={styles.table}>
+                            <View style={styles.tableHeader}>
+                                <Text style={[styles.tableCellHeader, { flex: 2.5 }]}>Type</Text>
+                                <Text style={[styles.tableCellHeader, { flex: 2 }]}>Balance / Frequency</Text>
+                                <Text style={[styles.tableCellHeaderRight, { flex: 1.5 }]}>Amount</Text>
+                            </View>
+                            {recurringDeductions.map(renderRuleRow)}
+                        </View>
+                    </View>
+                )}
+
+                {/* Recurring Additions Status */}
+                {recurringAdditions.length > 0 && (
+                    <View style={styles.section} wrap={false}>
+                        <Text style={styles.sectionTitle}>Recurring Additions</Text>
+                        <View style={styles.table}>
+                            <View style={styles.tableHeader}>
+                                <Text style={[styles.tableCellHeader, { flex: 2.5 }]}>Type</Text>
+                                <Text style={[styles.tableCellHeader, { flex: 2 }]}>Balance / Frequency</Text>
+                                <Text style={[styles.tableCellHeaderRight, { flex: 1.5 }]}>Amount</Text>
+                            </View>
+                            {recurringAdditions.map(renderRuleRow)}
                         </View>
                     </View>
                 )}
@@ -382,14 +453,22 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                     <Text style={styles.sectionTitle}>Financial Summary</Text>
                     <View style={styles.totals}>
                         <View style={styles.totalRow}>
-                            <Text style={styles.totalLabel}>Gross Pay:</Text>
-                            <Text style={styles.totalValue}>{formatCurrency(settlement.grossPay)}</Text>
+                            <Text style={[styles.totalLabel, { fontWeight: 'bold' }]}>Gross Pay:</Text>
+                            <Text style={styles.totalValue}>{fmt(settlement.grossPay)}</Text>
                         </View>
+                        {actualAdditions.length > 0 && (
+                            <View style={styles.totalRow}>
+                                <Text style={styles.totalLabel}>Total Additions:</Text>
+                                <Text style={[styles.totalValue, styles.positive]}>
+                                    +{fmt(actualAdditions.reduce((s: number, d: any) => s + d.amount, 0))}
+                                </Text>
+                            </View>
+                        )}
                         {settlement.deductions > 0 && (
                             <View style={styles.totalRow}>
                                 <Text style={styles.totalLabel}>Total Deductions:</Text>
                                 <Text style={[styles.totalValue, styles.negative]}>
-                                    -{formatCurrency(settlement.deductions)}
+                                    -{fmt(settlement.deductions)}
                                 </Text>
                             </View>
                         )}
@@ -397,19 +476,14 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                             <View style={styles.totalRow}>
                                 <Text style={styles.totalLabel}>Advances:</Text>
                                 <Text style={[styles.totalValue, styles.negative]}>
-                                    -{formatCurrency(settlement.advances)}
+                                    -{fmt(settlement.advances)}
                                 </Text>
                             </View>
                         )}
                         <View style={styles.grandTotal}>
                             <Text style={styles.grandTotalLabel}>Net Pay:</Text>
-                            <Text
-                                style={[
-                                    styles.grandTotalValue,
-                                    settlement.netPay >= 0 ? styles.positive : styles.negative,
-                                ]}
-                            >
-                                {formatCurrency(settlement.netPay)}
+                            <Text style={[styles.grandTotalValue, settlement.netPay >= 0 ? styles.positive : styles.negative]}>
+                                {fmt(settlement.netPay)}
                             </Text>
                         </View>
                     </View>
@@ -419,19 +493,17 @@ export function SettlementPDF({ settlement, company, driver, loads, deductionIte
                 {settlement.notes && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Notes</Text>
-                        <Text>{settlement.notes}</Text>
+                        <Text style={{ fontSize: 9, color: '#4B5563' }}>{settlement.notes}</Text>
                     </View>
                 )}
 
                 {/* Footer */}
                 <View style={styles.footer}>
                     {(!company || !company.hideFooter) && (
-                        <Text>This settlement statement was generated on {formatDate(new Date())}</Text>
+                        <Text>Generated on {fmtDate(new Date())} | All amounts in USD</Text>
                     )}
-                    {company && company.name && !company.hideName && (!company.hideFooter) && (
-                        <Text style={{ marginTop: 5 }}>
-                            Generated by {company.name} - All amounts are in USD
-                        </Text>
+                    {company?.name && !company.hideName && !company.hideFooter && (
+                        <Text style={{ marginTop: 2 }}>{company.name}</Text>
                     )}
                 </View>
             </Page>

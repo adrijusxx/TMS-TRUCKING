@@ -76,12 +76,6 @@ export async function GET(
       );
     }
 
-    // Debug logging for PDF categories
-    console.log('[PDF] Fetching settlement items:', settlement.deductionItems.length);
-    settlement.deductionItems.forEach(item => {
-      console.log(`[PDF] Item: ${item.description}, Type: ${item.deductionType}, Category: ${item.category}, Amount: ${item.amount}`);
-    });
-
     // Fetch company information
     const company = await prisma.company.findUnique({
       where: { id: session.user.companyId },
@@ -102,17 +96,13 @@ export async function GET(
       return url;
     };
 
-    // Attempt to find MC Number from driver
-    console.log('[Settlement PDF] Driver ID:', settlement.driver.id);
-    console.log('[Settlement PDF] Driver MC ID:', settlement.driver.mcNumberId);
-
+    // Attempt to find MC Number from driver for branding
     if (settlement.driver && settlement.driver.mcNumberId) {
       const mcNumber = await prisma.mcNumber.findUnique({
         where: { id: settlement.driver.mcNumberId }
       });
 
       if (mcNumber) {
-        console.log('[Settlement PDF] Found MC Number:', mcNumber.number);
         const branding = mcNumber.branding ? (typeof mcNumber.branding === 'string' ? JSON.parse(mcNumber.branding) : mcNumber.branding) : {};
 
         // Override fields
@@ -125,15 +115,12 @@ export async function GET(
         if (mcNumber.companyName) brandingCompany.name = mcNumber.companyName;
 
         if (branding.hideCompanyName) {
-          console.log('[Settlement PDF] Hiding Company Name');
           brandingCompany.hideName = true;
         }
         if (branding.hideFooter) {
           brandingCompany.hideFooter = true;
         }
       }
-    } else {
-      console.log('[Settlement PDF] No MC ID found on driver.');
     }
 
     // Process the final logo URL (whether from company or MC override)
@@ -178,25 +165,35 @@ export async function GET(
       },
     });
 
-    // Fetch deduction rules for Recurring Status (Mirroring UI)
+    // Fetch deduction rules for this specific driver (driver-specific + MC-wide inherited)
     const deductionRules = await prisma.deductionRule.findMany({
       where: {
         companyId: settlement.driver.companyId,
         isActive: true,
         OR: [
-          { driverType: null },
-          { driverType: settlement.driver.driverType || undefined },
+          { driverId: settlement.driver.id },
+          {
+            driverId: null,
+            ...(settlement.driver.mcNumberId ? { mcNumberId: settlement.driver.mcNumberId } : {}),
+            OR: [
+              { driverType: null },
+              { driverType: settlement.driver.driverType || undefined },
+            ],
+          },
         ],
       },
       select: {
         id: true,
         name: true,
         deductionType: true,
+        isAddition: true,
+        driverId: true,
         amount: true,
         calculationType: true,
         percentage: true,
         perMileRate: true,
         frequency: true,
+        deductionFrequency: true,
         goalAmount: true,
         currentAmount: true,
       },

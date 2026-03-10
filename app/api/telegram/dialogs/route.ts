@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getTelegramService } from '@/lib/services/TelegramService';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * GET /api/telegram/dialogs
@@ -16,7 +17,9 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '50');
 
-        const telegramService = getTelegramService();
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+        const telegramService = getTelegramService(scope);
 
         // Auto-reconnect if we have a saved session
         const connected = await telegramService.autoConnect();

@@ -102,6 +102,7 @@ export async function GET(
             year: true,
             vin: true,
             licensePlate: true,
+            samsaraId: true,
           },
         },
         load: {

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { DriverStatus } from '@prisma/client';
 import {
+  getSamsaraConfig,
   getSamsaraDrivers,
   getSamsaraHOSStatuses,
   getSamsaraVehicles,
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get Samsara drivers
-    const samsaraDrivers = await getSamsaraDrivers();
+    const samsaraDrivers = await getSamsaraDrivers(session.user.companyId);
     if (!samsaraDrivers || samsaraDrivers.length === 0) {
       return NextResponse.json({
         success: false,
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Sync each Samsara driver to our system
     const samsaraDriverIds = samsaraDrivers.map(d => d.id);
-    const allHosStatuses = await getSamsaraHOSStatuses(samsaraDriverIds);
+    const allHosStatuses = await getSamsaraHOSStatuses(samsaraDriverIds, session.user.companyId);
     const hosStatusMap = new Map();
 
     if (allHosStatuses) {
@@ -177,9 +178,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if API key is configured
-    const apiKey = process.env.SAMSARA_API_KEY;
-    if (!apiKey) {
+    // Check if API key is configured (hierarchical: ApiKeyConfig → SamsaraSettings → Integration)
+    const samsaraConfig = await getSamsaraConfig(session.user.companyId);
+    if (!samsaraConfig) {
       return NextResponse.json({
         success: false,
         error: {
@@ -190,7 +191,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Test API connection
-    const drivers = await getSamsaraDrivers();
+    const drivers = await getSamsaraDrivers(session.user.companyId);
 
     return NextResponse.json({
       success: true,

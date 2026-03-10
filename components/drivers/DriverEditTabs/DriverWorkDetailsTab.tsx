@@ -73,16 +73,20 @@ export default function DriverWorkDetailsTab({
     defaultValues,
   });
 
-  // Reset form when driver assignment data changes (e.g., after save)
+  // Reset form when driver assignment data changes (e.g., after save or initial load)
   useEffect(() => {
-    const newDefaultValues = {
+    reset({
       ...defaultValues,
       assignedTruck: driver.currentTruckId || '',
       assignedTrailer: driver.currentTrailerId || '',
-    };
-    reset(newDefaultValues);
+      assignedDispatcher: driver.assignedDispatcherId || '',
+      hrManager: driver.hrManagerId || '',
+      safetyManager: driver.safetyManagerId || '',
+      mcNumber: typeof driver.mcNumber === 'object' ? driver.mcNumber?.id || '' : driver.mcNumber || '',
+      teamDriver: driver.teamDriver || false,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driver.currentTruckId, driver.currentTrailerId]);
+  }, [driver.id, driver.currentTruckId, driver.currentTrailerId, driver.assignedDispatcherId, driver.hrManagerId, driver.safetyManagerId]);
 
   const [driverTags, setDriverTags] = useState<string[]>(watch('driverTags') || []);
 

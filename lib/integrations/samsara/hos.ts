@@ -37,7 +37,8 @@ export async function getSamsaraDriver(driverId: string, companyId?: string): Pr
  * Get HOS (Hours of Service) status for drivers
  */
 export async function getSamsaraHOSStatuses(
-    driverIds?: string[]
+    driverIds?: string[],
+    companyId?: string
 ): Promise<SamsaraDriver['hosStatuses'] | null> {
     const params = new URLSearchParams();
     if (driverIds && driverIds.length > 0) {
@@ -45,7 +46,7 @@ export async function getSamsaraHOSStatuses(
     }
 
     const endpoint = `/fleet/hos_authentication_logs${params.toString() ? `?${params.toString()}` : ''}`;
-    const result = await samsaraRequest<{ data: SamsaraDriver[] }>(endpoint);
+    const result = await samsaraRequest<{ data: SamsaraDriver[] }>(endpoint, {}, companyId);
 
     if (!result || !result.data) return null;
 
@@ -58,7 +59,8 @@ export async function getSamsaraHOSStatuses(
 export async function getSamsaraHOSLogs(
     driverId: string,
     startTime: string,
-    endTime?: string
+    endTime?: string,
+    companyId?: string
 ): Promise<SamsaraHOSLog[] | null> {
     const params = new URLSearchParams({
         driverId,
@@ -67,7 +69,9 @@ export async function getSamsaraHOSLogs(
     });
 
     const result = await samsaraRequest<{ data: SamsaraHOSLog[] }>(
-        `/fleet/hos_logs?${params.toString()}`
+        `/fleet/hos_logs?${params.toString()}`,
+        {},
+        companyId
     );
 
     return result?.data || null;
@@ -78,10 +82,11 @@ export async function getSamsaraHOSLogs(
  */
 export async function syncSamsaraHOSToDriver(
     samsaraDriverId: string,
-    ourDriverId: string
+    ourDriverId: string,
+    companyId?: string
 ): Promise<boolean> {
     try {
-        const hosStatuses = await getSamsaraHOSStatuses([samsaraDriverId]);
+        const hosStatuses = await getSamsaraHOSStatuses([samsaraDriverId], companyId);
         if (!hosStatuses || hosStatuses.length === 0) return false;
 
         const currentStatus = hosStatuses[0];

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { getTelegramService } from '@/lib/services/TelegramService';
+import { getTelegramService, removeTelegramService } from '@/lib/services/TelegramService';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * GET /api/telegram/session
@@ -14,10 +14,11 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const telegramService = getTelegramService();
+        const scope = await resolveTelegramScope((session.user as any).companyId, (session.user as any).mcNumberId);
+        const telegramService = getTelegramService(scope);
         const status = await telegramService.getConnectionStatus();
 
-        return NextResponse.json({ data: status });
+        return NextResponse.json({ data: { ...status, scope: scope.mode } });
     } catch (error: any) {
         console.error('[API] Error fetching Telegram status:', error);
         return NextResponse.json(
@@ -52,7 +53,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const telegramService = getTelegramService();
+        const scope = await resolveTelegramScope((session.user as any).companyId, (session.user as any).mcNumberId);
+        const telegramService = getTelegramService(scope);
         const result = await telegramService.startAuth(phoneNumber);
 
         return NextResponse.json({
@@ -84,13 +86,12 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const telegramService = getTelegramService();
+        const scope = await resolveTelegramScope((session.user as any).companyId, (session.user as any).mcNumberId);
+        const telegramService = getTelegramService(scope);
         await telegramService.disconnect();
+        removeTelegramService(scope.key);
 
-        return NextResponse.json({
-            success: true,
-            message: 'Disconnected successfully',
-        });
+        return NextResponse.json({ success: true, message: 'Disconnected successfully' });
     } catch (error: any) {
         console.error('[API] Error disconnecting Telegram:', error);
         return NextResponse.json(

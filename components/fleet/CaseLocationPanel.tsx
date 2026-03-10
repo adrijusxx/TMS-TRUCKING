@@ -35,7 +35,7 @@ export default function CaseLocationPanel({ breakdown }: CaseLocationPanelProps)
         queryKey: ['samsara-location', samsaraId],
         queryFn: async () => {
             if (!samsaraId) return null;
-            const res = await fetch(apiUrl(`/api/fleet/device-queue?action=vehicle-location&samsaraId=${samsaraId}`));
+            const res = await fetch(apiUrl(`/api/fleet/vehicle-location?samsaraId=${samsaraId}`));
             if (!res.ok) return null;
             const json = await res.json();
             return json.data?.location || null;

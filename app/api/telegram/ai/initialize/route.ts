@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getTelegramService } from '@/lib/services/TelegramService';
-import { prisma } from '@/lib/prisma';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * POST /api/telegram/ai/initialize
@@ -14,23 +14,16 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Get user's company
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { companyId: true },
-        });
-
-        if (!user?.companyId) {
+        const user = session.user as any;
+        if (!user.companyId) {
             return NextResponse.json({ error: 'No company found' }, { status: 400 });
         }
 
-        const telegramService = getTelegramService();
-        await telegramService.initializeAIProcessing(user.companyId);
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+        const telegramService = getTelegramService(scope);
+        await telegramService.initializeAIProcessing(scope.companyId, scope.mcNumberId);
 
-        return NextResponse.json({
-            success: true,
-            message: 'AI processing initialized'
-        });
+        return NextResponse.json({ success: true, message: 'AI processing initialized' });
     } catch (error: any) {
         console.error('[API] Error initializing AI processing:', error);
         return NextResponse.json(

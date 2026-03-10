@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getTelegramService } from '@/lib/services/TelegramService';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * GET /api/telegram/messages/[chatId]
@@ -20,7 +21,9 @@ export async function GET(
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '50');
 
-        const telegramService = getTelegramService();
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+        const telegramService = getTelegramService(scope);
         const messages = await telegramService.getMessages(chatId, limit);
 
         return NextResponse.json({
@@ -60,7 +63,9 @@ export async function POST(
             );
         }
 
-        const telegramService = getTelegramService();
+        const user2 = session.user as any;
+        const scope2 = await resolveTelegramScope(user2.companyId, user2.mcNumberId);
+        const telegramService = getTelegramService(scope2);
         const message = await telegramService.sendMessage(chatId, text, { replyTo });
 
         return NextResponse.json({

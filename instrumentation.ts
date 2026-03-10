@@ -10,18 +10,37 @@
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    // Auto-reconnect Telegram and start AI message processing
-    // Runs after a short delay to avoid blocking startup
+    // Auto-reconnect all active Telegram sessions on startup
     setTimeout(async () => {
       try {
+        const { prisma } = await import('./lib/prisma');
         const { getTelegramService } = await import('./lib/services/TelegramService');
-        const telegramService = getTelegramService();
-        const connected = await telegramService.autoConnect();
-        if (connected) {
-          console.log('[Startup] Telegram reconnected — message listener active');
+        // Find all active sessions and reconnect each
+        const activeSessions = await prisma.telegramSession.findMany({
+          where: { isActive: true },
+          select: { companyId: true, mcNumberId: true },
+        });
+
+        for (const sess of activeSessions) {
+          if (!sess.companyId) continue;
+          const scope = {
+            key: sess.mcNumberId ? `mc:${sess.mcNumberId}` : `company:${sess.companyId}`,
+            companyId: sess.companyId,
+            mcNumberId: sess.mcNumberId,
+            mode: (sess.mcNumberId ? 'MC' : 'COMPANY') as 'MC' | 'COMPANY',
+          };
+          try {
+            const service = getTelegramService(scope);
+            const connected = await service.autoConnect();
+            if (connected) {
+              console.log(`[Startup] Telegram reconnected for ${scope.key}`);
+            }
+          } catch (err) {
+            console.warn(`[Startup] Telegram reconnect failed for ${scope.key}:`, (err as Error).message);
+          }
         }
       } catch (error) {
-        console.warn('[Startup] Telegram auto-reconnect failed (will retry on first UI access):', (error as Error).message);
+        console.warn('[Startup] Telegram auto-reconnect failed:', (error as Error).message);
       }
     }, 5000);
   }

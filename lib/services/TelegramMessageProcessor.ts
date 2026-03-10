@@ -5,6 +5,7 @@ import { getTelegramService } from './TelegramService';
 import { TelegramCaseCreator } from '@/lib/managers/telegram/TelegramCaseCreator';
 import { checkEmergencyKeywords, isWithinBusinessHours } from './telegram-utils';
 import { TelegramDriverMatcher, DriverMatchResult } from './TelegramDriverMatcher';
+import { resolveTelegramScope, buildTelegramScopeWhere } from './telegram/TelegramScopeResolver';
 
 /** Patterns that can be classified without AI */
 const SKIP_AI_PATTERNS = [
@@ -26,11 +27,13 @@ const BATCH_WINDOW_MS = 8000; // 8 seconds
  */
 export class TelegramMessageProcessor {
     private companyId: string;
+    private mcNumberId: string | null;
     private aiService: AIMessageService;
     private caseCreator: TelegramCaseCreator;
 
-    constructor(companyId: string) {
+    constructor(companyId: string, mcNumberId: string | null = null) {
         this.companyId = companyId;
+        this.mcNumberId = mcNumberId;
         this.aiService = new AIMessageService(companyId);
         this.caseCreator = new TelegramCaseCreator(companyId);
     }
@@ -145,9 +148,9 @@ export class TelegramMessageProcessor {
                 return;
             }
 
-            // Find driver by Telegram ID
-            const driverMapping = await prisma.telegramDriverMapping.findUnique({
-                where: { telegramId: senderId },
+            // Find driver by Telegram ID (scoped by company/MC)
+            const driverMapping = await prisma.telegramDriverMapping.findFirst({
+                where: { telegramId: senderId, companyId: this.companyId, mcNumberId: this.mcNumberId },
                 include: {
                     driver: {
                         include: {
@@ -163,7 +166,7 @@ export class TelegramMessageProcessor {
 
             // Auto-match: try to link unlinked contacts to drivers
             if (!driver) {
-                const matcher = new TelegramDriverMatcher(this.companyId);
+                const matcher = new TelegramDriverMatcher(this.companyId, this.mcNumberId);
                 autoMatchResult = await matcher.findMatch({
                     telegramId: senderId,
                     phoneNumber: driverMapping?.phoneNumber,
@@ -175,9 +178,17 @@ export class TelegramMessageProcessor {
                 if (autoMatchResult && autoMatchResult.confidence >= 0.85) {
                     // High confidence — auto-link
                     await prisma.telegramDriverMapping.upsert({
-                        where: { telegramId: senderId },
+                        where: {
+                            telegramId_companyId_mcNumberId: {
+                                telegramId: senderId,
+                                companyId: this.companyId,
+                                mcNumberId: this.mcNumberId ?? '',
+                            },
+                        },
                         create: {
                             telegramId: senderId,
+                            companyId: this.companyId,
+                            mcNumberId: this.mcNumberId,
                             driverId: autoMatchResult.driverId,
                             phoneNumber: driverMapping?.phoneNumber,
                             firstName: driverMapping?.firstName ?? sender?.firstName,
@@ -187,8 +198,8 @@ export class TelegramMessageProcessor {
                         },
                         update: { driverId: autoMatchResult.driverId, isActive: true },
                     });
-                    const linkedMapping = await prisma.telegramDriverMapping.findUnique({
-                        where: { telegramId: senderId },
+                    const linkedMapping = await prisma.telegramDriverMapping.findFirst({
+                        where: { telegramId: senderId, companyId: this.companyId, mcNumberId: this.mcNumberId },
                         include: { driver: { include: { user: true, currentTruck: true } } },
                     });
                     driver = linkedMapping?.driver;
@@ -215,9 +226,9 @@ export class TelegramMessageProcessor {
                 driverLinked: !!driver,
             });
 
-            // Get settings
-            const settings = await prisma.telegramSettings.findUnique({
-                where: { companyId: this.companyId },
+            // Get settings (scoped by company/MC)
+            const settings = await prisma.telegramSettings.findFirst({
+                where: { companyId: this.companyId, mcNumberId: this.mcNumberId },
             });
 
             if (!settings) {
@@ -477,8 +488,8 @@ export class TelegramMessageProcessor {
         // Resolve chat title from driver mapping if not provided
         let chatTitle = params.chatTitle;
         if (!chatTitle && !params.senderName) {
-            const mapping = await prisma.telegramDriverMapping.findUnique({
-                where: { telegramId: params.telegramChatId },
+            const mapping = await prisma.telegramDriverMapping.findFirst({
+                where: { telegramId: params.telegramChatId, companyId: this.companyId, mcNumberId: this.mcNumberId },
                 select: { firstName: true, lastName: true, username: true },
             });
             if (mapping) {
@@ -568,7 +579,8 @@ export class TelegramMessageProcessor {
         wasAutoSent: boolean
     ): Promise<void> {
         try {
-            const telegramService = getTelegramService();
+            const scope = await resolveTelegramScope(this.companyId, this.mcNumberId);
+            const telegramService = getTelegramService(scope);
 
             await telegramService.sendMessage(chatId, responseText);
 

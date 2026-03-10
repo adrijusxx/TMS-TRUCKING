@@ -5,19 +5,13 @@ import { Api } from 'telegram/tl';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 import { getTelegramQueryService } from './TelegramQueryService';
+import type { ResolvedScope } from './telegram/TelegramScopeResolver';
 
 /**
- * Telegram Client API Service
- * 
+ * Telegram Client API Service (scope-aware)
+ *
+ * Each instance is scoped to a company or MC number.
  * Manages connection to Telegram using Client API (MTProto).
- * Handles:
- * - Session Persistence & Encryption
- * - Authentication Flow (Phone/Code)
- * - Message Routing (Event Handlers)
- * - AI Integration Startup
- * 
- * NOTE: Query operations are moved to TelegramQueryService
- * NOTE: Notification logic is moved to TelegramNotificationService
  */
 export class TelegramService {
     private client: TelegramClient | null = null;
@@ -25,9 +19,15 @@ export class TelegramService {
     private isConnected: boolean = false;
     private isConnecting: boolean = false;
     private messageHandlers: Array<(event: NewMessageEvent) => Promise<void>> = [];
+    private scope: ResolvedScope;
 
-    constructor() {
+    constructor(scope: ResolvedScope) {
+        this.scope = scope;
         this.session = new StringSession('');
+    }
+
+    private get scopeWhere() {
+        return { companyId: this.scope.companyId, mcNumberId: this.scope.mcNumberId ?? null };
     }
 
     /**
@@ -49,7 +49,7 @@ export class TelegramService {
             await this.connectWithSession();
             return true;
         } catch (error) {
-            console.error('[Telegram] Auto-reconnect failed:', error);
+            console.error(`[Telegram:${this.scope.key}] Auto-reconnect failed:`, error);
             return false;
         } finally {
             this.isConnecting = false;
@@ -59,12 +59,16 @@ export class TelegramService {
     /**
      * Internal client initialization
      */
-    private async initializeClient(companyId?: string): Promise<void> {
+    private async initializeClient(): Promise<void> {
         const { ApiKeyService } = await import('@/lib/services/ApiKeyService');
+        const context = {
+            companyId: this.scope.companyId,
+            mcNumberId: this.scope.mcNumberId ?? undefined,
+        };
 
         const [apiIdStr, apiHash] = await Promise.all([
-            ApiKeyService.getCredential('TELEGRAM', 'API_ID', { companyId }),
-            ApiKeyService.getCredential('TELEGRAM', 'API_HASH', { companyId })
+            ApiKeyService.getCredential('TELEGRAM', 'API_ID', context),
+            ApiKeyService.getCredential('TELEGRAM', 'API_HASH', context),
         ]);
 
         const apiId = apiIdStr ? parseInt(apiIdStr) : parseInt(process.env.TELEGRAM_API_ID || '0');
@@ -103,12 +107,12 @@ export class TelegramService {
             await this.updateConnectionStatus(true);
 
             // Auto-initialize AI processing if auto-response or auto-case-creation is enabled
-            const settings = await prisma.telegramSettings.findFirst();
+            const settings = await prisma.telegramSettings.findFirst({ where: this.scopeWhere });
             if (settings && (settings.aiAutoResponse || settings.autoCreateCases)) {
-                await this.initializeAIProcessing(settings.companyId);
+                await this.initializeAIProcessing(this.scope.companyId, this.scope.mcNumberId);
             }
         } catch (error) {
-            console.error('[Telegram] Connection failed:', error);
+            console.error(`[Telegram:${this.scope.key}] Connection failed:`, error);
             await this.updateConnectionStatus(false, error instanceof Error ? error.message : 'Unknown error');
             throw error;
         }
@@ -118,15 +122,16 @@ export class TelegramService {
      * Start authentication with phone number
      */
     async startAuth(phoneNumber: string): Promise<{ needsVerification: boolean; phoneCodeHash?: string }> {
+        const pendingId = `pending-auth:${this.scope.key}`;
         try {
-            await prisma.telegramSession.deleteMany({ where: { id: 'pending-auth' } }).catch(() => { });
+            await prisma.telegramSession.deleteMany({ where: { id: pendingId } }).catch(() => {});
             await this.initializeClient();
             if (!this.client) throw new Error('Client init failed');
 
             await this.client.connect();
             const result = await this.client.invoke(
                 new Api.auth.SendCode({
-                    phoneNumber: phoneNumber,
+                    phoneNumber,
                     apiId: this.client.apiId,
                     apiHash: this.client.apiHash,
                     settings: new Api.CodeSettings({}),
@@ -138,9 +143,10 @@ export class TelegramService {
 
             await prisma.telegramSession.create({
                 data: {
-                    id: 'pending-auth',
+                    id: pendingId,
                     sessionData: JSON.stringify({ phoneNumber, phoneCodeHash, timestamp: Date.now() }),
                     isActive: false,
+                    ...this.scopeWhere,
                 },
             });
 
@@ -155,8 +161,9 @@ export class TelegramService {
      * Verify auth code
      */
     async verifyCode(code: string, phoneNumber: string): Promise<void> {
-        const pendingAuthRecord = await prisma.telegramSession.findUnique({ where: { id: 'pending-auth' } });
-        if (!pendingAuthRecord || !pendingAuthRecord.sessionData) throw new Error('No pending auth');
+        const pendingId = `pending-auth:${this.scope.key}`;
+        const pendingAuthRecord = await prisma.telegramSession.findUnique({ where: { id: pendingId } });
+        if (!pendingAuthRecord?.sessionData) throw new Error('No pending auth');
 
         const pendingAuth = JSON.parse(pendingAuthRecord.sessionData);
         if (!this.client) await this.initializeClient();
@@ -164,25 +171,21 @@ export class TelegramService {
         if (!this.client.connected) await this.client.connect();
 
         await this.client.invoke(
-            new Api.auth.SignIn({
-                phoneNumber,
-                phoneCodeHash: pendingAuth.phoneCodeHash,
-                phoneCode: code,
-            })
+            new Api.auth.SignIn({ phoneNumber, phoneCodeHash: pendingAuth.phoneCodeHash, phoneCode: code })
         );
 
         this.isConnected = true;
         await this.saveSession();
         this.setupMessageListener();
         await this.updateConnectionStatus(true);
-        await prisma.telegramSession.delete({ where: { id: 'pending-auth' } }).catch(() => { });
+        await prisma.telegramSession.delete({ where: { id: pendingId } }).catch(() => {});
     }
 
     private setupMessageListener(): void {
         if (!this.client) return;
         this.client.addEventHandler(async (event: NewMessageEvent) => {
             for (const handler of this.messageHandlers) {
-                await handler(event).catch(err => console.error('[Telegram] Handler error:', err));
+                await handler(event).catch(err => console.error(`[Telegram:${this.scope.key}] Handler error:`, err));
             }
         }, new NewMessage({}));
     }
@@ -191,12 +194,12 @@ export class TelegramService {
         this.messageHandlers.push(handler);
     }
 
-    async initializeAIProcessing(companyId: string): Promise<void> {
-        const settings = await prisma.telegramSettings.findUnique({ where: { companyId } });
+    async initializeAIProcessing(companyId: string, mcNumberId?: string | null): Promise<void> {
+        const settings = await prisma.telegramSettings.findFirst({ where: this.scopeWhere });
         if (!settings || (!settings.aiAutoResponse && !settings.autoCreateCases)) return;
 
         const { TelegramMessageProcessor } = await import('./TelegramMessageProcessor');
-        const processor = new TelegramMessageProcessor(companyId);
+        const processor = new TelegramMessageProcessor(companyId, mcNumberId ?? null);
         this.onMessage(async (event) => processor.processMessage(event));
     }
 
@@ -240,7 +243,7 @@ export class TelegramService {
 
     private async loadSession(): Promise<string | null> {
         const session = await prisma.telegramSession.findFirst({
-            where: { isActive: true },
+            where: { isActive: true, ...this.scopeWhere },
             orderBy: { createdAt: 'desc' },
         });
         return session?.sessionData ? this.decryptSession(session.sessionData) : null;
@@ -250,8 +253,13 @@ export class TelegramService {
         if (!this.client) return;
         const sessionString = this.session.save();
         const encryptedSession = this.encryptSession(sessionString);
-        await prisma.telegramSession.updateMany({ where: { isActive: true }, data: { isActive: false } });
-        await prisma.telegramSession.create({ data: { sessionData: encryptedSession, isActive: true, lastConnected: new Date() } });
+        await prisma.telegramSession.updateMany({
+            where: { isActive: true, ...this.scopeWhere },
+            data: { isActive: false },
+        });
+        await prisma.telegramSession.create({
+            data: { sessionData: encryptedSession, isActive: true, lastConnected: new Date(), ...this.scopeWhere },
+        });
     }
 
     private encryptSession(data: string): string {
@@ -268,18 +276,21 @@ export class TelegramService {
         return decipher.update(parts[1], 'hex', 'utf8') + decipher.final('utf8');
     }
 
-    private async updateConnectionStatus(isConnected: boolean, error?: string): Promise<void> {
+    private async updateConnectionStatus(connected: boolean, error?: string): Promise<void> {
         await prisma.telegramSession.updateMany({
-            where: { isActive: true },
-            data: { lastConnected: isConnected ? new Date() : undefined, connectionError: error || null }
-        }).catch(() => { });
+            where: { isActive: true, ...this.scopeWhere },
+            data: { lastConnected: connected ? new Date() : undefined, connectionError: error || null },
+        }).catch(() => {});
     }
 
     async disconnect(): Promise<void> {
         if (this.client) {
             await this.client.disconnect();
             this.isConnected = false;
-            await prisma.telegramSession.updateMany({ where: { isActive: true }, data: { isActive: false } });
+            await prisma.telegramSession.updateMany({
+                where: { isActive: true, ...this.scopeWhere },
+                data: { isActive: false },
+            });
             await this.updateConnectionStatus(false);
         }
     }
@@ -287,16 +298,34 @@ export class TelegramService {
     isClientConnected(): boolean { return this.isConnected; }
 
     async getConnectionStatus() {
-        const session = await prisma.telegramSession.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'desc' } });
+        const session = await prisma.telegramSession.findFirst({
+            where: { isActive: true, ...this.scopeWhere },
+            orderBy: { createdAt: 'desc' },
+        });
         return { isConnected: this.isConnected, lastConnected: session?.lastConnected || null, error: session?.connectionError || null };
     }
+
+    getScope(): ResolvedScope { return this.scope; }
 }
 
-const globalForTelegram = globalThis as unknown as { telegramService_v6: TelegramService | undefined };
+// ── Scoped Registry (replaces global singleton) ──
 
-export function getTelegramService(): TelegramService {
-    if (!globalForTelegram.telegramService_v6) {
-        globalForTelegram.telegramService_v6 = new TelegramService();
+const globalForTelegram = globalThis as unknown as {
+    telegramRegistry_v7: Map<string, TelegramService> | undefined;
+};
+
+export function getTelegramService(scope: ResolvedScope): TelegramService {
+    if (!globalForTelegram.telegramRegistry_v7) {
+        globalForTelegram.telegramRegistry_v7 = new Map();
     }
-    return globalForTelegram.telegramService_v6;
+    const registry = globalForTelegram.telegramRegistry_v7;
+    if (!registry.has(scope.key)) {
+        registry.set(scope.key, new TelegramService(scope));
+    }
+    return registry.get(scope.key)!;
+}
+
+/** Remove a service instance from the registry (used on disconnect). */
+export function removeTelegramService(scopeKey: string): void {
+    globalForTelegram.telegramRegistry_v7?.delete(scopeKey);
 }

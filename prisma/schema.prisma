@@ -417,8 +417,11 @@ model Company {
   truckFaultHistory      TruckFaultHistory[]
   knowledgeBaseDocuments KnowledgeBaseDocument[]
   aiAgents               AIAgent[]
-  telegramReviewItems    TelegramReviewItem[]
+  telegramReviewItems     TelegramReviewItem[]
   telegramIgnoredContacts TelegramIgnoredContact[]
+  telegramSessions        TelegramSession[]
+  telegramDriverMappings  TelegramDriverMapping[]
+  telegramSettings        TelegramSettings[]
   messagingReviewItems    MessagingReviewItem[]
   messagingIgnoredContacts MessagingIgnoredContact[]
   apiKeys                ApiKeyConfig[]
@@ -1121,7 +1124,7 @@ model Driver {
   citations                 Citation[]
   insuranceClaims           InsuranceClaim[]
   iftaEntries               IFTAEntry[]
-  telegramMapping           TelegramDriverMapping? // Telegram integration (legacy)
+  telegramMappings          TelegramDriverMapping[] // Telegram integration (scoped by company/MC)
   telegramReviewItems       TelegramReviewItem[]      @relation("TelegramReviewItems")
   telegramSuggestedReviews  TelegramReviewItem[]      @relation("TelegramSuggestedDriver")
   mattermostMapping         MattermostDriverMapping? // Mattermost integration
@@ -6638,6 +6641,10 @@ model McNumber {
   companyExpenses       CompanyExpense[]
   companyExpenseTypes   CompanyExpenseType[]
   departmentBudgets     DepartmentBudget[]
+  // Telegram Integration
+  telegramSessions       TelegramSession[]
+  telegramDriverMappings TelegramDriverMapping[]
+  telegramSettings       TelegramSettings[]
 
   @@unique([companyId, number]) // MC number must be unique per company
   @@index([companyId])
@@ -7676,16 +7683,23 @@ model TelegramSession {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  // Scope: company or MC-level session
+  companyId  String?
+  company    Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id], onDelete: Cascade)
+
   @@index([isActive])
+  @@index([companyId, mcNumberId, isActive])
 }
 
 // Map drivers to Telegram IDs
 model TelegramDriverMapping {
   id           String   @id @default(cuid())
-  driverId     String?  @unique
+  driverId     String?
   driver       Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
   aiAutoReply  Boolean  @default(false)
-  telegramId   String   @unique // Telegram user ID (numeric)
+  telegramId   String // Telegram user ID (numeric)
   username     String? // Telegram username (optional)
   phoneNumber  String? // Phone number linked to Telegram
   firstName    String? // Telegram first name
@@ -7693,9 +7707,18 @@ model TelegramDriverMapping {
   registeredAt DateTime @default(now())
   isActive     Boolean  @default(true)
 
+  // Scope: company or MC-level mapping
+  companyId  String?
+  company    Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id], onDelete: Cascade)
+
+  @@unique([telegramId, companyId, mcNumberId])
+  @@unique([driverId, companyId, mcNumberId])
   @@index([driverId])
   @@index([telegramId])
   @@index([phoneNumber])
+  @@index([companyId, mcNumberId])
 }
 
 // AI response logging and tracking
@@ -7722,10 +7745,18 @@ model AIResponseLog {
   @@index([createdAt])
 }
 
-// Telegram integration settings (per company)
+// Telegram integration settings (per company or per MC)
 model TelegramSettings {
   id        String @id @default(cuid())
-  companyId String @unique
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Scope preference (only meaningful on company-level row where mcNumberId is null)
+  telegramScope TelegramScope @default(COMPANY)
+
+  // Optional MC scope — null = company-level settings row
+  mcNumberId String?
+  mcNumber   McNumber? @relation(fields: [mcNumberId], references: [id], onDelete: Cascade)
 
   // Feature toggles
   autoCreateCases      Boolean @default(true)
@@ -7756,7 +7787,14 @@ model TelegramSettings {
 
   updatedAt DateTime @updatedAt
 
+  @@unique([companyId, mcNumberId])
   @@index([companyId])
+  @@index([mcNumberId])
+}
+
+enum TelegramScope {
+  COMPANY
+  MC
 }
 
 // ============================================

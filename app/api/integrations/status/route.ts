@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     if (samsaraConfig && samsaraConfig.apiKey) {
       try {
         // Test connection by attempting to fetch vehicles
-        const vehicles = await getSamsaraVehicles();
+        const vehicles = await getSamsaraVehicles(session.user.companyId);
         samsaraConnected = vehicles !== null && Array.isArray(vehicles);
         if (samsaraConnected && vehicles && vehicles.length > 0) {
           // Get driver count - you can also fetch drivers separately

@@ -4,42 +4,46 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Settings, Bot, MessageSquare, Shield, AlertTriangle } from 'lucide-react';
+import { Loader2, Settings, Bot, MessageSquare, Shield, AlertTriangle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUrl } from '@/lib/utils';
+import { useMcFilter } from '@/lib/contexts/McFilterContext';
 import TelegramConnectionCard from '@/components/telegram/TelegramConnectionCard';
 import TelegramGeneralSettings from '@/components/telegram/TelegramGeneralSettings';
 import TelegramAISettings from '@/components/telegram/TelegramAISettings';
 import TelegramTemplateSettings from '@/components/telegram/TelegramTemplateSettings';
-
-async function fetchSettings() {
-    const res = await fetch(apiUrl('/api/telegram/settings'));
-    if (!res.ok) throw new Error('Failed to fetch settings');
-    return res.json();
-}
-
-async function fetchConnectionStatus() {
-    const res = await fetch(apiUrl('/api/telegram/session'));
-    if (!res.ok) throw new Error('Failed to fetch connection status');
-    return res.json();
-}
+import TelegramScopeSelector from '@/components/telegram/TelegramScopeSelector';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function TelegramIntegrationPage() {
     const queryClient = useQueryClient();
+    const { selectedMc } = useMcFilter();
 
     const { data: settingsData, isLoading: settingsLoading } = useQuery({
-        queryKey: ['telegram-settings'],
-        queryFn: fetchSettings,
+        queryKey: ['telegram-settings', selectedMc?.id],
+        queryFn: async () => {
+            const url = selectedMc?.id
+                ? apiUrl(`/api/telegram/settings?mcNumberId=${selectedMc.id}`)
+                : apiUrl('/api/telegram/settings');
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Failed to fetch settings');
+            return res.json();
+        },
     });
 
     const { data: statusData, isLoading: statusLoading } = useQuery({
         queryKey: ['telegram-status'],
-        queryFn: fetchConnectionStatus,
+        queryFn: async () => {
+            const res = await fetch(apiUrl('/api/telegram/session'));
+            if (!res.ok) throw new Error('Failed to fetch connection status');
+            return res.json();
+        },
         refetchInterval: 10000,
     });
 
     const settings = settingsData?.data;
     const status = statusData?.data;
+    const scopeMode = settings?.scopeMode || settings?.telegramScope || 'COMPANY';
 
     const updateMutation = useMutation({
         mutationFn: async (data: Record<string, any>) => {
@@ -87,6 +91,21 @@ export default function TelegramIntegrationPage() {
                 </h1>
                 <p className="text-sm text-muted-foreground mt-0.5">Connection, automation, and message settings</p>
             </div>
+
+            <TelegramScopeSelector
+                telegramScope={scopeMode}
+                isConnected={!!status?.isConnected}
+                onScopeChange={(scope) => updateMutation.mutate({ telegramScope: scope })}
+            />
+
+            {scopeMode === 'MC' && selectedMc && (
+                <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                        Viewing settings for <strong>{selectedMc.number || selectedMc.companyName}</strong>. Switch MC numbers using the top navigation to manage other connections.
+                    </AlertDescription>
+                </Alert>
+            )}
 
             <TelegramConnectionCard status={status} />
 

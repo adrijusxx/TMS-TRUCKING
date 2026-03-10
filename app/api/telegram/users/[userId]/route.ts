@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getTelegramService } from '@/lib/services/TelegramService';
 import { prisma } from '@/lib/prisma';
+import { resolveTelegramScope } from '@/lib/services/telegram/TelegramScopeResolver';
 
 /**
  * GET /api/telegram/users/[userId]
@@ -19,12 +20,14 @@ export async function GET(
 
         const { userId } = await params;
 
-        const telegramService = getTelegramService();
+        const user = session.user as any;
+        const scope = await resolveTelegramScope(user.companyId, user.mcNumberId);
+        const telegramService = getTelegramService(scope);
         const profile = await telegramService.getUserProfile(userId);
 
-        // Check if this user is mapped to a driver
-        const driverMapping = await prisma.telegramDriverMapping.findUnique({
-            where: { telegramId: userId },
+        // Check if this user is mapped to a driver (scoped)
+        const driverMapping = await prisma.telegramDriverMapping.findFirst({
+            where: { telegramId: userId, companyId: user.companyId, mcNumberId: scope.mcNumberId },
             include: {
                 driver: {
                     include: {

@@ -32,12 +32,14 @@ interface CachedDriver {
  */
 export class TelegramDriverMatcher {
     private companyId: string;
+    private mcNumberId: string | null;
     private driverCache: CachedDriver[] | null = null;
     private cacheTime = 0;
     private static CACHE_TTL = 30_000; // 30 seconds
 
-    constructor(companyId: string) {
+    constructor(companyId: string, mcNumberId: string | null = null) {
         this.companyId = companyId;
+        this.mcNumberId = mcNumberId;
     }
 
     /**

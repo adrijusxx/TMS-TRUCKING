@@ -3,67 +3,27 @@
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { SortableHeader } from '@/components/ui/sortable-header';
-import { useReactTable, getCoreRowModel, getSortedRowModel, type SortingState, type ColumnDef } from '@tanstack/react-table';
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
-  DialogHeader, DialogTitle, DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Loader2, Pause, Play } from 'lucide-react';
-import { apiUrl, formatCurrency } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus } from 'lucide-react';
+import { apiUrl } from '@/lib/utils';
 import { toast } from 'sonner';
+import CreateScheduleDialog from './CreateScheduleDialog';
+import ScheduledPaymentsTable, { type RuleGroup } from './ScheduledPaymentsTable';
+import DeductionRuleForm from '@/components/drivers/DriverEditTabs/DeductionRuleForm';
 
-const DEDUCTION_TYPES = [
-  'FUEL_ADVANCE', 'CASH_ADVANCE', 'INSURANCE', 'OCCUPATIONAL_ACCIDENT',
-  'TRUCK_PAYMENT', 'TRUCK_LEASE', 'ESCROW', 'EQUIPMENT_RENTAL',
-  'MAINTENANCE', 'TOLLS', 'PERMITS', 'FUEL_CARD', 'FUEL_CARD_FEE',
-  'TRAILER_RENTAL', 'OTHER',
-] as const;
+type ScopeFilter = 'all' | 'driver' | 'global';
 
-const ADDITION_TYPES = ['BONUS', 'OVERTIME', 'INCENTIVE', 'REIMBURSEMENT'] as const;
-
-const frequencyLabel: Record<string, string> = {
-  WEEKLY: 'Weekly',
-  BIWEEKLY: 'Bi-Weekly',
-  MONTHLY: 'Monthly',
-  PER_SETTLEMENT: 'Per Settlement',
-};
-
-const typeLabel = (t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-
-const calcDisplay = (rule: any): string => {
-  if (rule.calculationType === 'FIXED') return formatCurrency(rule.amount || 0);
-  if (rule.calculationType === 'PERCENTAGE') return `${rule.percentage || 0}%`;
-  if (rule.calculationType === 'PER_MILE') return `${formatCurrency(rule.perMileRate || 0)}/mi`;
-  return '-';
-};
+/** Strip auto-generated driver prefix from rule names */
+const cleanName = (name: string) => name.replace(/^Driver\s+D-\d+\s*-\s*/i, '').trim();
 
 export default function DriverScheduledPaymentsTab() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
-  const [isCreating, setIsCreating] = React.useState(false);
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-
-  // Form state
-  const [name, setName] = React.useState('');
-  const [isAddition, setIsAddition] = React.useState(false);
-  const [deductionType, setDeductionType] = React.useState('OTHER');
-  const [calculationType, setCalculationType] = React.useState('FIXED');
-  const [amount, setAmount] = React.useState('');
-  const [percentage, setPercentage] = React.useState('');
-  const [perMileRate, setPerMileRate] = React.useState('');
-  const [frequency, setFrequency] = React.useState('PER_SETTLEMENT');
-  const [goalAmount, setGoalAmount] = React.useState('');
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
+  const [scopeFilter, setScopeFilter] = React.useState<ScopeFilter>('all');
+  const [showAdditions, setShowAdditions] = React.useState(false);
+  const [editingRule, setEditingRule] = React.useState<any>(null);
 
   const { data: driversData } = useQuery({
     queryKey: ['drivers-list-simple'],
@@ -85,113 +45,98 @@ export default function DriverScheduledPaymentsTab() {
 
   const drivers = driversData?.data || [];
   const allRules = data?.data || [];
-  // Filter to recurring rules (exclude ONE_TIME)
-  const scheduledRules = allRules.filter((r: any) => {
-    const freq = r.frequency || r.deductionFrequency;
-    return freq && freq !== 'ONE_TIME';
-  });
+
+  const scheduledRules = React.useMemo(() => {
+    const recurring = allRules.filter((r: any) => {
+      const freq = r.deductionFrequency || r.frequency;
+      return freq && freq !== 'ONE_TIME';
+    });
+    if (scopeFilter === 'driver') return recurring.filter((r: any) => r.driverId);
+    if (scopeFilter === 'global') return recurring.filter((r: any) => !r.driverId);
+    return recurring;
+  }, [allRules, scopeFilter]);
 
   const getDriverName = (rule: any) => {
     const driver = drivers.find((d: any) => d.id === rule.driverId);
     if (driver) return `${driver.user?.firstName || ''} ${driver.user?.lastName || ''}`.trim();
-    return rule.driverId ? 'Unknown' : 'MC-Wide';
+    return rule.driverId ? 'Unknown' : 'All Drivers (MC-Wide)';
   };
 
-  const getScope = (rule: any): string => {
-    if (rule.driverId) return 'Driver-specific';
-    return 'MC-Wide';
-  };
-
-  const enrichedRules = React.useMemo(() => scheduledRules.map((rule: any) => ({
-    ...rule,
-    driverName: getDriverName(rule),
-    scope: getScope(rule),
-    freq: rule.frequency || rule.deductionFrequency,
-  })), [scheduledRules, drivers]);
-
-  const columns = React.useMemo<ColumnDef<any>[]>(() => [
-    { accessorKey: 'driverName', header: 'Driver' },
-    { accessorKey: 'name', header: 'Name' },
-    { id: 'type', accessorFn: (row: any) => row.isAddition ? 'Addition' : 'Deduction', header: 'Type' },
-    { accessorKey: 'deductionType', header: 'Category' },
-    { id: 'calculation', accessorFn: (row: any) => row.amount || row.percentage || row.perMileRate || 0, header: 'Calculation' },
-    { accessorKey: 'freq', header: 'Frequency' },
-    { id: 'goal', accessorFn: (row: any) => row.goalAmount || 0, header: 'Goal / Current' },
-    { accessorKey: 'scope', header: 'Scope' },
-    { id: 'status', accessorFn: (row: any) => row.isActive ? 'Active' : 'Paused', header: 'Status' },
-    { id: 'actions', enableSorting: false },
-  ], []);
-
-  const table = useReactTable({
-    data: enrichedRules,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
-  const handleCreate = async () => {
-    if (!name) { toast.error('Name is required'); return; }
-    if (calculationType === 'FIXED' && !amount) { toast.error('Amount is required'); return; }
-    if (calculationType === 'PERCENTAGE' && !percentage) { toast.error('Percentage is required'); return; }
-    if (calculationType === 'PER_MILE' && !perMileRate) { toast.error('Per mile rate is required'); return; }
-
-    setIsCreating(true);
-    try {
-      const res = await fetch(apiUrl('/api/deduction-rules'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          deductionType,
-          isAddition,
-          calculationType,
-          amount: calculationType === 'FIXED' ? parseFloat(amount) : undefined,
-          percentage: calculationType === 'PERCENTAGE' ? parseFloat(percentage) : undefined,
-          perMileRate: calculationType === 'PER_MILE' ? parseFloat(perMileRate) : undefined,
-          frequency,
-          goalAmount: goalAmount ? parseFloat(goalAmount) : undefined,
-          isActive: true,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error?.message || 'Failed');
+  const groups = React.useMemo<RuleGroup[]>(() => {
+    const map = new Map<string, RuleGroup>();
+    for (const rule of scheduledRules) {
+      const freq = rule.deductionFrequency || rule.frequency;
+      const key = [rule.deductionType, rule.calculationType, rule.amount ?? '', rule.percentage ?? '',
+        rule.perMileRate ?? '', freq, rule.isAddition].join('|');
+      if (!map.has(key)) {
+        map.set(key, {
+          key, name: cleanName(rule.name), isAddition: rule.isAddition, deductionType: rule.deductionType,
+          calculationType: rule.calculationType, amount: rule.amount, percentage: rule.percentage,
+          perMileRate: rule.perMileRate, frequency: freq, rules: [], activeCount: 0, pausedCount: 0,
+        });
       }
-      toast.success('Scheduled payment created');
-      queryClient.invalidateQueries({ queryKey: ['deduction-rules-scheduled'] });
-      setIsCreateOpen(false);
-      resetForm();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setIsCreating(false);
+      const group = map.get(key)!;
+      group.rules.push({ ...rule, driverName: getDriverName(rule) });
+      if (rule.isActive) group.activeCount++; else group.pausedCount++;
     }
+    return Array.from(map.values());
+  }, [scheduledRules, drivers]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   };
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['deduction-rules-scheduled'] });
 
   const toggleActive = async (id: string, currentActive: boolean) => {
     try {
       const res = await fetch(apiUrl(`/api/deduction-rules/${id}`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !currentActive }),
       });
       if (!res.ok) throw new Error('Failed');
       toast.success(currentActive ? 'Payment paused' : 'Payment activated');
-      queryClient.invalidateQueries({ queryKey: ['deduction-rules-scheduled'] });
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+      invalidate();
+    } catch (err: any) { toast.error(err.message); }
   };
 
-  const resetForm = () => {
-    setName(''); setIsAddition(false); setDeductionType('OTHER');
-    setCalculationType('FIXED'); setAmount(''); setPercentage(''); setPerMileRate('');
-    setFrequency('PER_SETTLEMENT'); setGoalAmount('');
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(apiUrl(`/api/deduction-rules/${id}`), { method: 'DELETE' });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || 'Failed'); }
+      toast.success('Scheduled payment deleted');
+      invalidate();
+    } catch (err: any) { toast.error(err.message); }
   };
 
-  const types = isAddition ? ADDITION_TYPES : DEDUCTION_TYPES;
+  const handleEdit = async (data: any) => {
+    if (!editingRule) return;
+    try {
+      const res = await fetch(apiUrl(`/api/deduction-rules/${editingRule.id}`), {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message || 'Failed'); }
+      toast.success('Rule updated');
+      setEditingRule(null);
+      invalidate();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const filteredGroups = React.useMemo(
+    () => groups.filter((g) => g.isAddition === showAdditions),
+    [groups, showAdditions],
+  );
+
+  // Count rules by scope for tab badges
+  const allRecurring = allRules.filter((r: any) => { const f = r.deductionFrequency || r.frequency; return f && f !== 'ONE_TIME'; });
+  const driverCount = allRecurring.filter((r: any) => r.driverId).length;
+  const globalCount = allRecurring.filter((r: any) => !r.driverId).length;
+  const deductionCount = allRecurring.filter((r: any) => !r.isAddition).length;
+  const additionCount = allRecurring.filter((r: any) => r.isAddition).length;
 
   if (isLoading) {
     return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>;
@@ -199,164 +144,60 @@ export default function DriverScheduledPaymentsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          MC-wide recurring deductions and additions applied to all drivers per settlement
-        </p>
-        <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Schedule</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create Scheduled Payment</DialogTitle>
-              <DialogDescription>Set up a recurring deduction or addition for drivers.</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label>Name</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Weekly insurance" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Type</Label>
-                  <Select value={isAddition ? 'addition' : 'deduction'} onValueChange={(v) => {
-                    setIsAddition(v === 'addition');
-                    setDeductionType(v === 'addition' ? 'BONUS' : 'OTHER');
-                  }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="deduction">Deduction</SelectItem>
-                      <SelectItem value="addition">Addition</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Category</Label>
-                  <Select value={deductionType} onValueChange={setDeductionType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {types.map((t) => (
-                        <SelectItem key={t} value={t}>{typeLabel(t)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Calculation</Label>
-                  <Select value={calculationType} onValueChange={setCalculationType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FIXED">Fixed Amount</SelectItem>
-                      <SelectItem value="PERCENTAGE">Percentage</SelectItem>
-                      <SelectItem value="PER_MILE">Per Mile</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>{calculationType === 'PERCENTAGE' ? 'Percentage' : calculationType === 'PER_MILE' ? 'Rate/Mile' : 'Amount'}</Label>
-                  {calculationType === 'FIXED' && (
-                    <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-                  )}
-                  {calculationType === 'PERCENTAGE' && (
-                    <Input type="number" step="0.1" min="0" max="100" value={percentage} onChange={(e) => setPercentage(e.target.value)} />
-                  )}
-                  {calculationType === 'PER_MILE' && (
-                    <Input type="number" step="0.001" value={perMileRate} onChange={(e) => setPerMileRate(e.target.value)} />
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Frequency</Label>
-                  <Select value={frequency} onValueChange={setFrequency}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PER_SETTLEMENT">Per Settlement</SelectItem>
-                      <SelectItem value="WEEKLY">Weekly</SelectItem>
-                      <SelectItem value="BIWEEKLY">Bi-Weekly</SelectItem>
-                      <SelectItem value="MONTHLY">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Goal Amount (optional)</Label>
-                  <Input type="number" step="0.01" value={goalAmount} onChange={(e) => setGoalAmount(e.target.value)} placeholder="e.g., 5000" />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={handleCreate} disabled={isCreating}>
-                {isCreating && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Create Schedule
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant={!showAdditions ? 'default' : 'outline'} size="sm" onClick={() => setShowAdditions(false)}>
+              Deductions ({deductionCount})
+            </Button>
+            <Button variant={showAdditions ? 'default' : 'outline'} size="sm" onClick={() => setShowAdditions(true)}>
+              Additions ({additionCount})
+            </Button>
+          </div>
+          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Add Schedule
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant={scopeFilter === 'all' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setScopeFilter('all')}>
+            All ({allRecurring.length})
+          </Button>
+          <Button variant={scopeFilter === 'driver' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setScopeFilter('driver')}>
+            Driver-specific ({driverCount})
+          </Button>
+          <Button variant={scopeFilter === 'global' ? 'default' : 'outline'} size="sm" className="h-7 text-xs" onClick={() => setScopeFilter('global')}>
+            Global ({globalCount})
+          </Button>
+        </div>
       </div>
 
-      <div className="border rounded-lg overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <SortableHeader column={table.getColumn('driverName')!}>Driver</SortableHeader>
-              <SortableHeader column={table.getColumn('name')!}>Name</SortableHeader>
-              <SortableHeader column={table.getColumn('type')!}>Type</SortableHeader>
-              <SortableHeader column={table.getColumn('deductionType')!}>Category</SortableHeader>
-              <SortableHeader column={table.getColumn('calculation')!}>Calculation</SortableHeader>
-              <SortableHeader column={table.getColumn('freq')!}>Frequency</SortableHeader>
-              <SortableHeader column={table.getColumn('goal')!}>Goal / Current</SortableHeader>
-              <SortableHeader column={table.getColumn('scope')!}>Scope</SortableHeader>
-              <SortableHeader column={table.getColumn('status')!}>Status</SortableHeader>
-              <TableHead className="w-16">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => {
-              const rule = row.original;
-              const freq = rule.frequency || rule.deductionFrequency;
-              return (
-                <TableRow key={rule.id} className={!rule.isActive ? 'opacity-50' : ''}>
-                  <TableCell>{getDriverName(rule)}</TableCell>
-                  <TableCell className="font-medium">{rule.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={rule.isAddition ? 'default' : 'secondary'}>
-                      {rule.isAddition ? 'Addition' : 'Deduction'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{typeLabel(rule.deductionType)}</TableCell>
-                  <TableCell>{calcDisplay(rule)}</TableCell>
-                  <TableCell>{frequencyLabel[freq] || freq}</TableCell>
-                  <TableCell>
-                    {rule.goalAmount
-                      ? `${formatCurrency(rule.currentAmount || 0)} / ${formatCurrency(rule.goalAmount)}`
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-xs">{getScope(rule)}</TableCell>
-                  <TableCell>
-                    <Badge variant={rule.isActive ? 'default' : 'outline'}>
-                      {rule.isActive ? 'Active' : 'Paused'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleActive(rule.id, rule.isActive)}>
-                      {rule.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-            {scheduledRules.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                  No scheduled payments
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <CreateScheduleDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} isAddition={showAdditions} />
+
+      {/* Edit dialog */}
+      <Dialog open={!!editingRule} onOpenChange={(open) => { if (!open) setEditingRule(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit {editingRule?.isAddition ? 'Addition' : 'Deduction'} Rule</DialogTitle>
+          </DialogHeader>
+          {editingRule && (
+            <DeductionRuleForm
+              isAddition={editingRule.isAddition}
+              editRule={editingRule}
+              onSubmit={handleEdit}
+              isPending={false}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ScheduledPaymentsTable
+        groups={filteredGroups}
+        expandedGroups={expandedGroups}
+        toggleGroup={toggleGroup}
+        onToggleActive={toggleActive}
+        onDelete={handleDelete}
+        onEdit={setEditingRule}
+      />
     </div>
   );
 }

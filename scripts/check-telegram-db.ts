@@ -10,7 +10,7 @@ async function main() {
 
     // 2. Check Mapping for ID 1077141699
     const telegramId = '1077141699';
-    const mapping = await prisma.telegramDriverMapping.findUnique({
+    const mapping = await prisma.telegramDriverMapping.findFirst({
         where: { telegramId },
         include: { driver: true }
     });

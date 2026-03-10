@@ -6,7 +6,9 @@ async function main() {
     console.log('Importing TelegramService...');
 
     try {
-        const service = getTelegramService();
+        // Debug: use a dummy scope for testing
+        const scope = { key: 'company:debug', companyId: 'debug', mcNumberId: null, mode: 'COMPANY' as const };
+        const service = getTelegramService(scope);
         console.log('TelegramService instantiated successfully.');
 
         console.log('Checking connection status...');
