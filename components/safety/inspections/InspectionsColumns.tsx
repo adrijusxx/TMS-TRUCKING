@@ -26,6 +26,15 @@ export interface InspectionData {
   note?: string | null;
   violationsFound: boolean;
   outOfService: boolean;
+  // Full data fields for editing (populated on edit fetch)
+  driverId?: string | null;
+  truckId?: string | null;
+  trailerId?: string | null;
+  inspectionLocation?: string | null;
+  inspectionState?: string | null;
+  inspectorName?: string | null;
+  inspectorBadgeNumber?: string | null;
+  oosReason?: string | null;
 }
 
 const statusColors: Record<string, string> = {

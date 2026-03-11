@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,6 +46,14 @@ const defaults = {
   trailerId: '',
 };
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{children}</p>;
+}
+
+function RequiredLabel({ children }: { children: React.ReactNode }) {
+  return <Label>{children} <span className="text-destructive">*</span></Label>;
+}
+
 export default function InspectionEditSheet({
   open, onOpenChange, onSuccess, editInspection,
 }: InspectionEditSheetProps) {
@@ -59,20 +67,20 @@ export default function InspectionEditSheet({
         inspectionDate: editInspection.inspectionDate
           ? new Date(editInspection.inspectionDate).toISOString().split('T')[0]
           : '',
-        inspectionLocation: (editInspection as any).inspectionLocation || '',
-        inspectionState: (editInspection as any).inspectionState || '',
-        inspectorName: (editInspection as any).inspectorName || '',
-        inspectorBadgeNumber: (editInspection as any).inspectorBadgeNumber || '',
+        inspectionLocation: editInspection.inspectionLocation || '',
+        inspectionState: editInspection.inspectionState || '',
+        inspectorName: editInspection.inspectorName || '',
+        inspectorBadgeNumber: editInspection.inspectorBadgeNumber || '',
         violationsFound: editInspection.violationsFound ?? false,
         outOfService: editInspection.outOfService ?? false,
         recordable: editInspection.recordable ?? false,
-        oosReason: (editInspection as any).oosReason || '',
+        oosReason: editInspection.oosReason || '',
         totalCharge: editInspection.totalCharge ?? 0,
         totalFee: editInspection.totalFee ?? 0,
         note: editInspection.note || '',
-        driverId: (editInspection as any).driverId || '',
-        truckId: (editInspection as any).truckId || '',
-        trailerId: (editInspection as any).trailerId || '',
+        driverId: editInspection.driverId || '',
+        truckId: editInspection.truckId || '',
+        trailerId: editInspection.trailerId || '',
       });
     } else if (!editInspection && open) {
       form.reset(defaults);
@@ -119,29 +127,33 @@ export default function InspectionEditSheet({
       <SheetContent className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{isEdit ? 'Edit Inspection' : 'Create DOT Inspection'}</SheetTitle>
+          <SheetDescription>
+            {isEdit ? 'Update inspection details below.' : 'Record a new DOT roadside inspection.'}
+          </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-          {/* Entity selectors */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Driver</Label>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 mt-4">
+          {/* --- Assets --- */}
+          <SectionLabel>Assets</SectionLabel>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Driver</Label>
               <DriverCombobox
                 value={form.watch('driverId')}
                 onValueChange={(v) => form.setValue('driverId', v)}
                 placeholder="Select driver"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Truck</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Truck</Label>
               <TruckCombobox
                 value={form.watch('truckId')}
                 onValueChange={(v) => form.setValue('truckId', v)}
                 placeholder="Select truck"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Trailer</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Trailer</Label>
               <TrailerCombobox
                 value={form.watch('trailerId')}
                 onValueChange={(v) => form.setValue('trailerId', v)}
@@ -152,107 +164,117 @@ export default function InspectionEditSheet({
 
           <Separator />
 
-          {/* Inspection details */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Inspection Level</Label>
+          {/* --- Inspection Details --- */}
+          <SectionLabel>Inspection Details</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <RequiredLabel>Inspection Level</RequiredLabel>
               <Select value={form.watch('inspectionLevel')} onValueChange={(v) => form.setValue('inspectionLevel', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="LEVEL_1">Level 1</SelectItem>
-                  <SelectItem value="LEVEL_2">Level 2</SelectItem>
-                  <SelectItem value="LEVEL_3">Level 3</SelectItem>
-                  <SelectItem value="LEVEL_5">Level 5</SelectItem>
-                  <SelectItem value="LEVEL_6">Level 6</SelectItem>
+                  <SelectItem value="LEVEL_1">Level 1 - Full</SelectItem>
+                  <SelectItem value="LEVEL_2">Level 2 - Walk-Around</SelectItem>
+                  <SelectItem value="LEVEL_3">Level 3 - Driver Only</SelectItem>
+                  <SelectItem value="LEVEL_5">Level 5 - Vehicle Only</SelectItem>
+                  <SelectItem value="LEVEL_6">Level 6 - Enhanced</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Inspection Date</Label>
+            <div className="space-y-1.5">
+              <RequiredLabel>Inspection Date</RequiredLabel>
               <Input type="date" {...form.register('inspectionDate')} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>Location</Label>
-              <Input {...form.register('inspectionLocation')} placeholder="Location" />
+              <Input {...form.register('inspectionLocation')} placeholder="Inspection location" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>State</Label>
-              <Input {...form.register('inspectionState')} placeholder="State" />
+              <Input {...form.register('inspectionState')} placeholder="e.g. TX" maxLength={2} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <Separator />
+
+          {/* --- Inspector --- */}
+          <SectionLabel>Inspector</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>Inspector Name</Label>
               <Input {...form.register('inspectorName')} placeholder="Inspector name" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Badge Number</Label>
               <Input {...form.register('inspectorBadgeNumber')} placeholder="Badge number" />
             </div>
           </div>
 
+          {/* --- Results --- */}
+          <SectionLabel>Results</SectionLabel>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('violationsFound')}
                 onCheckedChange={(v) => form.setValue('violationsFound', !!v)}
               />
-              <Label className="font-normal">Violations Found</Label>
+              <Label className="font-normal text-sm">Violations Found</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={watchOOS}
                 onCheckedChange={(v) => form.setValue('outOfService', !!v)}
               />
-              <Label className="font-normal">Out of Service</Label>
+              <Label className="font-normal text-sm">Out of Service</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('recordable')}
                 onCheckedChange={(v) => form.setValue('recordable', !!v)}
               />
-              <Label className="font-normal">Recordable</Label>
+              <Label className="font-normal text-sm">Recordable</Label>
             </div>
           </div>
 
           {watchOOS && (
-            <div className="space-y-2">
-              <Label>OOS Reason</Label>
+            <div className="space-y-1.5">
+              <RequiredLabel>OOS Reason</RequiredLabel>
               <Input {...form.register('oosReason')} placeholder="Reason for out of service" />
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Total Charge</Label>
-              <Input type="number" step="0.01" {...form.register('totalCharge', { valueAsNumber: true })} />
+          <Separator />
+
+          {/* --- Financial --- */}
+          <SectionLabel>Financial</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Total Charge ($)</Label>
+              <Input type="number" step="0.01" {...form.register('totalCharge', { valueAsNumber: true })} placeholder="0.00" />
             </div>
-            <div className="space-y-2">
-              <Label>Total Fee</Label>
-              <Input type="number" step="0.01" {...form.register('totalFee', { valueAsNumber: true })} />
+            <div className="space-y-1.5">
+              <Label>Total Fee ($)</Label>
+              <Input type="number" step="0.01" {...form.register('totalFee', { valueAsNumber: true })} placeholder="0.00" />
             </div>
           </div>
 
-          <div className="space-y-2">
+          {/* --- Notes --- */}
+          <div className="space-y-1.5">
             <Label>Note</Label>
             <Textarea {...form.register('note')} placeholder="Additional notes..." rows={3} />
           </div>
 
-          {/* Documents */}
+          {/* --- Documents --- */}
           {isEdit && editInspection?.id && (
             <>
               <Separator />
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Attachments</Label>
-                <DocumentUpload
-                  compact
-                  onSuccess={() => onSuccess?.()}
-                />
-              </div>
+              <SectionLabel>Attachments</SectionLabel>
+              <DocumentUpload
+                compact
+                onSuccess={() => onSuccess?.()}
+              />
             </>
           )}
 

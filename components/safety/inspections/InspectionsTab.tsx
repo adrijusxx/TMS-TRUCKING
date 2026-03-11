@@ -43,7 +43,43 @@ export default function InspectionsTab() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const handleEdit = useCallback((inspection: InspectionData) => setEditInspection(inspection), []);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
+
+  const handleEdit = useCallback(async (inspection: InspectionData) => {
+    setIsLoadingEdit(true);
+    try {
+      const res = await fetch(apiUrl(`/api/safety/inspections/${inspection.id}`));
+      if (res.ok) {
+        const json = await res.json();
+        const full = json.data;
+        setEditInspection({
+          ...inspection,
+          driverId: full.driverId || null,
+          truckId: full.truckId || null,
+          trailerId: full.trailerId || null,
+          inspectionLevel: full.inspectionLevel || inspection.inspectionLevel,
+          inspectionDate: full.inspectionDate || inspection.inspectionDate,
+          inspectionLocation: full.inspectionLocation || null,
+          inspectionState: full.inspectionState || null,
+          inspectorName: full.inspectorName || null,
+          inspectorBadgeNumber: full.inspectorBadgeNumber || null,
+          violationsFound: full.violationsFound ?? inspection.violationsFound,
+          outOfService: full.outOfService ?? inspection.outOfService,
+          oosReason: full.oosReason || null,
+          recordable: full.recordable ?? inspection.recordable,
+          totalCharge: full.totalCharge ?? 0,
+          totalFee: full.totalFee ?? 0,
+          note: full.note || null,
+        });
+      } else {
+        toast.error('Failed to load inspection details');
+      }
+    } catch {
+      toast.error('Failed to load inspection details');
+    } finally {
+      setIsLoadingEdit(false);
+    }
+  }, []);
   const handleDelete = useCallback((inspection: InspectionData) => setDeleteInspection(inspection), []);
 
   const canEditInspections = can('safety.inspections.edit');

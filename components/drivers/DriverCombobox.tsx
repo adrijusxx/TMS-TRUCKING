@@ -86,7 +86,32 @@ export default function DriverCombobox({
   const drivers: Driver[] = shouldUseApi
     ? driversData?.data || []
     : filteredPreloaded;
-  const selectedDriver = drivers.find((d) => d.id === value) || (value && explicitSelectedDriver ? (explicitSelectedDriver as Driver) : undefined);
+
+  // Fetch driver by ID when value is set but not found in loaded list
+  const needsFetchById = React.useMemo(() => {
+    if (!value || value.trim() === '') return false;
+    if (explicitSelectedDriver) return false;
+    if (drivers.find((d) => d.id === value)) return false;
+    if (preloadedDrivers?.find((d) => d.id === value)) return false;
+    return value.length > 20;
+  }, [value, drivers, preloadedDrivers, explicitSelectedDriver]);
+
+  const { data: fetchedDriverData, isLoading: isLoadingById } = useQuery({
+    queryKey: ['driver', value, 'by-id'],
+    queryFn: async () => {
+      if (!value) return null;
+      const response = await fetch(apiUrl(`/api/drivers/${value}`));
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.data || data.driver || null;
+    },
+    enabled: needsFetchById,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedDriver = drivers.find((d) => d.id === value)
+    || (value && explicitSelectedDriver ? (explicitSelectedDriver as Driver) : undefined)
+    || (fetchedDriverData?.id === value ? fetchedDriverData : undefined);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -102,6 +127,8 @@ export default function DriverCombobox({
             <span className="truncate">
               {selectedDriver.user?.firstName || 'Unknown'} {selectedDriver.user?.lastName || 'Driver'}
             </span>
+          ) : value && isLoadingById ? (
+            <span className="text-muted-foreground">Loading...</span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}

@@ -82,7 +82,30 @@ export default function TruckCombobox({
   const trucks: Truck[] = shouldUseApi
     ? trucksData?.data || []
     : filteredPreloaded;
-  const selectedTruck = trucks.find((t) => t.id === value);
+
+  // Fetch truck by ID when value is set but not found in loaded list
+  const needsFetchById = React.useMemo(() => {
+    if (!value || value.trim() === '') return false;
+    if (trucks.find((t) => t.id === value)) return false;
+    if (preloadedTrucks?.find((t) => t.id === value)) return false;
+    return value.length > 20;
+  }, [value, trucks, preloadedTrucks]);
+
+  const { data: fetchedTruckData, isLoading: isLoadingById } = useQuery({
+    queryKey: ['truck', value, 'by-id'],
+    queryFn: async () => {
+      if (!value) return null;
+      const response = await fetch(apiUrl(`/api/trucks/${value}`));
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.data || data.truck || null;
+    },
+    enabled: needsFetchById,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedTruck = trucks.find((t) => t.id === value)
+    || (fetchedTruckData?.id === value ? fetchedTruckData : undefined);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -98,6 +121,8 @@ export default function TruckCombobox({
             <span className="truncate">
               #{selectedTruck.truckNumber}
             </span>
+          ) : value && isLoadingById ? (
+            <span className="text-muted-foreground">Loading...</span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}

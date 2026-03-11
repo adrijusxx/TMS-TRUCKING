@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,14 @@ const defaultValues = {
   truckId: '',
   trailerId: '',
 };
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{children}</p>;
+}
+
+function RequiredLabel({ children }: { children: React.ReactNode }) {
+  return <Label>{children} <span className="text-destructive">*</span></Label>;
+}
 
 export default function AccidentEditSheet({ open, onOpenChange, onSuccess, editAccident }: AccidentEditSheetProps) {
   const isEdit = !!editAccident;
@@ -115,29 +123,33 @@ export default function AccidentEditSheet({ open, onOpenChange, onSuccess, editA
       <SheetContent className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{isEdit ? 'Edit Accident' : 'Report Accident'}</SheetTitle>
+          <SheetDescription>
+            {isEdit ? 'Update accident details below.' : 'Fill in accident details to create a report.'}
+          </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-          {/* Entity selectors */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Driver</Label>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 mt-4">
+          {/* --- Assets --- */}
+          <SectionLabel>Assets</SectionLabel>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Driver</Label>
               <DriverCombobox
                 value={form.watch('driverId')}
                 onValueChange={(v) => form.setValue('driverId', v)}
                 placeholder="Select driver"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Truck</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Truck</Label>
               <TruckCombobox
                 value={form.watch('truckId')}
                 onValueChange={(v) => form.setValue('truckId', v)}
                 placeholder="Select truck"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Trailer</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Trailer</Label>
               <TrailerCombobox
                 value={form.watch('trailerId')}
                 onValueChange={(v) => form.setValue('trailerId', v)}
@@ -148,12 +160,13 @@ export default function AccidentEditSheet({ open, onOpenChange, onSuccess, editA
 
           <Separator />
 
-          {/* Incident details */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Incident Type</Label>
+          {/* --- Incident Details --- */}
+          <SectionLabel>Incident Details</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <RequiredLabel>Incident Type</RequiredLabel>
               <Select value={form.watch('incidentType')} onValueChange={(v) => form.setValue('incidentType', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ACCIDENT">Accident</SelectItem>
                   <SelectItem value="COLLISION">Collision</SelectItem>
@@ -166,10 +179,10 @@ export default function AccidentEditSheet({ open, onOpenChange, onSuccess, editA
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Severity</Label>
+            <div className="space-y-1.5">
+              <RequiredLabel>Severity</RequiredLabel>
               <Select value={form.watch('severity')} onValueChange={(v) => form.setValue('severity', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select severity" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MINOR">Minor</SelectItem>
                   <SelectItem value="MODERATE">Moderate</SelectItem>
@@ -180,15 +193,15 @@ export default function AccidentEditSheet({ open, onOpenChange, onSuccess, editA
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Date</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <RequiredLabel>Date</RequiredLabel>
               <Input type="date" {...form.register('date')} />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Status</Label>
               <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="REPORTED">Reported</SelectItem>
                   <SelectItem value="UNDER_INVESTIGATION">Under Investigation</SelectItem>
@@ -200,67 +213,74 @@ export default function AccidentEditSheet({ open, onOpenChange, onSuccess, editA
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Location</Label>
+          <Separator />
+
+          {/* --- Location --- */}
+          <SectionLabel>Location</SectionLabel>
+          <div className="space-y-1.5">
+            <Label>Address</Label>
             <Input {...form.register('location')} placeholder="Street address or highway" />
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>City</Label>
               <Input {...form.register('city')} placeholder="City" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>State</Label>
-              <Input {...form.register('state')} placeholder="State" />
+              <Input {...form.register('state')} placeholder="e.g. TX" maxLength={2} />
             </div>
           </div>
 
-          <div className="space-y-2">
+          <Separator />
+
+          {/* --- Description --- */}
+          <div className="space-y-1.5">
             <Label>Description</Label>
             <Textarea {...form.register('description')} placeholder="Describe the accident..." rows={3} />
           </div>
 
+          {/* --- Flags --- */}
+          <SectionLabel>Flags</SectionLabel>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('dotReportable')}
                 onCheckedChange={(v) => form.setValue('dotReportable', !!v)}
               />
-              <Label className="font-normal">DOT Reportable</Label>
+              <Label className="font-normal text-sm">DOT Reportable</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('injuriesInvolved')}
                 onCheckedChange={(v) => form.setValue('injuriesInvolved', !!v)}
               />
-              <Label className="font-normal">Injuries</Label>
+              <Label className="font-normal text-sm">Injuries</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('fatalitiesInvolved')}
                 onCheckedChange={(v) => form.setValue('fatalitiesInvolved', !!v)}
               />
-              <Label className="font-normal">Fatalities</Label>
+              <Label className="font-normal text-sm">Fatalities</Label>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Estimated Cost</Label>
-            <Input type="number" step="0.01" {...form.register('estimatedCost', { valueAsNumber: true })} />
+          {/* --- Financial --- */}
+          <div className="space-y-1.5">
+            <Label>Estimated Cost ($)</Label>
+            <Input type="number" step="0.01" {...form.register('estimatedCost', { valueAsNumber: true })} placeholder="0.00" />
           </div>
 
-          {/* Documents */}
+          {/* --- Documents --- */}
           {isEdit && editAccident?.id && (
             <>
               <Separator />
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Attachments</Label>
-                <DocumentUpload
-                  compact
-                  onSuccess={() => onSuccess?.()}
-                />
-              </div>
+              <SectionLabel>Attachments</SectionLabel>
+              <DocumentUpload
+                compact
+                onSuccess={() => onSuccess?.()}
+              />
             </>
           )}
 

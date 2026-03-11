@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,14 @@ const defaultValues = {
   trailerId: '',
   notes: '',
 };
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{children}</p>;
+}
+
+function RequiredLabel({ children }: { children: React.ReactNode }) {
+  return <Label>{children} <span className="text-destructive">*</span></Label>;
+}
 
 export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editClaim }: CreateClaimDialogProps) {
   const isEdit = !!editClaim;
@@ -120,29 +128,33 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
       <SheetContent className="sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{isEdit ? 'Edit Claim' : 'Create Insurance Claim'}</SheetTitle>
+          <SheetDescription>
+            {isEdit ? 'Update claim details below.' : 'Fill in the claim information.'}
+          </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-          {/* Entity selectors */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Driver</Label>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 mt-4">
+          {/* --- Assets --- */}
+          <SectionLabel>Assets</SectionLabel>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Driver</Label>
               <DriverCombobox
                 value={form.watch('driverId')}
                 onValueChange={(v) => form.setValue('driverId', v)}
                 placeholder="Select driver"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Truck</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Truck</Label>
               <TruckCombobox
                 value={form.watch('truckId')}
                 onValueChange={(v) => form.setValue('truckId', v)}
                 placeholder="Select truck"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Trailer</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Trailer</Label>
               <TrailerCombobox
                 value={form.watch('trailerId')}
                 onValueChange={(v) => form.setValue('trailerId', v)}
@@ -153,12 +165,13 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
 
           <Separator />
 
-          {/* Claim details */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Claim Type</Label>
+          {/* --- Claim Details --- */}
+          <SectionLabel>Claim Details</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <RequiredLabel>Claim Type</RequiredLabel>
               <Select value={form.watch('claimType')} onValueChange={(v) => form.setValue('claimType', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ACCIDENT">Accident</SelectItem>
                   <SelectItem value="CARGO">Cargo</SelectItem>
@@ -167,28 +180,28 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Date of Loss</Label>
+            <div className="space-y-1.5">
+              <RequiredLabel>Date of Loss</RequiredLabel>
               <Input type="date" {...form.register('dateOfLoss')} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>Insurance Company</Label>
-              <Input {...form.register('insuranceCompany')} placeholder="Insurance company" />
+              <Input {...form.register('insuranceCompany')} placeholder="Company name" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Claim Adjuster</Label>
               <Input {...form.register('adjusterName')} placeholder="Adjuster name" />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label>Coverage Type</Label>
               <Select value={form.watch('coverageType')} onValueChange={(v) => form.setValue('coverageType', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select coverage" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="LIABILITY">Liability</SelectItem>
                   <SelectItem value="PHYSICAL_DAMAGE">Physical Damage</SelectItem>
@@ -197,10 +210,10 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label>Status</Label>
               <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="OPEN">Open</SelectItem>
                   <SelectItem value="PENDING">Pending</SelectItem>
@@ -211,69 +224,72 @@ export default function CreateClaimDialog({ open, onOpenChange, onSuccess, editC
             </div>
           </div>
 
+          {/* --- Flags --- */}
+          <SectionLabel>Flags</SectionLabel>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('hasPoliceReport')}
                 onCheckedChange={(v) => form.setValue('hasPoliceReport', !!v)}
               />
-              <Label className="font-normal">Police Report</Label>
+              <Label className="font-normal text-sm">Police Report</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('hasTowing')}
                 onCheckedChange={(v) => form.setValue('hasTowing', !!v)}
               />
-              <Label className="font-normal">Towing</Label>
+              <Label className="font-normal text-sm">Towing</Label>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={form.watch('recordable')}
                 onCheckedChange={(v) => form.setValue('recordable', !!v)}
               />
-              <Label className="font-normal">Recordable</Label>
+              <Label className="font-normal text-sm">Recordable</Label>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Driver Amount</Label>
-              <Input type="number" step="0.01" {...form.register('driverAmount', { valueAsNumber: true })} />
+          <Separator />
+
+          {/* --- Financial --- */}
+          <SectionLabel>Financial</SectionLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Driver Amount ($)</Label>
+              <Input type="number" step="0.01" {...form.register('driverAmount', { valueAsNumber: true })} placeholder="0.00" />
             </div>
-            <div className="space-y-2">
-              <Label>Vendor Amount</Label>
-              <Input type="number" step="0.01" {...form.register('vendorAmount', { valueAsNumber: true })} />
+            <div className="space-y-1.5">
+              <Label>Vendor Amount ($)</Label>
+              <Input type="number" step="0.01" {...form.register('vendorAmount', { valueAsNumber: true })} placeholder="0.00" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Total Charge ($)</Label>
+              <Input type="number" step="0.01" {...form.register('totalCharge', { valueAsNumber: true })} placeholder="0.00" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Total Fee ($)</Label>
+              <Input type="number" step="0.01" {...form.register('totalFee', { valueAsNumber: true })} placeholder="0.00" />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Total Charge</Label>
-              <Input type="number" step="0.01" {...form.register('totalCharge', { valueAsNumber: true })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Total Fee</Label>
-              <Input type="number" step="0.01" {...form.register('totalFee', { valueAsNumber: true })} />
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-2">
+          {/* --- Notes --- */}
+          <div className="space-y-1.5">
             <Label>Notes</Label>
             <Textarea {...form.register('notes')} placeholder="Additional notes..." rows={3} />
           </div>
 
-          {/* Documents */}
+          {/* --- Documents --- */}
           {isEdit && editClaim?.id && (
             <>
               <Separator />
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Attachments</Label>
-                <DocumentUpload
-                  compact
-                  onSuccess={() => onSuccess?.()}
-                />
-              </div>
+              <SectionLabel>Attachments</SectionLabel>
+              <DocumentUpload
+                compact
+                onSuccess={() => onSuccess?.()}
+              />
             </>
           )}
 
