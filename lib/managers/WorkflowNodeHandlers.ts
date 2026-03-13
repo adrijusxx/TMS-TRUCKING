@@ -265,11 +265,25 @@ export async function executeAssignLead(
     if (assigneeId === 'round_robin') {
         const recruiters = await prisma.recruiterProfile.findMany({
             where: { companyId, isActive: true },
-            select: { userId: true, currentActiveLeads: true, maxCapacity: true },
-            orderBy: { currentActiveLeads: 'asc' },
+            select: { userId: true, maxCapacity: true },
         });
 
-        const available = recruiters.find(r => r.currentActiveLeads < r.maxCapacity);
+        // Count active leads per recruiter (non-terminal statuses)
+        const recruitersWithCounts = await Promise.all(
+            recruiters.map(async (r) => {
+                const activeLeads = await prisma.lead.count({
+                    where: {
+                        assignedToId: r.userId,
+                        companyId,
+                        status: { notIn: ['HIRED', 'REJECTED'] },
+                    },
+                });
+                return { ...r, activeLeads };
+            })
+        );
+
+        recruitersWithCounts.sort((a, b) => a.activeLeads - b.activeLeads);
+        const available = recruitersWithCounts.find(r => r.activeLeads < r.maxCapacity);
         if (!available) return { success: false, output: { error: 'No available recruiters' } };
         assigneeId = available.userId;
     }
