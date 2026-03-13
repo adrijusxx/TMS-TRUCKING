@@ -93,7 +93,7 @@ export default function DashboardLayout({
     pathname?.startsWith('/dashboard/fleet-map');
 
   // Check if we're in Fleet Department section
-  const isFleetSection = pathname?.startsWith('/dashboard/fleet') ||
+  const isFleetSection = (pathname?.startsWith('/dashboard/fleet') && !pathname?.startsWith('/dashboard/fleet-map')) ||
     pathname?.startsWith('/dashboard/trucks') ||
     pathname?.startsWith('/dashboard/trailers') ||
     pathname?.startsWith('/dashboard/fleet-board');

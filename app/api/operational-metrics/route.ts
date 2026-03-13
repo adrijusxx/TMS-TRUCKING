@@ -167,12 +167,21 @@ async function fetchFleetAverageMpg(companyId: string): Promise<{
             }>;
         }>(`/fleet/reports/vehicles/fuel-energy?${params.toString()}`, {}, companyId);
 
-        if (!result?.data || result.data.length === 0) {
+        if (result === null) {
             return {
                 averageMpg: null,
                 vehicleCount: 0,
                 source: 'Samsara',
-                error: 'No fuel efficiency data found. Ensure Samsara is connected and vehicles have fuel data.',
+                error: 'Could not connect to Samsara. Check API key and connection settings.',
+            };
+        }
+
+        if (!result.data || result.data.length === 0) {
+            return {
+                averageMpg: null,
+                vehicleCount: 0,
+                source: 'Samsara',
+                error: 'No fuel efficiency data found. Ensure vehicles have fuel data in the last 30 days.',
             };
         }
 
@@ -253,8 +262,12 @@ async function syncPerTruckMpg(companyId: string): Promise<{
             }>;
         }>(`/fleet/reports/vehicles/fuel-energy?${params.toString()}`, {}, companyId);
 
-        if (!result?.data || result.data.length === 0) {
-            return { updated: 0, total: 0, source: 'Samsara', error: 'No fuel data from Samsara.' };
+        if (result === null) {
+            return { updated: 0, total: 0, source: 'Samsara', error: 'Could not connect to Samsara. Check API key and connection settings.' };
+        }
+
+        if (!result.data || result.data.length === 0) {
+            return { updated: 0, total: 0, source: 'Samsara', error: 'No fuel data from Samsara in the last 30 days.' };
         }
 
         let updated = 0;
