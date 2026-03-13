@@ -3,6 +3,7 @@
 import { auth } from '@/lib/auth';
 import { EmailService } from '@/lib/services/EmailService';
 import { prisma } from '@/lib/prisma';
+import { APP_NAME } from '@/lib/config/branding';
 
 export async function sendPodReminder(loadId: string, dispatcherEmail: string) {
     try {
@@ -44,7 +45,7 @@ export async function sendPodReminder(loadId: string, dispatcherEmail: string) {
         <p>Please obtain the POD from the driver and upload it to the system immediately so this load can be invoiced.</p>
         
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="color: #999; font-size: 12px;">TMS Automated Watchdog</p>
+        <p style="color: #999; font-size: 12px;">${APP_NAME} Automated Watchdog</p>
       </div>
     `;
 

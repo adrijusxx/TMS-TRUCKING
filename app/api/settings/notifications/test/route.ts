@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { z } from 'zod';
 import { EmailService } from '@/lib/services/EmailService';
 import { logger } from '@/lib/utils/logger';
+import { APP_NAME } from '@/lib/config/branding';
 
 const testNotificationSchema = z.object({
   type: z.enum(['email', 'sms', 'push', 'webhook']),
@@ -33,8 +34,8 @@ export async function POST(request: NextRequest) {
 
       const sent = await EmailService.sendEmail({
         to: email,
-        subject: 'TMS Test Notification',
-        html: `<h2>Test Notification</h2><p>This is a test notification from your TMS system.</p><p>If you received this, email notifications are working correctly.</p><p><small>Sent at ${new Date().toLocaleString()}</small></p>`,
+        subject: `${APP_NAME} Test Notification`,
+        html: `<h2>Test Notification</h2><p>This is a test notification from your ${APP_NAME} system.</p><p>If you received this, email notifications are working correctly.</p><p><small>Sent at ${new Date().toLocaleString()}</small></p>`,
       });
 
       if (!sent) {

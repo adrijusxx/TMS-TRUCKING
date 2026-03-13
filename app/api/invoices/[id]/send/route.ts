@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { APP_NAME } from '@/lib/config/branding';
 
 export async function POST(
   request: NextRequest,
@@ -81,7 +82,7 @@ export async function POST(
     const invoicePdfUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/invoices/${invoice.id}/pdf`;
 
     // Email content
-    const emailSubject = `Invoice ${invoice.invoiceNumber} from ${company?.name || 'Your TMS'}`;
+    const emailSubject = `Invoice ${invoice.invoiceNumber} from ${company?.name || APP_NAME}`;
     const emailBody = generateInvoiceEmail(invoice, company, invoicePdfUrl);
 
     // In production, use a service like SendGrid, AWS SES, or Resend
@@ -183,10 +184,10 @@ function generateInvoiceEmail(invoice: any, company: any, pdfUrl: string): strin
       <p>If you have any questions about this invoice, please contact us at ${company?.email || 'support@tms.com'} or ${company?.phone || '(555) 123-4567'}.</p>
       
       <p>Thank you for your business!</p>
-      <p>Best regards,<br>${company?.name || 'Your TMS Team'}</p>
+      <p>Best regards,<br>${company?.name || `Your ${APP_NAME} Team`}</p>
     </div>
     <div class="footer">
-      <p>${company?.name || 'TMS'}</p>
+      <p>${company?.name || APP_NAME}</p>
       ${company?.address ? `<p>${company.address}, ${company.city}, ${company.state} ${company.zip}</p>` : ''}
     </div>
   </div>

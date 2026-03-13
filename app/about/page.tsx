@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Truck, Users, Shield, ArrowRight, Target, Award, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { APP_NAME } from '@/lib/config/branding';
 
 export default function AboutPage() {
     return (
@@ -23,7 +24,7 @@ export default function AboutPage() {
                             <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
                                 <Truck className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-xl font-bold tracking-tight">TMS Pro</span>
+                            <span className="text-xl font-bold tracking-tight">{APP_NAME}</span>
                         </Link>
                         <div className="flex items-center space-x-4">
                             <Link href="/login">
@@ -52,7 +53,7 @@ export default function AboutPage() {
                             Driving the Future of <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Logistics</span>
                         </h1>
                         <p className="text-lg text-slate-400 font-light max-w-2xl mx-auto leading-relaxed">
-                            We built TMS Pro to bridge the gap between complex trucking operations and modern, intuitive software. Empowering carriers with data-driven workflows since 2024.
+                            We built Alogix to bridge the gap between complex trucking operations and modern, intuitive software. Empowering carriers with data-driven workflows since 2024.
                         </p>
                     </motion.div>
 

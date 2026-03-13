@@ -1,9 +1,10 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import OnboardingTemplateEditor from '@/components/crm/onboarding/OnboardingTemplateEditor';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Onboarding Templates | TMS',
+    title: `Onboarding Templates | ${APP_NAME}`,
     description: 'Customize onboarding steps for new hires',
 };
 

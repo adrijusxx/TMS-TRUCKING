@@ -1,9 +1,10 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import FollowUpCalendar from '@/components/crm/FollowUpCalendar';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Follow-Up Calendar | Recruiting | TMS',
+    title: `Follow-Up Calendar | Recruiting | ${APP_NAME}`,
     description: 'Calendar view of scheduled lead follow-ups',
 };
 

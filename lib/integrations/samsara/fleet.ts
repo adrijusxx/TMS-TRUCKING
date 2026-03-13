@@ -174,6 +174,86 @@ export async function getSamsaraAssetLocationAndSpeed(
 }
 
 /**
+ * Get vehicle location history for trail rendering (last N hours)
+ * Uses the location-and-speed stream endpoint with a wider time window.
+ */
+export async function getSamsaraVehicleLocationHistory(
+    vehicleIds: string[],
+    companyId?: string,
+    hoursBack = 2
+): Promise<Array<{ vehicleId: string; points: Array<{ lat: number; lng: number; timestamp: number; speed?: number; heading?: number }> }> | null> {
+    if (!vehicleIds.length) return null;
+
+    const MAX_IDS_PER_REQUEST = 50;
+    if (vehicleIds.length > MAX_IDS_PER_REQUEST) {
+        const allResults: Array<{ vehicleId: string; points: Array<{ lat: number; lng: number; timestamp: number; speed?: number; heading?: number }> }> = [];
+        for (let i = 0; i < vehicleIds.length; i += MAX_IDS_PER_REQUEST) {
+            const batch = vehicleIds.slice(i, i + MAX_IDS_PER_REQUEST);
+            const batchResult = await getSamsaraVehicleLocationHistory(batch, companyId, hoursBack);
+            if (batchResult) allResults.push(...batchResult);
+        }
+        return allResults.length > 0 ? allResults : null;
+    }
+
+    try {
+        const endTime = new Date();
+        const startTime = new Date(endTime.getTime() - hoursBack * 60 * 60 * 1000);
+        const params = new URLSearchParams();
+        params.append('startTime', startTime.toISOString());
+        params.append('endTime', endTime.toISOString());
+        params.append('includeSpeed', 'true');
+        params.append('ids', vehicleIds.join(','));
+        params.append('limit', '512');
+
+        const result = await samsaraRequest<{
+            data?: Array<{
+                id: string;
+                location: {
+                    latitude: number;
+                    longitude: number;
+                    speed?: { value: number; unit: string };
+                    heading?: number;
+                };
+                time: string;
+            }>;
+        }>(
+            `/assets/location-and-speed/stream?${params.toString()}`,
+            {},
+            companyId
+        );
+
+        if (!result?.data?.length) return null;
+
+        // Group points by vehicle ID, preserving chronological order
+        const byVehicle = new Map<string, Array<{ lat: number; lng: number; timestamp: number; speed?: number; heading?: number }>>();
+        for (const entry of result.data) {
+            if (!entry.id || !entry.location) continue;
+            const speedMph = entry.location.speed?.value
+                ? (entry.location.speed.unit === 'mph' ? entry.location.speed.value : entry.location.speed.value * 0.621371)
+                : undefined;
+
+            const points = byVehicle.get(entry.id) || [];
+            points.push({
+                lat: entry.location.latitude,
+                lng: entry.location.longitude,
+                timestamp: new Date(entry.time).getTime(),
+                speed: speedMph,
+                heading: entry.location.heading,
+            });
+            byVehicle.set(entry.id, points);
+        }
+
+        return Array.from(byVehicle.entries()).map(([vehicleId, points]) => ({
+            vehicleId,
+            points: points.sort((a, b) => a.timestamp - b.timestamp),
+        }));
+    } catch (error) {
+        console.error('[Samsara] Failed to fetch location history:', error);
+        return null;
+    }
+}
+
+/**
  * Get vehicle locations in real-time
  */
 export async function getSamsaraVehicleLocations(

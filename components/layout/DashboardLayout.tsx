@@ -90,7 +90,7 @@ export default function DashboardLayout({
     pathname?.startsWith('/dashboard/calendar') ||
     pathname?.startsWith('/dashboard/map') ||
     pathname?.startsWith('/dashboard/operations') ||
-    pathname?.startsWith('/dashboard/war-room');
+    pathname?.startsWith('/dashboard/fleet-map');
 
   // Check if we're in Fleet Department section
   const isFleetSection = pathname?.startsWith('/dashboard/fleet') ||

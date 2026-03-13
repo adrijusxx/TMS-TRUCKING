@@ -3,9 +3,10 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import OnboardingList from '@/components/crm/onboarding/OnboardingList';
 import { Skeleton } from '@/components/ui/skeleton';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Onboarding | Recruiting | TMS',
+    title: `Onboarding | Recruiting | ${APP_NAME}`,
     description: 'Track new driver onboarding progress',
 };
 

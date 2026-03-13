@@ -42,7 +42,7 @@ import type { DepartmentNavItem } from '@/components/layout/DepartmentNav';
 export const loadNavItems: DepartmentNavItem[] = [
   { name: 'All Loads', href: '/dashboard/loads', icon: Package },
   { name: 'Dispatch Hub', href: '/dashboard/dispatch', icon: Navigation },
-  { name: 'War Room', href: '/dashboard/war-room', icon: Map },
+  { name: 'Fleet Map', href: '/dashboard/fleet-map', icon: Map },
 ];
 
 // Fleet Department
@@ -107,6 +107,7 @@ export const hrNavItems: DepartmentNavItem[] = [
       { name: 'All Drivers', href: '/dashboard/drivers' },
       { name: 'Driver Compliance', href: '/dashboard/safety/driver-compliance' },
       { name: 'DQF', href: '/dashboard/safety/dqf' },
+      { name: 'Equipment Suggestions', href: '/dashboard/drivers/equipment-suggestions' },
     ],
   },
   { name: 'Monitoring', href: '/dashboard/drivers/monitoring', icon: Activity },

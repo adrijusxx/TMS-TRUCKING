@@ -15,7 +15,7 @@ export class PathTrailManager {
   private map: any;
   private trails: Map<string, TrailPoint[]> = new Map();
   private segments: Map<string, any[]> = new Map();
-  private maxPoints = 50;
+  private maxPoints = 200;
   private enabled = false;
 
   constructor(map: any) {
@@ -81,6 +81,14 @@ export class PathTrailManager {
     }
 
     this.segments.set(truckId, newSegments);
+  }
+
+  seedTrail(truckId: string, points: TrailPoint[]): void {
+    if (!this.enabled || points.length === 0) return;
+
+    const trail = points.slice(-this.maxPoints);
+    this.trails.set(truckId, trail);
+    this.updateTrail(truckId);
   }
 
   removeTrail(truckId: string): void {

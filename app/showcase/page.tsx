@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { ProductGallery } from '@/components/showcase';
 import { Button } from '@/components/ui/button';
+import { APP_NAME } from '@/lib/config/branding';
 import { 
   ArrowLeft, ArrowRight, Truck, Sparkles, Shield, Zap, 
   BarChart3, FileText, Calculator, MapPin, Users, Wrench,
@@ -9,8 +10,8 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Product Showcase | TMS Pro',
-  description: 'Explore TMS Pro - The complete Transportation Management System with dispatch, fleet management, safety compliance, and accounting.',
+  title: `Product Showcase | ${APP_NAME}`,
+  description: `Explore ${APP_NAME} - The complete Transportation Management System with dispatch, fleet management, safety compliance, and accounting.`,
 };
 
 const highlights = [
@@ -61,7 +62,7 @@ export default function ShowcasePage() {
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center space-x-2 group">
               <Truck className="h-7 w-7 text-purple-500 group-hover:text-purple-400 transition-colors" />
-              <span className="text-lg font-bold text-white">TMS Pro</span>
+              <span className="text-lg font-bold text-white">{APP_NAME}</span>
             </Link>
             
             <div className="flex items-center gap-3">
@@ -92,7 +93,7 @@ export default function ShowcasePage() {
             </div>
             
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
-              See TMS Pro{' '}
+              See {APP_NAME}{' '}
               <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
                 In Action
               </span>
@@ -156,7 +157,7 @@ export default function ShowcasePage() {
               Ready to Modernize Your Operations?
             </h2>
             <p className="text-slate-400 mb-6 text-sm">
-              Join carriers who trust TMS Pro to manage their fleet, drivers, and compliance.
+              Join carriers who trust {APP_NAME} to manage their fleet, drivers, and compliance.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/register">
@@ -181,7 +182,7 @@ export default function ShowcasePage() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-purple-500" />
-              <span>&copy; {new Date().getFullYear()} TMS Pro</span>
+              <span>&copy; {new Date().getFullYear()} {APP_NAME}</span>
             </div>
             <div className="flex items-center gap-6">
               <Link href="/privacy" className="hover:text-slate-300 transition-colors">Privacy</Link>

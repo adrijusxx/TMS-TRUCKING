@@ -74,7 +74,7 @@ export function useWarRoomState(loads: LoadMapEntry[], trucks: TruckMapEntry[]) 
     trucks.forEach(truck => {
       if (truck.location?.lat && truck.location?.lng) {
         const speed = truck.location.speed || 0;
-        const status: MapAsset['status'] = speed > 5 ? 'MOVING' : speed > 0 ? 'STOPPED' : 'IDLE';
+        const status: MapAsset['status'] = speed > 0 ? 'MOVING' : 'IDLE';
         const activeLoad = loads.find(load => load.truck?.id === truck.id);
         const fuelPct = truck.sensors?.fuelPercent;
         const isLowFuel = fuelPct !== undefined && fuelPct !== null && fuelPct < 25;
@@ -99,7 +99,7 @@ export function useWarRoomState(loads: LoadMapEntry[], trucks: TruckMapEntry[]) 
     loads.forEach(load => {
       if (load.truckLocation?.lat && load.truckLocation?.lng) {
         const speed = load.truckLocation.speed || 0;
-        let status: MapAsset['status'] = speed > 5 ? 'MOVING' : speed > 0 ? 'STOPPED' : 'IDLE';
+        let status: MapAsset['status'] = speed > 0 ? 'MOVING' : 'IDLE';
 
         if (load.status === 'EN_ROUTE_DELIVERY' && speed === 0) {
           status = 'DELAYED';

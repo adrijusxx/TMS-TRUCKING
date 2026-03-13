@@ -4,18 +4,15 @@ import * as React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { LayoutGrid, UserCircle, Navigation, Map } from 'lucide-react';
+import { LayoutGrid, UserCircle } from 'lucide-react';
 import { PageTransition } from '@/components/ui/page-transition';
 
 // Lazy load tab components
 const LoadBoard = React.lazy(() => import('@/components/loads/LoadBoard'));
 const DispatchViewClient = React.lazy(() => import('@/components/dispatch-view/DispatchViewClient'));
-const OperationsCenter = React.lazy(() => import('@/components/operations/OperationsCenter'));
-
 const DISPATCH_TABS = [
   { id: 'board', label: 'Week Board', icon: LayoutGrid },
   { id: 'my-dispatch', label: 'My Dispatch', icon: UserCircle },
-  { id: 'operations', label: 'Operations', icon: Navigation },
 ] as const;
 
 type DispatchTabId = typeof DISPATCH_TABS[number]['id'];
@@ -77,9 +74,6 @@ export default function DispatchHubPage() {
             </TabsContent>
             <TabsContent value="my-dispatch" className="mt-4">
               <DispatchViewClient />
-            </TabsContent>
-            <TabsContent value="operations" className="mt-4">
-              <OperationsCenter />
             </TabsContent>
           </React.Suspense>
         </Tabs>

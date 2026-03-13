@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Truck, ArrowRight, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { APP_NAME } from '@/lib/config/branding';
 
 export default function BlogPage() {
     const posts = [
@@ -31,7 +32,7 @@ export default function BlogPage() {
                             <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
                                 <Truck className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-xl font-bold tracking-tight">TMS Pro</span>
+                            <span className="text-xl font-bold tracking-tight">{APP_NAME}</span>
                         </Link>
                         <div className="flex items-center space-x-4">
                             <Link href="/login">
@@ -56,7 +57,7 @@ export default function BlogPage() {
                         <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6 tracking-tight">
                             News & <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">Industry Insights</span>
                         </h1>
-                        <p className="text-lg text-slate-400 font-light max-w-2xl mx-auto">Latest updates on the trucking industry, fleet management strategies, and TMS Pro developments.</p>
+                        <p className="text-lg text-slate-400 font-light max-w-2xl mx-auto">Latest updates on the trucking industry, fleet management strategies, and {APP_NAME} developments.</p>
                     </motion.div>
 
                     {/* Featured Post */}
@@ -65,7 +66,7 @@ export default function BlogPage() {
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
                         <div className="absolute bottom-0 left-0 p-8 md:p-12 w-full md:w-2/3">
                             <div className="text-emerald-400 font-medium text-sm mb-3">Featured • Product Update</div>
-                            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 leading-tight group-hover:text-emerald-300 transition-colors">TMS Pro unveils next-gen AI Dispatch Routing</h2>
+                            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 leading-tight group-hover:text-emerald-300 transition-colors">{APP_NAME} unveils next-gen AI Dispatch Routing</h2>
                             <p className="text-slate-300 text-lg mb-6 line-clamp-2">Our new AI routing engine automatically assigns the best loads to your drivers, cutting empty miles by up to 15% and maximizing your fleet's profitability.</p>
                             <div className="inline-flex items-center text-white font-semibold">Read Full Article <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" /></div>
                         </div>

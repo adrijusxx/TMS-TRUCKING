@@ -126,6 +126,21 @@ export type InngestEvents = {
     };
   };
 
+  // Workflow Events
+  'workflow/start': {
+    data: {
+      workflowId: string;
+      leadId: string;
+      companyId: string;
+    };
+  };
+  'workflow/resume': {
+    data: {
+      executionId: string;
+      nodeId: string;
+    };
+  };
+
   // Fleet Monitoring Events
   'fleet/check-dormancy': {
     data: Record<string, never>;

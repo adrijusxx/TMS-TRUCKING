@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import type { UseImportWizardReturn } from '@/lib/hooks/useImportWizard';
+import { ImportAssignmentSuggestionsPanel } from '@/components/import-export/ImportAssignmentSuggestionsPanel';
 
 interface ImportResultsStepProps {
   wizard: UseImportWizardReturn;
@@ -79,6 +80,11 @@ export function ImportResultsStep({ wizard }: ImportResultsStepProps) {
             Success! All records were imported without errors.
           </p>
         </div>
+      )}
+
+      {/* Equipment Assignment Suggestions (loads only) */}
+      {wizard.entityType === 'loads' && importDetails.importBatchIds && importDetails.importBatchIds.length > 0 && (
+        <ImportAssignmentSuggestionsPanel importBatchIds={importDetails.importBatchIds} />
       )}
     </div>
   );

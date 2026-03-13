@@ -50,9 +50,10 @@ interface Override {
 interface UserPermissionOverridesProps {
   userId: string;
   userName: string;
+  onMutationSuccess?: () => void;
 }
 
-export default function UserPermissionOverrides({ userId, userName }: UserPermissionOverridesProps) {
+export default function UserPermissionOverrides({ userId, userName, onMutationSuccess }: UserPermissionOverridesProps) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [newOverride, setNewOverride] = useState<{ permission: string; type: 'GRANT' | 'REVOKE'; reason: string }>({ permission: '', type: 'GRANT', reason: '' });
@@ -86,6 +87,7 @@ export default function UserPermissionOverrides({ userId, userName }: UserPermis
       toast.success('Override added');
       setAddOpen(false);
       setNewOverride({ permission: '', type: 'GRANT', reason: '' });
+      onMutationSuccess?.();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -106,6 +108,7 @@ export default function UserPermissionOverrides({ userId, userName }: UserPermis
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-overrides', userId] });
       toast.success('Override removed');
+      onMutationSuccess?.();
     },
     onError: (err: any) => toast.error(err.message),
   });

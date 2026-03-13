@@ -212,7 +212,9 @@ export function useWarRoomEffects({
     trafficLayerRef.current.setMap(layers.traffic ? map : null);
   }, [map, layers.traffic]);
 
-  // ---- Trail management ----
+  // ---- Trail management: seed historical data on enable ----
+  const trailSeededRef = useRef(false);
+
   useEffect(() => {
     if (!map || !mapReady) return;
 
@@ -222,19 +224,49 @@ export function useWarRoomEffects({
 
     trailManagerRef.current.setEnabled(layers.trails);
 
-    if (layers.trails) {
-      mapAssets.forEach(asset => {
-        if (asset.lat && asset.lng) {
-          trailManagerRef.current?.addPoint(asset.id, {
-            lat: asset.lat,
-            lng: asset.lng,
-            timestamp: Date.now(),
-            heading: asset.heading,
-            speed: asset.speed,
-          });
-        }
-      });
+    if (!layers.trails) {
+      trailSeededRef.current = false;
+      return;
     }
+
+    // Seed historical data once when trails are first enabled
+    if (!trailSeededRef.current && mapAssets.length > 0) {
+      trailSeededRef.current = true;
+      const truckAssets = mapAssets.filter(a => a.type === 'TRUCK');
+      if (truckAssets.length > 0) {
+        fetch('/api/maps/trails')
+          .then(res => res.json())
+          .then(result => {
+            if (result.success && result.data) {
+              for (const vehicle of result.data) {
+                // Match Samsara vehicle to truck asset by normalized name/number
+                const name = (vehicle.vehicleName || '').replace(/\D/g, '');
+                const asset = truckAssets.find(a => {
+                  const num = a.label.replace(/\D/g, '');
+                  return num && name && num === name;
+                });
+                if (asset && trailManagerRef.current) {
+                  trailManagerRef.current.seedTrail(asset.id, vehicle.points);
+                }
+              }
+            }
+          })
+          .catch(err => console.error('[Trails] Failed to fetch history:', err));
+      }
+    }
+
+    // Continue accumulating live points
+    mapAssets.forEach(asset => {
+      if (asset.lat && asset.lng) {
+        trailManagerRef.current?.addPoint(asset.id, {
+          lat: asset.lat,
+          lng: asset.lng,
+          timestamp: Date.now(),
+          heading: asset.heading,
+          speed: asset.speed,
+        });
+      }
+    });
   }, [map, mapReady, layers.trails, mapAssets]);
 
   // ---- Heat map ----

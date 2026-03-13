@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Truck, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { APP_NAME, PRIVACY_EMAIL, LEGAL_ADDRESS } from '@/lib/config/branding';
 
 export default function PrivacyPage() {
     return (
@@ -20,7 +21,7 @@ export default function PrivacyPage() {
                             <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
                                 <Truck className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-xl font-bold tracking-tight">TMS Pro</span>
+                            <span className="text-xl font-bold tracking-tight">{APP_NAME}</span>
                         </Link>
                         <div className="flex items-center space-x-4">
                             <Link href="/login">
@@ -43,7 +44,7 @@ export default function PrivacyPage() {
 
                     <div className="prose prose-invert prose-purple max-w-none prose-headings:font-bold prose-headings:text-slate-200 prose-p:text-slate-300 prose-p:leading-relaxed prose-a:text-purple-400 hover:prose-a:text-purple-300 prose-li:text-slate-300">
                         <p>
-                            At TMS Pro, we take your privacy seriously. This Privacy Policy explains how we collect, use,
+                            At {APP_NAME}, we take your privacy seriously. This Privacy Policy explains how we collect, use,
                             disclose, and safeguard your information when you visit our website or use our Transportation Management System platform.
                         </p>
 
@@ -77,8 +78,8 @@ export default function PrivacyPage() {
                         <h2>4. Contact Us</h2>
                         <p>
                             If you have questions or comments about this Privacy Policy, please contact us at: <br />
-                            <strong>Email:</strong> privacy@tmspro.com <br />
-                            <strong>Address:</strong> 123 Freight Avenue, Suite 100, Chicago, IL 60601
+                            <strong>Email:</strong> {PRIVACY_EMAIL} <br />
+                            <strong>Address:</strong> {LEGAL_ADDRESS}
                         </p>
                     </div>
                 </div>

@@ -5,9 +5,10 @@ import { prisma } from '@/lib/prisma';
 import { buildMcNumberWhereClause } from '@/lib/mc-number-filter';
 import KanbanBoard from '@/components/crm/KanbanBoard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Recruiting Kanban | TMS',
+    title: `Recruiting Kanban | ${APP_NAME}`,
     description: 'Visual pipeline for recruiting leads',
 };
 

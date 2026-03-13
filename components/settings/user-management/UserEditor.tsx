@@ -9,25 +9,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronDown } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useState } from 'react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { userSchema, type UserFormData, type CustomRole } from './types';
 import { createUser, updateUser } from './api';
-import McAccessSelector from './McAccessSelector';
+import UserFormFields from './UserFormFields';
+import UserPermissionOverrides from '@/components/settings/roles/UserPermissionOverrides';
 
 interface UserEditorProps {
   mcNumbers: any[];
@@ -47,8 +39,6 @@ export default function UserEditor({ mcNumbers, customRoles }: UserEditorProps) 
       isActive: true,
     },
   });
-
-  const selectedRole = createForm.watch('role');
 
   const createMutation = useMutation({
     mutationFn: createUser,
@@ -93,89 +83,11 @@ export default function UserEditor({ mcNumbers, customRoles }: UserEditorProps) 
             <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">{error}</div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="firstName">First Name *</Label>
-              <Input id="firstName" {...createForm.register('firstName')} />
-              {createForm.formState.errors.firstName && (
-                <p className="text-sm text-destructive">{createForm.formState.errors.firstName.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName">Last Name *</Label>
-              <Input id="lastName" {...createForm.register('lastName')} />
-              {createForm.formState.errors.lastName && (
-                <p className="text-sm text-destructive">{createForm.formState.errors.lastName.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
-            <Input id="email" type="email" {...createForm.register('email')} />
-            {createForm.formState.errors.email && (
-              <p className="text-sm text-destructive">{createForm.formState.errors.email.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Password *</Label>
-            <Input id="password" type="password" {...createForm.register('password')} />
-            {createForm.formState.errors.password && (
-              <p className="text-sm text-destructive">{createForm.formState.errors.password.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone</Label>
-            <Input id="phone" type="tel" {...createForm.register('phone')} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="role">Role *</Label>
-            <Select value={selectedRole} onValueChange={(value) => createForm.setValue('role', value as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ADMIN">Admin</SelectItem>
-                <SelectItem value="DISPATCHER">Dispatcher</SelectItem>
-                <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
-                <SelectItem value="HR">HR</SelectItem>
-                <SelectItem value="SAFETY">Safety</SelectItem>
-                <SelectItem value="FLEET">Fleet/Breakdown</SelectItem>
-                <SelectItem value="DRIVER">Driver</SelectItem>
-                <SelectItem value="CUSTOMER">Customer</SelectItem>
-              </SelectContent>
-            </Select>
-            {createForm.formState.errors.role && (
-              <p className="text-sm text-destructive">{createForm.formState.errors.role.message}</p>
-            )}
-          </div>
-
-          {customRoles.length > 0 && (
-            <div className="space-y-2">
-              <Label>Custom Role (optional)</Label>
-              <Select
-                value={createForm.watch('roleId') || '__none__'}
-                onValueChange={(v) => createForm.setValue('roleId', v === '__none__' ? null : v)}
-              >
-                <SelectTrigger><SelectValue placeholder="No custom role" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No custom role</SelectItem>
-                  {customRoles.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Assign a custom role created in Settings &rarr; Roles
-              </p>
-            </div>
-          )}
-
-          <McAccessSelector
+          <UserFormFields
             form={createForm}
             mcNumbers={mcNumbers}
-            selectedRole={selectedRole}
+            customRoles={customRoles}
+            mode="create"
             idPrefix="create"
           />
 
@@ -217,8 +129,6 @@ export function UserEditDialog({
   const editForm = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
   });
-
-  const editSelectedRole = editForm.watch('role');
 
   // Reset form when editingUser changes
   const lastUserId = editForm.watch('email');
@@ -271,7 +181,7 @@ export function UserEditDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit User</DialogTitle>
           <DialogDescription>Update user information</DialogDescription>
@@ -281,122 +191,14 @@ export function UserEditDialog({
             <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">{error}</div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-firstName">First Name *</Label>
-              <Input id="edit-firstName" {...editForm.register('firstName')} />
-              {editForm.formState.errors.firstName && (
-                <p className="text-sm text-destructive">{editForm.formState.errors.firstName.message}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-lastName">Last Name *</Label>
-              <Input id="edit-lastName" {...editForm.register('lastName')} />
-              {editForm.formState.errors.lastName && (
-                <p className="text-sm text-destructive">{editForm.formState.errors.lastName.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="edit-email">Email *</Label>
-            <Input id="edit-email" type="email" {...editForm.register('email')} />
-            {editForm.formState.errors.email && (
-              <p className="text-sm text-destructive">{editForm.formState.errors.email.message}</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Changing email will require the user to sign in with the new email
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="edit-password">Password</Label>
-            <Input
-              id="edit-password"
-              type="password"
-              placeholder="Enter new password to reset (leave blank to keep current)"
-              {...editForm.register('password')}
-            />
-            {editForm.formState.errors.password && (
-              <p className="text-sm text-destructive">{editForm.formState.errors.password.message}</p>
-            )}
-            {editingUser?.tempPassword && (
-              <div className="p-3 bg-muted rounded-md border">
-                <p className="text-xs font-medium mb-1">Current Password (Admin View):</p>
-                <p className="text-sm font-mono bg-background p-2 rounded border">{editingUser.tempPassword}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  This password will be cleared after the user logs in successfully.
-                </p>
-              </div>
-            )}
-            {!editingUser?.tempPassword && (
-              <p className="text-xs text-muted-foreground">
-                Enter a new password to reset it (minimum 8 characters). Password will be visible here after setting.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="edit-phone">Phone</Label>
-            <Input id="edit-phone" type="tel" {...editForm.register('phone')} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="edit-role">Role *</Label>
-            <Select value={editSelectedRole} onValueChange={(value) => editForm.setValue('role', value as any)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ADMIN">Admin</SelectItem>
-                <SelectItem value="DISPATCHER">Dispatcher</SelectItem>
-                <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
-                <SelectItem value="HR">HR</SelectItem>
-                <SelectItem value="SAFETY">Safety</SelectItem>
-                <SelectItem value="FLEET">Fleet/Breakdown</SelectItem>
-                <SelectItem value="DRIVER">Driver</SelectItem>
-                <SelectItem value="CUSTOMER">Customer</SelectItem>
-              </SelectContent>
-            </Select>
-            {editForm.formState.errors.role && (
-              <p className="text-sm text-destructive">{editForm.formState.errors.role.message}</p>
-            )}
-          </div>
-
-          {customRoles.length > 0 && (
-            <div className="space-y-2">
-              <Label>Custom Role (optional)</Label>
-              <Select
-                value={editForm.watch('roleId') || '__none__'}
-                onValueChange={(v) => editForm.setValue('roleId', v === '__none__' ? null : v)}
-              >
-                <SelectTrigger><SelectValue placeholder="No custom role" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No custom role</SelectItem>
-                  {customRoles.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Assign a custom role created in Settings &rarr; Roles
-              </p>
-            </div>
-          )}
-
-          <McAccessSelector
+          <UserFormFields
             form={editForm}
             mcNumbers={mcNumbers}
-            selectedRole={editSelectedRole}
+            customRoles={customRoles}
+            mode="edit"
+            editingUser={editingUser}
             idPrefix="edit"
           />
-
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="edit-isActive"
-              checked={editForm.watch('isActive')}
-              onCheckedChange={(checked) => editForm.setValue('isActive', checked as boolean)}
-            />
-            <Label htmlFor="edit-isActive" className="font-normal cursor-pointer">Active</Label>
-          </div>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => { onClose(); editForm.reset(); }}>
@@ -407,6 +209,23 @@ export function UserEditDialog({
             </Button>
           </div>
         </form>
+
+        {editingUser && editingUser.role !== 'DRIVER' && editingUser.role !== 'CUSTOMER' && (
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between text-sm font-medium">
+                Permission Overrides
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <UserPermissionOverrides
+                userId={editingUser.id}
+                userName={`${editingUser.firstName} ${editingUser.lastName}`}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </DialogContent>
     </Dialog>
   );

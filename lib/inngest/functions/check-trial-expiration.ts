@@ -10,6 +10,7 @@ import { inngest } from '../client';
 import { prisma } from '@/lib/prisma';
 import { EmailService } from '@/lib/services/EmailService';
 import { FREE_TIER_LIMITS } from '@/lib/config/subscription-plans';
+import { APP_NAME, PRODUCT_PRO_TIER } from '@/lib/config/branding';
 
 export const checkTrialExpiration = inngest.createFunction(
     {
@@ -62,7 +63,7 @@ export const checkTrialExpiration = inngest.createFunction(
                 try {
                     await EmailService.sendEmail({
                         to: company.email,
-                        subject: 'Your TMS Pro trial has ended',
+                        subject: `Your ${PRODUCT_PRO_TIER} trial has ended`,
                         html: trialExpiredHtml(company.name),
                     });
                 } catch (e) {
@@ -90,7 +91,7 @@ export const checkTrialExpiration = inngest.createFunction(
                 try {
                     await EmailService.sendEmail({
                         to: company.email,
-                        subject: 'Your TMS Pro trial ends in 3 days',
+                        subject: `Your ${PRODUCT_PRO_TIER} trial ends in 3 days`,
                         html: trialReminderHtml(company.name, 3),
                     });
                 } catch { /* logged by EmailService */ }
@@ -118,7 +119,7 @@ export const checkTrialExpiration = inngest.createFunction(
                 try {
                     await EmailService.sendEmail({
                         to: company.email,
-                        subject: 'Last day of your TMS Pro trial!',
+                        subject: `Last day of your ${PRODUCT_PRO_TIER} trial!`,
                         html: trialReminderHtml(company.name, 1),
                     });
                 } catch { /* logged by EmailService */ }
@@ -143,7 +144,7 @@ function trialReminderHtml(companyName: string, daysLeft: number): string {
     return `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>Hi ${companyName},</h2>
-      <p>Your <strong>TMS Pro trial</strong> ends in <strong>${daysLeft} day${daysLeft > 1 ? 's' : ''}</strong>.</p>
+      <p>Your <strong>${PRODUCT_PRO_TIER} trial</strong> ends in <strong>${daysLeft} day${daysLeft > 1 ? 's' : ''}</strong>.</p>
       <p>After the trial, you'll be moved to the Free plan (3 trucks, limited usage). Upgrade to Pro to keep unlimited access:</p>
       <ul>
         <li>Unlimited trucks, drivers, loads & documents</li>
@@ -153,7 +154,7 @@ function trialReminderHtml(companyName: string, daysLeft: number): string {
          style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">
         Upgrade Now
       </a>
-      <p style="margin-top:24px;color:#6b7280;font-size:14px;">— The TMS Team</p>
+      <p style="margin-top:24px;color:#6b7280;font-size:14px;">— The ${APP_NAME} Team</p>
     </div>`;
 }
 
@@ -161,7 +162,7 @@ function trialExpiredHtml(companyName: string): string {
     return `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
       <h2>Hi ${companyName},</h2>
-      <p>Your <strong>TMS Pro trial</strong> has ended. You've been moved to the <strong>Free plan</strong>.</p>
+      <p>Your <strong>${PRODUCT_PRO_TIER} trial</strong> has ended. You've been moved to the <strong>Free plan</strong>.</p>
       <p>Your Free plan includes:</p>
       <ul>
         <li>Up to 3 trucks and 5 drivers</li>
@@ -173,6 +174,6 @@ function trialExpiredHtml(companyName: string): string {
          style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;">
         Upgrade to Pro
       </a>
-      <p style="margin-top:24px;color:#6b7280;font-size:14px;">— The TMS Team</p>
+      <p style="margin-top:24px;color:#6b7280;font-size:14px;">— The ${APP_NAME} Team</p>
     </div>`;
 }

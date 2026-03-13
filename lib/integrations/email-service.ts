@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { COPYRIGHT_LINE } from '@/lib/config/branding';
 import { EmailService } from '@/lib/services/EmailService';
 import { InvoiceDocumentBuilder } from '@/lib/managers/invoice/InvoiceDocumentBuilder';
 
@@ -61,7 +62,7 @@ export async function sendInvoiceEmail(
         </table>
         ${options?.notes ? `<p style="font-size: 14px; color: #666;">${options.notes}</p>` : ''}
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="color: #999; font-size: 12px;">&copy; ${new Date().getFullYear()} TMS Trucking. All rights reserved.</p>
+        <p style="color: #999; font-size: 12px;">${COPYRIGHT_LINE}</p>
       </div>
     `;
 

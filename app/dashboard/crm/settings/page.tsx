@@ -6,9 +6,10 @@ import CrmSettingsList from '@/components/crm/CrmSettingsList';
 import ApplicationUrlConfig from '@/components/crm/ApplicationUrlConfig';
 import CrmSettingsTabs from '@/components/crm/settings/CrmSettingsTabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Recruiting Settings | TMS',
+    title: `Recruiting Settings | ${APP_NAME}`,
     description: 'Configure recruiting integrations and settings',
 };
 

@@ -105,6 +105,8 @@ model User {
   createdVendorScheduledPayments VendorScheduledPayment[] @relation("VendorScheduledPaymentCreator")
   dispatcherCommissions      DispatcherCommission[] @relation("DispatcherCommissions")
   approvedCommissions        DispatcherCommission[] @relation("CommissionApprover")
+  suggestedDispatcherFor     ImportAssignmentSuggestion[] @relation("SuggestedDispatcher")
+  reviewedSuggestions        ImportAssignmentSuggestion[] @relation("SuggestionReviewer")
   auditLogs                  AuditLog[]
   // CRM Relations
   assignedLeads              Lead[]                 @relation("LeadAssignee")
@@ -118,6 +120,7 @@ model User {
   campaignsCreated        Campaign[]        @relation("CampaignCreator")
   messageTemplatesCreated MessageTemplate[] @relation("MessageTemplateCreator")
   automationRulesCreated  AutomationRule[]  @relation("AutomationRuleCreator")
+  workflowsCreated       RecruitingWorkflow[] @relation("WorkflowCreator")
 
   // Import Features
   importMappingProfiles ImportMappingProfile[] @relation("UserImportProfiles")
@@ -208,7 +211,6 @@ model Role {
   users           User[]                @relation("UserCustomRole")
   userCompanies   UserCompany[]         @relation("UserCompanyCustomRole")
   rolePermissions RolePermissionEntry[]
-  roleGroups      RolePermissionGroup[]
 
   @@unique([slug, companyId])
   @@index([companyId])
@@ -243,43 +245,6 @@ model UserPermissionOverride {
 enum PermissionOverrideType {
   GRANT
   REVOKE
-}
-
-model PermissionGroup {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  isSystem    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  items           PermissionGroupItem[]
-  roleAssignments RolePermissionGroup[]
-
-  @@unique([name, companyId])
-  @@index([companyId])
-}
-
-model PermissionGroupItem {
-  id         String          @id @default(cuid())
-  groupId    String
-  group      PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  permission String
-
-  @@unique([groupId, permission])
-  @@index([groupId])
-}
-
-model RolePermissionGroup {
-  id      String          @id @default(cuid())
-  roleId  String
-  role    Role            @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  groupId String
-  group   PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-
-  @@unique([roleId, groupId])
 }
 
 model Company {
@@ -448,16 +413,17 @@ model Company {
   messageTemplates       MessageTemplate[]
   campaigns              Campaign[]
   automationRules        AutomationRule[]
+  recruitingWorkflows    RecruitingWorkflow[]
   // AI Relations
   aiAnomalies            AIAnomaly[]
 
   // Import Features
   importMappingProfiles ImportMappingProfile[]
   importBatches         ImportBatch[]
+  importAssignmentSuggestions ImportAssignmentSuggestion[]
 
   // Custom Roles & Permissions
   roles            Role[]
-  permissionGroups PermissionGroup[]
 
   // DQF Custom Document Types
   customDQFTypes CompanyCustomDQFType[]
@@ -509,7 +475,66 @@ model ImportBatch {
   vendors   Vendor[]
   locations Location[]
 
+  assignmentSuggestions ImportAssignmentSuggestion[]
+
   @@index([companyId, entityType])
+}
+
+// ============================================
+// IMPORT ASSIGNMENT SUGGESTIONS
+// ============================================
+
+model ImportAssignmentSuggestion {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  importBatchId String
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id])
+
+  suggestionType ImportSuggestionType
+  driverId       String
+  driver         Driver @relation("ImportSuggestions", fields: [driverId], references: [id])
+
+  loadCount   Int
+  confidence  Float
+
+  suggestedTruckId      String?
+  suggestedTruck        Truck?   @relation("SuggestedTruck", fields: [suggestedTruckId], references: [id])
+  currentTruckId        String?
+
+  suggestedTrailerId    String?
+  suggestedTrailer      Trailer? @relation("SuggestedTrailer", fields: [suggestedTrailerId], references: [id])
+  currentTrailerId      String?
+
+  suggestedDispatcherId String?
+  suggestedDispatcher   User?    @relation("SuggestedDispatcher", fields: [suggestedDispatcherId], references: [id])
+  currentDispatcherId   String?
+
+  status       ImportSuggestionStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   User?    @relation("SuggestionReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([importBatchId])
+  @@index([driverId])
+}
+
+enum ImportSuggestionType {
+  TRUCK_CHANGE
+  TRAILER_CHANGE
+  DISPATCHER_LINK
+  NEW_ASSIGNMENT
+}
+
+enum ImportSuggestionStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
 }
 
 // ============================================
@@ -1130,6 +1155,7 @@ model Driver {
   mattermostMapping         MattermostDriverMapping? // Mattermost integration
   messagingReviewItems      MessagingReviewItem[]     @relation("MessagingReviewItems")
   messagingSuggestedReviews MessagingReviewItem[]     @relation("MessagingSuggestedDriver")
+  importSuggestions         ImportAssignmentSuggestion[] @relation("ImportSuggestions")
   recruitingLead            Lead?                     @relation("RecruitingLead")
   onboardingChecklist       OnboardingChecklist?
 
@@ -1412,6 +1438,7 @@ model Truck {
   maintenanceRecords  MaintenanceRecord[]
   iftaEntries         IFTAEntry[]
   vendorBills         VendorBill[]          @relation("VendorBillTruck")
+  importSuggestedTruck ImportAssignmentSuggestion[] @relation("SuggestedTruck")
 
   @@unique([companyId, truckNumber])
   @@unique([companyId, vin])
@@ -1495,6 +1522,7 @@ model Trailer {
   safetyIncidents       SafetyIncident[]
   roadsideInspections   RoadsideInspection[]
   insuranceClaims       InsuranceClaim[]
+  importSuggestedTrailer ImportAssignmentSuggestion[] @relation("SuggestedTrailer")
   // Migration metadata - stores unmapped fields from source TMS
   metadata              Json?
 
@@ -8436,7 +8464,8 @@ model Lead {
   activities          LeadActivity[]
   documents           LeadDocument[]
   onboardingChecklist OnboardingChecklist?
-  campaignRecipients  CampaignRecipient[]
+  campaignRecipients     CampaignRecipient[]
+  workflowExecutions     WorkflowExecution[]
 
   @@unique([companyId, leadNumber])
   @@index([companyId])
@@ -8962,4 +8991,123 @@ model GeofenceAlert {
   @@index([loadId])
   @@index([createdAt])
   @@index([companyId, createdAt])
+}
+
+// ============================================
+// RECRUITING WORKFLOW AUTOMATION
+// ============================================
+
+enum WorkflowMode {
+  SANDBOX
+  LIVE
+}
+
+enum WorkflowNodeType {
+  TRIGGER
+  SEND_SMS
+  SEND_EMAIL
+  AI_WRITE_SMS
+  AI_WRITE_EMAIL
+  AI_SCORE
+  AI_BRANCH
+  DELAY
+  UPDATE_STATUS
+  ADD_TAG
+  ASSIGN_LEAD
+  END
+}
+
+enum WorkflowExecutionStatus {
+  RUNNING
+  WAITING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model RecruitingWorkflow {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  name        String
+  description String?
+  isActive    Boolean  @default(false)
+  mode        WorkflowMode @default(SANDBOX)
+
+  // Entry trigger
+  triggerType  String // "status_change" | "new_lead" | "tag_added" | "ai_score_threshold"
+  triggerValue Json
+
+  // Stats
+  totalEnrolled  Int @default(0)
+  totalCompleted Int @default(0)
+
+  createdById String
+  createdBy   User     @relation("WorkflowCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  nodes       WorkflowNode[]
+  executions  WorkflowExecution[]
+
+  @@index([companyId])
+  @@index([isActive])
+  @@index([companyId, isActive])
+}
+
+model WorkflowNode {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   RecruitingWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  nodeType   WorkflowNodeType
+  label      String
+  config     Json @default("{}")
+  sortOrder  Int  @default(0)
+
+  // Graph connections
+  nextNodeId String?
+  yesNodeId  String?
+  noNodeId   String?
+
+  @@index([workflowId])
+  @@index([workflowId, sortOrder])
+}
+
+model WorkflowExecution {
+  id          String   @id @default(cuid())
+  workflowId  String
+  workflow    RecruitingWorkflow @relation(fields: [workflowId], references: [id])
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id])
+
+  status        WorkflowExecutionStatus @default(RUNNING)
+  currentNodeId String?
+  nextResumeAt  DateTime?
+  completedAt   DateTime?
+  error         String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps       WorkflowExecutionStep[]
+
+  @@unique([workflowId, leadId])
+  @@index([workflowId])
+  @@index([leadId])
+  @@index([status])
+  @@index([nextResumeAt])
+}
+
+model WorkflowExecutionStep {
+  id          String   @id @default(cuid())
+  executionId String
+  execution   WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId      String
+  nodeType    WorkflowNodeType
+  status      String // "success" | "failed" | "skipped"
+  output      Json?
+  executedAt  DateTime @default(now())
+
+  @@index([executionId])
 }

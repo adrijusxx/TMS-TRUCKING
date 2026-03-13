@@ -6,6 +6,7 @@ import { Truck, Mail, Phone, MapPin, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { APP_NAME, SUPPORT_EMAIL, SUPPORT_PHONE, LEGAL_ADDRESS } from '@/lib/config/branding';
 
 export default function ContactPage() {
     return (
@@ -24,7 +25,7 @@ export default function ContactPage() {
                             <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
                                 <Truck className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-xl font-bold tracking-tight">TMS Pro</span>
+                            <span className="text-xl font-bold tracking-tight">{APP_NAME}</span>
                         </Link>
                         <div className="flex items-center space-x-4">
                             <Link href="/login">
@@ -53,7 +54,7 @@ export default function ContactPage() {
                                 We're here to <br /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">help you scale.</span>
                             </h1>
                             <p className="text-lg text-slate-400 font-light mb-12 leading-relaxed">
-                                Whether you have a question about features, pricing, or need a custom demonstration of how TMS Pro can fit your operations, our team is ready to answer all your questions.
+                                Whether you have a question about features, pricing, or need a custom demonstration of how {APP_NAME} can fit your operations, our team is ready to answer all your questions.
                             </p>
 
                             <div className="space-y-8">
@@ -63,7 +64,7 @@ export default function ContactPage() {
                                     </div>
                                     <div>
                                         <h3 className="text-xl font-semibold text-white mb-1">Office</h3>
-                                        <p className="text-slate-400 font-light">123 Freight Avenue, Suite 100<br />Chicago, IL 60601</p>
+                                        <p className="text-slate-400 font-light">{LEGAL_ADDRESS}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-4">
@@ -72,7 +73,7 @@ export default function ContactPage() {
                                     </div>
                                     <div>
                                         <h3 className="text-xl font-semibold text-white mb-1">Phone</h3>
-                                        <p className="text-slate-400 font-light">1-800-TMS-PRO-1</p>
+                                        <p className="text-slate-400 font-light">{SUPPORT_PHONE}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-4">
@@ -81,7 +82,7 @@ export default function ContactPage() {
                                     </div>
                                     <div>
                                         <h3 className="text-xl font-semibold text-white mb-1">Email</h3>
-                                        <p className="text-slate-400 font-light">support@tmspro.com</p>
+                                        <p className="text-slate-400 font-light">{SUPPORT_EMAIL}</p>
                                     </div>
                                 </div>
                             </div>

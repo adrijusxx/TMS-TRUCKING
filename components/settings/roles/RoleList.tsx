@@ -54,9 +54,10 @@ interface Role {
 
 interface RoleListProps {
   onEditRole: (roleId: string) => void;
+  onViewUsers: (roleId: string, roleName: string) => void;
 }
 
-export default function RoleList({ onEditRole }: RoleListProps) {
+export default function RoleList({ onEditRole, onViewUsers }: RoleListProps) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
@@ -211,10 +212,22 @@ export default function RoleList({ onEditRole }: RoleListProps) {
                   </TableCell>
                   <TableCell><code className="text-xs">{role.slug}</code></TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3 w-3 text-muted-foreground" />
-                      {getUserCount(role)}
-                    </div>
+                    {getUserCount(role) > 0 ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 h-auto p-1"
+                        onClick={() => onViewUsers(role.id, role.name)}
+                      >
+                        <Users className="h-3 w-3 text-muted-foreground" />
+                        {getUserCount(role)}
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-1 px-1">
+                        <Users className="h-3 w-3 text-muted-foreground" />
+                        0
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>{getPermCount(role)}</TableCell>
                   <TableCell>
@@ -272,10 +285,22 @@ export default function RoleList({ onEditRole }: RoleListProps) {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-3 w-3 text-muted-foreground" />
-                        {getUserCount(role)}
-                      </div>
+                      {getUserCount(role) > 0 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1 h-auto p-1"
+                          onClick={() => onViewUsers(role.id, role.name)}
+                        >
+                          <Users className="h-3 w-3 text-muted-foreground" />
+                          {getUserCount(role)}
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-1 px-1">
+                          <Users className="h-3 w-3 text-muted-foreground" />
+                          0
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>{getPermCount(role)}</TableCell>
                     <TableCell>

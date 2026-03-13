@@ -58,25 +58,25 @@ export interface WeeklyData {
 // ── Color Maps ──────────────────────────────────────────────
 
 export const STATUS_COLORS: Record<string, string> = {
-  AVAILABLE: 'bg-green-500/20 text-green-400 dark:text-green-400',
-  ON_DUTY: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
-  DRIVING: 'bg-purple-500/20 text-purple-700 dark:text-purple-400',
-  OFF_DUTY: 'bg-gray-500/20 text-gray-700 dark:text-gray-400',
-  ON_LEAVE: 'bg-amber-500/20 text-amber-700 dark:text-amber-400',
-  INACTIVE: 'bg-red-500/20 text-red-700 dark:text-red-400',
+  AVAILABLE: 'bg-green-500/30 text-green-700 dark:text-green-300',
+  ON_DUTY: 'bg-blue-500/30 text-blue-700 dark:text-blue-300',
+  DRIVING: 'bg-purple-500/30 text-purple-700 dark:text-purple-300',
+  OFF_DUTY: 'bg-gray-500/30 text-gray-700 dark:text-gray-300',
+  ON_LEAVE: 'bg-amber-500/30 text-amber-700 dark:text-amber-300',
+  INACTIVE: 'bg-red-500/30 text-red-700 dark:text-red-300',
 };
 
 export const LOAD_STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-300',
-  ASSIGNED: 'bg-blue-500/20 text-blue-800 dark:text-blue-300',
-  EN_ROUTE_PICKUP: 'bg-purple-500/20 text-purple-800 dark:text-purple-300',
-  AT_PICKUP: 'bg-orange-500/20 text-orange-800 dark:text-orange-300',
-  LOADED: 'bg-indigo-500/20 text-indigo-800 dark:text-indigo-300',
-  EN_ROUTE_DELIVERY: 'bg-cyan-500/20 text-cyan-800 dark:text-cyan-300',
-  AT_DELIVERY: 'bg-pink-500/20 text-pink-800 dark:text-pink-300',
-  DELIVERED: 'bg-green-500/20 text-green-800 dark:text-green-300',
-  INVOICED: 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-300',
-  PAID: 'bg-teal-500/20 text-teal-800 dark:text-teal-300',
+  PENDING: 'bg-yellow-500/30 text-yellow-800 dark:text-yellow-200',
+  ASSIGNED: 'bg-blue-500/30 text-blue-800 dark:text-blue-200',
+  EN_ROUTE_PICKUP: 'bg-purple-500/30 text-purple-800 dark:text-purple-200',
+  AT_PICKUP: 'bg-orange-500/30 text-orange-800 dark:text-orange-200',
+  LOADED: 'bg-indigo-500/30 text-indigo-800 dark:text-indigo-200',
+  EN_ROUTE_DELIVERY: 'bg-cyan-500/30 text-cyan-800 dark:text-cyan-200',
+  AT_DELIVERY: 'bg-pink-500/30 text-pink-800 dark:text-pink-200',
+  DELIVERED: 'bg-green-500/30 text-green-800 dark:text-green-200',
+  INVOICED: 'bg-emerald-500/30 text-emerald-800 dark:text-emerald-200',
+  PAID: 'bg-teal-500/30 text-teal-800 dark:text-teal-200',
 };
 
 // ── Data Fetching ───────────────────────────────────────────

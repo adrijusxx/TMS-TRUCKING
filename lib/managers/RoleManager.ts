@@ -133,7 +133,7 @@ export class RoleManager {
       throw new ConflictError('Cannot delete role: child roles exist. Remove or reassign them first.');
     }
 
-    // Cascade deletes handle rolePermissions and roleGroups
+    // Cascade deletes handle rolePermissions
     await prisma.role.delete({ where: { id: roleId } });
   }
 
@@ -218,13 +218,6 @@ export class RoleManager {
       where: { id: roleId },
       include: {
         rolePermissions: { select: { permission: true } },
-        roleGroups: {
-          include: {
-            group: {
-              select: { id: true, name: true, description: true },
-            },
-          },
-        },
         parentRole: { select: { id: true, name: true, slug: true } },
         _count: { select: { users: true, childRoles: true } },
       },

@@ -49,6 +49,17 @@ export interface ColumnVisibility {
   actions: boolean;
 }
 
+export const ROLE_OPTIONS = [
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'DISPATCHER', label: 'Dispatcher' },
+  { value: 'ACCOUNTANT', label: 'Accountant' },
+  { value: 'HR', label: 'HR' },
+  { value: 'SAFETY', label: 'Safety' },
+  { value: 'FLEET', label: 'Fleet/Breakdown' },
+  { value: 'DRIVER', label: 'Driver' },
+  { value: 'CUSTOMER', label: 'Customer' },
+] as const;
+
 export const roleColors: Record<string, string> = {
   ADMIN: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
   DISPATCHER: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',

@@ -5,38 +5,11 @@ import EmployeeGeneralSettings from '@/components/settings/EmployeeGeneralSettin
 import EmployeeNotificationsSettings from '@/components/settings/EmployeeNotificationsSettings';
 import EmployeeSecuritySettings from '@/components/settings/EmployeeSecuritySettings';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
-import DispatcherSettings from '@/components/settings/role-specific/DispatcherSettings';
-import AccountantSettings from '@/components/settings/role-specific/AccountantSettings';
-import DriverSettings from '@/components/settings/role-specific/DriverSettings';
-import SafetySettings from '@/components/settings/role-specific/SafetySettings';
-import FleetSettings from '@/components/settings/role-specific/FleetSettings';
 import YokomobileIntegration from '@/components/settings/integrations/YokomobileIntegration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { User, Settings, Bell, Eye, Shield, Phone, Package, DollarSign, Truck, AlertTriangle, Wrench } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
+import { User, Settings, Bell, Eye, Shield, Phone } from 'lucide-react';
 
 export default function MyProfileCategory() {
-  const { role } = usePermissions();
-
-  const getRoleSection = () => {
-    switch (role) {
-      case 'DISPATCHER':
-        return { name: 'Dispatch Settings', Icon: Package, component: <DispatcherSettings /> };
-      case 'ACCOUNTANT':
-        return { name: 'Accounting Settings', Icon: DollarSign, component: <AccountantSettings /> };
-      case 'DRIVER':
-        return { name: 'Driver Settings', Icon: Truck, component: <DriverSettings /> };
-      case 'SAFETY':
-        return { name: 'Safety Settings', Icon: AlertTriangle, component: <SafetySettings /> };
-      case 'FLEET':
-        return { name: 'Fleet Settings', Icon: Wrench, component: <FleetSettings /> };
-      default:
-        return null;
-    }
-  };
-
-  const roleSection = getRoleSection();
-
   return (
     <div className="space-y-6">
       <div>
@@ -75,12 +48,6 @@ export default function MyProfileCategory() {
           <ProfileSection title="VoIP" icon={Phone}>
             <YokomobileIntegration />
           </ProfileSection>
-
-          {roleSection && (
-            <ProfileSection title={roleSection.name} icon={roleSection.Icon}>
-              {roleSection.component}
-            </ProfileSection>
-          )}
         </div>
       </div>
     </div>

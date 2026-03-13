@@ -1,7 +1,8 @@
 import UnifiedImportWizard from '@/components/import-export/UnifiedImportWizard';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Import Leads | Recruiting | TMS',
+    title: `Import Leads | Recruiting | ${APP_NAME}`,
     description: 'Import recruiting leads from CSV or Excel files',
 };
 

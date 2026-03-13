@@ -6,6 +6,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { getCurrentMcNumber } from '@/lib/mc-number-filter';
 import { McStateManager } from '@/lib/managers/McStateManager';
+import { withPermission, handleApiError, successResponse } from '@/lib/api/route-helpers';
 
 const createUserSchema = z.object({
   email: z.string().email(),
@@ -268,31 +269,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withPermission('users.create', async (request, session) => {
   try {
-    const session = await auth();
-
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    if (session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Only admins can create users',
-          },
-        },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const validated = createUserSchema.parse(body);
 
@@ -409,36 +387,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: user,
-      },
-      { status: 201 }
-    );
+    return successResponse(user, 201);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; '),
-            details: error.issues,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('User creation error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
-      },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
-}
+});
 

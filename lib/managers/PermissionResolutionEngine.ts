@@ -1,6 +1,18 @@
 import { prisma } from '@/lib/prisma';
 import type { Permission } from '@/lib/permissions';
-import { getAllPermissions } from '@/lib/permissions';
+import { getAllPermissions, systemRoleDefaults } from '@/lib/permissions';
+
+export interface PermissionBreakdownEntry {
+  permission: Permission;
+  source: 'role' | 'parent_role' | 'grant_override' | 'legacy_role';
+  sourceLabel: string;
+}
+
+export interface PermissionBreakdown {
+  effective: PermissionBreakdownEntry[];
+  revoked: Array<{ permission: Permission; reason: string | null }>;
+  roleName: string | null;
+}
 
 const MAX_HIERARCHY_DEPTH = 5;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -139,23 +151,6 @@ export class PermissionResolutionEngine {
     for (const p of directPerms) {
       permissionSet.add(p.permission);
     }
-
-    // Batch fetch: group permissions for all roles in chain
-    const groupAssignments = await prisma.rolePermissionGroup.findMany({
-      where: { roleId: { in: roleIds } },
-      select: {
-        group: {
-          select: {
-            items: { select: { permission: true } },
-          },
-        },
-      },
-    });
-    for (const assignment of groupAssignments) {
-      for (const item of assignment.group.items) {
-        permissionSet.add(item.permission);
-      }
-    }
   }
 
   /**
@@ -188,6 +183,86 @@ export class PermissionResolutionEngine {
     return systemRoleDefaults[legacyRole] || [];
   }
 
+  /**
+   * Get annotated permission breakdown for a user (for dashboard display)
+   */
+  static async getPermissionBreakdown(userId: string): Promise<PermissionBreakdown> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { roleId: true, role: true },
+    });
+
+    if (!user) return { effective: [], revoked: [], roleName: null };
+
+    // Legacy fallback
+    if (!user.roleId) {
+      const perms = await this.resolveLegacyPermissions(user.role);
+      return {
+        effective: perms.map(p => ({ permission: p, source: 'legacy_role' as const, sourceLabel: user.role })),
+        revoked: [],
+        roleName: user.role,
+      };
+    }
+
+    // Walk hierarchy and fetch role names
+    const roleChain = await this.walkRoleHierarchy(user.roleId);
+    const roles = await prisma.role.findMany({
+      where: { id: { in: roleChain } },
+      select: { id: true, name: true },
+    });
+    const roleNameMap = new Map(roles.map(r => [r.id, r.name]));
+    const userRoleName = roleNameMap.get(user.roleId) || null;
+
+    // Fetch permissions per role in chain
+    const rolePerms = await prisma.rolePermissionEntry.findMany({
+      where: { roleId: { in: roleChain } },
+      select: { roleId: true, permission: true },
+    });
+
+    // Build annotated entries (parent roles first, then self)
+    const allValid = new Set(getAllPermissions());
+    const seen = new Set<string>();
+    const effective: PermissionBreakdownEntry[] = [];
+
+    for (const rid of roleChain) {
+      const isOwnRole = rid === user.roleId;
+      const source = isOwnRole ? 'role' as const : 'parent_role' as const;
+      const sourceLabel = isOwnRole
+        ? (roleNameMap.get(rid) || 'Role')
+        : `Parent: ${roleNameMap.get(rid) || 'Unknown'}`;
+
+      for (const rp of rolePerms.filter(p => p.roleId === rid)) {
+        if (!seen.has(rp.permission) && allValid.has(rp.permission as Permission)) {
+          seen.add(rp.permission);
+          effective.push({ permission: rp.permission as Permission, source, sourceLabel });
+        }
+      }
+    }
+
+    // Apply user overrides
+    const overrides = await prisma.userPermissionOverride.findMany({
+      where: { userId },
+      select: { permission: true, type: true, reason: true },
+    });
+
+    const revoked: PermissionBreakdown['revoked'] = [];
+    for (const override of overrides) {
+      if (override.type === 'GRANT' && allValid.has(override.permission as Permission)) {
+        if (!seen.has(override.permission)) {
+          seen.add(override.permission);
+          effective.push({ permission: override.permission as Permission, source: 'grant_override', sourceLabel: 'User Override' });
+        }
+      } else if (override.type === 'REVOKE') {
+        const idx = effective.findIndex(e => e.permission === override.permission);
+        if (idx !== -1) effective.splice(idx, 1);
+        seen.delete(override.permission);
+        revoked.push({ permission: override.permission as Permission, reason: override.reason });
+      }
+    }
+
+    return { effective, revoked, roleName: userRoleName };
+  }
+
   // ==========================================
   // CACHE INVALIDATION
   // ==========================================
@@ -209,18 +284,6 @@ export class PermissionResolutionEngine {
 
     for (const user of users) {
       permissionCache.delete(user.id);
-    }
-  }
-
-  /** Invalidate all users whose roles use a specific permission group */
-  static async invalidateGroup(groupId: string): Promise<void> {
-    const assignments = await prisma.rolePermissionGroup.findMany({
-      where: { groupId },
-      select: { roleId: true },
-    });
-
-    for (const assignment of assignments) {
-      await this.invalidateRole(assignment.roleId);
     }
   }
 

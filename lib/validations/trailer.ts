@@ -8,7 +8,7 @@ export const createTrailerSchema = z.object({
   model: z.string().min(1, 'Model is required'),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
   licensePlate: z.string().optional(),
-  state: z.string().length(2, 'State must be 2 characters').optional(),
+  state: z.string().length(2, 'State must be 2 characters').or(z.literal('')).optional(),
   type: z.string().optional(),
   ownership: z.string().optional(),
   ownerName: z.string().optional(),

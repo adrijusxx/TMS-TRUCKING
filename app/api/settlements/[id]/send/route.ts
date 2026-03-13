@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { APP_NAME } from '@/lib/config/branding';
 
 export async function POST(
   request: NextRequest,
@@ -76,7 +77,7 @@ export async function POST(
     const settlementPdfUrl = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/settlements/${settlement.id}/pdf`;
 
     // Email content
-    const emailSubject = `Settlement Statement ${settlement.settlementNumber} from ${company?.name || 'Your TMS'}`;
+    const emailSubject = `Settlement Statement ${settlement.settlementNumber} from ${company?.name || APP_NAME}`;
     const emailBody = generateSettlementEmail(settlement, company, settlementPdfUrl);
 
     // In production, use a service like SendGrid, AWS SES, or Resend

@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import BulkActionBar from '@/components/import-export/BulkActionBar';
 import { updateUser } from './api';
-import type { UserFormData } from './types';
+import { type UserFormData, ROLE_OPTIONS } from './types';
 
 interface UserBulkActionsProps {
   selectedIds: string[];
@@ -150,14 +150,9 @@ export default function UserBulkActions({
                 <SelectTrigger><SelectValue placeholder="Keep current role" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Keep current role</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                  <SelectItem value="DISPATCHER">Dispatcher</SelectItem>
-                  <SelectItem value="ACCOUNTANT">Accountant</SelectItem>
-                  <SelectItem value="HR">HR</SelectItem>
-                  <SelectItem value="SAFETY">Safety</SelectItem>
-                  <SelectItem value="FLEET">Fleet/Breakdown</SelectItem>
-                  <SelectItem value="DRIVER">Driver</SelectItem>
-                  <SelectItem value="CUSTOMER">Customer</SelectItem>
+                  {ROLE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

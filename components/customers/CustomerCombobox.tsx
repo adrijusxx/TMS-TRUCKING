@@ -99,16 +99,13 @@ export default function CustomerCombobox({
     queryKey: ['customer', value, 'by-id'],
     queryFn: async () => {
       if (!value || value.trim() === '') return null;
-      // Try to fetch from the list endpoint - we'll search all customers
-      // This is a workaround since there's no single customer endpoint
-      const response = await fetch(apiUrl(`/api/customers?limit=1000`));
+      const response = await fetch(apiUrl(`/api/customers/${value}`));
       if (!response.ok) return null;
       const data = await response.json();
-      const found = data.data?.find((c: Customer) => c.id === value);
-      return found || null;
+      return data.customer || data.data || null;
     },
     enabled: needsFetch,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   // Find selected customer - check multiple sources

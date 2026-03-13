@@ -27,11 +27,11 @@ async function testEmail() {
     try {
         const success = await EmailService.sendEmail({
             to: toEmail,
-            subject: "TMS Trucking - Email Test",
+            subject: "Alogix - Email Test",
             html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h1>Resend Configuration Test</h1>
-          <p>This is a test email from your TMS Trucking application.</p>
+          <p>This is a test email from your Alogix application.</p>
           <p>If you are receiving this, your Resend configuration is working correctly!</p>
           <hr/>
           <p>Timestamp: ${new Date().toISOString()}</p>

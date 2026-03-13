@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { APP_NAME } from '@/lib/config/branding';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { quickBooksSettingsSchema, type QuickBooksSettingsInput } from '@/lib/validations/integrations';
@@ -114,7 +115,7 @@ export function QuickBooksSettingsForm() {
                         </CardTitle>
                         <CardDescription>
                             {isConnected
-                                ? 'Your TMS is successfully linked to QuickBooks Online.'
+                                ? `Your ${APP_NAME} is successfully linked to QuickBooks Online.`
                                 : 'Please configure settings and authorize the connection.'}
                         </CardDescription>
                     </div>

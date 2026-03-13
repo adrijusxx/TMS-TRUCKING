@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useRef } from 'react';
+import { APP_NAME } from '@/lib/config/branding';
 import {
   Truck,
   CheckCircle2,
@@ -346,7 +347,7 @@ export default function LandingPage() {
               className="text-center mb-16"
             >
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Trusted by Industry Leaders</h2>
-              <p className="text-slate-400">See what early adopters are saying about TMS Pro.</p>
+              <p className="text-slate-400">See what early adopters are saying about {APP_NAME}.</p>
             </motion.div>
 
             <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">

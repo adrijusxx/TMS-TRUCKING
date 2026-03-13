@@ -3,9 +3,10 @@ import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import LeadListClient from '@/components/crm/LeadListClient';
 import { Skeleton } from '@/components/ui/skeleton';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Recruiting Leads | TMS',
+    title: `Recruiting Leads | ${APP_NAME}`,
     description: 'Manage driver recruiting leads and pipeline',
 };
 

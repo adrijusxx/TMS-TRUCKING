@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { PermissionResolutionEngine } from '@/lib/managers/PermissionResolutionEngine';
-import { PermissionService } from '@/lib/services/PermissionService';
+import { getRolePermissions } from '@/lib/permissions';
 
 /**
  * GET /api/user/permissions
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
     if (session.user.roleId) {
       permissions = await PermissionResolutionEngine.getEffectivePermissions(session.user.id);
     } else {
-      // Fallback to legacy PermissionService for users without roleId
+      // Fallback to static role defaults for users without roleId
       const role = (session.user.role || 'CUSTOMER') as string;
-      permissions = await PermissionService.getRolePermissions(role as any);
+      permissions = getRolePermissions(role as any);
     }
 
     return NextResponse.json({

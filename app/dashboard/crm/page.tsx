@@ -4,9 +4,10 @@ import { redirect } from 'next/navigation';
 import RecruitingDashboard from '@/components/crm/dashboard/RecruitingDashboard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DepartmentDashboard } from '@/components/layout/DepartmentDashboard';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-  title: 'Recruiting Dashboard | TMS',
+  title: `Recruiting Dashboard | ${APP_NAME}`,
   description: 'Driver recruiting dashboard and pipeline overview',
 };
 

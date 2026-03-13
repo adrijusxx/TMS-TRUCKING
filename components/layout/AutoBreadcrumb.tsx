@@ -130,7 +130,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   'dispatch-view': 'My Dispatch',
   loadboard: 'Loadboard',
   'fleet-board': 'Fleet Board',
-  'war-room': 'War Room',
+  'fleet-map': 'Fleet Map',
   monitoring: 'Monitoring',
   'super-admin': 'Super Admin',
   companies: 'Companies',

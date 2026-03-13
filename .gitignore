@@ -188,6 +188,7 @@ scripts/security/
 # Exclude all test files from git — run locally only
 /tests/
 *.test.md
+playwright.config.ts
 
 # ============================================
 # DOCUMENTATION & INTERNAL DOCS
@@ -248,6 +249,10 @@ QUICK-REFERENCE.md
 typescript-errors.txt
 
 .claude/settings.local.json
+
+# Playwright
+playwright-report/
+test-results/
 
 # Windows NUL device (created when bash scripts redirect to NUL instead of /dev/null)
 NUL

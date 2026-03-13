@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { PRODUCT_PRO_TIER, APP_NAME } from '@/lib/config/branding';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/services/stripe';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -56,7 +57,7 @@ async function handleUpgradeToPro(companyId: string, customerId: string) {
                 price_data: {
                     currency: 'usd',
                     product_data: {
-                        name: 'TMS Pro — Per Truck',
+                        name: `${PRODUCT_PRO_TIER} — Per Truck`,
                         description: `$${(PRO_PRICE_PER_TRUCK / 100).toFixed(0)}/truck/month. Unlimited loads, invoices, settlements & documents.`,
                     },
                     unit_amount: PRO_PRICE_PER_TRUCK,
@@ -99,7 +100,7 @@ async function handleAddModule(
                 price_data: {
                     currency: 'usd',
                     product_data: {
-                        name: `TMS Add-on: ${module.replace('_', ' ')}`,
+                        name: `${APP_NAME} Add-on: ${module.replace('_', ' ')}`,
                         description: `Monthly subscription for ${module.replace('_', ' ')} features`,
                     },
                     unit_amount: price,

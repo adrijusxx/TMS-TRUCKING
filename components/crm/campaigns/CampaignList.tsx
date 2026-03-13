@@ -21,6 +21,7 @@ import CampaignBuilder from './CampaignBuilder';
 import CampaignDetail from './CampaignDetail';
 import TemplateManager from './TemplateManager';
 import AutomationRuleList from './AutomationRuleList';
+import WorkflowList from '../workflows/WorkflowList';
 
 interface Campaign {
     id: string;
@@ -126,6 +127,7 @@ export default function CampaignList() {
                     <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
                     <TabsTrigger value="templates">Templates</TabsTrigger>
                     <TabsTrigger value="automations">Automations</TabsTrigger>
+                    <TabsTrigger value="workflows">AI Workflows</TabsTrigger>
                 </TabsList>
                 {activeTab === 'campaigns' && (
                     <Button onClick={() => setView('create')} size="sm">
@@ -247,6 +249,10 @@ export default function CampaignList() {
 
             <TabsContent value="automations" className="mt-4">
                 <AutomationRuleList />
+            </TabsContent>
+
+            <TabsContent value="workflows" className="mt-4">
+                <WorkflowList />
             </TabsContent>
         </Tabs>
     );

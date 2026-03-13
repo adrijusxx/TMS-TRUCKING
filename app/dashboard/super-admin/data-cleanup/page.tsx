@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import CleanupClient from './CleanupClient';
 import { Metadata } from 'next';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata: Metadata = {
-    title: 'Data Cleanup | TMS Super Admin',
+    title: `Data Cleanup | ${APP_NAME} Super Admin`,
     description: 'Hard delete data for cleanup purposes',
 };
 

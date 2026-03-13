@@ -6,7 +6,9 @@
  */
 
 import { inngest } from '../client';
+import { prisma } from '@/lib/prisma';
 import { AutomationManager } from '@/lib/managers/AutomationManager';
+import { WorkflowExecutionManager } from '@/lib/managers/WorkflowExecutionManager';
 
 export const processAutomation = inngest.createFunction(
     { id: 'process-automation', name: 'Process Automation Rules' },
@@ -21,6 +23,26 @@ export const processAutomation = inngest.createFunction(
                 eventType,
                 metadata as Record<string, unknown> | undefined
             );
+        });
+
+        // Check recruiting workflows
+        await step.run('check-workflows', async () => {
+            const workflows = await prisma.recruitingWorkflow.findMany({
+                where: { companyId, isActive: true, mode: 'LIVE' },
+            });
+
+            let triggered = 0;
+            for (const wf of workflows) {
+                const triggerValue = wf.triggerValue as Record<string, any>;
+                if (WorkflowExecutionManager.matchesTrigger(wf.triggerType, triggerValue, eventType, metadata as Record<string, unknown> | undefined)) {
+                    await inngest.send({
+                        name: 'workflow/start',
+                        data: { workflowId: wf.id, leadId, companyId },
+                    });
+                    triggered++;
+                }
+            }
+            return { triggered };
         });
 
         return { leadId, eventType, ...result };

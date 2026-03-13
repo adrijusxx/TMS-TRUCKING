@@ -74,7 +74,30 @@ export default function DispatcherCombobox({
         ['DISPATCHER', 'ADMIN', 'SUPER_ADMIN'].includes(u.role)
     );
 
-    const selectedUser = staff.find((u) => u.id === value) || (value === defaultDispatcher?.id ? (defaultDispatcher as StaffUser) : undefined);
+    // Fetch user by ID when value is set but not found in loaded list
+    const needsFetchById = React.useMemo(() => {
+        if (!value || value.trim() === '') return false;
+        if (defaultDispatcher?.id === value) return false;
+        if (staff.find((u) => u.id === value)) return false;
+        return value.length > 20;
+    }, [value, staff, defaultDispatcher]);
+
+    const { data: fetchedUserData, isLoading: isLoadingById } = useQuery({
+        queryKey: ['staff-user', value, 'by-id'],
+        queryFn: async () => {
+            if (!value) return null;
+            const response = await fetch(apiUrl('/api/users/staff?limit=200'));
+            if (!response.ok) return null;
+            const data = await response.json();
+            return (data.data as StaffUser[])?.find((u) => u.id === value) || null;
+        },
+        enabled: needsFetchById,
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const selectedUser = staff.find((u) => u.id === value)
+        || (value === defaultDispatcher?.id ? (defaultDispatcher as StaffUser) : undefined)
+        || (fetchedUserData?.id === value ? fetchedUserData : undefined);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -90,6 +113,8 @@ export default function DispatcherCombobox({
                         <span className="truncate">
                             {selectedUser.firstName} {selectedUser.lastName}
                         </span>
+                    ) : value && (isLoading || isLoadingById) ? (
+                        <span className="text-muted-foreground">Loading...</span>
                     ) : (
                         <span className="text-muted-foreground">{placeholder}</span>
                     )}

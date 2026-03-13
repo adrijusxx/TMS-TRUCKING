@@ -1,7 +1,7 @@
 {
-  "name": "TMS Driver",
-  "short_name": "TMS Driver",
-  "description": "Driver mobile app for Transportation Management System",
+  "name": "Alogix Driver",
+  "short_name": "Alogix",
+  "description": "Driver mobile app for Alogix Transportation Management System",
   "start_url": "/driver",
   "display": "standalone",
   "background_color": "#ffffff",

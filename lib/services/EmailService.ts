@@ -1,5 +1,6 @@
 
 import { Resend } from "resend";
+import { APP_NAME, COPYRIGHT_LINE } from '@/lib/config/branding';
 
 interface EmailOptions {
     to: string | string[];
@@ -92,12 +93,12 @@ export class EmailService {
     }
 
     static async sendWelcomeEmail(to: string, name: string): Promise<boolean> {
-        const subject = "Welcome to TMS Trucking Platform";
+        const subject = `Welcome to ${APP_NAME}`;
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
         const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Welcome to TMS, ${name}!</h2>
+        <h2 style="color: #2563eb;">Welcome to ${APP_NAME}, ${name}!</h2>
         <p>Thank you for registering with our platform.</p>
         <p>Your account has been successfully created. You can now log in to access your dashboard.</p>
         <div style="margin: 30px 0;">
@@ -105,7 +106,7 @@ export class EmailService {
         </div>
         <p style="color: #666; font-size: 14px;">If you didn't create this account, please ignore this email.</p>
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="color: #999; font-size: 12px;">&copy; ${new Date().getFullYear()} TMS Trucking. All rights reserved.</p>
+        <p style="color: #999; font-size: 12px;">${COPYRIGHT_LINE}</p>
       </div>
     `;
 

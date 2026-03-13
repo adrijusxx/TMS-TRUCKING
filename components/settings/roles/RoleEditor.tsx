@@ -30,7 +30,6 @@ interface RoleDetail {
   isSystem: boolean;
   parentRoleId: string | null;
   rolePermissions: { permission: string }[];
-  roleGroups: { group: { id: string; name: string; items: { permission: string }[] } }[];
 }
 
 interface RoleListItem {
@@ -144,18 +143,9 @@ export default function RoleEditor({ roleId, onBack }: RoleEditorProps) {
   // Filter available parent roles (exclude self and children)
   const availableParents = allRoles.filter(r => r.id !== roleId);
 
-  // Group permissions from assigned permission groups
-  const groupPermissions = useMemo(() => {
-    if (!role?.roleGroups) return [];
-    const perms = new Set<string>();
-    role.roleGroups.forEach(rg => rg.group.items.forEach(i => perms.add(i.permission)));
-    return Array.from(perms) as Permission[];
-  }, [role]);
-
   const inheritedPermissions = useMemo(() => {
-    const set = new Set<Permission>([...parentPerms, ...groupPermissions]);
-    return Array.from(set);
-  }, [parentPerms, groupPermissions]);
+    return [...parentPerms];
+  }, [parentPerms]);
 
   if (isLoading) {
     return <div className="text-center py-8 text-muted-foreground">Loading role...</div>;
@@ -230,25 +220,6 @@ export default function RoleEditor({ roleId, onBack }: RoleEditorProps) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Permission Groups */}
-      {role.roleGroups && role.roleGroups.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Assigned Permission Groups</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {role.roleGroups.map(rg => (
-                <Badge key={rg.group.id} variant="secondary">
-                  {rg.group.name} ({rg.group.items.length} perms)
-                </Badge>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Group permissions are included automatically and shown as inherited below.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Quick-apply from template */}
       <RoleTemplateSelector

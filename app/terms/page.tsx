@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Truck, Scale } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { APP_NAME, LEGAL_EMAIL, LEGAL_ADDRESS } from '@/lib/config/branding';
 
 export default function TermsPage() {
     return (
@@ -20,7 +21,7 @@ export default function TermsPage() {
                             <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
                                 <Truck className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-xl font-bold tracking-tight">TMS Pro</span>
+                            <span className="text-xl font-bold tracking-tight">{APP_NAME}</span>
                         </Link>
                         <div className="flex items-center space-x-4">
                             <Link href="/login">
@@ -43,7 +44,7 @@ export default function TermsPage() {
 
                     <div className="prose prose-invert prose-indigo max-w-none prose-headings:font-bold prose-headings:text-slate-200 prose-p:text-slate-300 prose-p:leading-relaxed prose-a:text-indigo-400 hover:prose-a:text-indigo-300 prose-li:text-slate-300">
                         <p>
-                            Please read these Terms of Service ("Terms", "Terms of Service") carefully before using the TMS Pro website and Transportation Management System (the "Service") operated by TMS Pro ("us", "we", or "our").
+                            Please read these Terms of Service ("Terms", "Terms of Service") carefully before using the {APP_NAME} website and Transportation Management System (the "Service") operated by {APP_NAME} ("us", "we", or "our").
                         </p>
 
                         <h2>1. Acceptance of Terms</h2>
@@ -53,7 +54,7 @@ export default function TermsPage() {
 
                         <h2>2. Description of Service</h2>
                         <p>
-                            TMS Pro provides a software-as-a-service (SaaS) platform designed for motor carriers to manage their fleet operations, including dispatch, driver management, compliance, and settlements. We reserve the right to modify or discontinue, temporarily or permanently, the Service with or without notice.
+                            {APP_NAME} provides a software-as-a-service (SaaS) platform designed for motor carriers to manage their fleet operations, including dispatch, driver management, compliance, and settlements. We reserve the right to modify or discontinue, temporarily or permanently, the Service with or without notice.
                         </p>
 
                         <h2>3. User Accounts</h2>
@@ -71,14 +72,14 @@ export default function TermsPage() {
 
                         <h2>5. Service Limitations & Liability</h2>
                         <p>
-                            In no event shall TMS Pro, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from (i) your access to or use of or inability to access or use the Service; (ii) any conduct or content of any third party on the Service; (iii) any content obtained from the Service; and (iv) unauthorized access, use or alteration of your transmissions or content.
+                            In no event shall {APP_NAME}, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from (i) your access to or use of or inability to access or use the Service; (ii) any conduct or content of any third party on the Service; (iii) any content obtained from the Service; and (iv) unauthorized access, use or alteration of your transmissions or content.
                         </p>
 
                         <h2>6. Contact Us</h2>
                         <p>
                             If you have any questions about these Terms, please contact us at: <br />
-                            <strong>Email:</strong> legal@tmspro.com <br />
-                            <strong>Address:</strong> 123 Freight Avenue, Suite 100, Chicago, IL 60601
+                            <strong>Email:</strong> {LEGAL_EMAIL} <br />
+                            <strong>Address:</strong> {LEGAL_ADDRESS}
                         </p>
                     </div>
                 </div>

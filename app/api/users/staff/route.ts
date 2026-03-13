@@ -1,21 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withAuth, handleApiError, successResponse } from '@/lib/api/route-helpers';
 
 /**
  * GET /api/users/staff
  * Get staff users for assignments (non-driver users)
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, session) => {
   try {
-    const session = await auth();
-    if (!session?.user?.companyId) {
-      return NextResponse.json(
-        { success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } },
-        { status: 401 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -25,10 +17,9 @@ export async function GET(request: NextRequest) {
       companyId: session.user.companyId,
       deletedAt: null,
       isActive: true,
-      role: { notIn: ['DRIVER', 'CUSTOMER'] }, // Exclude drivers and customers
+      role: { notIn: ['DRIVER', 'CUSTOMER'] },
     };
 
-    // Filter to only users with an active RecruiterProfile
     if (recruiterOnly) {
       where.recruiterProfile = { isActive: true };
     }
@@ -55,24 +46,8 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    return NextResponse.json({ success: true, data: users });
-  } catch (error: any) {
-    console.error('Error fetching staff:', error);
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: error.message } },
-      { status: 500 }
-    );
+    return successResponse(users);
+  } catch (error) {
+    return handleApiError(error);
   }
-}
-
-
-
-
-
-
-
-
-
-
-
-
+});

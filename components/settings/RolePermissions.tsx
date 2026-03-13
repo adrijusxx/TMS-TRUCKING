@@ -1,75 +1,62 @@
 'use client';
 
 import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, FolderOpen } from 'lucide-react';
 import RoleList from './roles/RoleList';
 import RoleEditor from './roles/RoleEditor';
-import PermissionGroupList from './roles/PermissionGroupList';
-import PermissionGroupEditor from './roles/PermissionGroupEditor';
+import RoleUserList from './roles/RoleUserList';
+import UserPermissionDashboard from './roles/UserPermissionDashboard';
 
 type View =
-  | { tab: 'roles'; mode: 'list' }
-  | { tab: 'roles'; mode: 'edit'; roleId: string }
-  | { tab: 'groups'; mode: 'list' }
-  | { tab: 'groups'; mode: 'edit'; groupId: string };
+  | { mode: 'list' }
+  | { mode: 'edit'; roleId: string }
+  | { mode: 'users'; roleId: string; roleName: string }
+  | { mode: 'user-perms'; roleId: string; roleName: string; userId: string; userName: string };
 
 export default function RolePermissions() {
-  const [view, setView] = useState<View>({ tab: 'roles', mode: 'list' });
+  const [view, setView] = useState<View>({ mode: 'list' });
 
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-xl font-semibold mb-2">Roles & Permissions</h3>
         <p className="text-muted-foreground text-sm">
-          Manage roles, permission groups, and per-user overrides.
+          Manage roles, permissions, and per-user overrides.
         </p>
       </div>
 
-      {/* Show editor views without tabs */}
-      {view.tab === 'roles' && view.mode === 'edit' && (
+      {view.mode === 'list' && (
+        <RoleList
+          onEditRole={roleId => setView({ mode: 'edit', roleId })}
+          onViewUsers={(roleId, roleName) => setView({ mode: 'users', roleId, roleName })}
+        />
+      )}
+
+      {view.mode === 'edit' && (
         <RoleEditor
           roleId={view.roleId}
-          onBack={() => setView({ tab: 'roles', mode: 'list' })}
+          onBack={() => setView({ mode: 'list' })}
         />
       )}
 
-      {view.tab === 'groups' && view.mode === 'edit' && (
-        <PermissionGroupEditor
-          groupId={view.groupId}
-          onBack={() => setView({ tab: 'groups', mode: 'list' })}
+      {view.mode === 'users' && (
+        <RoleUserList
+          roleId={view.roleId}
+          roleName={view.roleName}
+          onBack={() => setView({ mode: 'list' })}
+          onSelectUser={(userId, userName) =>
+            setView({ mode: 'user-perms', roleId: view.roleId, roleName: view.roleName, userId, userName })
+          }
         />
       )}
 
-      {/* Show list views with tabs */}
-      {view.mode === 'list' && (
-        <Tabs
-          value={view.tab}
-          onValueChange={t => setView({ tab: t as 'roles' | 'groups', mode: 'list' })}
-        >
-          <TabsList>
-            <TabsTrigger value="roles">
-              <Shield className="h-4 w-4 mr-2" />
-              Roles
-            </TabsTrigger>
-            <TabsTrigger value="groups">
-              <FolderOpen className="h-4 w-4 mr-2" />
-              Permission Groups
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="roles" className="mt-6">
-            <RoleList
-              onEditRole={roleId => setView({ tab: 'roles', mode: 'edit', roleId })}
-            />
-          </TabsContent>
-
-          <TabsContent value="groups" className="mt-6">
-            <PermissionGroupList
-              onEditGroup={groupId => setView({ tab: 'groups', mode: 'edit', groupId })}
-            />
-          </TabsContent>
-        </Tabs>
+      {view.mode === 'user-perms' && (
+        <UserPermissionDashboard
+          roleId={view.roleId}
+          roleName={view.roleName}
+          userId={view.userId}
+          userName={view.userName}
+          onBack={() => setView({ mode: 'users', roleId: view.roleId, roleName: view.roleName })}
+        />
       )}
     </div>
   );

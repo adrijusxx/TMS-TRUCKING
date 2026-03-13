@@ -1,4 +1,5 @@
 import { PrismaClient, ComplianceAlert, ComplianceAlertType } from '@prisma/client';
+import { APP_NAME } from '@/lib/config/branding';
 import { BaseSafetyService } from './BaseSafetyService';
 import { EmailService } from '@/lib/services/EmailService';
 
@@ -175,7 +176,7 @@ export class AlertService extends BaseSafetyService {
             <tbody>${alertRows}</tbody>
           </table>
           <a href="${appUrl}/dashboard/safety/alerts" style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View All Alerts</a>
-          <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">This is an automated digest from TMS Trucking Safety Module.</p>
+          <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">This is an automated digest from ${APP_NAME} Safety Module.</p>
         </div>
       `;
 

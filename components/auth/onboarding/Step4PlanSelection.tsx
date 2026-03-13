@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Loader2, Sparkles, Truck, Star, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { APP_NAME } from '@/lib/config/branding';
 
 // =============================================================================
 // TYPES (inlined from removed onboarding.ts)
@@ -46,7 +47,7 @@ const PLAN_OPTIONS: PlanDetails[] = [
     {
         id: 'trial',
         name: '14-Day Pro Trial',
-        description: 'Experience unlimited access to TMS Pro',
+        description: `Experience unlimited access to ${APP_NAME}`,
         features: [
             'Unlimited loads & invoices',
             'Unlimited trucks & drivers',
@@ -194,7 +195,7 @@ export function Step4PlanSelection({ onComplete, isLoading }: Step4PlanSelection
                     <CheckCircle2 className="h-4 w-4 text-purple-400 flex-shrink-0" />
                     <span className="text-slate-300">
                         <span className="text-purple-400 font-medium">No credit card required.</span>
-                        {' '}Start using TMS Pro immediately.
+                        {' '}Start using {APP_NAME} immediately.
                     </span>
                 </div>
             </div>

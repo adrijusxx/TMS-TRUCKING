@@ -8,12 +8,13 @@ import { McFilterProvider } from '@/lib/contexts/McFilterContext';
 import { Toaster } from 'sonner';
 import { ErrorHandler } from '@/components/providers/ErrorHandler';
 import { EnvInit } from '@/components/providers/EnvInit';
+import { APP_FULL_TITLE, APP_DESCRIPTION } from '@/lib/config/branding';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Alogix - Logistics Technology & TMS',
-  description: 'Alogix - Transportation management system and logistics platform',
+  title: APP_FULL_TITLE,
+  description: APP_DESCRIPTION,
 };
 
 export const viewport: Viewport = {

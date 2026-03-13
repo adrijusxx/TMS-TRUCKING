@@ -26,6 +26,8 @@ export interface ImportDetails {
   createdCount?: number;
   updatedCount?: number;
   errorsCount?: number;
+  importBatchIds?: string[];
+  suggestionCount?: number;
 }
 
 export interface PreviewData {
@@ -300,6 +302,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
 
       let totalCreated = 0, totalUpdated = 0, totalErrors = 0;
       const allCreated: any[] = [], allErrors: any[] = [];
+      const allBatchIds: string[] = [];
 
       setLogs(prev => [...prev, `Starting import of ${totalRows} rows in ${chunks.length} batches...`]);
 
@@ -343,6 +346,7 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
           if (!res.ok) throw new Error(data.error?.message || `Batch ${batchNum} failed`);
 
           const summary = data.data;
+          if (summary.importBatchId) allBatchIds.push(summary.importBatchId);
           const created = summary.created ?? summary.details?.created?.length ?? 0;
           const updated = summary.updated ?? 0;
           const errors = summary.errors ?? summary.details?.errors?.length ?? 0;
@@ -363,8 +367,30 @@ export function useImportWizard({ entityType, onImportComplete }: UseImportWizar
       }
 
       setImportProgress({ status: 'complete', message: `Complete: ${totalCreated} created, ${totalUpdated} updated, ${totalErrors} errors`, progress: 100, created: totalCreated, updated: totalUpdated, errors: totalErrors });
-      setImportDetails({ created: allCreated, errors: allErrors, createdCount: totalCreated, updatedCount: totalUpdated, errorsCount: totalErrors });
+      setImportDetails({ created: allCreated, errors: allErrors, createdCount: totalCreated, updatedCount: totalUpdated, errorsCount: totalErrors, importBatchIds: allBatchIds });
       setLogs(prev => [...prev, 'Import Complete!']);
+
+      // Trigger equipment analysis for load imports
+      if (entityType === 'loads' && allBatchIds.length > 0) {
+        try {
+          const res = await fetch(apiUrl('/api/import/analyze-assignments'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ importBatchIds: allBatchIds }),
+          });
+          if (res.ok) {
+            const result = await res.json();
+            const count = result.data?.length || 0;
+            if (count > 0) {
+              setImportDetails(prev => prev ? { ...prev, suggestionCount: count } : prev);
+              setLogs(prev => [...prev, `Found ${count} equipment assignment suggestion(s)`]);
+            }
+          }
+        } catch {
+          // Non-blocking — don't fail the import if analysis fails
+        }
+      }
+
       return { createdCount: totalCreated, updatedCount: totalUpdated, errorsCount: totalErrors, createdItems: allCreated };
     },
     onSuccess: (data) => {

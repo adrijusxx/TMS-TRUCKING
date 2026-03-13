@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { APP_NAME } from '@/lib/config/branding';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -137,7 +138,7 @@ export function HelpCenterClient() {
                 <div>
                     <h1 className="text-4xl font-bold">Help Center</h1>
                     <p className="text-muted-foreground mt-2">
-                        Everything you need to know about using the TMS system
+                        Everything you need to know about using {APP_NAME}
                     </p>
                 </div>
 

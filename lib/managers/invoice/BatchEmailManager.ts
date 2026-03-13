@@ -8,6 +8,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { COPYRIGHT_LINE } from '@/lib/config/branding';
 import { NotFoundError } from '@/lib/errors';
 import { EmailService } from '@/lib/services/EmailService';
 import { InvoiceDocumentBuilder } from './InvoiceDocumentBuilder';
@@ -339,7 +340,7 @@ export class BatchEmailManager {
           The attached PDF includes the invoice, rate confirmation, proof of delivery, and bill of lading.
         </p>
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="color: #999; font-size: 12px;">&copy; ${new Date().getFullYear()} TMS Trucking. All rights reserved.</p>
+        <p style="color: #999; font-size: 12px;">${COPYRIGHT_LINE}</p>
       </div>
     `;
   }

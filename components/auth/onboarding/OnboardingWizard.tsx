@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { apiUrl, cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { APP_NAME } from '@/lib/config/branding';
 
 // =============================================================================
 // TYPES
@@ -156,7 +157,7 @@ export function OnboardingWizard() {
                         <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20">
                             <Truck className="h-6 w-6 text-white" />
                         </div>
-                        <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">TMS Pro</span>
+                        <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">{APP_NAME}</span>
                     </Link>
 
                     <h2 className="text-4xl font-extrabold text-white mb-4 tracking-tight">
@@ -238,7 +239,7 @@ export function OnboardingWizard() {
                             <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/20">
                                 <Truck className="h-6 w-6 text-white" />
                             </div>
-                            <span className="text-2xl font-bold tracking-tight text-white">TMS Pro</span>
+                            <span className="text-2xl font-bold tracking-tight text-white">{APP_NAME}</span>
                         </Link>
                     </div>
 

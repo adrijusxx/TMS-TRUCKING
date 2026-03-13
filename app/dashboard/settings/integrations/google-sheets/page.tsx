@@ -5,9 +5,10 @@ import GoogleSheetsSettings from '@/components/settings/integrations/GoogleSheet
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { APP_NAME } from '@/lib/config/branding';
 
 export const metadata = {
-    title: 'Google Sheets Integration | TMS',
+    title: `Google Sheets Integration | ${APP_NAME}`,
     description: 'Configure Google Sheets integration settings',
 };
 

@@ -16,12 +16,10 @@ export async function hasPermissionAsync(
             const { PermissionResolutionEngine } = await import('@/lib/managers/PermissionResolutionEngine');
             return await PermissionResolutionEngine.hasPermission(roleOrUserId, permission);
         }
-        // Legacy: role-based check via PermissionService
-        const { PermissionService } = await import('@/lib/services/PermissionService');
-        return await PermissionService.hasPermission(roleOrUserId as UserRole, permission);
+        // Legacy: role-based check via static defaults
+        return hasPermission(roleOrUserId as UserRole, permission);
     } catch (error) {
         console.error('Error checking permission:', error);
-        // Fallback to sync version
         return hasPermission(roleOrUserId as UserRole, permission);
     }
 }
@@ -40,16 +38,9 @@ export async function getEffectivePermissionsAsync(userId: string): Promise<Perm
 }
 
 /**
- * Get all permissions for a role (async - checks database)
+ * Get all permissions for a role (sync - uses static defaults)
  * @deprecated Use getEffectivePermissionsAsync(userId) instead
  */
-export async function getRolePermissionsAsync(role: UserRole): Promise<Permission[]> {
-    try {
-        const { PermissionService } = await import('@/lib/services/PermissionService');
-        return await PermissionService.getRolePermissions(role);
-    } catch (error) {
-        console.error('Error getting role permissions:', error);
-        // Fallback to sync version
-        return getRolePermissions(role);
-    }
+export function getRolePermissionsAsync(role: UserRole): Promise<Permission[]> {
+    return Promise.resolve(getRolePermissions(role));
 }
