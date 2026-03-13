@@ -186,6 +186,9 @@ export default function CaseLocationPanel({ breakdown }: CaseLocationPanelProps)
                             src={`https://maps.googleapis.com/maps/api/staticmap?center=${mapLat},${mapLng}&zoom=13&size=400x130&scale=2&markers=color:red%7C${mapLat},${mapLng}${hasGpsCoords && hasReportedCoords ? `&markers=color:orange%7C${reportedLat},${reportedLng}` : ''}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
                             alt="Map"
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                                (e.target as HTMLImageElement).parentElement!.style.display = 'none';
+                            }}
                         />
                     </div>
                 </>

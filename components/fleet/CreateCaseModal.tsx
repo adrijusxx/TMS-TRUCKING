@@ -144,12 +144,18 @@ export default function CreateCaseModal({ open, onOpenChange, defaultValues: pre
   });
 
   const onSubmit = (data: InlineCaseFormData) => {
-    // Inject telematics snapshot if available
-    const payload = {
+    const payload: any = {
       ...data,
-      telematicsSnapshot: contextData || undefined
+      telematicsSnapshot: contextData || undefined,
     };
-    createMutation.mutate(payload as any);
+    if (contextData?.location) {
+      if (contextData.location.latitude) payload.latitude = contextData.location.latitude;
+      if (contextData.location.longitude) payload.longitude = contextData.location.longitude;
+    }
+    if (contextData?.stats?.odometer) {
+      payload.odometerReading = contextData.stats.odometer;
+    }
+    createMutation.mutate(payload);
   };
 
   const handleUseSolution = (caseData: any) => {
